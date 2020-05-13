@@ -1,0 +1,71 @@
+@startuml lvio_fusion
+start
+partition vo->Init {
+#GreenYellow:Frontend;
+#GreenYellow:Backend;
+#GreenYellow:Map;
+}
+fork
+partition backend {
+while (backend_running_)
+  :map_->GetActiveKeyFrames;
+  :map_->GetActiveMapPoints;
+  ->active_kfs, active_landmarks;
+  partition Optimize {
+    #GreenYellow:OptimizationAlgorithmLevenberg;
+    #GreenYellow:SparseOptimizer;
+  }
+endwhile
+}
+fork again
+partition "vo->Run" {
+while (available?)
+  :dataset_->NextFrame();
+  -> Frame::Ptr new_frame;
+  partition "Frontend::AddFrame" {
+  if (INITING) then (yes)
+    partition "StereoInit"{
+      :DetectFeatures();
+      :FindFeaturesInRight();
+      if (num_coor_features < num_features_init_) then (no)
+        :BuildInitMap();
+        -> build_map_success;
+        if (build_map_success) then (yes)
+          :status_ = FrontendStatus::TRACKING_GOOD;
+        endif
+      else (yes)
+      endif
+    }
+  elseif (TRACKING_BAD) then(yes)
+    (A)
+    detach
+  elseif (TRACKING_GOOD) then(yes)
+    (A)
+    partition "Track"{
+    if (last_frame_) then (yes)
+      :current_frame_->SetPose(...);
+    endif
+    :TrackLastFrame();
+    :EstimateCurrentPose();
+    if (tracking_inliers_ > num_features_tracking_) then (yes)
+      :TRACKING_GOOD;
+    elseif (tracking_inliers_ > num_features_tracking_bad_) then (yes)
+      :TRACKING_BAD;
+    else (no)
+      :LOST;
+    endif
+    :InsertKeyframe();
+    :relative_motion_ = current_frame_->Pose() * last_frame_->Pose().inverse();
+    }
+  elseif (LOST) then (yes)
+    :Reset();
+  endif
+  }
+  -> available;
+endwhile
+:backend_->Stop();
+:viewer_->Close();
+}
+end fork
+stop
+@enduml
