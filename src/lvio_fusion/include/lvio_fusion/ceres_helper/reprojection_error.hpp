@@ -1,9 +1,9 @@
 #ifndef lvio_fusion_REPROJECTION_ERROR_H
 #define lvio_fusion_REPROJECTION_ERROR_H
 
-#include <ceres/ceres.h>
-#include "lvio_fusion/utility.h"
 #include "lvio_fusion/camera.h"
+#include "lvio_fusion/utility.h"
+#include <ceres/ceres.h>
 
 namespace lvio_fusion
 {
@@ -11,10 +11,10 @@ namespace lvio_fusion
 class ReprojectionError : public ceres::SizedCostFunction<2, 7, 3>
 {
 public:
-    ReprojectionError(Vec2 observation, Camera::Ptr camera)
+    ReprojectionError(Vector2d observation, Camera::Ptr camera)
         : observation_(observation), camera_(camera)
     {
-        Eigen::LLT<Mat22> llt(Mat22::Identity().inverse());
+        LLT<Matrix2d> llt(Matrix2d::Identity().inverse());
         sqrt_information_ = llt.matrixU();
     }
 
@@ -23,20 +23,21 @@ public:
                           double **jacobians) const
     {
         Eigen::Map<SE3 const> Tcw(parameters[0]);
-        Eigen::Map<Vec3 const> point(parameters[1]);
-        Eigen::Map<Vec2> residual(residuals);
-        Vec3 P_c = camera_->world2camera(point, Tcw);
+        Eigen::Map<Vector3d const> point(parameters[1]);
+        Eigen::Map<Vector2d> residual(residuals);
+        Vector3d P_c = camera_->world2camera(point, Tcw);
 
         residual = sqrt_information_ * (observation_ - camera_->camera2pixel(P_c));
 
         if (jacobians)
         {
+            Eigen::Matrix<double, 2, 3> jaco_res_2_Pc;
+            jaco_res_2_Pc << -camera_->fx / P_c(2), 0, camera_->fx * P_c(0) / (P_c(2) * P_c(2)),
+                0, -camera_->fy / P_c(2), camera_->fy * P_c(1) / (P_c(2) * P_c(2));
             if (jacobians[0])
             {
                 Eigen::Map<Eigen::Matrix<double, 2, 7, Eigen::RowMajor>> jacobian(jacobians[0]);
-                Eigen::Matrix<double, 2, 3> jaco_res_2_Pc;
-                jaco_res_2_Pc << -camera_->fx_ / P_c(2), 0, camera_->fx_ * P_c(0) / (P_c(2) * P_c(2)),
-                    0, -camera_->fy_ / P_c(2), camera_->fy_ * P_c(1) / (P_c(2) * P_c(2));
+
                 Eigen::Matrix<double, 3, 7> jaco_Pc_2_Pose;
                 jaco_Pc_2_Pose.setZero();
                 jaco_Pc_2_Pose.block<3, 3>(0, 0) = -Sophus::SO3d::hat(P_c);
@@ -46,7 +47,9 @@ public:
             }
             if (jacobians[1])
             {
-                
+                Eigen::Map<Eigen::Matrix<double, 2, 3, Eigen::RowMajor>> jacobian(jacobians[1]);
+                Eigen::Matrix3d R = camera_->Pose().rotationMatrix() * Tcw.rotationMatrix();
+                jacobian = sqrt_information_ * jaco_res_2_Pc * R;
             }
         }
 
@@ -54,9 +57,9 @@ public:
     }
 
 private:
-    Vec2 observation_;
+    Vector2d observation_;
     Camera::Ptr camera_;
-    Mat22 sqrt_information_;
+    Matrix2d sqrt_information_;
 };
 
 } // namespace lvio_fusion

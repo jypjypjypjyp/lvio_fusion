@@ -17,14 +17,14 @@ namespace lvio_fusion
  * @return true if success
  */
 inline bool triangulation(const std::vector<SE3> &poses,
-                          const std::vector<Vec3> points, Vec3 &pt_world)
+                          const std::vector<Vector3d> points, Vector3d &pt_world)
 {
-    MatXX A(2 * poses.size(), 4);
-    VecX b(2 * poses.size());
+    MatrixXd A(2 * poses.size(), 4);
+    VectorXd b(2 * poses.size());
     b.setZero();
     for (size_t i = 0; i < poses.size(); ++i)
     {
-        Mat34 m = poses[i].matrix3x4();
+        Matrix<double, 3, 4> m = poses[i].matrix3x4();
         A.block<1, 4>(2 * i, 0) = points[i][0] * m.row(2) - m.row(0);
         A.block<1, 4>(2 * i + 1, 0) = points[i][1] * m.row(2) - m.row(1);
     }
@@ -39,7 +39,7 @@ inline bool triangulation(const std::vector<SE3> &poses,
 }
 
 // converters
-inline Vec2 toVec2(const cv::Point2f p) { return Vec2(p.x, p.y); }
+inline Vector2d toVector2d(const cv::Point2f p) { return Vector2d(p.x, p.y); }
 
 } // namespace lvio_fusion
 

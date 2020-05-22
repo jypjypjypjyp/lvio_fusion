@@ -1,6 +1,13 @@
-#include "lvio_fusion/estimator.h"
 #include <chrono>
+#include <fstream>
+#include <opencv2/opencv.hpp>
+
 #include "lvio_fusion/config.h"
+#include "lvio_fusion/estimator.h"
+#include "lvio_fusion/frame.h"
+
+#include <opencv2/core/eigen.hpp>
+using namespace std;
 
 namespace lvio_fusion
 {
@@ -16,56 +23,76 @@ bool Estimator::Init()
         return false;
     }
 
-    dataset_ = Dataset::Ptr(new Dataset(Config::Get<std::string>("dataset_dir")));
-    dataset_->Init();
+    // read camera intrinsics and extrinsics
+    cv::Mat cv_body_T_cam0 = Config::Get<cv::Mat>("body_T_cam0");
+    cv::Mat cv_body_T_cam1 = Config::Get<cv::Mat>("body_T_cam1");
+    Matrix4d body_T_cam0, body_T_cam1;
+    cv::cv2eigen(cv_body_T_cam0, body_T_cam0);
+    cv::cv2eigen(cv_body_T_cam1, body_T_cam1);
+    // first camera
+    Matrix3d R_body_T_cam0(body_T_cam0.block(0, 0, 3, 3));
+    Quaterniond q_body_T_cam0(R_body_T_cam0);
+    Vector3d t_body_T_cam0(0, 0, 0);
+    t_body_T_cam0 << body_T_cam0(0, 3), body_T_cam0(1, 3), body_T_cam0(2, 3);
+    Camera::Ptr camera1(new Camera(Config::Get<double>("camera1.fx"),
+                                   Config::Get<double>("camera1.fy"),
+                                   Config::Get<double>("camera1.cx"),
+                                   Config::Get<double>("camera1.cy"),
+                                   SE3(SO3(q_body_T_cam0), t_body_T_cam0)));
+    LOG(INFO) << "Camera 1"
+              << " extrinsics: " << t_body_T_cam0.transpose();
+    // second camera
+    Matrix3d R_body_T_cam1(body_T_cam1.block(0, 0, 3, 3));
+    Quaterniond q_body_T_cam1(R_body_T_cam1);
+    Vector3d t_body_T_cam1(0, 0, 0);
+    t_body_T_cam1 << body_T_cam1(0, 3), body_T_cam1(1, 3), body_T_cam1(2, 3);
+    Camera::Ptr camera2(new Camera(Config::Get<double>("camera2.fx"),
+                                   Config::Get<double>("camera2.fy"),
+                                   Config::Get<double>("camera2.cx"),
+                                   Config::Get<double>("camera2.cy"),
+                                   SE3(SO3(q_body_T_cam1), t_body_T_cam1)));
+    LOG(INFO) << "Camera 2"
+              << " extrinsics: " << t_body_T_cam1.transpose();
+
     // create components and links
-    frontend_ = Frontend::Ptr(new Frontend);
-    backend_ = Backend::Ptr(new Backend);
-    map_ = Map::Ptr(new Map);
-    viewer_ = Viewer::Ptr(new Viewer);
+    frontend = Frontend::Ptr(new Frontend());
+    backend = Backend::Ptr(new Backend());
+    map = Map::Ptr(new Map());
 
-    frontend_->SetBackend(backend_);
-    frontend_->SetMap(map_);
-    frontend_->SetViewer(viewer_);
-    frontend_->SetCameras(dataset_->GetCamera(0), dataset_->GetCamera(1));
+    frontend->SetBackend(backend);
+    frontend->SetMap(map);
+    frontend->SetCameras(camera1, camera2);
+    frontend->devices += DeviceType::Stereo;
 
-    backend_->SetMap(map_);
-    backend_->SetCameras(dataset_->GetCamera(0), dataset_->GetCamera(1));
-
-    viewer_->SetMap(map_);
+    backend->SetMap(map);
+    backend->SetCameras(camera1, camera2);
 
     return true;
 }
 
-void Estimator::Run()
+void Estimator::InputImage(double time, cv::Mat& left_image, cv::Mat& right_image)
 {
-    while (1)
-    {
-        LOG(INFO) << "VO is running";
-        if (Step() == false)
-        {
-            break;
-        }
-    }
-
-    backend_->Stop();
-    viewer_->Close();
-    LOG(INFO) << "VO exit";
-}
-
-bool Estimator::Step()
-{
-    Frame::Ptr new_frame = dataset_->NextFrame();
-    if (new_frame == nullptr)
-        return false;
+    Frame::Ptr new_frame = Frame::CreateFrame();
+    new_frame->time = time;
+    new_frame->left_image = left_image;
+    new_frame->right_image = right_image;
 
     auto t1 = std::chrono::steady_clock::now();
-    bool success = frontend_->AddFrame(new_frame);
+    bool success = frontend->AddFrame(new_frame);
     auto t2 = std::chrono::steady_clock::now();
     auto time_used =
         std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);
     LOG(INFO) << "VO cost time: " << time_used.count() << " seconds.";
-    return success;
+}
+
+void Estimator::InputPointCloud(double time, PointCloudPtr point_cloud)
+{
+
+}
+
+void Estimator::InputIMU(double time, Vector3d acc, Vector3d gyr)
+{
+
 }
 
 } // namespace lvio_fusion

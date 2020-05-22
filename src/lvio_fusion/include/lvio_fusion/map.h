@@ -22,32 +22,32 @@ public:
     void InsertKeyFrame(Frame::Ptr frame);
     void InsertMapPoint(MapPoint::Ptr map_point);
 
-    LandmarksType GetAllMapPoints()
+    LandmarksType& GetAllMapPoints()
     {
         std::unique_lock<std::mutex> lck(data_mutex_);
         return landmarks_;
     }
-    KeyframesType GetAllKeyFrames()
+    KeyframesType& GetAllKeyFrames()
     {
         std::unique_lock<std::mutex> lck(data_mutex_);
         return keyframes_;
     }
 
-    LandmarksType GetActiveMapPoints()
+    LandmarksType& GetActiveMapPoints()
     {
         std::unique_lock<std::mutex> lck(data_mutex_);
         return active_landmarks_;
     }
 
-    KeyframesType GetActiveKeyFrames()
+    KeyframesType& GetActiveKeyFrames()
     {
         std::unique_lock<std::mutex> lck(data_mutex_);
         return active_keyframes_;
     }
 
-    ParamsType GetPoseParams();
+    ParamsType& GetPoseParams();
 
-    ParamsType GetPointParams();
+    ParamsType& GetPointParams();
 
     void UpdateMap();
 
@@ -66,9 +66,10 @@ private:
     std::unordered_map<unsigned long, double *> para_Point;
 
     Frame::Ptr current_frame_ = nullptr;
+    Frame::Ptr first_frame_ = nullptr;
 
-    // settings
-    int num_active_keyframes_ = 7;
+    bool empty_ = true;
+    static const int WINDOW_SIZE = 7;
 };
 } // namespace lvio_fusion
 

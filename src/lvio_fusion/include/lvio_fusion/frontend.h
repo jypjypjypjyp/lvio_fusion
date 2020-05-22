@@ -22,6 +22,18 @@ enum class FrontendStatus
     LOST
 };
 
+enum DeviceType
+{
+    None     = 0,
+    Mono     = 1,
+    Stereo   = 1<<1,
+    RGBD     = 1<<2,
+    IMU      = 1<<3,
+    Lidar    = 1<<4,
+    GNSS     = 1<<4,
+    RTK      = 1<<4,
+};
+
 class Frontend
 {
 public:
@@ -35,96 +47,47 @@ public:
 
     void SetBackend(std::shared_ptr<Backend> backend) { backend_ = backend; }
 
-    void SetViewer(std::shared_ptr<Viewer> viewer) { viewer_ = viewer; }
-
-    FrontendStatus GetStatus() const { return status_; }
+    int devices = DeviceType::None;
+    FrontendStatus status = FrontendStatus::INITING;
+    Frame::Ptr current_frame = nullptr;
+    Frame::Ptr last_frame = nullptr;
+    Camera::Ptr camera_left = nullptr;
+    Camera::Ptr camera_right = nullptr;
+    SE3 relative_motion;
 
     void SetCameras(Camera::Ptr left, Camera::Ptr right)
     {
-        camera_left_ = left;
-        camera_right_ = right;
+        camera_left = left;
+        camera_right = right;
     }
 
 private:
-    /**
-     * Track in normal mode
-     * @return true if success
-     */
     bool Track();
 
-    /**
-     * Reset when lost
-     * @return true if success
-     */
     bool Reset();
 
-    /**
-     * Track with last frame
-     * @return num of tracked points
-     */
     int TrackLastFrame();
 
-    /**
-     * estimate current frame's pose
-     * @return num of inliers
-     */
     int EstimateCurrentPose();
 
-    /**
-     * set current frame as a keyframe and insert it into backend
-     * @return true if success
-     */
     bool InsertKeyframe();
 
-    /**
-     * Try init the frontend with stereo images saved in current_frame_
-     * @return true if success
-     */
     bool StereoInit();
 
-    /**
-     * Detect features in left image in current_frame_
-     * keypoints will be saved in current_frame_
-     * @return
-     */
     int DetectFeatures();
 
-    /**
-     * Find the corresponding features in right image of current_frame_
-     * @return num of features found
-     */
     int FindFeaturesInRight();
 
-    /**
-     * Build the initial map with single image
-     * @return true if succeed
-     */
     bool BuildInitMap();
 
-    /**
-     * Triangulate the 2D points in current frame
-     * @return num of triangulated points
-     */
     int TriangulateNewPoints();
 
-    /**
-     * Set the features in keyframe as new observation of the map points
-     */
     void SetObservationsForKeyFrame();
 
     // data
-    FrontendStatus status_ = FrontendStatus::INITING;
-
-    Frame::Ptr current_frame_ = nullptr; // 当前帧
-    Frame::Ptr last_frame_ = nullptr;    // 上一帧
-    Camera::Ptr camera_left_ = nullptr;  // 左侧相机
-    Camera::Ptr camera_right_ = nullptr; // 右侧相机
-
     Map::Ptr map_ = nullptr;
     std::shared_ptr<Backend> backend_ = nullptr;
     std::shared_ptr<Viewer> viewer_ = nullptr;
-
-    SE3 relative_motion_; // 当前帧与上一帧的相对运动，用于估计当前帧pose初值
 
     int tracking_inliers_ = 0; // inliers, used for testing new keyframes
 

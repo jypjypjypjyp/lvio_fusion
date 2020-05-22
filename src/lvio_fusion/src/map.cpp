@@ -8,18 +8,23 @@ namespace lvio_fusion
 void Map::InsertKeyFrame(Frame::Ptr frame)
 {
     current_frame_ = frame;
-    if (keyframes_.find(frame->keyframe_id_) == keyframes_.end())
+    if (empty_)
     {
-        keyframes_.insert(make_pair(frame->keyframe_id_, frame));
-        active_keyframes_.insert(make_pair(frame->keyframe_id_, frame));
+        first_frame_ = frame;
+        empty_ = false;
+    }
+    if (keyframes_.find(frame->keyframe_id) == keyframes_.end())
+    {
+        keyframes_.insert(make_pair(frame->keyframe_id, frame));
+        active_keyframes_.insert(make_pair(frame->keyframe_id, frame));
     }
     else
     {
-        keyframes_[frame->keyframe_id_] = frame;
-        active_keyframes_[frame->keyframe_id_] = frame;
+        keyframes_[frame->keyframe_id] = frame;
+        active_keyframes_[frame->keyframe_id] = frame;
     }
 
-    if (active_keyframes_.size() > num_active_keyframes_)
+    if (active_keyframes_.size() > WINDOW_SIZE)
     {
         RemoveOldKeyframe();
     }
@@ -77,10 +82,10 @@ void Map::RemoveOldKeyframe()
         frame_to_remove = keyframes_.at(max_kf_id);
     }
 
-LOG(INFO) << "remove keyframe " << frame_to_remove->keyframe_id_;
+LOG(INFO) << "remove keyframe " << frame_to_remove->keyframe_id;
     // remove keyframe and landmark observation
-    active_keyframes_.erase(frame_to_remove->keyframe_id_);
-    for (auto feat : frame_to_remove->features_left_)
+    active_keyframes_.erase(frame_to_remove->keyframe_id);
+    for (auto feat : frame_to_remove->features_left)
     {
         auto mp = feat->map_point_.lock();
         if (mp)
@@ -88,7 +93,7 @@ LOG(INFO) << "remove keyframe " << frame_to_remove->keyframe_id_;
             mp->RemoveObservation(feat);
         }
     }
-    for (auto feat : frame_to_remove->features_right_)
+    for (auto feat : frame_to_remove->features_right)
     {
         if (feat == nullptr)
             continue;
@@ -102,7 +107,7 @@ LOG(INFO) << "remove keyframe " << frame_to_remove->keyframe_id_;
     CleanMap();
 }
 
-Map::ParamsType Map::GetPoseParams()
+Map::ParamsType& Map::GetPoseParams()
 {
     std::unique_lock<std::mutex> lck(data_mutex_);
     for (auto keyframe : active_keyframes_)
@@ -112,7 +117,7 @@ Map::ParamsType Map::GetPoseParams()
     return para_Pose;
 }
 
-Map::ParamsType Map::GetPointParams()
+Map::ParamsType& Map::GetPointParams()
 {
     std::unique_lock<std::mutex> lck(data_mutex_);
     for (auto landmark : active_landmarks_)

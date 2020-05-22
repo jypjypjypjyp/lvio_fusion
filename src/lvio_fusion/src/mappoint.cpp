@@ -4,7 +4,7 @@
 namespace lvio_fusion
 {
 
-MapPoint::MapPoint(long id, Vec3 position) : id_(id), pos_(position) {}
+MapPoint::MapPoint(long id, Vector3d position) : id_(id), pos_(position) {}
 
 MapPoint::Ptr MapPoint::CreateNewMappoint()
 {

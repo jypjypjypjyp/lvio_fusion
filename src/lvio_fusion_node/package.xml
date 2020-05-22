@@ -57,6 +57,8 @@
   <depend>cv_bridge</depend>
   <depend>lvio_fusion</depend>
   <depend>image_transport</depend>
+  <depend>pcl_conversions</depend>
+  <depend>pcl_ros</depend>
 
   <!-- The export tag contains other, unspecified, tags -->
   <export>

@@ -1,23 +1,26 @@
 cmake_minimum_required(VERSION 3.10)
 project(lvio_fusion)
 
+set(CMAKE_BUILD_TYPE Debug)
+
 list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)
 
 ################# dependencies #################
 # Eigen
-include_directories("/usr/include/eigen3")
-
-# OpenCV
-find_package(OpenCV 3.1 REQUIRED)
-include_directories(${OpenCV_INCLUDE_DIRS})
-
-# pangolin
-find_package(Pangolin REQUIRED)
-include_directories(${Pangolin_INCLUDE_DIRS})
+find_package(Eigen3 REQUIRED)
+include_directories(${EIGEN3_INCLUDE_DIR})
 
 # Sophus
 find_package(Sophus REQUIRED)
 include_directories(${Sophus_INCLUDE_DIRS})
+
+# PCL
+find_package(PCL REQUIRED)
+include_directories(${PCL_INCLUDE_DIRS})
+
+# OpenCV
+find_package(OpenCV 3.1 REQUIRED)
+include_directories(${OpenCV_INCLUDE_DIRS})
 
 # Ceres
 find_package(Ceres REQUIRED)
@@ -27,12 +30,16 @@ include_directories(${CERES_INCLUDE_DIRS})
 find_package(Glog REQUIRED)
 include_directories(${GLOG_INCLUDE_DIRS})
 
-
 set(THIRD_PARTY_LIBS
-    ${OpenCV_LIBS}
+    ${OpenCV_LIBRARIES}
+    ${PCL_LIBRARIES}
     ${Sophus_LIBRARIES}
-    ${Pangolin_LIBRARIES} GL GLU GLEW glut
     ${CERES_LIBRARIES}
+    )
+
+catkin_package(
+    INCLUDE_DIRS include
+    LIBRARIES lvio_fusion
     )
 
 ################### source #####################

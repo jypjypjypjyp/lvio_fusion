@@ -22,9 +22,9 @@ public:
 
         Eigen::Map<SE3> T_plus_delta(T_plus_delta_raw);
 
-        Eigen::Map<Eigen::Vector3d const> delta_phi(delta_raw);
-        Eigen::Map<Eigen::Vector3d const> delta_rho(delta_raw+3);
-        Eigen::Matrix<double,6,1> delta;
+        Eigen::Map<Vector3d const> delta_phi(delta_raw);
+        Eigen::Map<Vector3d const> delta_rho(delta_raw+3);
+        Matrix<double,6,1> delta;
 
         delta.block<3,1>(0,0) = delta_rho;//translation
         delta.block<3,1>(3,0) = delta_phi;//rotation
@@ -36,10 +36,10 @@ public:
     virtual bool ComputeJacobian(double const *T_raw, double *jacobian_raw) const
     {
         Eigen::Map<SE3 const> T(T_raw);
-        Eigen::Map<Eigen::Matrix<double, 7, 6,Eigen::RowMajor>> jacobian(jacobian_raw);
+        Eigen::Map<Matrix<double, 7, 6,RowMajor>> jacobian(jacobian_raw);
         jacobian.setZero();
-        jacobian.block<3,3>(0,0) = Eigen::Matrix3d::Identity();
-        jacobian.block<3,3>(4,3) = Eigen::Matrix3d::Identity();
+        jacobian.block<3,3>(0,0) = Matrix3d::Identity();
+        jacobian.block<3,3>(4,3) = Matrix3d::Identity();
         return true;
     }
 
