@@ -15,7 +15,6 @@
 #include <visualization_msgs/Marker.h>
 #include <tf/transform_broadcaster.h>
 
-#include "CameraPoseVisualization.h"
 #include "lvio_fusion/estimator.h"
 
 using namespace lvio_fusion;

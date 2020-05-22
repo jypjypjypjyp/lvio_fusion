@@ -10,19 +10,12 @@ ros::Publisher pub_camera_pose;
 ros::Publisher pub_camera_pose_visual;
 nav_msgs::Path path;
 
-CameraPoseVisualization cameraposevisual(1, 0, 0, 1);
-
 void registerPub(ros::NodeHandle &n)
 {
     pub_path = n.advertise<nav_msgs::Path>("path", 1000);
     pub_odometry = n.advertise<nav_msgs::Odometry>("odometry", 1000);
     pub_point_cloud = n.advertise<sensor_msgs::PointCloud>("point_cloud", 1000);
     pub_key_poses = n.advertise<visualization_msgs::Marker>("key_poses", 1000);
-    pub_camera_pose = n.advertise<nav_msgs::Odometry>("camera_pose", 1000);
-    pub_camera_pose_visual = n.advertise<visualization_msgs::MarkerArray>("camera_pose_visual", 1000);
-
-    cameraposevisual.setScale(0.1);
-    cameraposevisual.setLineWidth(0.01);
 }
 
 void pubOdometry(Estimator::Ptr estimator, double time)
@@ -90,43 +83,6 @@ void pubKeyPoses(Estimator::Ptr estimator, double time)
         key_poses.points.push_back(pose_marker);
     }
     pub_key_poses.publish(key_poses);
-}
-
-void pubCameraPose(Estimator::Ptr estimator, double time)
-{
-    if (estimator->frontend->status == FrontendStatus::TRACKING_GOOD)
-    {
-        SE3 frame_pose = estimator->frontend->current_frame->Pose();
-        SE3 camera_left_pose = estimator->frontend->camera_left->Pose();
-        SE3 pose = frame_pose * camera_left_pose;
-        Vector3d P = pose.translation();
-        Quaterniond R = pose.unit_quaternion();
-
-        nav_msgs::Odometry odometry;
-        odometry.header.stamp = ros::Time(time);
-        odometry.header.frame_id = "world";
-        odometry.pose.pose.position.x = P.x();
-        odometry.pose.pose.position.y = P.y();
-        odometry.pose.pose.position.z = P.z();
-        odometry.pose.pose.orientation.x = R.x();
-        odometry.pose.pose.orientation.y = R.y();
-        odometry.pose.pose.orientation.z = R.z();
-        odometry.pose.pose.orientation.w = R.w();
-
-        pub_camera_pose.publish(odometry);
-
-        cameraposevisual.reset();
-        cameraposevisual.add_pose(P, R);
-        if (estimator->frontend->devices & DeviceType::Stereo)
-        {
-            SE3 camera_right_pose = estimator->frontend->camera_right->Pose();
-            SE3 pose = frame_pose * camera_right_pose;
-            Vector3d P = pose.translation();
-            Quaterniond R = pose.unit_quaternion();
-            cameraposevisual.add_pose(P, R);
-        }
-        cameraposevisual.publish_by(pub_camera_pose_visual, odometry.header);
-    }
 }
 
 void pubPointCloud(Estimator::Ptr estimator, double time)

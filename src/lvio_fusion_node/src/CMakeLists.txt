@@ -1,5 +1,4 @@
 add_executable(lvio_fusion_node
-        CameraPoseVisualization.cpp
         lvio_fusion_node.cpp
         parameters.cpp
         visualization.cpp)
