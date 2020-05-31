@@ -1,4 +1,3 @@
-
 #ifndef lvio_fusion_COMMON_H
 #define lvio_fusion_COMMON_H
 
@@ -36,9 +35,10 @@ typedef Sophus::SO3d SO3;
 // PCL
 #include <pcl/common/common_headers.h>
 
-typedef pcl::PointXYZI PointT;
-typedef typename pcl::PointCloud<PointT> PointCloud;
-typedef typename pcl::PointCloud<PointT>::Ptr PointCloudPtr;
+typedef pcl::PointXYZI PointI;
+typedef typename pcl::PointCloud<PointI> PointCloudI;
+typedef pcl::PointXYZRGB PointRGB;
+typedef typename pcl::PointCloud<PointRGB> PointCloudRGB;
 
 // glog
 #include <glog/logging.h>

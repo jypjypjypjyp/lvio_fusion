@@ -3,6 +3,7 @@
 #define lvio_fusion_MAPPOINT_H
 
 #include "lvio_fusion/common.h"
+#include "lvio_fusion/semantic/detected_object.h"
 
 namespace lvio_fusion
 {
@@ -15,12 +16,11 @@ class MapPoint
 {
 public:
     typedef std::shared_ptr<MapPoint> Ptr;
-    unsigned long id_ = 0; // ID
-    bool is_outlier_ = false;
-    Vector3d pos_ = Vector3d::Zero(); // Position in world
-    std::mutex data_mutex_;
-    int observed_times_ = 0; // being observed by feature matching algo.
-    std::list<std::weak_ptr<Feature>> observations_;
+    unsigned long id = 0; // ID
+    bool is_outlier = false;
+    int observed_times = 0; // being observed by feature matching algo.
+    std::list<std::weak_ptr<Feature>> observations;
+    LabelType label = LabelType::None; // Sematic Label
 
     MapPoint() {}
 
@@ -41,8 +41,8 @@ public:
     void AddObservation(std::shared_ptr<Feature> feature)
     {
         std::unique_lock<std::mutex> lck(data_mutex_);
-        observations_.push_back(feature);
-        observed_times_++;
+        observations.push_back(feature);
+        observed_times++;
     }
 
     void RemoveObservation(std::shared_ptr<Feature> feat);
@@ -50,11 +50,14 @@ public:
     std::list<std::weak_ptr<Feature>> GetObs()
     {
         std::unique_lock<std::mutex> lck(data_mutex_);
-        return observations_;
+        return observations;
     }
 
     // factory function
     static MapPoint::Ptr CreateNewMappoint();
+private:
+    std::mutex data_mutex_;
+    Vector3d pos_ = Vector3d::Zero(); // Position in world
 };
 } // namespace lvio_fusion
 

@@ -11,8 +11,11 @@ extern std::string LIDAR_TOPIC;
 extern std::string IMAGE0_TOPIC, IMAGE1_TOPIC;
 extern int use_imu;
 extern int use_lidar;
+extern int use_gnss;
+extern int use_rtk;
+extern int is_semantic;
 extern int num_of_cam;
 
-void readParameters(std::string config_file);
+void read_parameters(std::string config_file);
 
 #endif // lvio_fusion_PARAMETERS_H

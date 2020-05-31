@@ -4,9 +4,9 @@ bool UNEVEN;
 std::string IMU_TOPIC;
 std::string LIDAR_TOPIC;
 std::string IMAGE0_TOPIC, IMAGE1_TOPIC;
-int use_imu, use_lidar, num_of_cam;
+int use_imu, use_lidar, num_of_cam, use_gnss, use_rtk, is_semantic;
 
-void readParameters(std::string config_file)
+void read_parameters(std::string config_file)
 {
     FILE *fh = fopen(config_file.c_str(), "r");
     if (fh == NULL)
@@ -25,7 +25,10 @@ void readParameters(std::string config_file)
 
     fsSettings["use_imu"] >> use_imu;
     fsSettings["use_lidar"] >> use_lidar;
+    fsSettings["use_gnss"] >> use_gnss;
+    fsSettings["use_rtk"] >> use_rtk;
     fsSettings["num_of_cam"] >> num_of_cam;
+    fsSettings["is_semantic"] >> is_semantic;
     if (num_of_cam == 2)
     {
         fsSettings["image0_topic"] >> IMAGE0_TOPIC;

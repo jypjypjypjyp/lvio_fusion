@@ -62,20 +62,27 @@ bool Estimator::Init()
     frontend->SetBackend(backend);
     frontend->SetMap(map);
     frontend->SetCameras(camera1, camera2);
-    frontend->devices += DeviceType::Stereo;
+    frontend->flags += Flag::Stereo;
 
     backend->SetMap(map);
     backend->SetCameras(camera1, camera2);
 
+    // semantic map
+    if (Config::Get<int>("is_semantic"))
+    {
+        frontend->flags += Flag::Semantic;
+    }
+
     return true;
 }
 
-void Estimator::InputImage(double time, cv::Mat& left_image, cv::Mat& right_image)
+void Estimator::InputImage(double time, cv::Mat &left_image, cv::Mat &right_image, std::vector<DetectedObject> objects)
 {
     Frame::Ptr new_frame = Frame::CreateFrame();
     new_frame->time = time;
     new_frame->left_image = left_image;
     new_frame->right_image = right_image;
+    new_frame->objects = objects;
 
     auto t1 = std::chrono::steady_clock::now();
     bool success = frontend->AddFrame(new_frame);
@@ -85,14 +92,12 @@ void Estimator::InputImage(double time, cv::Mat& left_image, cv::Mat& right_imag
     LOG(INFO) << "VO cost time: " << time_used.count() << " seconds.";
 }
 
-void Estimator::InputPointCloud(double time, PointCloudPtr point_cloud)
+void Estimator::InputPointCloud(double time, PointCloudI::Ptr point_cloud)
 {
-
 }
 
 void Estimator::InputIMU(double time, Vector3d acc, Vector3d gyr)
 {
-
 }
 
 } // namespace lvio_fusion

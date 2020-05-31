@@ -1,10 +1,14 @@
 %YAML:1.0
 
-#common parameters
+# flags
 use_imu: 0
 use_lidar: 0
+use_gnss: 0
+use_rtk: 0
 num_of_cam: 2
+is_semantic: 1
 
+# ros parameters
 imu_topic: "/kitti/oxts/imu"
 lidar_topic: “kitti/velodye_pointcloud”
 image0_topic: "/kitti/camera_gray_left/image_raw"

@@ -13,6 +13,7 @@ find_package(catkin REQUIRED COMPONENTS
     tf
     cv_bridge
     lvio_fusion
+    object_detector
     image_transport
     pcl_conversions
     pcl_ros)

@@ -22,7 +22,7 @@ enum class FrontendStatus
     LOST
 };
 
-enum DeviceType
+enum Flag
 {
     None     = 0,
     Mono     = 1,
@@ -30,8 +30,9 @@ enum DeviceType
     RGBD     = 1<<2,
     IMU      = 1<<3,
     Lidar    = 1<<4,
-    GNSS     = 1<<4,
-    RTK      = 1<<4,
+    GNSS     = 1<<5,
+    RTK      = 1<<6,
+    Semantic = 1<<7,
 };
 
 class Frontend
@@ -47,7 +48,7 @@ public:
 
     void SetBackend(std::shared_ptr<Backend> backend) { backend_ = backend; }
 
-    int devices = DeviceType::None;
+    int flags = Flag::None;
     FrontendStatus status = FrontendStatus::INITING;
     Frame::Ptr current_frame = nullptr;
     Frame::Ptr last_frame = nullptr;

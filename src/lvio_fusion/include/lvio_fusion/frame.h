@@ -5,13 +5,12 @@
 
 #include "lvio_fusion/camera.h"
 #include "lvio_fusion/common.h"
+#include "lvio_fusion/feature.h"
+#include "lvio_fusion/mappoint.h"
+#include "lvio_fusion/semantic/detected_object.h"
 
 namespace lvio_fusion
 {
-
-// forward declare
-class MapPoint;
-class Feature;
 
 class Frame
 {
@@ -50,6 +49,9 @@ public:
 
     void SetKeyFrame();
 
+    //NOTE: semantic map
+    void UpdateLabel();
+
     static std::shared_ptr<Frame> CreateFrame();
 
     unsigned long id = 0;
@@ -59,13 +61,16 @@ public:
     SE3 pose;
     Vector3d velocity;
     cv::Mat left_image, right_image;
+    std::vector<DetectedObject> objects;
     // extracted features in left image
     std::vector<std::shared_ptr<Feature>> features_left;
     // corresponding features in right image, set to nullptr if no corresponding
     std::vector<std::shared_ptr<Feature>> features_right;
 
 private:
-    std::mutex data_mutex_;        
+    std::mutex data_mutex_;
+    //NOTE: semantic map
+    LabelType GetLabelType(int x, int y);
 };
 
 } // namespace lvio_fusion

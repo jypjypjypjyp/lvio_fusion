@@ -32,15 +32,15 @@ void Map::InsertKeyFrame(Frame::Ptr frame)
 
 void Map::InsertMapPoint(MapPoint::Ptr map_point)
 {
-    if (landmarks_.find(map_point->id_) == landmarks_.end())
+    if (landmarks_.find(map_point->id) == landmarks_.end())
     {
-        landmarks_.insert(make_pair(map_point->id_, map_point));
-        active_landmarks_.insert(make_pair(map_point->id_, map_point));
+        landmarks_.insert(make_pair(map_point->id, map_point));
+        active_landmarks_.insert(make_pair(map_point->id, map_point));
     }
     else
     {
-        landmarks_[map_point->id_] = map_point;
-        active_landmarks_[map_point->id_] = map_point;
+        landmarks_[map_point->id] = map_point;
+        active_landmarks_[map_point->id] = map_point;
     }
 }
 
@@ -87,7 +87,7 @@ LOG(INFO) << "remove keyframe " << frame_to_remove->keyframe_id;
     active_keyframes_.erase(frame_to_remove->keyframe_id);
     for (auto feat : frame_to_remove->features_left)
     {
-        auto mp = feat->map_point_.lock();
+        auto mp = feat->map_point.lock();
         if (mp)
         {
             mp->RemoveObservation(feat);
@@ -97,7 +97,7 @@ LOG(INFO) << "remove keyframe " << frame_to_remove->keyframe_id;
     {
         if (feat == nullptr)
             continue;
-        auto mp = feat->map_point_.lock();
+        auto mp = feat->map_point.lock();
         if (mp)
         {
             mp->RemoveObservation(feat);
@@ -133,7 +133,7 @@ void Map::CleanMap()
     for (auto iter = active_landmarks_.begin();
          iter != active_landmarks_.end();)
     {
-        if (iter->second->observed_times_ == 0)
+        if (iter->second->observed_times == 0)
         {
             iter = active_landmarks_.erase(iter);
             cnt_landmark_removed++;

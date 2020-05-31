@@ -21,4 +21,29 @@ void Frame::SetKeyFrame()
     keyframe_id = keyframe_factory_id++;
 }
 
+//NOTE:semantic map
+LabelType Frame::GetLabelType(int x, int y)
+{
+    for(auto obj: objects)
+    {
+        if(obj.xmin<x&&obj.xmax>x&&obj.ymin<y&&obj.ymax>y)
+        {
+            return obj.label;
+        }
+    }
+    return LabelType::None;
+}
+
+void Frame::UpdateLabel()
+{
+    for(auto feature: features_left)
+    {
+        auto map_point = feature->map_point.lock();
+        if (map_point)
+        {
+            map_point->label = GetLabelType(feature->pos.pt.x, feature->pos.pt.y);
+        }
+    }
+}
+
 } // namespace lvio_fusion

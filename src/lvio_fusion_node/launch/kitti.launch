@@ -7,4 +7,7 @@
     </node>
 
     <node name="rviz" pkg="rviz" type="rviz" output="log" args="-d $(find lvio_fusion_node)/config/default.rviz"/>
-</launch>
+
+    <include file="$(find object_detector)/launch/detector.launch"/>
+
+  </launch>

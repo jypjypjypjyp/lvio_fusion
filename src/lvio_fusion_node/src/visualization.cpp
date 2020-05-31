@@ -1,4 +1,5 @@
 #include "visualization.h"
+#include <pcl_conversions/pcl_conversions.h>
 
 using namespace Eigen;
 
@@ -10,11 +11,11 @@ ros::Publisher pub_camera_pose;
 ros::Publisher pub_camera_pose_visual;
 nav_msgs::Path path;
 
-void registerPub(ros::NodeHandle &n)
+void register_pub(ros::NodeHandle &n)
 {
     pub_path = n.advertise<nav_msgs::Path>("path", 1000);
     pub_odometry = n.advertise<nav_msgs::Odometry>("odometry", 1000);
-    pub_point_cloud = n.advertise<sensor_msgs::PointCloud>("point_cloud", 1000);
+    pub_point_cloud = n.advertise<sensor_msgs::PointCloud2>("point_cloud", 1000);
     pub_key_poses = n.advertise<visualization_msgs::Marker>("key_poses", 1000);
 }
 
@@ -87,18 +88,35 @@ void pubKeyPoses(Estimator::Ptr estimator, double time)
 
 void pubPointCloud(Estimator::Ptr estimator, double time)
 {
-    sensor_msgs::PointCloud point_cloud;
-    point_cloud.header.stamp = ros::Time(time);
-    point_cloud.header.frame_id = "world";
-
-    for (auto &map_point:estimator->map->GetActiveMapPoints())
+    sensor_msgs::PointCloud2 ros_cloud;
+    PointCloudRGB pcl_cloud;
+    for (auto &map_point : estimator->map->GetActiveMapPoints())
     {
-        geometry_msgs::Point32 p;
+        PointRGB p;
         Vector3d pos = map_point.second->Pos();
         p.x = pos.x();
         p.y = pos.y();
         p.z = pos.z();
-        point_cloud.points.push_back(p);
+        //NOTE: semantic map
+        LabelType label = map_point.second->label;
+        switch (label)
+        {
+        case LabelType::Car:
+            p.rgba = 0xFF0000FF;
+            break;
+        case LabelType::Person:
+            p.rgba = 0x0000FFFF;
+            break;
+        case LabelType::Truck:
+            p.rgba = 0xFF0000FF;
+            break;
+        default:
+            p.rgba = 0x00FF00FF;
+        }
+        pcl_cloud.push_back(p);
     }
-    pub_point_cloud.publish(point_cloud);
+    pcl::toROSMsg(pcl_cloud, ros_cloud);
+    ros_cloud.header.stamp = ros::Time(time);
+    ros_cloud.header.frame_id = "world";
+    pub_point_cloud.publish(ros_cloud);
 }

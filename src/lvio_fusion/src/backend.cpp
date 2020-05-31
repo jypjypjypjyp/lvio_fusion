@@ -56,7 +56,7 @@ void Backend::Optimize()
 
     for (auto &landmark : active_landmarks)
     {
-        if (landmark.second->is_outlier_)
+        if (landmark.second->is_outlier)
             continue;
         double *para = para_landmarks[landmark.first];
         problem.AddParameterBlock(para, 3);
@@ -66,22 +66,22 @@ void Backend::Optimize()
             if (obs.lock() == nullptr)
                 continue;
             auto feature = obs.lock();
-            if (feature->is_outlier_ || feature->frame_.lock() == nullptr)
+            if (feature->is_outlier || feature->frame.lock() == nullptr)
                 continue;
-            auto frame = feature->frame_.lock();
+            auto frame = feature->frame.lock();
             auto iter = active_kfs.find(frame->keyframe_id);
             if (iter == active_kfs.end())
                 continue;
             auto keyframe = *iter;
 
             ceres::CostFunction *cost_function;
-            if (feature->is_on_left_image_)
+            if (feature->is_on_left_image)
             {
-                cost_function = new ReprojectionError(toVector2d(feature->position_.pt), camera_left_);
+                cost_function = new ReprojectionError(toVector2d(feature->pos.pt), camera_left_);
             }
             else
             {
-                cost_function = new ReprojectionError(toVector2d(feature->position_.pt), camera_right_);
+                cost_function = new ReprojectionError(toVector2d(feature->pos.pt), camera_right_);
             }
             problem.AddResidualBlock(cost_function, loss_function, para_kfs[keyframe.first], para);
         }
@@ -96,7 +96,7 @@ void Backend::Optimize()
     // reject outliers
     for (auto &landmark : active_landmarks)
     {
-        if (landmark.second->is_outlier_)
+        if (landmark.second->is_outlier)
             continue;
         auto observations = landmark.second->GetObs();
         for (auto &obs : observations)
@@ -104,15 +104,15 @@ void Backend::Optimize()
             if (obs.lock() == nullptr)
                 continue;
             auto feature = obs.lock();
-            if (feature->is_outlier_ || feature->frame_.lock() == nullptr)
+            if (feature->is_outlier || feature->frame.lock() == nullptr)
                 continue;
-            auto frame = feature->frame_.lock();
+            auto frame = feature->frame.lock();
             auto iter = active_kfs.find(frame->keyframe_id);
             if (iter == active_kfs.end())
                 continue;
             auto keyframe = (*iter).second;
 
-            Vector2d error = toVector2d(feature->position_.pt) - camera_left_->world2pixel(landmark.second->Pos(), keyframe->Pose());
+            Vector2d error = toVector2d(feature->pos.pt) - camera_left_->world2pixel(landmark.second->Pos(), keyframe->Pose());
             if (error[0] * error[0] + error[1] * error[1] > 9)
             {
                 landmark.second->RemoveObservation(feature);
