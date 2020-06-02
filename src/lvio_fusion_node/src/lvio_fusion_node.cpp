@@ -117,7 +117,7 @@ void sync_process()
             image0 = get_image_from_msg(img0_buf.front());
             image1 = get_image_from_msg(img1_buf.front());
             // }
-            if (n++ % 7 == 0)
+            if (n++ % 7 == 0 && is_semantic)
             {
                 pub_detector.publish(img0_buf.front());
                 img0_buf.pop();
