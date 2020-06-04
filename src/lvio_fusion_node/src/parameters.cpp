@@ -1,12 +1,13 @@
 #include "parameters.h"
 
 bool UNEVEN;
-std::string IMU_TOPIC;
-std::string LIDAR_TOPIC;
-std::string IMAGE0_TOPIC, IMAGE1_TOPIC;
+string IMU_TOPIC;
+string LIDAR_TOPIC;
+string IMAGE0_TOPIC, IMAGE1_TOPIC;
+string result_path;
 int use_imu, use_lidar, num_of_cam, use_gnss, use_rtk, is_semantic;
 
-void read_parameters(std::string config_file)
+void read_parameters(string config_file)
 {
     FILE *fh = fopen(config_file.c_str(), "r");
     if (fh == NULL)
@@ -20,7 +21,7 @@ void read_parameters(std::string config_file)
     cv::FileStorage fsSettings(config_file, cv::FileStorage::READ);
     if (!fsSettings.isOpened())
     {
-        std::cerr << "ERROR: Wrong path to settings" << std::endl;
+        cerr << "ERROR: Wrong path to settings" << endl;
     }
 
     fsSettings["use_imu"] >> use_imu;
@@ -29,6 +30,7 @@ void read_parameters(std::string config_file)
     fsSettings["use_rtk"] >> use_rtk;
     fsSettings["num_of_cam"] >> num_of_cam;
     fsSettings["is_semantic"] >> is_semantic;
+    fsSettings["result_path"] >> result_path;
     if (num_of_cam == 2)
     {
         fsSettings["image0_topic"] >> IMAGE0_TOPIC;

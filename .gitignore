@@ -4,3 +4,4 @@ notes
 .catkin_workspace
 .vscode
 *.weights
+result

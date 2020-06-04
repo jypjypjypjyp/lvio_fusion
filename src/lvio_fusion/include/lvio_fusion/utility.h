@@ -6,6 +6,9 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
+
+#include <opencv2/core/eigen.hpp>
+
 namespace lvio_fusion
 {
 
@@ -39,7 +42,7 @@ inline bool triangulation(const std::vector<SE3> &poses,
 }
 
 // converters
-inline Vector2d toVector2d(const cv::Point2f p) { return Vector2d(p.x, p.y); }
+inline Vector2d to_vector2d(const cv::Point2f p) { return Vector2d(p.x, p.y); }
 
 } // namespace lvio_fusion
 

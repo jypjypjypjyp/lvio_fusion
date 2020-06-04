@@ -86,6 +86,31 @@ vector<DetectedObject> get_objects_from_msg(const object_detector::BoundingBoxes
     }
     return objects;
 }
+
+void write_result(Estimator::Ptr estimator, double time)
+{
+    ofstream foutC(result_path, ios::app);
+    foutC.setf(ios::fixed, ios::floatfield);
+    foutC.precision(0);
+    foutC << time * 1e9 << ",";
+    foutC.precision(5);
+    SE3 pose = estimator->frontend->current_frame->Pose().inverse();
+    Vector3d T = pose.translation();
+    Quaterniond R = pose.unit_quaternion();
+    Vector3d velocity = estimator->frontend->current_frame->Velocity();
+    foutC << T.x() << ","
+          << T.y() << ","
+          << T.z() << ","
+          << R.w() << ","
+          << R.x() << ","
+          << R.y() << ","
+          << R.z() << ","
+          << velocity.x() << ","
+          << velocity.y() << ","
+          << velocity.z() << "," << endl;
+    foutC.close();
+}
+
 // extract images with same timestamp from two topics
 void sync_process()
 {
@@ -153,6 +178,7 @@ void sync_process()
                 m_img_buf.unlock();
                 estimator->InputImage(time, image0, image1);
             }
+            write_result(estimator, time);
             pubOdometry(estimator, time);
             pubPointCloud(estimator, time);
         }

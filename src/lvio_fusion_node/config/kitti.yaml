@@ -13,6 +13,7 @@ imu_topic: "/kitti/oxts/imu"
 lidar_topic: “kitti/velodye_pointcloud”
 image0_topic: "/kitti/camera_gray_left/image_raw"
 image1_topic: "/kitti/camera_gray_right/image_raw"
+result_path: "/home/jyp/Projects/lvio-fusion/result/result.csv"
 
 # camera1 intrinsics
 camera1.fx: 7.188560000000e+02
@@ -65,6 +66,6 @@ body_T_cam1: !!opencv-matrix
           0, 0, 1, 0,
           0, 0, 0, 1]
 
-num_features: 150
+num_features: 300
 num_features_init: 50
 num_features_tracking: 50

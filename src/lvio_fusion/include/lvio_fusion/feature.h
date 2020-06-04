@@ -2,7 +2,6 @@
 #define lvio_fusion_FEATURE_H
 
 #include <memory>
-#include <opencv2/features2d.hpp>
 #include "lvio_fusion/common.h"
 
 namespace lvio_fusion

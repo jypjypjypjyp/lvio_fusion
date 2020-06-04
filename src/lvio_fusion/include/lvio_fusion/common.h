@@ -30,7 +30,7 @@ typedef Sophus::SE3d SE3;
 typedef Sophus::SO3d SO3;
 
 // opencv
-#include <opencv2/core/core.hpp>
+#include <opencv2/opencv.hpp>
 
 // PCL
 #include <pcl/common/common_headers.h>

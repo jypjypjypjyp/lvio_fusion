@@ -82,7 +82,7 @@ void Map::RemoveOldKeyframe()
         frame_to_remove = keyframes_.at(max_kf_id);
     }
 
-LOG(INFO) << "remove keyframe " << frame_to_remove->keyframe_id;
+    LOG(INFO) << "remove keyframe " << frame_to_remove->keyframe_id;
     // remove keyframe and landmark observation
     active_keyframes_.erase(frame_to_remove->keyframe_id);
     for (auto feat : frame_to_remove->features_left)
@@ -107,9 +107,10 @@ LOG(INFO) << "remove keyframe " << frame_to_remove->keyframe_id;
     CleanMap();
 }
 
-Map::ParamsType& Map::GetPoseParams()
+Map::Params Map::GetPoseParams()
 {
     std::unique_lock<std::mutex> lck(data_mutex_);
+    std::unordered_map<unsigned long, double *> para_Pose;
     for (auto keyframe : active_keyframes_)
     {
         para_Pose[keyframe.first] = keyframe.second->Pose().data();
@@ -117,9 +118,10 @@ Map::ParamsType& Map::GetPoseParams()
     return para_Pose;
 }
 
-Map::ParamsType& Map::GetPointParams()
+Map::Params Map::GetPointParams()
 {
     std::unique_lock<std::mutex> lck(data_mutex_);
+    std::unordered_map<unsigned long, double *> para_Point;
     for (auto landmark : active_landmarks_)
     {
         para_Point[landmark.first] = landmark.second->Pos().data();

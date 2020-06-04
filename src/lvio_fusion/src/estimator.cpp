@@ -89,7 +89,7 @@ void Estimator::InputImage(double time, cv::Mat &left_image, cv::Mat &right_imag
     auto t2 = std::chrono::steady_clock::now();
     auto time_used =
         std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);
-    LOG(INFO) << "VO cost time: " << time_used.count() << " seconds.";
+    LOG(INFO) << "VO status:" << (success ? "success" : "failed") << ",VO cost time: " << time_used.count() << " seconds.";
 }
 
 void Estimator::InputPointCloud(double time, PointCloudI::Ptr point_cloud)

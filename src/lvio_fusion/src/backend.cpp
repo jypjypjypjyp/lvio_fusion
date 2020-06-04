@@ -40,10 +40,10 @@ void Backend::BackendLoop()
 
 void Backend::Optimize()
 {
-    Map::ParamsType& para_kfs = map_->GetPoseParams();
-    Map::ParamsType& para_landmarks = map_->GetPointParams();
-    Map::KeyframesType& active_kfs = map_->GetActiveKeyFrames();
-    Map::LandmarksType& active_landmarks = map_->GetActiveMapPoints();
+    Map::Params para_kfs = map_->GetPoseParams();
+    Map::Params para_landmarks = map_->GetPointParams();
+    Map::Keyframes& active_kfs = map_->GetActiveKeyFrames();
+    Map::Landmarks& active_landmarks = map_->GetActiveMapPoints();
 
     ceres::Problem problem;
     ceres::LossFunction *loss_function = new ceres::HuberLoss(1.0);
@@ -77,11 +77,11 @@ void Backend::Optimize()
             ceres::CostFunction *cost_function;
             if (feature->is_on_left_image)
             {
-                cost_function = new ReprojectionError(toVector2d(feature->pos.pt), camera_left_);
+                cost_function = new ReprojectionError(to_vector2d(feature->pos.pt), camera_left_);
             }
             else
             {
-                cost_function = new ReprojectionError(toVector2d(feature->pos.pt), camera_right_);
+                cost_function = new ReprojectionError(to_vector2d(feature->pos.pt), camera_right_);
             }
             problem.AddResidualBlock(cost_function, loss_function, para_kfs[keyframe.first], para);
         }
@@ -112,7 +112,7 @@ void Backend::Optimize()
                 continue;
             auto keyframe = (*iter).second;
 
-            Vector2d error = toVector2d(feature->pos.pt) - camera_left_->world2pixel(landmark.second->Pos(), keyframe->Pose());
+            Vector2d error = to_vector2d(feature->pos.pt) - camera_left_->world2pixel(landmark.second->Pos(), keyframe->Pose());
             if (error[0] * error[0] + error[1] * error[1] > 9)
             {
                 landmark.second->RemoveObservation(feature);
