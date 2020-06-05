@@ -54,27 +54,30 @@ bool Frontend::AddFrame(lvio_fusion::Frame::Ptr frame)
 
 bool Frontend::Track()
 {
+    current_frame->SetPose(relative_motion * last_frame->Pose());
     int num_track_last = TrackLastFrame();
-    if (!InitFramePoseByPnP())
-    {
-        current_frame->SetPose(relative_motion * last_frame->Pose());
-    }
+    //InitFramePoseByPnP();
     tracking_inliers_ = Optimization();
 
+    static int num_tries = 0;
     if (tracking_inliers_ > num_features_tracking_)
     {
         // tracking good
         status = FrontendStatus::TRACKING_GOOD;
+        num_tries = 0;
     }
     else if (tracking_inliers_ > num_features_tracking_bad_)
     {
         // tracking bad
         status = FrontendStatus::TRACKING_BAD;
+        num_tries = 0;
     }
     else
     {
         // lost, but give a chance
-        status = status == FrontendStatus::TRACKING_TRY ? FrontendStatus::LOST : FrontendStatus::TRACKING_TRY;
+        num_tries++;
+        status = num_tries >= 4 ? FrontendStatus::LOST : FrontendStatus::TRACKING_TRY;
+        num_tries %= 4;
         return false;
     }
 
@@ -250,20 +253,20 @@ int Frontend::TrackLastFrame()
     std::vector<cv::Point2f> kps_last, kps_current;
     for (auto &kp : last_frame->features_left)
     {
-        // if (kp->map_point.lock())
-        // {
-        //     // use project point
-        //     auto mp = kp->map_point.lock();
-        //     auto px =
-        //         camera_left->world2pixel(mp->Pos(), current_frame->Pose());
-        //     kps_last.push_back(kp->pos.pt);
-        //     kps_current.push_back(cv::Point2f(px[0], px[1]));
-        // }
-        // else
-        // {
+        if (kp->map_point.lock())
+        {
+            // use project point
+            auto mp = kp->map_point.lock();
+            auto px =
+                camera_left->world2pixel(mp->Pos(), current_frame->Pose());
+            kps_last.push_back(kp->pos.pt);
+            kps_current.push_back(cv::Point2f(px[0], px[1]));
+        }
+        else
+        {
             kps_last.push_back(kp->pos.pt);
             kps_current.push_back(kp->pos.pt);
-        // }
+        }
     }
 
     std::vector<uchar> status;
@@ -275,7 +278,7 @@ int Frontend::TrackLastFrame()
         cv::OPTFLOW_USE_INITIAL_FLOW);
 
     //NOTE: Ransac
-    cv::findFundamentalMat(kps_current, kps_last, cv::FM_RANSAC, 3.0, 0.9, status);
+    //cv::findFundamentalMat(kps_current, kps_last, cv::FM_RANSAC, 3.0, 0.9, status);
 
     int num_good_pts = 0;
     //DEBUG

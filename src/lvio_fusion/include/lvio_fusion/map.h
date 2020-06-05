@@ -76,7 +76,7 @@ private:
     Frame::Ptr first_frame_ = nullptr;
 
     bool empty_ = true;
-    static const int WINDOW_SIZE = 7;
+    static const int WINDOW_SIZE = 10;
 };
 } // namespace lvio_fusion
 

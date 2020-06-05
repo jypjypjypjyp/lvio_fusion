@@ -66,6 +66,6 @@ body_T_cam1: !!opencv-matrix
           0, 0, 1, 0,
           0, 0, 0, 1]
 
-num_features: 300
+num_features: 200
 num_features_init: 50
 num_features_tracking: 50
