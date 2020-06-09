@@ -4,28 +4,50 @@
 namespace lvio_fusion
 {
 
-MapPoint::MapPoint(long id, Vector3d position) : id(id), pos_(position) {}
-
-MapPoint::Ptr MapPoint::CreateNewMappoint()
+MapPoint::Ptr MapPoint::CreateNewMappoint(Vector3d position)
 {
     static long factory_id = 0;
     MapPoint::Ptr new_mappoint(new MapPoint);
     new_mappoint->id = factory_id++;
+    new_mappoint->position_ = position;
     return new_mappoint;
 }
 
-void MapPoint::RemoveObservation(std::shared_ptr<Feature> feat)
+Frame::Ptr MapPoint::FindFirstFrame()
 {
     std::unique_lock<std::mutex> lck(data_mutex_);
-    for (auto iter = observations.begin(); iter != observations.end();
-         iter++)
+    if (observations.empty())
+        return nullptr;
+    return observations.front()->frame.lock();
+}
+
+Frame::Ptr MapPoint::FindLastFrame()
+{
+    std::unique_lock<std::mutex> lck(data_mutex_);
+    if (observations.empty())
+        return nullptr;
+    return observations.back()->frame.lock();
+}
+
+void MapPoint::AddObservation(Feature::Ptr feature)
+{
+    std::unique_lock<std::mutex> lck(data_mutex_);
+    observations.push_back(feature);
+}
+
+void MapPoint::RemoveObservation(Feature::Ptr feature)
+{
+    std::unique_lock<std::mutex> lck(data_mutex_);
+    for (auto it = observations.begin(); it != observations.end();)
     {
-        if (iter->lock() == feat)
+        if (*it == feature)
         {
-            observations.erase(iter);
-            feat->map_point.reset();
-            observed_times--;
-            break;
+            it = observations.erase(it);
+            return;
+        }
+        else
+        {
+            ++it;
         }
     }
 }

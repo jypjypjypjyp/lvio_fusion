@@ -68,30 +68,26 @@ private:
 
     int TrackLastFrame();
 
-    int Optimization();
+    int Optimize();
 
     bool InitFramePoseByPnP();
 
-    bool InsertKeyframe();
+    void CreateKeyframe();
 
     bool StereoInit();
 
-    int DetectFeatures();
+    int DetectNewFeatures();
 
     int FindFeaturesInRight();
 
-    bool BuildInitMap();
+    bool InitMap();
 
     int TriangulateNewPoints();
-
-    void SetObservationsForKeyFrame();
 
     // data
     Map::Ptr map_ = nullptr;
     std::shared_ptr<Backend> backend_ = nullptr;
     std::shared_ptr<Viewer> viewer_ = nullptr;
-
-    int tracking_inliers_ = 0; // inliers, used for testing new keyframes
 
     // params
     int num_features_ = 200;

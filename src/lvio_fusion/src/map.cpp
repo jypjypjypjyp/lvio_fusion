@@ -7,21 +7,21 @@ namespace lvio_fusion
 
 void Map::InsertKeyFrame(Frame::Ptr frame)
 {
-    current_frame_ = frame;
-    if (empty_)
+    current_frame = frame;
+    if (empty)
     {
-        first_frame_ = frame;
-        empty_ = false;
+        first_frame = frame;
+        empty = false;
     }
-    if (keyframes_.find(frame->keyframe_id) == keyframes_.end())
+    if (keyframes_.find(frame->id) == keyframes_.end())
     {
-        keyframes_.insert(make_pair(frame->keyframe_id, frame));
-        active_keyframes_.insert(make_pair(frame->keyframe_id, frame));
+        keyframes_.insert(make_pair(frame->id, frame));
+        active_keyframes_.insert(make_pair(frame->id, frame));
     }
     else
     {
-        keyframes_[frame->keyframe_id] = frame;
-        active_keyframes_[frame->keyframe_id] = frame;
+        keyframes_[frame->id] = frame;
+        active_keyframes_[frame->id] = frame;
     }
 
     if (active_keyframes_.size() > WINDOW_SIZE)
@@ -46,15 +46,15 @@ void Map::InsertMapPoint(MapPoint::Ptr map_point)
 
 void Map::RemoveOldKeyframe()
 {
-    if (current_frame_ == nullptr)
+    if (current_frame == nullptr)
         return;
     // find the nearest and furthest frame of the current frame
     double max_dis = 0, min_dis = 9999;
     double max_kf_id = 0, min_kf_id = 0;
-    auto Twc = current_frame_->Pose().inverse();
+    auto Twc = current_frame->Pose().inverse();
     for (auto &kf : active_keyframes_)
     {
-        if (kf.second == current_frame_)
+        if (kf.second == current_frame)
             continue;
         auto dis = (kf.second->Pose() * Twc).log().norm();
         if (dis > max_dis)
@@ -82,29 +82,63 @@ void Map::RemoveOldKeyframe()
         frame_to_remove = keyframes_.at(max_kf_id);
     }
 
-    LOG(INFO) << "remove keyframe " << frame_to_remove->keyframe_id;
-    // remove keyframe and landmark observation
-    active_keyframes_.erase(frame_to_remove->keyframe_id);
-    for (auto feat : frame_to_remove->features_left)
-    {
-        auto mp = feat->map_point.lock();
-        if (mp)
-        {
-            mp->RemoveObservation(feat);
-        }
-    }
-    for (auto feat : frame_to_remove->features_right)
-    {
-        if (feat == nullptr)
-            continue;
-        auto mp = feat->map_point.lock();
-        if (mp)
-        {
-            mp->RemoveObservation(feat);
-        }
-    }
+    LOG(INFO) << "remove keyframe " << frame_to_remove->id;
 
-    CleanMap();
+    int num_landmark_removed = 0;
+    for (auto it = active_landmarks_.begin(); it != active_landmarks_.end();)
+    {
+        auto last_frame = it->second->FindLastFrame();
+        if (last_frame)
+        {
+            if (last_frame->id <= frame_to_remove->id)
+            {
+                it = active_landmarks_.erase(it);
+                num_landmark_removed++;
+            }
+            else
+                ++it;
+        }
+        else
+        {
+            landmarks_.erase(it->first);
+            it = active_landmarks_.erase(it);
+            num_landmark_removed++;
+        }
+    }
+    active_keyframes_.erase(frame_to_remove->id);
+
+    LOG(INFO) << "Removed " << num_landmark_removed << " active landmarks";
+}
+
+// freeze the current frame
+Map::Landmarks Map::GetActiveMapPoints()
+{
+    std::unique_lock<std::mutex> lck(data_mutex_);
+    Landmarks landmarks = active_landmarks_;
+    int last_frame_id = current_frame->id - 1;
+    for (auto it = landmarks.begin(); it != landmarks.end();)
+    {
+        Frame::Ptr last_frame = it->second->FindLastFrame();
+        if (last_frame == nullptr || last_frame->id > last_frame_id)
+            it = landmarks.erase(it);
+        else
+            ++it;
+    }
+    return landmarks;
+}
+
+// freeze related mappoints of the current frame  
+Map::Keyframes Map::GetActiveKeyFrames()
+{
+    std::unique_lock<std::mutex> lck(data_mutex_);
+    Keyframes keyframes = active_keyframes_;
+    int last_frame_id = current_frame->id - 1;
+    for (auto it = keyframes.begin(); it != keyframes.end();)
+        if (it->second->id > last_frame_id)
+            it = keyframes.erase(it);
+        else
+            ++it;
+    return keyframes;
 }
 
 Map::Params Map::GetPoseParams()
@@ -124,28 +158,9 @@ Map::Params Map::GetPointParams()
     std::unordered_map<unsigned long, double *> para_Point;
     for (auto landmark : active_landmarks_)
     {
-        para_Point[landmark.first] = landmark.second->Pos().data();
+        para_Point[landmark.first] = landmark.second->Position().data();
     }
     return para_Point;
-}
-
-void Map::CleanMap()
-{
-    int cnt_landmark_removed = 0;
-    for (auto iter = active_landmarks_.begin();
-         iter != active_landmarks_.end();)
-    {
-        if (iter->second->observed_times == 0)
-        {
-            iter = active_landmarks_.erase(iter);
-            cnt_landmark_removed++;
-        }
-        else
-        {
-            ++iter;
-        }
-    }
-    LOG(INFO) << "Removed " << cnt_landmark_removed << " active landmarks";
 }
 
 } // namespace lvio_fusion

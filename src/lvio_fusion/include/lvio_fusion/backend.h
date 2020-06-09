@@ -7,7 +7,13 @@
 
 namespace lvio_fusion
 {
-class Map;
+
+enum class BackendStatus
+{
+    RUNNING,
+    TO_PAUSE,
+    PAUSING
+};
 
 class Backend
 {
@@ -22,23 +28,27 @@ public:
         camera_right_ = right;
     }
 
-    void SetMap(std::shared_ptr<Map> map) { map_ = map; }
+    void SetMap(Map::Ptr map) { map_ = map; }
 
     void UpdateMap();
 
-    void Stop();
+    void Pause();
 
+    void Continue();
+
+    BackendStatus status = BackendStatus::RUNNING;
 private:
     void BackendLoop();
 
     void Optimize();
 
-    std::shared_ptr<Map> map_;
-    std::thread backend_thread_;
-    std::mutex data_mutex_;
+    Map::Ptr map_;
+    std::thread thread_;
+    std::mutex running_mutex_, pausing_mutex_;
 
+    std::condition_variable running_;
+    std::condition_variable pausing_;
     std::condition_variable map_update_;
-    std::atomic<bool> backend_running_;
 
     Camera::Ptr camera_left_ = nullptr, camera_right_ = nullptr;
 };

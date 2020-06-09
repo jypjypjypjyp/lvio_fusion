@@ -30,11 +30,15 @@ include_directories(${CERES_INCLUDE_DIRS})
 find_package(Glog REQUIRED)
 include_directories(${GLOG_INCLUDE_DIRS})
 
+# Thread
+find_package (Threads)
+
 set(THIRD_PARTY_LIBS
     ${OpenCV_LIBRARIES}
     ${PCL_LIBRARIES}
     ${Sophus_LIBRARIES}
     ${CERES_LIBRARIES}
+    ${CMAKE_THREAD_LIBS_INIT}
     )
 
 catkin_package(

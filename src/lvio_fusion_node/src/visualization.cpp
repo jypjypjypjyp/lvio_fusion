@@ -56,7 +56,7 @@ void pubOdometry(Estimator::Ptr estimator, double time)
 
 void pubKeyPoses(Estimator::Ptr estimator, double time)
 {
-    if (estimator->map->GetActiveKeyFrames().size() == 0)
+    if (estimator->map->GetAllKeyFrames().size() == 0)
         return;
     visualization_msgs::Marker key_poses;
     key_poses.header.stamp = ros::Time(time);
@@ -75,7 +75,7 @@ void pubKeyPoses(Estimator::Ptr estimator, double time)
     key_poses.color.r = 1.0;
     key_poses.color.a = 1.0;
 
-    for (auto key_frame : estimator->map->GetActiveKeyFrames())
+    for (auto key_frame : estimator->map->GetAllKeyFrames())
     {
         geometry_msgs::Point pose_marker;
         pose_marker.x = key_frame.second->Pose().translation().x();
@@ -90,10 +90,10 @@ void pubPointCloud(Estimator::Ptr estimator, double time)
 {
     sensor_msgs::PointCloud2 ros_cloud;
     PointCloudRGB pcl_cloud;
-    for (auto &map_point : estimator->map->GetActiveMapPoints())
+    for (auto map_point : estimator->map->GetAllMapPoints())
     {
         PointRGB p;
-        Vector3d pos = map_point.second->Pos();
+        Vector3d pos = map_point.second->Position();
         p.x = pos.x();
         p.y = pos.y();
         p.z = pos.z();

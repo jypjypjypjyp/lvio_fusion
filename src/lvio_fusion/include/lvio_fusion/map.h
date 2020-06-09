@@ -19,39 +19,31 @@ public:
 
     Map() {}
 
-    void InsertKeyFrame(Frame::Ptr frame);
-    void InsertMapPoint(MapPoint::Ptr map_point);
-
-    Landmarks& GetAllMapPoints()
+    const Landmarks &GetAllMapPoints()
     {
         std::unique_lock<std::mutex> lck(data_mutex_);
         return landmarks_;
     }
-    Keyframes& GetAllKeyFrames()
+
+    const Keyframes &GetAllKeyFrames()
     {
         std::unique_lock<std::mutex> lck(data_mutex_);
         return keyframes_;
     }
 
-    Landmarks& GetActiveMapPoints()
-    {
-        std::unique_lock<std::mutex> lck(data_mutex_);
-        return active_landmarks_;
-    }
+    Landmarks GetActiveMapPoints();
 
-    Keyframes& GetActiveKeyFrames()
-    {
-        std::unique_lock<std::mutex> lck(data_mutex_);
-        return active_keyframes_;
-    }
+    Keyframes GetActiveKeyFrames();
 
     Params GetPoseParams();
 
     Params GetPointParams();
 
-    void UpdateMap();
+    void InsertKeyFrame(Frame::Ptr frame);
 
-    void CleanMap();
+    void InsertMapPoint(MapPoint::Ptr map_point);
+
+    void UpdateMap();
 
     void Reset()
     {
@@ -60,23 +52,23 @@ public:
         active_landmarks_.clear();
         keyframes_.clear();
         active_keyframes_.clear();
-        empty_ = true;
+        empty = true;
     }
+
+    Frame::Ptr current_frame = nullptr;
+    Frame::Ptr first_frame = nullptr;
+    bool empty = true;
 
 private:
     void RemoveOldKeyframe();
 
     std::mutex data_mutex_;
-    Landmarks landmarks_;       
+    Landmarks landmarks_;
     Landmarks active_landmarks_;
-    Keyframes keyframes_;       
+    Keyframes keyframes_;
     Keyframes active_keyframes_;
 
-    Frame::Ptr current_frame_ = nullptr;
-    Frame::Ptr first_frame_ = nullptr;
-
-    bool empty_ = true;
-    static const int WINDOW_SIZE = 10;
+    static const int WINDOW_SIZE = 20;
 };
 } // namespace lvio_fusion
 
