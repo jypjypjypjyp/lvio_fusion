@@ -16,21 +16,8 @@ public:
 
     MapPoint() {}
 
-    Vector3d &Position()
-    {
-        std::unique_lock<std::mutex> lck(data_mutex_);
-        return position_;
-    }
-
-    void SetPosition(const Vector3d &position)
-    {
-        std::unique_lock<std::mutex> lck(data_mutex_);
-        position_ = position;
-    };
-
     Features GetObservations()
     {
-        std::unique_lock<std::mutex> lck(data_mutex_);
         return observations;
     }
 
@@ -47,11 +34,9 @@ public:
 
     unsigned long id = 0; // ID
     Features observations;
+    Vector3d position; // Position in world
     LabelType label = LabelType::None; // Sematic Label
 
-private:
-    std::mutex data_mutex_;
-    Vector3d position_; // Position in world
 };
 } // namespace lvio_fusion
 

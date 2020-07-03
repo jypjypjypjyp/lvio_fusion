@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 2.8.3)
+cmake_minimum_required(VERSION 3.10)
 project(lvio_fusion_node)
 
 set(CMAKE_BUILD_TYPE Debug)
@@ -25,7 +25,7 @@ include_directories(${EIGEN3_INCLUDE_DIR})
 
 # Sophus
 find_package(Sophus REQUIRED)
-include_directories(${Sophus_INCLUDE_DIRS})
+include_directories(${Sophus_INCLUDEDIRS})
 
 # PCL
 find_package(PCL REQUIRED)
@@ -35,6 +35,10 @@ include_directories(${PCL_INCLUDE_DIRS})
 find_package(OpenCV 3.1 REQUIRED)
 include_directories(${OpenCV_INCLUDE_DIRS})
 
+# GeographicLib
+find_package(GeographicLib REQUIRED)
+include_directories(${GeographicLib_INCLUDE_DIRS})
+
 # Thread
 find_package (Threads)
 
@@ -43,6 +47,7 @@ set(THIRD_PARTY_LIBS
     ${OpenCV_LIBRARIES}
     ${PCL_LIBRARIES}
     ${Sophus_LIBRARIES}
+    ${GeographicLib_LIBRARIES}
     ${CMAKE_THREAD_LIBS_INIT}
     )
 

@@ -21,12 +21,12 @@ using namespace lvio_fusion;
 
 void register_pub(ros::NodeHandle &n);
 
-void pubOdometry(Estimator::Ptr estimator, double time);
+void pub_odometry(Estimator::Ptr estimator, double time);
 
-void pubKeyPoses(Estimator::Ptr estimator, double time);
+void pub_navsat(Estimator::Ptr estimator, double time);
 
-void pubCameraPose(Estimator::Ptr estimator, double time);
+void pub_point_cloud(Estimator::Ptr estimator, double time);
 
-void pubPointCloud(Estimator::Ptr estimator, double time);
+void pub_tf(Estimator::Ptr estimator, double time);
 
 #endif // lvio_fusion_VISUALIZATION_H

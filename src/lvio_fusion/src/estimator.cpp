@@ -1,13 +1,10 @@
-#include <chrono>
 #include <fstream>
-#include <opencv2/opencv.hpp>
 
 #include "lvio_fusion/config.h"
 #include "lvio_fusion/estimator.h"
 #include "lvio_fusion/frame.h"
 
 #include <opencv2/core/eigen.hpp>
-using namespace std;
 
 namespace lvio_fusion
 {
@@ -58,6 +55,8 @@ bool Estimator::Init()
     frontend = Frontend::Ptr(new Frontend());
     backend = Backend::Ptr(new Backend());
     map = Map::Ptr(new Map());
+    auto navsat_map = NavsatMap::Ptr(new NavsatMap(map));
+    map->navsat_map = navsat_map;
 
     frontend->SetBackend(backend);
     frontend->SetMap(map);
@@ -66,6 +65,7 @@ bool Estimator::Init()
 
     backend->SetMap(map);
     backend->SetCameras(camera1, camera2);
+    backend->SetFrontend(frontend);
 
     // semantic map
     if (Config::Get<int>("is_semantic"))
@@ -98,6 +98,12 @@ void Estimator::InputPointCloud(double time, PointCloudI::Ptr point_cloud)
 
 void Estimator::InputIMU(double time, Vector3d acc, Vector3d gyr)
 {
+}
+
+void Estimator::InputNavSat(double time, double x, double y, double z, double posAccuracy)
+{
+    NavsatPoint new_point(time, x, y, z);
+    map->navsat_map->AddPoint(new_point);
 }
 
 } // namespace lvio_fusion

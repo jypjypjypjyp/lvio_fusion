@@ -1,13 +1,16 @@
 #include <condition_variable>
-#include <cv_bridge/cv_bridge.h>
 #include <map>
 #include <mutex>
+#include <queue>
+#include <thread>
+
+#include <GeographicLib/LocalCartesian.hpp>
+#include <cv_bridge/cv_bridge.h>
 #include <opencv2/opencv.hpp>
 #include <pcl_conversions/pcl_conversions.h>
-#include <queue>
 #include <ros/ros.h>
+#include <sensor_msgs/NavSatFix.h>
 #include <sensor_msgs/PointCloud2.h>
-#include <thread>
 
 #include "lvio_fusion/estimator.h"
 #include "object_detector/BoundingBoxes.h"
@@ -18,17 +21,21 @@ using namespace std;
 
 Estimator::Ptr estimator = nullptr;
 
-ros::Subscriber sub_imu, sub_lidar, sub_img0, sub_img1, sub_objects;
+ros::Subscriber sub_imu, sub_lidar, sub_navsat, sub_img0, sub_img1, sub_objects;
 ros::Publisher pub_detector;
 
 queue<sensor_msgs::ImageConstPtr> img0_buf;
 queue<sensor_msgs::ImageConstPtr> img1_buf;
+GeographicLib::LocalCartesian geo_converter;
 object_detector::BoundingBoxesConstPtr obj_buf = nullptr;
 mutex m_img_buf, m_cond;
 condition_variable cond;
+double delta_time = 0;
 
+// requisite topic
 void img0_callback(const sensor_msgs::ImageConstPtr &img_msg)
 {
+    delta_time = ros::Time::now().toSec() - img_msg->header.stamp.toSec();
     m_img_buf.lock();
     img0_buf.push(img_msg);
     m_img_buf.unlock();
@@ -94,10 +101,10 @@ void write_result(Estimator::Ptr estimator, double time)
     foutC.precision(0);
     foutC << time * 1e9 << ",";
     foutC.precision(5);
-    SE3 pose = estimator->frontend->current_frame->Pose().inverse();
+    SE3 pose = estimator->frontend->current_frame->pose.inverse();
     Vector3d T = pose.translation();
     Quaterniond R = pose.unit_quaternion();
-    Vector3d velocity = estimator->frontend->current_frame->Velocity();
+    Vector3d velocity = estimator->frontend->current_frame->velocity;
     foutC << T.x() << ","
           << T.y() << ","
           << T.z() << ","
@@ -179,8 +186,8 @@ void sync_process()
                 estimator->InputImage(time, image0, image1);
             }
             write_result(estimator, time);
-            pubOdometry(estimator, time);
-            pubPointCloud(estimator, time);
+            pub_odometry(estimator, time);
+            pub_point_cloud(estimator, time);
         }
 
         chrono::milliseconds dura(2);
@@ -212,6 +219,30 @@ void imu_callback(const sensor_msgs::ImuConstPtr &imu_msg)
     return;
 }
 
+void navsat_callback(const sensor_msgs::NavSatFixConstPtr &navsat_msg)
+{
+    double t = navsat_msg->header.stamp.toSec();
+    double latitude = navsat_msg->latitude;
+    double longitude = navsat_msg->longitude;
+    double altitude = navsat_msg->altitude;
+    double pos_accuracy = navsat_msg->position_covariance[0];
+    double xyz[3];
+    static bool init = false;
+    if (!init)
+    {
+        geo_converter.Reset(latitude, longitude, altitude);
+        init = true;
+    }
+    geo_converter.Forward(latitude, longitude, altitude, xyz[0], xyz[1], xyz[2]);
+    estimator->InputNavSat(t, xyz[0], xyz[1], xyz[2], pos_accuracy);
+    pub_navsat(estimator, t);
+}
+
+void timer_callback(const ros::TimerEvent &timer_event)
+{
+    pub_tf(estimator, timer_event.current_real.toSec() - delta_time);
+}
+
 int get_flags()
 {
     int flags = 0;
@@ -223,7 +254,7 @@ int get_flags()
         flags += Flag::IMU;
     if (use_lidar)
         flags += Flag::Lidar;
-    if (use_gnss)
+    if (use_navsat)
         flags += Flag::GNSS;
     if (use_rtk)
         flags += Flag::RTK;
@@ -269,6 +300,7 @@ int main(int argc, char **argv)
     ROS_WARN("waiting for image and imu...");
 
     register_pub(n);
+    ros::Timer timer = n.createTimer(ros::Duration(0.01), timer_callback);
 
     if (use_imu)
     {
@@ -279,6 +311,11 @@ int main(int argc, char **argv)
     {
         cout << "lidar:" << LIDAR_TOPIC << endl;
         sub_lidar = n.subscribe(LIDAR_TOPIC, 100, lidar_callback);
+    }
+    if (use_navsat)
+    {
+        cout << "navsat:" << LIDAR_TOPIC << endl;
+        sub_navsat = n.subscribe(NAVSAT_TOPIC, 100, navsat_callback);
     }
     cout << "image0:" << IMAGE0_TOPIC << endl;
     sub_img0 = n.subscribe(IMAGE0_TOPIC, 100, img0_callback);

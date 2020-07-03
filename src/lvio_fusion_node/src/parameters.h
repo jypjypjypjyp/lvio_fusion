@@ -8,11 +8,12 @@ using namespace std;
 
 extern string IMU_TOPIC;
 extern string LIDAR_TOPIC;
+extern string NAVSAT_TOPIC;
 extern string IMAGE0_TOPIC, IMAGE1_TOPIC;
 extern string result_path;
 extern int use_imu;
 extern int use_lidar;
-extern int use_gnss;
+extern int use_navsat;
 extern int use_rtk;
 extern int is_semantic;
 extern int num_of_cam;

@@ -1,7 +1,6 @@
 #include "lvio_fusion/frontend.h"
 #include "lvio_fusion/backend.h"
 #include "lvio_fusion/ceres_helper/pose_only_reprojection_error.hpp"
-#include "lvio_fusion/ceres_helper/se3_parameterization.hpp"
 #include "lvio_fusion/config.h"
 #include "lvio_fusion/feature.h"
 #include "lvio_fusion/map.h"
@@ -12,17 +11,11 @@
 namespace lvio_fusion
 {
 
-Frontend::Frontend()
-{
-    num_features_ = Config::Get<int>("num_features");
-    num_features_init_ = Config::Get<int>("num_features_init");
-    num_features_tracking_ = Config::Get<int>("num_features_tracking");
-    num_features_tracking_bad_ = Config::Get<int>("num_features_tracking_bad");
-    num_features_needed_for_keyframe_ = Config::Get<int>("num_features_needed_for_keyframe");
-}
+Frontend::Frontend() {}
 
 bool Frontend::AddFrame(lvio_fusion::Frame::Ptr frame)
 {
+    std::unique_lock<std::mutex> lock(last_frame_mutex);
     current_frame = frame;
 
     switch (status)
@@ -58,7 +51,7 @@ bool Frontend::AddFrame(lvio_fusion::Frame::Ptr frame)
 
 bool Frontend::Track()
 {
-    current_frame->SetPose(relative_motion * last_frame->Pose());
+    current_frame->pose = relative_motion * last_frame->pose;
     TrackLastFrame();
     InitFramePoseByPnP();
     int tracking_inliers_ = Optimize();
@@ -90,9 +83,9 @@ bool Frontend::Track()
         CreateKeyframe();
     }
 
-    relative_motion = current_frame->Pose() * last_frame->Pose().inverse();
-    double dt = current_frame->time - last_frame->time;
-    current_frame->SetVelocity(relative_motion.translation() / dt);
+    relative_motion = current_frame->pose * last_frame->pose.inverse();
+    double dt = current_frame->id - last_frame->id;
+    current_frame->velocity = relative_motion.translation() / dt;
     return true;
 }
 
@@ -123,7 +116,7 @@ bool Frontend::InitFramePoseByPnP()
     {
         auto mappoint = feature->mappoint.lock();
         points_2d.push_back(feature->keypoint);
-        Vector3d p = mappoint->Position();
+        Vector3d p = mappoint->position;
         points_3d.push_back(cv::Point3f(p.x(), p.y(), p.z()));
     }
 
@@ -135,8 +128,8 @@ bool Frontend::InitFramePoseByPnP()
         cv::Rodrigues(rvec, cv_R);
         Matrix3d R;
         cv::cv2eigen(cv_R, R);
-        current_frame->SetPose(camera_left->Pose().inverse() *
-                               SE3(SO3(R), Vector3d(tvec.at<double>(0, 0), tvec.at<double>(1, 0), tvec.at<double>(2, 0))));
+        current_frame->pose = camera_left->pose.inverse() *
+                              SE3(SO3(R), Vector3d(tvec.at<double>(0, 0), tvec.at<double>(1, 0), tvec.at<double>(2, 0)));
         return true;
     }
     return false;
@@ -145,24 +138,26 @@ bool Frontend::InitFramePoseByPnP()
 int Frontend::Optimize()
 {
     ceres::Problem problem;
-    ceres::Solver::Options options;
-    options.linear_solver_type = ceres::SPARSE_NORMAL_CHOLESKY;
-    options.max_num_iterations = 5;
-    ceres::Solver::Summary summary;
+
     ceres::LossFunction *loss_function = new ceres::HuberLoss(1.0);
 
-    double *para = current_frame->Pose().data();
-    ceres::LocalParameterization *local_parameterization = new SE3Parameterization();
-    problem.AddParameterBlock(para, SE3::num_parameters, local_parameterization);
+    double *para = current_frame->pose.data();
+    ceres::LocalParameterization *local_parameterization = new ceres::EigenQuaternionParameterization();
+    problem.AddParameterBlock(para, 4, local_parameterization);
+    problem.AddParameterBlock(para + 4, 3);
 
     for (auto feature : current_frame->left_features)
     {
         auto mappoint = feature->mappoint.lock();
         ceres::CostFunction *cost_function;
-        cost_function = new PoseOnlyReprojectionError(to_vector2d(feature->keypoint), camera_left, mappoint->Position());
-        problem.AddResidualBlock(cost_function, loss_function, para);
+        cost_function = new PoseOnlyReprojectionError(to_vector2d(feature->keypoint), camera_left, mappoint->position);
+        problem.AddResidualBlock(cost_function, loss_function, para, para + 4);
     }
 
+    ceres::Solver::Options options;
+    options.linear_solver_type = ceres::SPARSE_NORMAL_CHOLESKY;
+    options.max_num_iterations = 5;
+    ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
 
     // reject outliers
@@ -170,7 +165,7 @@ int Frontend::Optimize()
     for (auto feature : current_frame->left_features)
     {
         auto mappoint = feature->mappoint.lock();
-        Vector2d error = to_vector2d(feature->keypoint) - camera_left->world2pixel(mappoint->Position(), current_frame->Pose());
+        Vector2d error = to_vector2d(feature->keypoint) - camera_left->world2pixel(mappoint->position, current_frame->pose);
         if (error[0] * error[0] + error[1] * error[1] < 9)
         {
             inliners.push_back(feature);
@@ -178,7 +173,7 @@ int Frontend::Optimize()
     }
     current_frame->left_features = inliners;
     // LOG(INFO) << "Current Pose = \n"
-    //           << current_frame->Pose().matrix();
+    //           << current_frame->pose.matrix();
     return inliners.size();
 }
 
@@ -191,7 +186,7 @@ int Frontend::TrackLastFrame()
     {
         // use project point
         auto mappoint = feature->mappoint.lock();
-        auto px = camera_left->world2pixel(mappoint->Position(), current_frame->Pose());
+        auto px = camera_left->world2pixel(mappoint->position, current_frame->pose);
         mappoints.push_back(mappoint);
         kps_last.push_back(feature->keypoint);
         kps_current.push_back(cv::Point2f(px[0], px[1]));
@@ -241,7 +236,7 @@ bool Frontend::StereoInit()
     current_frame->SetKeyFrame();
     map_->InsertKeyFrame(current_frame);
     LOG(INFO) << "Initial map created with " << num_new_features << " map points";
-    
+
     // update backend because we have a new keyframe
     backend_->UpdateMap();
     return true;
@@ -272,8 +267,8 @@ int Frontend::DetectNewFeatures()
         cv::OPTFLOW_USE_INITIAL_FLOW);
 
     // triangulate new points
-    std::vector<SE3> poses{camera_left->Pose(), camera_right->Pose()};
-    SE3 current_pose_Twc = current_frame->Pose().inverse();
+    std::vector<SE3> poses{camera_left->pose, camera_right->pose};
+    SE3 current_pose_Twc = current_frame->pose.inverse();
     int num_triangulated_pts = 0;
     int num_good_pts = 0;
     for (size_t i = 0; i < kps_left.size(); ++i)

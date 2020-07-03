@@ -2,14 +2,14 @@
 #define lvio_fusion_COMMON_H
 
 // std
+#include <chrono>
 #include <condition_variable>
-#include <iostream>
 #include <list>
+#include <map>
 #include <memory>
 #include <mutex>
 #include <string>
 #include <thread>
-#include <typeinfo>
 #include <unordered_map>
 #include <vector>
 

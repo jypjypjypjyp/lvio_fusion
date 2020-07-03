@@ -20,30 +20,6 @@ public:
 
     Frame(long id, double time, const SE3 &pose, const cv::Mat &left, const cv::Mat &right);
 
-    SE3 &Pose()
-    {
-        std::unique_lock<std::mutex> lck(data_mutex_);
-        return pose_;
-    }
-
-    void SetPose(const SE3 &pose)
-    {
-        std::unique_lock<std::mutex> lck(data_mutex_);
-        this->pose_ = pose;
-    }
-
-    Vector3d &Velocity()
-    {
-        std::unique_lock<std::mutex> lck(data_mutex_);
-        return velocity_;
-    }
-
-    void SetVelocity(const Vector3d &v)
-    {
-        std::unique_lock<std::mutex> lck(data_mutex_);
-        this->velocity_ = v;
-    }
-
     void SetKeyFrame();
 
     void AddFeature(Feature::Ptr feature);
@@ -63,14 +39,12 @@ public:
     Features left_features;
     // corresponding features in right image, set to nullptr if no corresponding
     Features right_features;
+    SE3 pose;
+    Vector3d velocity;
 
 private:
     //NOTE: semantic map
     LabelType GetLabelType(int x, int y);
-
-    std::mutex data_mutex_;
-    SE3 pose_;
-    Vector3d velocity_;
 };
 
 } // namespace lvio_fusion

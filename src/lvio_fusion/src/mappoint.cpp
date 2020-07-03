@@ -9,13 +9,12 @@ MapPoint::Ptr MapPoint::CreateNewMappoint(Vector3d position)
     static long factory_id = 0;
     MapPoint::Ptr new_mappoint(new MapPoint);
     new_mappoint->id = factory_id++;
-    new_mappoint->position_ = position;
+    new_mappoint->position = position;
     return new_mappoint;
 }
 
 Frame::Ptr MapPoint::FindFirstFrame()
 {
-    std::unique_lock<std::mutex> lck(data_mutex_);
     if (observations.empty())
         return nullptr;
     return observations.front()->frame.lock();
@@ -23,7 +22,6 @@ Frame::Ptr MapPoint::FindFirstFrame()
 
 Frame::Ptr MapPoint::FindLastFrame()
 {
-    std::unique_lock<std::mutex> lck(data_mutex_);
     if (observations.empty())
         return nullptr;
     return observations.back()->frame.lock();
@@ -31,13 +29,11 @@ Frame::Ptr MapPoint::FindLastFrame()
 
 void MapPoint::AddObservation(Feature::Ptr feature)
 {
-    std::unique_lock<std::mutex> lck(data_mutex_);
     observations.push_back(feature);
 }
 
 void MapPoint::RemoveObservation(Feature::Ptr feature)
 {
-    std::unique_lock<std::mutex> lck(data_mutex_);
     for (auto it = observations.begin(); it != observations.end();)
     {
         if (*it == feature)

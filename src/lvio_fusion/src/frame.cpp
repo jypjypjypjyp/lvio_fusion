@@ -6,7 +6,7 @@ namespace lvio_fusion
 {
 
 Frame::Frame(long id, double time, const SE3 &pose, const cv::Mat &left_image, const cv::Mat &right_image)
-    : time(time), pose_(pose), left_image(left_image), right_image(right_image) {}
+    : id(time), pose(pose), left_image(left_image), right_image(right_image) {}
 
 Frame::Ptr Frame::CreateFrame()
 {

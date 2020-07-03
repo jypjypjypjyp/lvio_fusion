@@ -19,6 +19,8 @@ public:
 
     void InputImage(double time, cv::Mat &left_image, cv::Mat &right_image, std::vector<DetectedObject> objects = {});
 
+    void InputNavSat(double time, double latitude, double longitude, double altitude, double posAccuracy);
+
     //TODO
     void InputPointCloud(double time, PointCloudI::Ptr point_cloud);
 

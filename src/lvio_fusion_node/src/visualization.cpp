@@ -3,97 +3,113 @@
 
 using namespace Eigen;
 
-ros::Publisher pub_odometry;
-ros::Publisher pub_path;
-ros::Publisher pub_point_cloud;
-ros::Publisher pub_key_poses;
-ros::Publisher pub_camera_pose;
-ros::Publisher pub_camera_pose_visual;
-nav_msgs::Path path;
+ros::Publisher path_pub;
+ros::Publisher navsat_pub;
+ros::Publisher points_cloud_pub;
+nav_msgs::Path path, navsat_path;
 
 void register_pub(ros::NodeHandle &n)
 {
-    pub_path = n.advertise<nav_msgs::Path>("path", 1000);
-    pub_odometry = n.advertise<nav_msgs::Odometry>("odometry", 1000);
-    pub_point_cloud = n.advertise<sensor_msgs::PointCloud2>("point_cloud", 1000);
-    pub_key_poses = n.advertise<visualization_msgs::Marker>("key_poses", 1000);
+    path_pub = n.advertise<nav_msgs::Path>("path", 1000);
+    navsat_pub = n.advertise<nav_msgs::Path>("navsat_path", 1000);
+    points_cloud_pub = n.advertise<sensor_msgs::PointCloud2>("point_cloud", 1000);
 }
 
-void pubOdometry(Estimator::Ptr estimator, double time)
+void pub_odometry(Estimator::Ptr estimator, double time)
 {
     if (estimator->frontend->status == FrontendStatus::TRACKING_GOOD)
     {
-        nav_msgs::Odometry odometry;
-        odometry.header.stamp = ros::Time(time);
-        odometry.header.frame_id = "world";
-        odometry.child_frame_id = "world";
-        SE3 pose = estimator->frontend->current_frame->Pose().inverse();
-        Vector3d T = pose.translation();
-        Quaterniond R = pose.unit_quaternion();
-        Vector3d velocity = estimator->frontend->current_frame->Velocity();
-        odometry.pose.pose.position.x = T.x();
-        odometry.pose.pose.position.y = T.y();
-        odometry.pose.pose.position.z = T.z();
-        odometry.pose.pose.orientation.x = R.x();
-        odometry.pose.pose.orientation.y = R.y();
-        odometry.pose.pose.orientation.z = R.z();
-        odometry.pose.pose.orientation.w = R.w();
-        odometry.twist.twist.linear.x = velocity.x();
-        odometry.twist.twist.linear.y = velocity.y();
-        odometry.twist.twist.linear.z = velocity.z();
-        pub_odometry.publish(odometry);
-
-        geometry_msgs::PoseStamped pose_stamped;
-        pose_stamped.header.stamp = ros::Time(time);
-        pose_stamped.header.frame_id = "world";
-        pose_stamped.pose = odometry.pose.pose;
+        path.poses.clear();
+        auto &keyframes = estimator->map->GetAllKeyFrames();
+        for (auto &frame : keyframes)
+        {
+            auto position = frame.second->pose.inverse().translation();
+            geometry_msgs::PoseStamped pose_stamped;
+            pose_stamped.header.stamp = ros::Time(frame.first);
+            pose_stamped.header.frame_id = "world";
+            pose_stamped.pose.position.x = position.x();
+            pose_stamped.pose.position.y = position.y();
+            pose_stamped.pose.position.z = position.z();
+            path.poses.push_back(pose_stamped);
+        }
         path.header.stamp = ros::Time(time);
         path.header.frame_id = "world";
-        path.poses.push_back(pose_stamped);
-        pub_path.publish(path);
+        path_pub.publish(path);
     }
 }
 
-void pubKeyPoses(Estimator::Ptr estimator, double time)
+void pub_navsat(Estimator::Ptr estimator, double time)
 {
-    if (estimator->map->GetAllKeyFrames().size() == 0)
-        return;
-    visualization_msgs::Marker key_poses;
-    key_poses.header.stamp = ros::Time(time);
-    key_poses.header.frame_id = "world";
-    key_poses.ns = "key_poses";
-    key_poses.type = visualization_msgs::Marker::SPHERE_LIST;
-    key_poses.action = visualization_msgs::Marker::ADD;
-    key_poses.pose.orientation.w = 1.0;
-    key_poses.lifetime = ros::Duration();
-
-    //static int key_poses_id = 0;
-    key_poses.id = 0; //key_poses_id++;
-    key_poses.scale.x = 0.05;
-    key_poses.scale.y = 0.05;
-    key_poses.scale.z = 0.05;
-    key_poses.color.r = 1.0;
-    key_poses.color.a = 1.0;
-
-    for (auto key_frame : estimator->map->GetAllKeyFrames())
+    if (estimator->map->navsat_map->initialized)
     {
-        geometry_msgs::Point pose_marker;
-        pose_marker.x = key_frame.second->Pose().translation().x();
-        pose_marker.y = key_frame.second->Pose().translation().y();
-        pose_marker.z = key_frame.second->Pose().translation().z();
-        key_poses.points.push_back(pose_marker);
+        if (navsat_path.poses.size() == 0)
+        {
+            for (auto pair : estimator->map->navsat_map->GetAllPoints())
+            {
+                NavsatPoint point = pair.second;
+                geometry_msgs::PoseStamped pose_stamped;
+                pose_stamped.header.stamp = ros::Time(point.time);
+                pose_stamped.header.frame_id = "navsat";
+                pose_stamped.pose.position.x = point.position.x();
+                pose_stamped.pose.position.y = point.position.y();
+                pose_stamped.pose.position.z = point.position.z();
+                navsat_path.poses.push_back(pose_stamped);
+            }
+        }
+        else
+        {
+            geometry_msgs::PoseStamped pose_stamped;
+            NavsatPoint point = (--estimator->map->navsat_map->GetAllPoints().end())->second;
+            pose_stamped.pose.position.x = point.position.x();
+            pose_stamped.pose.position.y = point.position.y();
+            pose_stamped.pose.position.z = point.position.z();
+            navsat_path.poses.push_back(pose_stamped);
+        }
+        navsat_path.header.stamp = ros::Time(time);
+        navsat_path.header.frame_id = "navsat";
+        navsat_pub.publish(navsat_path);
     }
-    pub_key_poses.publish(key_poses);
 }
 
-void pubPointCloud(Estimator::Ptr estimator, double time)
+void pub_tf(Estimator::Ptr estimator, double time)
+{
+    static tf::TransformBroadcaster br;
+    tf::Transform transform;
+    tf::Quaternion tf_q;
+    tf::Vector3 tf_t;
+    // base_link
+    if (estimator->frontend->status == FrontendStatus::TRACKING_GOOD)
+    {
+        SE3 pose = estimator->frontend->current_frame->pose;
+        Quaterniond pose_q = pose.unit_quaternion();
+        Vector3d pose_t = pose.translation();
+        tf_q.setValue(pose_q.w(), pose_q.x(), pose_q.y(), pose_q.z());
+        tf_t.setValue(pose_t.x(), pose_t.y(), pose_t.z());
+        transform.setOrigin(tf_t);
+        transform.setRotation(tf_q);
+        br.sendTransform(tf::StampedTransform(transform, ros::Time(time), "world", "base_link"));
+    }
+    // navsat
+    if (estimator->map->navsat_map != nullptr && estimator->map->navsat_map->initialized)
+    {
+        double *R = estimator->map->navsat_map->R;
+        double *t = estimator->map->navsat_map->t;
+        tf_q.setValue(R[1], R[2], R[3], R[0]);
+        tf_t.setValue(t[0], t[1], t[2]);
+        transform.setOrigin(tf_t);
+        transform.setRotation(tf_q);
+        br.sendTransform(tf::StampedTransform(transform, ros::Time(time), "world", "navsat"));
+    }
+}
+
+void pub_point_cloud(Estimator::Ptr estimator, double time)
 {
     sensor_msgs::PointCloud2 ros_cloud;
     PointCloudRGB pcl_cloud;
     for (auto map_point : estimator->map->GetAllMapPoints())
     {
         PointRGB p;
-        Vector3d pos = map_point.second->Position();
+        Vector3d pos = map_point.second->position;
         p.x = pos.x();
         p.y = pos.y();
         p.z = pos.z();
@@ -118,5 +134,5 @@ void pubPointCloud(Estimator::Ptr estimator, double time)
     pcl::toROSMsg(pcl_cloud, ros_cloud);
     ros_cloud.header.stamp = ros::Time(time);
     ros_cloud.header.frame_id = "world";
-    pub_point_cloud.publish(ros_cloud);
+    points_cloud_pub.publish(ros_cloud);
 }

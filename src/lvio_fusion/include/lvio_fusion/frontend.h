@@ -10,7 +10,6 @@ namespace lvio_fusion
 {
 
 class Backend;
-class Viewer;
 
 enum class FrontendStatus
 {
@@ -23,15 +22,15 @@ enum class FrontendStatus
 
 enum Flag
 {
-    None     = 0,
-    Mono     = 1,
-    Stereo   = 1<<1,
-    RGBD     = 1<<2,
-    IMU      = 1<<3,
-    Lidar    = 1<<4,
-    GNSS     = 1<<5,
-    RTK      = 1<<6,
-    Semantic = 1<<7,
+    None = 0,
+    Mono = 1,
+    Stereo = 1 << 1,
+    RGBD = 1 << 2,
+    IMU = 1 << 3,
+    Lidar = 1 << 4,
+    GNSS = 1 << 5,
+    RTK = 1 << 6,
+    Semantic = 1 << 7,
 };
 
 class Frontend
@@ -47,6 +46,17 @@ public:
 
     void SetBackend(std::shared_ptr<Backend> backend) { backend_ = backend; }
 
+    void SetCameras(Camera::Ptr left, Camera::Ptr right)
+    {
+        camera_left = left;
+        camera_right = right;
+    }
+    
+    void UpdateLastFrame(SE3 shifting)
+    {
+        last_frame->pose *= shifting;
+    }
+
     int flags = Flag::None;
     FrontendStatus status = FrontendStatus::INITING;
     Frame::Ptr current_frame = nullptr;
@@ -54,12 +64,6 @@ public:
     Camera::Ptr camera_left = nullptr;
     Camera::Ptr camera_right = nullptr;
     SE3 relative_motion;
-
-    void SetCameras(Camera::Ptr left, Camera::Ptr right)
-    {
-        camera_left = left;
-        camera_right = right;
-    }
 
 private:
     bool Track();
@@ -87,7 +91,7 @@ private:
     // data
     Map::Ptr map_ = nullptr;
     std::shared_ptr<Backend> backend_ = nullptr;
-    std::shared_ptr<Viewer> viewer_ = nullptr;
+    std::mutex last_frame_mutex;
 
     // params
     int num_features_ = 200;

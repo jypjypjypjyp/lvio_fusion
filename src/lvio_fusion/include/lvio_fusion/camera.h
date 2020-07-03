@@ -12,16 +12,10 @@ class Camera {
    public:
     typedef std::shared_ptr<Camera> Ptr;
 
-    double fx = 0, fy = 0, cx = 0, cy = 0;  // Camera intrinsics
-
     Camera();
 
     Camera(double fx, double fy, double cx, double cy,const SE3 &pose)
-        : fx(fx), fy(fy), cx(cx), cy(cy), pose_(pose) {
-        pose_inv_ = pose_.inverse();
-    }
-
-    SE3 Pose() const { return pose_; }
+        : fx(fx), fy(fy), cx(cx), cy(cy), pose(pose) {}
 
     // return intrinsic matrix
     Matrix3d K() const {
@@ -42,9 +36,9 @@ class Camera {
     Vector3d pixel2world(const Vector2d &p_p, const SE3 &T_c_w, double depth = 1);
 
     Vector2d world2pixel(const Vector3d &p_w, const SE3 &T_c_w);
-private:
-    SE3 pose_;             // extrinsic, from stereo camera to single camera
-    SE3 pose_inv_;         // inverse of extrinsics
+
+    double fx = 0, fy = 0, cx = 0, cy = 0;  // Camera intrinsics
+    SE3 pose;                               // extrinsic, from stereo camera to single camera
 };
 
 }  // namespace lvio_fusion

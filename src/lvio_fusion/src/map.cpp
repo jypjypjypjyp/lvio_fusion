@@ -10,18 +10,17 @@ void Map::InsertKeyFrame(Frame::Ptr frame)
     current_frame = frame;
     if (empty)
     {
-        first_frame = frame;
         empty = false;
     }
-    if (keyframes_.find(frame->id) == keyframes_.end())
+    if (keyframes_.find(frame->time) == keyframes_.end())
     {
-        keyframes_.insert(make_pair(frame->id, frame));
-        active_keyframes_.insert(make_pair(frame->id, frame));
+        keyframes_.insert(make_pair(frame->time, frame));
+        active_keyframes_.insert(make_pair(frame->time, frame));
     }
     else
     {
-        keyframes_[frame->id] = frame;
-        active_keyframes_[frame->id] = frame;
+        keyframes_[frame->time] = frame;
+        active_keyframes_[frame->time] = frame;
     }
 
     if (active_keyframes_.size() > WINDOW_SIZE)
@@ -48,40 +47,8 @@ void Map::RemoveOldKeyframe()
 {
     if (current_frame == nullptr)
         return;
-    // find the nearest and furthest frame of the current frame
-    double max_dis = 0, min_dis = 9999;
-    double max_kf_id = 0, min_kf_id = 0;
-    auto Twc = current_frame->Pose().inverse();
-    for (auto &kf : active_keyframes_)
-    {
-        if (kf.second == current_frame)
-            continue;
-        auto dis = (kf.second->Pose() * Twc).log().norm();
-        if (dis > max_dis)
-        {
-            max_dis = dis;
-            max_kf_id = kf.first;
-        }
-        if (dis < min_dis)
-        {
-            min_dis = dis;
-            min_kf_id = kf.first;
-        }
-    }
-
-    const double min_dis_th = 0.2;
-    Frame::Ptr frame_to_remove = nullptr;
-    if (min_dis < min_dis_th)
-    {
-        // if there is a near frame, remove the nearest first
-        frame_to_remove = keyframes_.at(min_kf_id);
-    }
-    else
-    {
-        // remove the furthest
-        frame_to_remove = keyframes_.at(max_kf_id);
-    }
-
+    // find the oldest frame of the current frame
+    Frame::Ptr frame_to_remove = active_keyframes_.begin()->second;
     LOG(INFO) << "remove keyframe " << frame_to_remove->id;
 
     int num_landmark_removed = 0;
@@ -90,7 +57,7 @@ void Map::RemoveOldKeyframe()
         auto last_frame = it->second->FindLastFrame();
         if (last_frame)
         {
-            if (last_frame->id <= frame_to_remove->id)
+            if (last_frame->time <= frame_to_remove->time)
             {
                 it = active_landmarks_.erase(it);
                 num_landmark_removed++;
@@ -105,16 +72,15 @@ void Map::RemoveOldKeyframe()
             num_landmark_removed++;
         }
     }
-    active_keyframes_.erase(frame_to_remove->id);
+    active_keyframes_.erase(frame_to_remove->time);
 
     LOG(INFO) << "Removed " << num_landmark_removed << " active landmarks";
 }
 
 // freeze the current frame
-Map::Landmarks Map::GetActiveMapPoints()
+Map::Landmarks Map::GetActiveMapPoints(bool full)
 {
-    std::unique_lock<std::mutex> lck(data_mutex_);
-    Landmarks landmarks = active_landmarks_;
+    Landmarks landmarks = full ? landmarks_ : active_landmarks_;
     int last_frame_id = current_frame->id - 1;
     for (auto it = landmarks.begin(); it != landmarks.end();)
     {
@@ -127,11 +93,10 @@ Map::Landmarks Map::GetActiveMapPoints()
     return landmarks;
 }
 
-// freeze related mappoints of the current frame  
-Map::Keyframes Map::GetActiveKeyFrames()
+// freeze related mappoints of the current frame
+Map::Keyframes Map::GetActiveKeyFrames(bool full)
 {
-    std::unique_lock<std::mutex> lck(data_mutex_);
-    Keyframes keyframes = active_keyframes_;
+    Keyframes keyframes = full ? keyframes_ : active_keyframes_;
     int last_frame_id = current_frame->id - 1;
     for (auto it = keyframes.begin(); it != keyframes.end();)
         if (it->second->id > last_frame_id)
@@ -141,24 +106,24 @@ Map::Keyframes Map::GetActiveKeyFrames()
     return keyframes;
 }
 
-Map::Params Map::GetPoseParams()
+Map::Params Map::GetPoseParams(bool full)
 {
-    std::unique_lock<std::mutex> lck(data_mutex_);
-    std::unordered_map<unsigned long, double *> para_Pose;
-    for (auto keyframe : active_keyframes_)
+    Params para_Pose;
+    Keyframes& keyframes = full ? keyframes_ : active_keyframes_;
+    for (auto keyframe : keyframes)
     {
-        para_Pose[keyframe.first] = keyframe.second->Pose().data();
+        para_Pose[keyframe.second->id] = keyframe.second->pose.data();
     }
     return para_Pose;
 }
 
-Map::Params Map::GetPointParams()
+Map::Params Map::GetPointParams(bool full)
 {
-    std::unique_lock<std::mutex> lck(data_mutex_);
-    std::unordered_map<unsigned long, double *> para_Point;
-    for (auto landmark : active_landmarks_)
+    Params para_Point;
+    Landmarks& landmarks = full ? landmarks_ : active_landmarks_;
+    for (auto landmark : landmarks)
     {
-        para_Point[landmark.first] = landmark.second->Position().data();
+        para_Point[landmark.first] = landmark.second->position.data();
     }
     return para_Point;
 }

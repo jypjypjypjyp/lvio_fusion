@@ -3,17 +3,17 @@
 # flags
 use_imu: 0
 use_lidar: 0
-use_gnss: 0
-use_rtk: 0
+use_navsat: 1
 num_of_cam: 2
 is_semantic: 0
 
 # ros parameters
-imu_topic: "/kitti/oxts/imu"
-lidar_topic: “kitti/velodye_pointcloud”
-image0_topic: "/kitti/camera_gray_left/image_raw"
-image1_topic: "/kitti/camera_gray_right/image_raw"
-result_path: "/home/jyp/Projects/lvio-fusion/result/result.csv"
+imu_topic: '/kitti/oxts/imu'
+lidar_topic: 'kitti/velodye_pointcloud'
+navsat_topic: '/kitti/oxts/gps/fix'
+image0_topic: '/kitti/camera_gray_left/image_raw'
+image1_topic: '/kitti/camera_gray_right/image_raw'
+result_path: '/home/jyp/Projects/lvio-fusion/result/result.csv'
 
 # camera1 intrinsics
 camera1.fx: 7.188560000000e+02
@@ -66,8 +66,3 @@ body_T_cam1: !!opencv-matrix
           0, 0, 1, 0,
           0, 0, 0, 1]
 
-num_features: 200
-num_features_init: 100
-num_features_tracking: 50
-num_features_tracking_bad: 8
-num_features_needed_for_keyframe: 80

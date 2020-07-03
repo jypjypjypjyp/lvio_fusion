@@ -3,9 +3,10 @@
 bool UNEVEN;
 string IMU_TOPIC;
 string LIDAR_TOPIC;
+string NAVSAT_TOPIC;
 string IMAGE0_TOPIC, IMAGE1_TOPIC;
 string result_path;
-int use_imu, use_lidar, num_of_cam, use_gnss, use_rtk, is_semantic;
+int use_imu, use_lidar, num_of_cam, use_navsat, use_rtk, is_semantic;
 
 void read_parameters(string config_file)
 {
@@ -26,8 +27,7 @@ void read_parameters(string config_file)
 
     fsSettings["use_imu"] >> use_imu;
     fsSettings["use_lidar"] >> use_lidar;
-    fsSettings["use_gnss"] >> use_gnss;
-    fsSettings["use_rtk"] >> use_rtk;
+    fsSettings["use_navsat"] >> use_navsat;
     fsSettings["num_of_cam"] >> num_of_cam;
     fsSettings["is_semantic"] >> is_semantic;
     fsSettings["result_path"] >> result_path;
@@ -44,6 +44,10 @@ void read_parameters(string config_file)
     {
         fsSettings["lidar_topic"] >> UNEVEN;
         fsSettings["lidar_topic"] >> IMU_TOPIC;
+    }
+    if (use_navsat)
+    {
+        fsSettings["navsat_topic"] >> NAVSAT_TOPIC;
     }
     fsSettings.release();
 }

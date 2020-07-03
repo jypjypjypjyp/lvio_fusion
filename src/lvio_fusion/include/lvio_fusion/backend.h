@@ -8,6 +8,8 @@
 namespace lvio_fusion
 {
 
+class Frontend;
+
 enum class BackendStatus
 {
     RUNNING,
@@ -30,6 +32,8 @@ public:
 
     void SetMap(Map::Ptr map) { map_ = map; }
 
+    void SetFrontend(std::shared_ptr<Frontend> frontend) { frontend_ = frontend; }
+
     void UpdateMap();
 
     void Pause();
@@ -37,12 +41,14 @@ public:
     void Continue();
 
     BackendStatus status = BackendStatus::RUNNING;
+
 private:
     void BackendLoop();
 
-    void Optimize();
+    void Optimize(bool full = false);
 
     Map::Ptr map_;
+    std::weak_ptr<Frontend> frontend_;
     std::thread thread_;
     std::mutex running_mutex_, pausing_mutex_;
 

@@ -41,8 +41,38 @@ inline bool triangulation(const std::vector<SE3> &poses,
     return true;
 }
 
-// converters
 inline Vector2d to_vector2d(const cv::Point2f p) { return Vector2d(p.x, p.y); }
+
+/**
+ * line fitting
+ * @param P    points set
+ * @param A    A
+ * @param B    B
+ */
+inline void line_fitting(MatrixX3d P, Vector3d &A, Vector3d &B)
+{
+    A = P.colwise().mean();
+    MatrixXd P0 = P.rowwise() - A.transpose();
+    auto cov = (P0.adjoint() * P0) / double(P.rows() - 1);
+    auto svd = cov.bdcSvd(Eigen::ComputeThinV);
+    auto V = svd.matrixV();
+    Vector3d v(V.block<3, 1>(0, 0));
+    B = A + v * 1;
+}
+
+/**
+ * closest point on a line
+ * @param A    A
+ * @param B    B
+ * @param P    P
+ * @return closest point
+ */
+inline Vector3d closest_point_on_a_line(Vector3d A, Vector3d B, Vector3d P)
+{
+    Vector3d AB = B-A, AP = P-A;
+    double k = AB.dot(AP) / AB.norm();
+    return A + k * AB;
+};
 
 } // namespace lvio_fusion
 
