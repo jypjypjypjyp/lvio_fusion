@@ -5,7 +5,7 @@
 namespace lvio_fusion
 {
 
-Frame::Frame(long id, double time, const SE3 &pose, const cv::Mat &left_image, const cv::Mat &right_image)
+Frame::Frame(long id, double time, const SE3d &pose, const cv::Mat &left_image, const cv::Mat &right_image)
     : id(time), pose(pose), left_image(left_image), right_image(right_image) {}
 
 Frame::Ptr Frame::CreateFrame()
@@ -69,8 +69,8 @@ void Frame::UpdateLabel()
 {
     for (auto feature : left_features)
     {
-        auto map_point = feature->mappoint.lock();
-        map_point->label = GetLabelType(feature->keypoint.x, feature->keypoint.y);
+        auto mappoint = feature->mappoint.lock();
+        mappoint->label = GetLabelType(feature->keypoint.x, feature->keypoint.y);
     }
 }
 

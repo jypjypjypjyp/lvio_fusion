@@ -1,5 +1,8 @@
 #include <fstream>
 
+#include "lvio_fusion/ceres_helper/pose_only_reprojection_error.hpp"
+#include "lvio_fusion/ceres_helper/reprojection_error.hpp"
+#include "lvio_fusion/ceres_helper/vehicle_motion_error.hpp"
 #include "lvio_fusion/config.h"
 #include "lvio_fusion/estimator.h"
 #include "lvio_fusion/frame.h"
@@ -8,6 +11,10 @@
 
 namespace lvio_fusion
 {
+
+Matrix2d ReprojectionError::covariance = Matrix2d::Identity();
+Matrix2d PoseOnlyReprojectionError::covariance = Matrix2d::Identity();
+Matrix4d VehicleMotionError::covariance = Matrix4d::Identity();
 
 Estimator::Estimator(std::string &config_path)
     : config_file_path_(config_path) {}
@@ -35,7 +42,7 @@ bool Estimator::Init()
                                    Config::Get<double>("camera1.fy"),
                                    Config::Get<double>("camera1.cx"),
                                    Config::Get<double>("camera1.cy"),
-                                   SE3(SO3(q_body_T_cam0), t_body_T_cam0)));
+                                   SE3d(SO3d(q_body_T_cam0), t_body_T_cam0)));
     LOG(INFO) << "Camera 1"
               << " extrinsics: " << t_body_T_cam0.transpose();
     // second camera
@@ -47,7 +54,7 @@ bool Estimator::Init()
                                    Config::Get<double>("camera2.fy"),
                                    Config::Get<double>("camera2.cx"),
                                    Config::Get<double>("camera2.cy"),
-                                   SE3(SO3(q_body_T_cam1), t_body_T_cam1)));
+                                   SE3d(SO3d(q_body_T_cam1), t_body_T_cam1)));
     LOG(INFO) << "Camera 2"
               << " extrinsics: " << t_body_T_cam1.transpose();
 
@@ -66,6 +73,13 @@ bool Estimator::Init()
     backend->SetMap(map);
     backend->SetCameras(camera1, camera2);
     backend->SetFrontend(frontend);
+
+    PoseOnlyReprojectionError::covariance = pow(1.5 / camera1->fx, 2) * Matrix2d::Identity();
+    ReprojectionError::covariance = pow(1.5 / camera1->fx, 2) * Matrix2d::Identity();
+    VehicleMotionError::covariance << 100, 0, 0, 0,
+        0, 1, 0, 0,
+        0, 0, 1, 0,
+        0, 0, 0, 1;
 
     // semantic map
     if (Config::Get<int>("is_semantic"))

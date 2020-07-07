@@ -18,7 +18,7 @@ public:
 
     Frame() {}
 
-    Frame(long id, double time, const SE3 &pose, const cv::Mat &left, const cv::Mat &right);
+    Frame(long id, double time, const SE3d &pose, const cv::Mat &left, const cv::Mat &right);
 
     void SetKeyFrame();
 
@@ -39,7 +39,7 @@ public:
     Features left_features;
     // corresponding features in right image, set to nullptr if no corresponding
     Features right_features;
-    SE3 pose;
+    SE3d pose;
     Vector3d velocity;
 
 private:

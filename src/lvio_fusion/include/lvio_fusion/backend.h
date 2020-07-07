@@ -47,16 +47,21 @@ private:
 
     void Optimize(bool full = false);
 
+    void Propagate(double time);
+
     Map::Ptr map_;
     std::weak_ptr<Frontend> frontend_;
     std::thread thread_;
     std::mutex running_mutex_, pausing_mutex_;
-
     std::condition_variable running_;
     std::condition_variable pausing_;
     std::condition_variable map_update_;
 
     Camera::Ptr camera_left_ = nullptr, camera_right_ = nullptr;
+
+    int epoch = 1;
+    int num_frames_epoch = 20;
+    
 };
 
 } // namespace lvio_fusion

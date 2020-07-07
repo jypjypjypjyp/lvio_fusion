@@ -80,9 +80,7 @@ public:
     void Initialize();
 
     bool initialized = false;
-    int epoch = 0;
     int num_frames_init = 50;
-    int num_frames_epoch = 20;
     double R[4] = {1, 0, 0, 0}; // w, x, y, z
     double t[3] = {0, 0, 0};
 

@@ -1,6 +1,7 @@
 #include "lvio_fusion/frontend.h"
 #include "lvio_fusion/backend.h"
 #include "lvio_fusion/ceres_helper/pose_only_reprojection_error.hpp"
+#include "lvio_fusion/ceres_helper/se3_parameterization.hpp"
 #include "lvio_fusion/config.h"
 #include "lvio_fusion/feature.h"
 #include "lvio_fusion/map.h"
@@ -15,7 +16,7 @@ Frontend::Frontend() {}
 
 bool Frontend::AddFrame(lvio_fusion::Frame::Ptr frame)
 {
-    std::unique_lock<std::mutex> lock(last_frame_mutex);
+    std::unique_lock<std::mutex> lock(local_map_mutex);
     current_frame = frame;
 
     switch (status)
@@ -82,9 +83,8 @@ bool Frontend::Track()
     {
         CreateKeyframe();
     }
-
     relative_motion = current_frame->pose * last_frame->pose.inverse();
-    double dt = current_frame->id - last_frame->id;
+    double dt = current_frame->time - last_frame->time;
     current_frame->velocity = relative_motion.translation() / dt;
     return true;
 }
@@ -129,7 +129,7 @@ bool Frontend::InitFramePoseByPnP()
         Matrix3d R;
         cv::cv2eigen(cv_R, R);
         current_frame->pose = camera_left->pose.inverse() *
-                              SE3(SO3(R), Vector3d(tvec.at<double>(0, 0), tvec.at<double>(1, 0), tvec.at<double>(2, 0)));
+                              SE3d(SO3d(R), Vector3d(tvec.at<double>(0, 0), tvec.at<double>(1, 0), tvec.at<double>(2, 0)));
         return true;
     }
     return false;
@@ -138,25 +138,23 @@ bool Frontend::InitFramePoseByPnP()
 int Frontend::Optimize()
 {
     ceres::Problem problem;
-
     ceres::LossFunction *loss_function = new ceres::HuberLoss(1.0);
-
     double *para = current_frame->pose.data();
-    ceres::LocalParameterization *local_parameterization = new ceres::EigenQuaternionParameterization();
-    problem.AddParameterBlock(para, 4, local_parameterization);
-    problem.AddParameterBlock(para + 4, 3);
+    ceres::LocalParameterization *local_parameterization = new SE3dParameterization();
+    problem.AddParameterBlock(para, SE3d::num_parameters, local_parameterization);
 
     for (auto feature : current_frame->left_features)
     {
         auto mappoint = feature->mappoint.lock();
         ceres::CostFunction *cost_function;
         cost_function = new PoseOnlyReprojectionError(to_vector2d(feature->keypoint), camera_left, mappoint->position);
-        problem.AddResidualBlock(cost_function, loss_function, para, para + 4);
+        problem.AddResidualBlock(cost_function, loss_function, para);
     }
 
     ceres::Solver::Options options;
     options.linear_solver_type = ceres::SPARSE_NORMAL_CHOLESKY;
     options.max_num_iterations = 5;
+    options.num_threads = 8;
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
 
@@ -200,7 +198,7 @@ int Frontend::TrackLastFrame()
         cv::TermCriteria(cv::TermCriteria::COUNT + cv::TermCriteria::EPS, 30, 0.01),
         cv::OPTFLOW_USE_INITIAL_FLOW);
 
-    //NOTE: dont use, accuracy is very low
+    // NOTE: don‘t use, accuracy is very low
     // cv::findFundamentalMat(kps_current, kps_last, cv::FM_RANSAC, 3.0, 0.9, status);
 
     int num_good_pts = 0;
@@ -267,8 +265,8 @@ int Frontend::DetectNewFeatures()
         cv::OPTFLOW_USE_INITIAL_FLOW);
 
     // triangulate new points
-    std::vector<SE3> poses{camera_left->pose, camera_right->pose};
-    SE3 current_pose_Twc = current_frame->pose.inverse();
+    std::vector<SE3d> poses{camera_left->pose, camera_right->pose};
+    SE3d current_pose_Twc = current_frame->pose.inverse();
     int num_triangulated_pts = 0;
     int num_good_pts = 0;
     for (size_t i = 0; i < kps_left.size(); ++i)
@@ -285,15 +283,15 @@ int Frontend::DetectNewFeatures()
             if (triangulation(poses, points, pworld))
             {
                 pworld = current_pose_Twc * pworld;
-                auto new_map_point = MapPoint::CreateNewMappoint(pworld);
-                auto new_left_feature = Feature::CreateFeature(current_frame, kps_left[i], new_map_point);
-                auto new_right_feature = Feature::CreateFeature(current_frame, kps_right[i], new_map_point);
+                auto new_mappoint = MapPoint::CreateNewMappoint(pworld);
+                auto new_left_feature = Feature::CreateFeature(current_frame, kps_left[i], new_mappoint);
+                auto new_right_feature = Feature::CreateFeature(current_frame, kps_right[i], new_mappoint);
                 new_right_feature->is_on_left_image = false;
-                new_map_point->AddObservation(new_left_feature);
-                new_map_point->AddObservation(new_right_feature);
+                new_mappoint->AddObservation(new_left_feature);
+                new_mappoint->AddObservation(new_right_feature);
                 current_frame->AddFeature(new_left_feature);
                 current_frame->AddFeature(new_right_feature);
-                map_->InsertMapPoint(new_map_point);
+                map_->InsertMapPoint(new_mappoint);
                 num_triangulated_pts++;
             }
         }

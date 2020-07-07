@@ -6,6 +6,7 @@ using namespace Eigen;
 ros::Publisher path_pub;
 ros::Publisher navsat_pub;
 ros::Publisher points_cloud_pub;
+ros::Publisher points_cloud_pub1;
 nav_msgs::Path path, navsat_path;
 
 void register_pub(ros::NodeHandle &n)
@@ -13,6 +14,7 @@ void register_pub(ros::NodeHandle &n)
     path_pub = n.advertise<nav_msgs::Path>("path", 1000);
     navsat_pub = n.advertise<nav_msgs::Path>("navsat_path", 1000);
     points_cloud_pub = n.advertise<sensor_msgs::PointCloud2>("point_cloud", 1000);
+    points_cloud_pub1 = n.advertise<sensor_msgs::PointCloud2>("point_cloud1", 1000);
 }
 
 void pub_odometry(Estimator::Ptr estimator, double time)
@@ -20,8 +22,7 @@ void pub_odometry(Estimator::Ptr estimator, double time)
     if (estimator->frontend->status == FrontendStatus::TRACKING_GOOD)
     {
         path.poses.clear();
-        auto &keyframes = estimator->map->GetAllKeyFrames();
-        for (auto &frame : keyframes)
+        for (auto frame : estimator->map->GetAllKeyFrames())
         {
             auto position = frame.second->pose.inverse().translation();
             geometry_msgs::PoseStamped pose_stamped;
@@ -36,6 +37,22 @@ void pub_odometry(Estimator::Ptr estimator, double time)
         path.header.frame_id = "world";
         path_pub.publish(path);
     }
+    sensor_msgs::PointCloud2 ros_cloud;
+    PointCloudRGB pcl_cloud;
+    for (auto frame : estimator->map->GetAllKeyFrames())
+    {
+        auto position = frame.second->pose.inverse().translation();
+        PointRGB p;
+        p.x = position.x();
+        p.y = position.y();
+        p.z = position.z();
+        p.rgba = 0x00FF00FF;
+        pcl_cloud.push_back(p);
+    }
+    pcl::toROSMsg(pcl_cloud, ros_cloud);
+    ros_cloud.header.stamp = ros::Time(time);
+    ros_cloud.header.frame_id = "world";
+    points_cloud_pub1.publish(ros_cloud);
 }
 
 void pub_navsat(Estimator::Ptr estimator, double time)
@@ -80,7 +97,7 @@ void pub_tf(Estimator::Ptr estimator, double time)
     // base_link
     if (estimator->frontend->status == FrontendStatus::TRACKING_GOOD)
     {
-        SE3 pose = estimator->frontend->current_frame->pose;
+        SE3d pose = estimator->frontend->current_frame->pose;
         Quaterniond pose_q = pose.unit_quaternion();
         Vector3d pose_t = pose.translation();
         tf_q.setValue(pose_q.w(), pose_q.x(), pose_q.y(), pose_q.z());
@@ -106,15 +123,16 @@ void pub_point_cloud(Estimator::Ptr estimator, double time)
 {
     sensor_msgs::PointCloud2 ros_cloud;
     PointCloudRGB pcl_cloud;
-    for (auto map_point : estimator->map->GetAllMapPoints())
+    auto landmarks = estimator->map->GetAllMapPoints();
+    for (auto mappoint : landmarks)
     {
         PointRGB p;
-        Vector3d pos = map_point.second->position;
+        Vector3d pos = mappoint.second->position;
         p.x = pos.x();
         p.y = pos.y();
         p.z = pos.z();
         //NOTE: semantic map
-        LabelType label = map_point.second->label;
+        LabelType label = mappoint.second->label;
         switch (label)
         {
         case LabelType::Car:

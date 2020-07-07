@@ -51,11 +51,6 @@ public:
         camera_left = left;
         camera_right = right;
     }
-    
-    void UpdateLastFrame(SE3 shifting)
-    {
-        last_frame->pose *= shifting;
-    }
 
     int flags = Flag::None;
     FrontendStatus status = FrontendStatus::INITING;
@@ -63,7 +58,8 @@ public:
     Frame::Ptr last_frame = nullptr;
     Camera::Ptr camera_left = nullptr;
     Camera::Ptr camera_right = nullptr;
-    SE3 relative_motion;
+    SE3d relative_motion;
+    std::mutex local_map_mutex;
 
 private:
     bool Track();
@@ -91,7 +87,6 @@ private:
     // data
     Map::Ptr map_ = nullptr;
     std::shared_ptr<Backend> backend_ = nullptr;
-    std::mutex last_frame_mutex;
 
     // params
     int num_features_ = 200;

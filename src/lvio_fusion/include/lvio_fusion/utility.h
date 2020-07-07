@@ -19,7 +19,7 @@ namespace lvio_fusion
  * @param pt_world  triangulated point in the world
  * @return true if success
  */
-inline bool triangulation(const std::vector<SE3> &poses,
+inline bool triangulation(const std::vector<SE3d> &poses,
                           const std::vector<Vector3d> points, Vector3d &pt_world)
 {
     MatrixXd A(2 * poses.size(), 4);
