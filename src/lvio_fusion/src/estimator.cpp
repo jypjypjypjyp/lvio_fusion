@@ -1,5 +1,6 @@
 #include <fstream>
 
+#include "lvio_fusion/ceres_helper/navsat_error.hpp"
 #include "lvio_fusion/ceres_helper/pose_only_reprojection_error.hpp"
 #include "lvio_fusion/ceres_helper/reprojection_error.hpp"
 #include "lvio_fusion/ceres_helper/vehicle_motion_error.hpp"
@@ -12,9 +13,10 @@
 namespace lvio_fusion
 {
 
-Matrix2d ReprojectionError::covariance = Matrix2d::Identity();
-Matrix2d PoseOnlyReprojectionError::covariance = Matrix2d::Identity();
-Matrix4d VehicleMotionError::covariance = Matrix4d::Identity();
+Matrix2d ReprojectionError::sqrt_information = Matrix2d::Identity();
+Matrix2d PoseOnlyReprojectionError::sqrt_information = Matrix2d::Identity();
+Matrix3d NavsatError::sqrt_information = Matrix3d::Identity();
+Matrix3d VehicleMotionError::sqrt_information = Matrix3d::Identity();
 
 Estimator::Estimator(std::string &config_path)
     : config_file_path_(config_path) {}
@@ -74,12 +76,9 @@ bool Estimator::Init()
     backend->SetCameras(camera1, camera2);
     backend->SetFrontend(frontend);
 
-    PoseOnlyReprojectionError::covariance = pow(1.5 / camera1->fx, 2) * Matrix2d::Identity();
-    ReprojectionError::covariance = pow(1.5 / camera1->fx, 2) * Matrix2d::Identity();
-    VehicleMotionError::covariance << 100, 0, 0, 0,
-        0, 1, 0, 0,
-        0, 0, 1, 0,
-        0, 0, 0, 1;
+    PoseOnlyReprojectionError::sqrt_information = camera1->fx / 1.5 * Matrix2d::Identity();
+    ReprojectionError::sqrt_information = camera1->fx / 1.5 * Matrix2d::Identity();
+    NavsatError::sqrt_information = 1e6 * Matrix3d::Identity();
 
     // semantic map
     if (Config::Get<int>("is_semantic"))

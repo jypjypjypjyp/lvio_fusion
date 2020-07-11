@@ -2,9 +2,9 @@
 #define lvio_fusion_COMMON_H
 
 // std
+#include <cassert>
 #include <chrono>
 #include <condition_variable>
-#include <list>
 #include <map>
 #include <memory>
 #include <mutex>

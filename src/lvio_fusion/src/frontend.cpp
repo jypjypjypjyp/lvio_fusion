@@ -92,18 +92,17 @@ bool Frontend::Track()
 void Frontend::CreateKeyframe()
 {
     // first, add new observations of old points
-    for (auto &feature : current_frame->left_features)
+    for (auto feature_pair : current_frame->left_features)
     {
+        auto feature = feature_pair.second;
         auto mp = feature->mappoint.lock();
         mp->AddObservation(feature);
     }
     // detect new features, track in right image and triangulate map points
     DetectNewFeatures();
-    // current frame is a new keyframe
-    current_frame->SetKeyFrame();
+    // insert!
     map_->InsertKeyFrame(current_frame);
     LOG(INFO) << "Add a keyframe " << current_frame->id;
-
     // update backend because we have a new keyframe
     backend_->UpdateMap();
 }
@@ -112,8 +111,9 @@ bool Frontend::InitFramePoseByPnP()
 {
     std::vector<cv::Point3d> points_3d;
     std::vector<cv::Point2f> points_2d;
-    for (auto feature : current_frame->left_features)
+    for (auto feature_pair : current_frame->left_features)
     {
+        auto feature = feature_pair.second;
         auto mappoint = feature->mappoint.lock();
         points_2d.push_back(feature->keypoint);
         Vector3d p = mappoint->position;
@@ -143,8 +143,9 @@ int Frontend::Optimize()
     ceres::LocalParameterization *local_parameterization = new SE3dParameterization();
     problem.AddParameterBlock(para, SE3d::num_parameters, local_parameterization);
 
-    for (auto feature : current_frame->left_features)
+    for (auto feature_pair : current_frame->left_features)
     {
+        auto feature = feature_pair.second;
         auto mappoint = feature->mappoint.lock();
         ceres::CostFunction *cost_function;
         cost_function = new PoseOnlyReprojectionError(to_vector2d(feature->keypoint), camera_left, mappoint->position);
@@ -159,20 +160,19 @@ int Frontend::Optimize()
     ceres::Solve(options, &problem, &summary);
 
     // reject outliers
-    Features inliners;
-    for (auto feature : current_frame->left_features)
+    Features left_features = current_frame->left_features;
+    for (auto feature_pair : left_features)
     {
+        auto feature = feature_pair.second;
         auto mappoint = feature->mappoint.lock();
         Vector2d error = to_vector2d(feature->keypoint) - camera_left->world2pixel(mappoint->position, current_frame->pose);
-        if (error[0] * error[0] + error[1] * error[1] < 9)
+        if (error[0] > 3 || error[1] > 3)
         {
-            inliners.push_back(feature);
+            current_frame->RemoveFeature(feature);
         }
     }
-    current_frame->left_features = inliners;
-    // LOG(INFO) << "Current Pose = \n"
-    //           << current_frame->pose.matrix();
-    return inliners.size();
+    
+    return current_frame->left_features.size();
 }
 
 int Frontend::TrackLastFrame()
@@ -180,9 +180,10 @@ int Frontend::TrackLastFrame()
     // use LK flow to estimate points in the last image
     std::vector<cv::Point2f> kps_last, kps_current;
     std::vector<MapPoint::Ptr> mappoints;
-    for (auto feature : last_frame->left_features)
+    for (auto feature_pair : last_frame->left_features)
     {
         // use project point
+        auto feature = feature_pair.second;
         auto mappoint = feature->mappoint.lock();
         auto px = camera_left->world2pixel(mappoint->position, current_frame->pose);
         mappoints.push_back(mappoint);
@@ -231,7 +232,6 @@ bool Frontend::StereoInit()
     status = FrontendStatus::TRACKING_GOOD;
 
     // the first frame is a keyframe
-    current_frame->SetKeyFrame();
     map_->InsertKeyFrame(current_frame);
     LOG(INFO) << "Initial map created with " << num_new_features << " map points";
 
@@ -246,12 +246,14 @@ int Frontend::DetectNewFeatures()
         return -1;
 
     cv::Mat mask(current_frame->left_image.size(), CV_8UC1, 255);
-    for (auto feature : current_frame->left_features)
+    for (auto feature_pair : current_frame->left_features)
     {
+        auto feature = feature_pair.second;
         cv::rectangle(mask, feature->keypoint - cv::Point2f(10, 10), feature->keypoint + cv::Point2f(10, 10), 0, CV_FILLED);
     }
 
     std::vector<cv::Point2f> kps_left, kps_right;
+
     cv::goodFeaturesToTrack(current_frame->left_image, kps_left, num_features_ - current_frame->left_features.size(), 0.01, 30, mask);
 
     // use LK flow to estimate points in the right image

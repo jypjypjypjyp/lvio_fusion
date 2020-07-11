@@ -9,7 +9,7 @@
 namespace lvio_fusion
 {
 
-typedef std::list<Feature::Ptr> Features;
+typedef std::map<unsigned long ,Feature::Ptr> Features;
 
 class Frame
 {
@@ -17,10 +17,6 @@ public:
     typedef std::shared_ptr<Frame> Ptr;
 
     Frame() {}
-
-    Frame(long id, double time, const SE3d &pose, const cv::Mat &left, const cv::Mat &right);
-
-    void SetKeyFrame();
 
     void AddFeature(Feature::Ptr feature);
 
@@ -31,13 +27,13 @@ public:
 
     static Frame::Ptr CreateFrame();
 
-    unsigned long id = -1;
+    unsigned long id;
     double time;
     cv::Mat left_image, right_image;
     std::vector<DetectedObject> objects;
     // extracted features in left image
     Features left_features;
-    // corresponding features in right image, set to nullptr if no corresponding
+    // corresponding features in right image, only for this frame
     Features right_features;
     SE3d pose;
     Vector3d velocity;

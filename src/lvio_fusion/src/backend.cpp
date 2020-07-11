@@ -5,10 +5,8 @@
 #include "lvio_fusion/ceres_helper/vehicle_motion_error.hpp"
 #include "lvio_fusion/feature.h"
 #include "lvio_fusion/frontend.h"
-#include "lvio_fusion/map.h"
 #include "lvio_fusion/mappoint.h"
 #include "lvio_fusion/utility.h"
-// #include <boost/format.hpp>
 
 namespace lvio_fusion
 {
@@ -55,15 +53,7 @@ void Backend::BackendLoop()
         }
         map_update_.wait(lock);
         auto t1 = std::chrono::steady_clock::now();
-        if (map_->GetAllKeyFrames().size() >= epoch * num_frames_epoch)
-        {
-            Optimize(true);
-            epoch++;
-        }
-        else
-        {
-            Optimize(true);
-        }
+        Optimize();
         auto t2 = std::chrono::steady_clock::now();
         auto time_used =
             std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);
@@ -73,102 +63,107 @@ void Backend::BackendLoop()
 
 void Backend::Optimize(bool full)
 {
-
     Map::Keyframes active_kfs = map_->GetActiveKeyFrames(full);
-    Map::Landmarks active_landmarks = map_->GetActiveMapPoints(full);
-    if (active_kfs.empty() || active_landmarks.empty())
+    Map::Landmarks active_landmarks;
+    if (active_kfs.empty())
         return;
-    // std::unique_lock<std::mutex> lock(frontend_.lock()->local_map_mutex);
-    // Frame::Ptr last_frame = frontend_.lock()->last_frame;
-    // if (active_kfs.find(last_frame->time) == active_kfs.end())
-    // {
-    //     active_kfs.insert(std::make_pair(last_frame->time, last_frame));
-    // }
+
     ceres::Problem problem;
     ceres::LossFunction *loss_function = new ceres::HuberLoss(1.0);
     ceres::LocalParameterization *local_parameterization = new SE3dParameterization();
 
     for (auto kf_pair : active_kfs)
     {
-        double *para = kf_pair.second->pose.data();
-        problem.AddParameterBlock(para, SE3d::num_parameters, local_parameterization);
+        double *para_kf = kf_pair.second->pose.data();
+        problem.AddParameterBlock(para_kf, SE3d::num_parameters, local_parameterization);
+        auto left_features = kf_pair.second->left_features;
+        for (auto feature_pair : left_features)
+        {
+            auto feature = feature_pair.second;
+            auto landmark = feature->mappoint.lock();
+            // freeze points which the frontend is using
+            if (landmark->FindLastFrame()->time > (--active_kfs.end())->first)
+                continue;
+            // clean the map
+            if (landmark->observations.size() == 1)
+            {
+                map_->RemoveMapPoint(landmark);
+                continue;
+            }
+            double *para_landmark = landmark->position.data();
+            if (kf_pair.first == active_kfs.begin()->first || kf_pair.first == landmark->FindFirstFrame()->time)
+            {
+                problem.AddParameterBlock(para_landmark, 3);
+                if (landmark->FindFirstFrame()->time < active_kfs.begin()->first)
+                {
+                    problem.SetParameterBlockConstant(para_landmark);
+                }
+                else
+                {
+                    active_landmarks.insert(std::make_pair(landmark->id, landmark));
+                }
+            }
+            ceres::CostFunction *cost_function = new ReprojectionError(to_vector2d(feature->keypoint), left_camera_);
+            problem.AddResidualBlock(cost_function, loss_function, para_kf, para_landmark);
+        }
+        for (auto feature_pair : kf_pair.second->right_features)
+        {
+            auto feature = feature_pair.second;
+            auto landmark = feature->mappoint.lock();
+            double *para_landmark = landmark->position.data();
+            ceres::CostFunction *cost_function = new ReprojectionError(to_vector2d(feature->keypoint), right_camera_);
+            problem.AddResidualBlock(cost_function, loss_function, para_kf, para_landmark);
+        }
     }
 
-    for (auto landmark_pair : active_landmarks)
+    if (active_kfs.begin()->first == map_->GetAllKeyFrames().begin()->first)
     {
-        double *para = landmark_pair.second->position.data();
-        problem.AddParameterBlock(para, 3);
-        auto observations = landmark_pair.second->GetObservations();
-        for (auto feature : observations)
-        {
-            auto iter = active_kfs.find(feature->frame.lock()->time);
-            if (iter == active_kfs.end())
-                continue;
-            auto keyframe_pair = *iter;
-            ceres::CostFunction *cost_function;
-            if (feature->is_on_left_image)
-            {
-                cost_function = new ReprojectionError(to_vector2d(feature->keypoint), camera_left_);
-            }
-            else
-            {
-                cost_function = new ReprojectionError(to_vector2d(feature->keypoint), camera_right_);
-            }
-            double *para_kf = keyframe_pair.second->pose.data();
-            problem.AddResidualBlock(cost_function, loss_function, para_kf, para);
-        }
+        auto &pose = active_kfs.begin()->second->pose;
+        problem.SetParameterBlockConstant(pose.data());
     }
 
     // navsat constraints
     auto navsat_map = map_->navsat_map;
     if (map_->navsat_map != nullptr)
     {
-        // if (navsat_map->initialized && full)
-        // {
-        //     // std::ofstream o1(str(boost::format("/home/jyp/Projects/test-jyp/kps-%1%.csv") % navsat_map->epoch));
-        //     // std::ofstream o2(str(boost::format("/home/jyp/Projects/test-jyp/As-%1%.csv") % navsat_map->epoch));
-        //     // std::ofstream o3(str(boost::format("/home/jyp/Projects/test-jyp/cps-%1%.csv") % navsat_map->epoch));
-        //     double t1 = -1, t2 = -1;
-        //     for (auto kf_pair : active_kfs)
-        //     {
-        //         t2 = kf_pair.first;
-        //         if (t1 != -1)
-        //         {
-        //             auto navsat_frame = navsat_map->GetFrame(t1, t2);
-        //             navsat_map->Transfrom(navsat_frame);
-        //             double *para_kf = kf_pair.second->pose.data();
-        //             auto p = kf_pair.second->pose.inverse().translation();
-        //             auto closest = closest_point_on_a_line(navsat_frame.A, navsat_frame.B, p);
-        //             // o1 << p[0] << "," << p[1] << "," << p[2] << std::endl;
-        //             // o2 << navsat_frame.A[0] << "," << navsat_frame.A[1] << "," << navsat_frame.A[2] << std::endl;
-        //             // o3 << closest[0] << "," << closest[1] << "," << closest[2] << std::endl;
-        //             ceres::CostFunction *cost_function = Navsat1PointError::Create(closest, para_kf);
-        //             problem.AddResidualBlock(cost_function, loss_function, para_kf + 4);
-        //         }
-        //         t1 = t2;
-        //     }
-        //     // o1.close();
-        //     // o2.close();
-        //     // o3.close();
-        // }
-        // else if (map_->GetAllKeyFrames().size() >= navsat_map->num_frames_init + navsat_map->epoch * navsat_map->num_frames_epoch)
-        // {
-        //     navsat_map->Initialize();
-        //     Optimize(true);
-        //     navsat_map->epoch++;
-        // }
+        if (navsat_map->initialized)
+        {
+            double t1 = -1, t2 = -1;
+            for (auto kf_pair : active_kfs)
+            {
+                t2 = kf_pair.first;
+                if (t1 != -1)
+                {
+                    auto navsat_frame = navsat_map->GetFrame(t1, t2);
+                    navsat_map->Transfrom(navsat_frame);
+                    double *para_kf = kf_pair.second->pose.data();
+                    auto p = kf_pair.second->pose.inverse().translation();
+                    auto closest = closest_point_on_a_line(navsat_frame.A, navsat_frame.B, p);
+                    ceres::CostFunction *cost_function = NavsatError::Create(closest);
+                    problem.AddResidualBlock(cost_function, loss_function, para_kf);
+                }
+                t1 = t2;
+            }
+        }
+        else if (map_->GetAllKeyFrames().size() >= navsat_map->num_frames_init)
+        {
+            navsat_map->Initialize();
+            Optimize(true);
+            return;
+        }
     }
 
     // vehicle motion constraints
-    if (full)
-    {
-        for (auto kf_pair : active_kfs)
-        {
-            double *para = kf_pair.second->pose.data();
-            ceres::CostFunction *cost_function = VehicleMotionError::Create();
-            problem.AddResidualBlock(cost_function, loss_function, para);
-        }
-    }
+    // if (full)
+    // {
+    // ceres::LossFunction *vehicle_loss_function = new ceres::TrivialLoss();
+    // for (auto kf_pair : active_kfs)
+    // {
+    //     double *para = kf_pair.second->pose.data();
+    //     ceres::CostFunction *cost_function = VehicleMotionError::Create();
+    //     problem.AddResidualBlock(cost_function, loss_function, para);
+    // }
+    // }
 
     ceres::Solver::Options options;
     options.linear_solver_type = ceres::SPARSE_NORMAL_CHOLESKY;
@@ -177,100 +172,31 @@ void Backend::Optimize(bool full)
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
 
-    // if (full)
-    // {
-    //     std::ofstream o1(str(boost::format("/home/jyp/Projects/test-jyp/kps-%1%.csv") % navsat_map->epoch));
-    //     std::ofstream o2(str(boost::format("/home/jyp/Projects/test-jyp/As-%1%.csv") % navsat_map->epoch));
-    //     std::ofstream o3(str(boost::format("/home/jyp/Projects/test-jyp/cps-%1%.csv") % navsat_map->epoch));
-    //     double t1 = -1, t2 = -1;
-    //     for (auto kf_pair : active_kfs)
-    //     {
-    //         t2 = kf_pair.first;
-    //         if (t1 != -1)
-    //         {
-    //             auto navsat_frame = navsat_map->GetFrame(t1, t2);
-    //             navsat_map->Transfrom(navsat_frame);
-    //             double *para_kf = para_kfs[kf_pair.second->id];
-    //             auto p = kf_pair.second->pose.inverse().translation();
-    //             auto closest = closest_point_on_a_line(navsat_frame.A, navsat_frame.B, p);
-    //             o1 << p[0] << "," << p[1] << "," << p[2] << std::endl;
-    //             o2 << navsat_frame.A[0] << "," << navsat_frame.A[1] << "," << navsat_frame.A[2] << std::endl;
-    //             o3 << closest[0] << "," << closest[1] << "," << closest[2] << std::endl;
-    //         }
-    //         t1 = t2;
-    //     }
-    //     o1.close();
-    //     o2.close();
-    //     o3.close();
-    // }
-    // reject outliers
+    // reject outliers, never remove the first observation.
     for (auto landmark_pair : active_landmarks)
     {
-        auto observations = landmark_pair.second->GetObservations();
-        for (auto feature : observations)
+        auto landmark = landmark_pair.second;
+        auto observations = landmark->observations;
+        observations.erase(observations.begin());
+        for (auto feature_pair : observations)
         {
-            auto iter = active_kfs.find(feature->frame.lock()->id);
-            if (iter == active_kfs.end())
+            auto feature = feature_pair.second;
+            auto kf_iter = active_kfs.find(feature->frame.lock()->time);
+            if (kf_iter == active_kfs.end())
                 continue;
-            auto keyframe_pair = (*iter);
+            auto frame = (*kf_iter).second;
 
-            Vector2d error = to_vector2d(feature->keypoint) - camera_left_->world2pixel(landmark_pair.second->position, keyframe_pair.second->pose);
+            Vector2d error = to_vector2d(feature->keypoint) - left_camera_->world2pixel(landmark->position, frame->pose);
             if (error[0] > 2 || error[1] > 2)
             {
-                landmark_pair.second->RemoveObservation(feature);
-                feature->frame.lock()->RemoveFeature(feature);
+                landmark->RemoveObservation(feature);
+                frame->RemoveFeature(feature);
             }
         }
     }
 
-    // lock.unlock();
-    // clean the map
-    for (auto landmark_pair : active_landmarks)
-    {
-        if (landmark_pair.second->FindFirstFrame() == landmark_pair.second->FindLastFrame())
-        {
-            map_->RemoveMapPoint(landmark_pair.second);
-        }
-    }
-    // int current_frame_time = last_frame->time;
-    // for (auto it = active_landmarks.begin(); it != active_landmarks.end();)
-    // {
-    //     Frame::Ptr lf = it->second->FindLastFrame();
-    //     if (lf == nullptr || lf->time >= current_frame_time)
-    //         continue;
-    //     else if (it->second->FindFirstFrame() == it->second->FindLastFrame())
-    //     {
-    //         map_->RemoveMapPoint(it->second);
-    //     }
-    // }
+    // propagate
     Propagate((--active_kfs.end())->second->time);
-    // forward propagate
-    // {
-    //     std::unique_lock<std::mutex> lock(frontend_.lock()->last_frame_mutex);
-    //     Frame::Ptr base_frame = (--active_kfs.end())->second;
-    //     Frame::Ptr last_frame = frontend_.lock()->last_frame;
-    //     Map::Keyframes &all_kfs = map_->GetAllKeyFrames();
-    //     SE3d base = base_frame->pose;
-    //     SE3d relative_motion = old_base.inverse() * base;
-    //     LOG(INFO) << "**********************" << relative_motion.rotationMatrix() << "xxxxxxxxxxxxxxxx" << relative_motion.translation();
-    //     auto first_iter = all_kfs.upper_bound(base_frame->time);
-    //     for (auto iter = first_iter; iter != all_kfs.end(); iter++)
-    //     {
-    //         iter->second->pose = iter->second->pose * relative_motion;
-    //         for (auto feature : iter->second->left_features)
-    //         {
-    //             auto landmark = feature->mappoint.lock();
-    //             if (iter == first_iter || landmark->FindFirstFrame()->time == iter->first)
-    //             {
-    //                 landmark->position = relative_motion.inverse() * landmark->position;
-    //             }
-    //         }
-    //     }
-    //     if ((--all_kfs.end())->first != last_frame->time)
-    //     {
-    //         last_frame->pose = last_frame->pose * relative_motion;
-    //     }
-    // }
 }
 
 void Backend::Propagate(double time)
@@ -283,6 +209,7 @@ void Backend::Propagate(double time)
     {
         active_kfs.insert(std::make_pair(last_frame->time, last_frame));
     }
+    SE3d old_base = (--active_kfs.end())->second->pose;
 
     ceres::Problem problem;
     ceres::LossFunction *loss_function = new ceres::HuberLoss(1.0);
@@ -290,13 +217,18 @@ void Backend::Propagate(double time)
 
     for (auto kf_pair : active_kfs)
     {
-        for (auto feature : kf_pair.second->left_features)
+        for (auto feature_pair : kf_pair.second->left_features)
         {
+            auto feature = feature_pair.second;
             auto landmark = feature->mappoint.lock();
+            // remove lonely points from optimization
+            if (landmark->observations.size() == 1)
+                continue;
             double *para_landmark = landmark->position.data();
             problem.AddParameterBlock(para_landmark, 3);
-            for (auto feature : landmark->observations)
+            for (auto feature_pair : landmark->observations)
             {
+                auto feature = feature_pair.second;
                 auto frame = feature->frame.lock();
                 if (frame->time > kf_pair.first)
                 {
@@ -308,26 +240,40 @@ void Backend::Propagate(double time)
                 {
                     problem.SetParameterBlockConstant(para);
                 }
-                ceres::CostFunction *cost_function;
-                if (feature->is_on_left_image)
-                {
-                    cost_function = new ReprojectionError(to_vector2d(feature->keypoint), camera_left_);
-                }
-                else
-                {
-                    cost_function = new ReprojectionError(to_vector2d(feature->keypoint), camera_right_);
-                }
+                ceres::CostFunction *cost_function = new ReprojectionError(to_vector2d(feature->keypoint), left_camera_);
                 problem.AddResidualBlock(cost_function, loss_function, para, para_landmark);
             }
         }
+        for (auto feature_pair : kf_pair.second->right_features)
+        {
+            auto feature = feature_pair.second;
+            auto landmark = feature->mappoint.lock();
+            // remove lonely points from optimization
+            if (landmark->observations.size() == 1)
+                continue;
+            double *para = feature->frame.lock()->pose.data();
+            double *para_landmark = landmark->position.data();
+            ceres::CostFunction *cost_function = new ReprojectionError(to_vector2d(feature->keypoint), right_camera_);
+            problem.AddResidualBlock(cost_function, loss_function, para, para_landmark);
+        }
     }
+
     ceres::Solver::Options options;
     options.linear_solver_type = ceres::SPARSE_NORMAL_CHOLESKY;
     options.max_num_iterations = 3;
     options.num_threads = 8;
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
-    LOG(INFO) << summary.FullReport();
+
+    // update map points of last frame
+    SE3d base = (--active_kfs.end())->second->pose;
+    SE3d tf = base.inverse() * old_base;
+    for (auto feature_pair : (--active_kfs.end())->second->right_features)
+    {
+        auto feature = feature_pair.second;
+        auto landmark = feature->mappoint.lock();
+        landmark->position = tf * landmark->position;
+    }
 }
 
 } // namespace lvio_fusion

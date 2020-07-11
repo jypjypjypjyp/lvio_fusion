@@ -11,36 +11,25 @@ namespace lvio_fusion
 class VehicleMotionError
 {
 public:
-    VehicleMotionError(Matrix4d covariance = covariance)
-    {
-        LLT<Matrix4d> llt(covariance.inverse());
-        sqrt_information_ = llt.matrixU();
-    }
+    VehicleMotionError() {}
 
     template <typename T>
-    bool operator()(const T *pose_, const T *last_pose_, T *residuals_) const
+    bool operator()(const T *pose_, T *residuals) const
     {
         Eigen::Map<Sophus::SE3<T> const> pose(pose_);
-        Eigen::Map<Sophus::SE3<T> const> last_pose(last_pose_);
-        Eigen::Map<Matrix<T, 2, 1>> residuals(residuals_);
-        Sophus::SE3<T> relative_motion = pose * last_pose.inverse();
-        // Matrix<T, 3, 1> euler_angles = relative_motion.rotationMatrix().eulerAngles(0, 1, 2);
-        residuals[0] = T(0.1) * pose.inverse().translation().y();
-        residuals[1] = T(0.01) * relative_motion.translation().norm();
-        // residuals.applyOnTheLeft(sqrt_information_);
-        // LOG(INFO)<<residuals[0];//<<","<<residuals[1]<<","<<residuals[2];
+        Matrix<T, 3, 1> angle = pose.inverse().rotationMatrix().eulerAngles(1, 0, 2);
+        residuals[0] = T(100) * pose.inverse().translation().y();
+        residuals[1] = T(1000) * sin(angle[1]);
+        residuals[2] = T(1000) * sin(angle[2]);
         return true;
     }
 
     static ceres::CostFunction *Create()
     {
-        return new ceres::AutoDiffCostFunction<VehicleMotionError, 2, 7, 7>(new VehicleMotionError());
+        return new ceres::AutoDiffCostFunction<VehicleMotionError, 3, 7>(new VehicleMotionError());
     }
 
-    static Matrix4d covariance;
-
-private:
-    Matrix4d sqrt_information_;
+    static Matrix3d sqrt_information;
 };
 
 } // namespace lvio_fusion

@@ -71,18 +71,15 @@ public:
 
     void Transfrom(NavsatFrame &frame)
     {
-        Quaterniond q(R[0], R[1], R[2], R[3]);
-        Vector3d t(t[0], t[1], t[2]);
-        frame.A = q * frame.A + t;
-        frame.B = q * frame.B + t;
+        frame.A = tf * frame.A;
+        frame.B = tf * frame.B;
     }
 
     void Initialize();
 
     bool initialized = false;
-    int num_frames_init = 50;
-    double R[4] = {1, 0, 0, 0}; // w, x, y, z
-    double t[3] = {0, 0, 0};
+    int num_frames_init = 20;
+    SE3d tf;
 
 private:
     NavsatPoints navsat_points_;

@@ -16,11 +16,6 @@ public:
 
     MapPoint() {}
 
-    Features GetObservations()
-    {
-        return observations;
-    }
-
     Frame::Ptr FindFirstFrame();
 
     Frame::Ptr FindLastFrame();
@@ -32,12 +27,14 @@ public:
     // factory function
     static MapPoint::Ptr CreateNewMappoint(Vector3d position);
 
-    unsigned long id = 0; // ID
-    Features observations;
-    Vector3d position; // Position in world
-    LabelType label = LabelType::None; // Sematic Label
+    unsigned long id = 0;               // ID
+    Features observations;              // only for left feature
+    Feature::Ptr right_observation;     // only one right observation
+    double depth;                       // depth in the first frame
+    LabelType label = LabelType::None;  // Sematic Label
 
 };
+
 } // namespace lvio_fusion
 
 #endif // lvio_fusion_MAPPOINT_H

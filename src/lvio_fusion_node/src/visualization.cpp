@@ -109,10 +109,9 @@ void pub_tf(Estimator::Ptr estimator, double time)
     // navsat
     if (estimator->map->navsat_map != nullptr && estimator->map->navsat_map->initialized)
     {
-        double *R = estimator->map->navsat_map->R;
-        double *t = estimator->map->navsat_map->t;
-        tf_q.setValue(R[1], R[2], R[3], R[0]);
-        tf_t.setValue(t[0], t[1], t[2]);
+        double *tf_data = estimator->map->navsat_map->tf.data();
+        tf_q.setValue(tf_data[0], tf_data[1], tf_data[2], tf_data[3]);
+        tf_t.setValue(tf_data[4], tf_data[5], tf_data[6]);
         transform.setOrigin(tf_t);
         transform.setRotation(tf_q);
         br.sendTransform(tf::StampedTransform(transform, ros::Time(time), "world", "navsat"));

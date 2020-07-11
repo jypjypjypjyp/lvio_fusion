@@ -9,45 +9,47 @@
 namespace lvio_fusion
 {
 
-class NavsatPoseError
+class NavsatError
 {
 public:
-    NavsatPoseError(Vector3d p, Quaterniond R)
-        : p_(p), R_(R) {}
+    NavsatError(Vector3d p) : p_(p) {}
 
     template <typename T>
-    bool operator()(const T *t_, T *residuals_) const
+    bool operator()(const T *pose_, T *residuals_) const
     {
-        Eigen::Map<Matrix<T, 3, 1> const> t(t_);
+        Eigen::Map<Sophus::SE3<T> const> pose(pose_);
         Eigen::Map<Matrix<T, 3, 1>> residuals(residuals_);
-        residuals = R_.inverse().template cast<T>() * (-t) - p_;
+        residuals = pose.inverse().translation() - p_;
+        residuals.applyOnTheLeft(sqrt_information.template cast<T>());
         return true;
     }
 
-    static ceres::CostFunction *Create(Vector3d p, Quaterniond R)
+    static ceres::CostFunction *Create(Vector3d p)
     {
-        return (new ceres::AutoDiffCostFunction<NavsatPoseError, 3, 3>(
-            new NavsatPoseError(p, R)));
+        return (new ceres::AutoDiffCostFunction<NavsatError, 3, 7>(new NavsatError(p)));
     }
+
+    static Matrix3d sqrt_information;
 
 private:
     Vector3d p_;
-    Quaterniond R_;
 };
 
-class NavsatRError
+class NavsatInitError
 {
 public:
-    NavsatRError(Vector3d p0, Vector3d p1, Vector3d p2)
+    NavsatInitError(Vector3d p0, Vector3d p1, Vector3d p2)
         : p0_(p0), p1_(p1), p2_(p2) {}
 
     template <typename T>
-    bool operator()(const T *R_, const T *t_, T *residuals) const
+    bool operator()(const T *pose_, T *residuals) const
     {
-        Eigen::Map<Quaternion<T> const> R(R_);
-        Eigen::Map<Matrix<T, 3, 1> const> t(t_);
-        Matrix<T, 3, 1> p1 = R * p1_.template cast<T>() + t;
-        Matrix<T, 3, 1> p2 = R * p2_.template cast<T>() + t;
+        Eigen::Map<Sophus::SE3<T> const> pose(pose_);
+        Sophus::SE3<T> better_pose(pose);
+        better_pose.translation().x() = T(0);
+        better_pose.translation().y() = T(0);
+        Matrix<T, 3, 1> p1 = better_pose * p1_.template cast<T>();
+        Matrix<T, 3, 1> p2 = better_pose * p2_.template cast<T>();
         Matrix<T, 3, 1> p0 = p0_.template cast<T>();
         residuals[0] = ((p1 - p2).cross(p1 - p0)).norm() / (p2 - p1)[0];
         return true;
@@ -55,8 +57,7 @@ public:
 
     static ceres::CostFunction *Create(Vector3d p0, Vector3d p1, Vector3d p2)
     {
-        return (new ceres::AutoDiffCostFunction<NavsatRError, 1, 4, 3>(
-            new NavsatRError(p0, p1, p2)));
+        return (new ceres::AutoDiffCostFunction<NavsatInitError, 1, 7>(new NavsatInitError(p0, p1, p2)));
     }
 
 private:
@@ -77,7 +78,7 @@ private:
 //         EigenQuaternionInverse(R, q_inv);
 //         T p0[3];
 //         ceres::QuaternionRotatePoint(q_inv, t, p0);
-        
+
 //         T x1 = T(x1_), y1 = T(y1_), z1 = T(z1_),
 //           x2 = T(x2_), y2 = T(y2_), z2 = T(z2_),
 //           x0 = p0[0], y0 = p0[1], z0 = p0[2];

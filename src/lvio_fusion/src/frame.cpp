@@ -1,55 +1,35 @@
 #include "lvio_fusion/frame.h"
 #include "lvio_fusion/feature.h"
+#include "lvio_fusion/map.h"
 #include "lvio_fusion/mappoint.h"
 
 namespace lvio_fusion
 {
 
-Frame::Frame(long id, double time, const SE3d &pose, const cv::Mat &left_image, const cv::Mat &right_image)
-    : id(time), pose(pose), left_image(left_image), right_image(right_image) {}
-
 Frame::Ptr Frame::CreateFrame()
 {
-    return Frame::Ptr(new Frame);
-}
-
-void Frame::SetKeyFrame()
-{
-    static long keyframe_factory_id = 0;
-    id = keyframe_factory_id++;
+    Frame::Ptr new_frame(new Frame);
+    new_frame->id = Map::current_frame_id + 1;
+    return new_frame;
 }
 
 void Frame::AddFeature(Feature::Ptr feature)
 {
+    assert(feature->frame.lock()->id == id);
     if (feature->is_on_left_image)
     {
-        left_features.push_back(feature);
+        left_features.insert(std::make_pair(feature->mappoint.lock()->id, feature));
     }
     else
     {
-        right_features.push_back(feature);
+        right_features.insert(std::make_pair(feature->mappoint.lock()->id, feature));
     }
 }
 
 void Frame::RemoveFeature(Feature::Ptr feature)
 {
-    Features &features = left_features;
-    if (!feature->is_on_left_image)
-    {
-        features = right_features;
-    }
-    for (auto it = features.begin(); it != features.end();)
-    {
-        if (*it == feature)
-        {
-            it = features.erase(it);
-            return;
-        }
-        else
-        {
-            ++it;
-        }
-    }
+    assert(feature->is_on_left_image && id != feature->mappoint.lock()->FindFirstFrame()->id);
+    left_features.erase(feature->mappoint.lock()->id);
 }
 
 //NOTE:semantic map
@@ -67,10 +47,10 @@ LabelType Frame::GetLabelType(int x, int y)
 
 void Frame::UpdateLabel()
 {
-    for (auto feature : left_features)
+    for (auto feature_pair : left_features)
     {
-        auto mappoint = feature->mappoint.lock();
-        mappoint->label = GetLabelType(feature->keypoint.x, feature->keypoint.y);
+        auto mappoint = feature_pair.second->mappoint.lock();
+        mappoint->label = GetLabelType(feature_pair.second->keypoint.x, feature_pair.second->keypoint.y);
     }
 }
 

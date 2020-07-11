@@ -2,9 +2,9 @@
 #define MAP_H
 
 #include "lvio_fusion/common.h"
-#include "lvio_fusion/sensors/navsat.h"
 #include "lvio_fusion/frame.h"
 #include "lvio_fusion/mappoint.h"
+#include "lvio_fusion/sensors/navsat.h"
 
 namespace lvio_fusion
 {
@@ -20,17 +20,15 @@ public:
 
     Landmarks &GetAllMapPoints()
     {
-        std::unique_lock<std::mutex> lock(map_mutex_);
+        std::unique_lock<std::mutex> lock(data_mutex_);
         return landmarks_;
     }
 
     Keyframes &GetAllKeyFrames()
     {
-        std::unique_lock<std::mutex> lock(map_mutex_);
+        std::unique_lock<std::mutex> lock(data_mutex_);
         return keyframes_;
     }
-
-    Landmarks GetActiveMapPoints(bool full = false);
 
     Keyframes GetActiveKeyFrames(bool full = false);
 
@@ -43,7 +41,6 @@ public:
     void Reset()
     {
         landmarks_.clear();
-        active_landmarks_.clear();
         keyframes_.clear();
         active_keyframes_.clear();
     }
@@ -51,12 +48,14 @@ public:
     Frame::Ptr current_frame = nullptr;
     NavsatMap::Ptr navsat_map;
 
+    static unsigned long current_frame_id;
+    static unsigned long current_mappoint_id;
+
 private:
     void RemoveOldKeyframe();
 
-    std::mutex map_mutex_;
+    std::mutex data_mutex_;
     Landmarks landmarks_;
-    Landmarks active_landmarks_;
     Keyframes keyframes_;
     Keyframes active_keyframes_;
 
