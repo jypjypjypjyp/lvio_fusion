@@ -69,7 +69,7 @@ inline void line_fitting(MatrixX3d P, Vector3d &A, Vector3d &B)
  */
 inline Vector3d closest_point_on_a_line(Vector3d A, Vector3d B, Vector3d P)
 {
-    Vector3d AB = B-A, AP = P-A;
+    Vector3d AB = B - A, AP = P - A;
     double k = AB.dot(AP) / AB.norm();
     return A + k * AB;
 };

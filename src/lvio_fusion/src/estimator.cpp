@@ -1,9 +1,10 @@
 #include <fstream>
 
-#include "lvio_fusion/ceres_helper/navsat_error.hpp"
-#include "lvio_fusion/ceres_helper/pose_only_reprojection_error.hpp"
-#include "lvio_fusion/ceres_helper/reprojection_error.hpp"
-#include "lvio_fusion/ceres_helper/vehicle_motion_error.hpp"
+#include "lvio_fusion/ceres_helpers/navsat_error.hpp"
+#include "lvio_fusion/ceres_helpers/pose_only_reprojection_error.hpp"
+#include "lvio_fusion/ceres_helpers/two_camera_reprojection_error.hpp"
+#include "lvio_fusion/ceres_helpers/two_frame_reprojection_error.hpp"
+#include "lvio_fusion/ceres_helpers/vehicle_motion_error.hpp"
 #include "lvio_fusion/config.h"
 #include "lvio_fusion/estimator.h"
 #include "lvio_fusion/frame.h"
@@ -13,7 +14,8 @@
 namespace lvio_fusion
 {
 
-Matrix2d ReprojectionError::sqrt_information = Matrix2d::Identity();
+Matrix2d TwoCameraReprojectionError::sqrt_information = Matrix2d::Identity();
+Matrix2d TwoFrameReprojectionError::sqrt_information = Matrix2d::Identity();
 Matrix2d PoseOnlyReprojectionError::sqrt_information = Matrix2d::Identity();
 Matrix3d NavsatError::sqrt_information = Matrix3d::Identity();
 Matrix3d VehicleMotionError::sqrt_information = Matrix3d::Identity();
@@ -76,8 +78,9 @@ bool Estimator::Init()
     backend->SetCameras(camera1, camera2);
     backend->SetFrontend(frontend);
 
+    TwoCameraReprojectionError::sqrt_information = camera1->fx / 1.5 * Matrix2d::Identity();
+    TwoFrameReprojectionError::sqrt_information = camera1->fx / 1.5 * Matrix2d::Identity();
     PoseOnlyReprojectionError::sqrt_information = camera1->fx / 1.5 * Matrix2d::Identity();
-    ReprojectionError::sqrt_information = camera1->fx / 1.5 * Matrix2d::Identity();
     NavsatError::sqrt_information = 1e6 * Matrix3d::Identity();
 
     // semantic map

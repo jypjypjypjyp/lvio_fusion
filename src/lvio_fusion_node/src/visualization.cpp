@@ -61,9 +61,9 @@ void pub_navsat(Estimator::Ptr estimator, double time)
     {
         if (navsat_path.poses.size() == 0)
         {
-            for (auto pair : estimator->map->navsat_map->GetAllPoints())
+            for (auto mp_pair : estimator->map->navsat_map->GetAllPoints())
             {
-                NavsatPoint point = pair.second;
+                NavsatPoint point = mp_pair.second;
                 geometry_msgs::PoseStamped pose_stamped;
                 pose_stamped.header.stamp = ros::Time(point.time);
                 pose_stamped.header.frame_id = "navsat";
@@ -126,7 +126,7 @@ void pub_point_cloud(Estimator::Ptr estimator, double time)
     for (auto mappoint : landmarks)
     {
         PointRGB p;
-        Vector3d pos = mappoint.second->position;
+        Vector3d pos = mappoint.second->Position();
         p.x = pos.x();
         p.y = pos.y();
         p.z = pos.z();

@@ -46,8 +46,8 @@ public:
     {
         // t1 < t2
         NavsatFrame frame;
-        auto pair = navsat_frames_.find(t2);
-        if (pair == navsat_frames_.end())
+        auto nf_pair = navsat_frames_.find(t2);
+        if (nf_pair == navsat_frames_.end())
         {
             auto start = navsat_points_.lower_bound(t1);
             auto end = navsat_points_.lower_bound(t2);
@@ -64,7 +64,7 @@ public:
         }
         else
         {
-            frame = (*pair).second;
+            frame = (*nf_pair).second;
         }
         return frame;
     }

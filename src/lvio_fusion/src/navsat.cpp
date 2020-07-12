@@ -1,7 +1,7 @@
 #include <ceres/ceres.h>
 
-#include "lvio_fusion/ceres_helper/navsat_error.hpp"
-#include "lvio_fusion/ceres_helper/se3_parameterization.hpp"
+#include "lvio_fusion/ceres_helpers/navsat_error.hpp"
+#include "lvio_fusion/ceres_helpers/se3_parameterization.hpp"
 #include "lvio_fusion/map.h"
 #include "lvio_fusion/sensors/navsat.h"
 

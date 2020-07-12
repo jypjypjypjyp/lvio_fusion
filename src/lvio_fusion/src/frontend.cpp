@@ -1,7 +1,7 @@
 #include "lvio_fusion/frontend.h"
 #include "lvio_fusion/backend.h"
-#include "lvio_fusion/ceres_helper/pose_only_reprojection_error.hpp"
-#include "lvio_fusion/ceres_helper/se3_parameterization.hpp"
+#include "lvio_fusion/ceres_helpers/pose_only_reprojection_error.hpp"
+#include "lvio_fusion/ceres_helpers/se3_parameterization.hpp"
 #include "lvio_fusion/config.h"
 #include "lvio_fusion/feature.h"
 #include "lvio_fusion/map.h"
@@ -116,19 +116,19 @@ bool Frontend::InitFramePoseByPnP()
         auto feature = feature_pair.second;
         auto mappoint = feature->mappoint.lock();
         points_2d.push_back(feature->keypoint);
-        Vector3d p = mappoint->position;
+        Vector3d p = mappoint->Position();
         points_3d.push_back(cv::Point3f(p.x(), p.y(), p.z()));
     }
 
     cv::Mat K;
-    cv::eigen2cv(camera_left->K(), K);
+    cv::eigen2cv(left_camera_->K(), K);
     cv::Mat rvec, tvec, inliers, D, cv_R;
     if (cv::solvePnPRansac(points_3d, points_2d, K, D, rvec, tvec, false, 100, 8.0F, 0.98, cv::noArray(), cv::SOLVEPNP_EPNP))
     {
         cv::Rodrigues(rvec, cv_R);
         Matrix3d R;
         cv::cv2eigen(cv_R, R);
-        current_frame->pose = camera_left->pose.inverse() *
+        current_frame->pose = left_camera_->extrinsic.inverse() *
                               SE3d(SO3d(R), Vector3d(tvec.at<double>(0, 0), tvec.at<double>(1, 0), tvec.at<double>(2, 0)));
         return true;
     }
@@ -147,8 +147,7 @@ int Frontend::Optimize()
     {
         auto feature = feature_pair.second;
         auto mappoint = feature->mappoint.lock();
-        ceres::CostFunction *cost_function;
-        cost_function = new PoseOnlyReprojectionError(to_vector2d(feature->keypoint), camera_left, mappoint->position);
+        ceres::CostFunction *cost_function = PoseOnlyReprojectionError::Create(to_vector2d(feature->keypoint), left_camera_, mappoint);
         problem.AddResidualBlock(cost_function, loss_function, para);
     }
 
@@ -165,13 +164,14 @@ int Frontend::Optimize()
     {
         auto feature = feature_pair.second;
         auto mappoint = feature->mappoint.lock();
-        Vector2d error = to_vector2d(feature->keypoint) - camera_left->world2pixel(mappoint->position, current_frame->pose);
-        if (error[0] > 3 || error[1] > 3)
+        double error[2];
+        PoseOnlyReprojectionError(to_vector2d(feature->keypoint), left_camera_, mappoint)(current_frame->pose.data(), error);
+        if (error[0] > 2 || error[1] > 2)
         {
             current_frame->RemoveFeature(feature);
         }
     }
-    
+
     return current_frame->left_features.size();
 }
 
@@ -185,7 +185,7 @@ int Frontend::TrackLastFrame()
         // use project point
         auto feature = feature_pair.second;
         auto mappoint = feature->mappoint.lock();
-        auto px = camera_left->world2pixel(mappoint->position, current_frame->pose);
+        auto px = left_camera_->World2Pixel(mappoint->Position(), current_frame->pose);
         mappoints.push_back(mappoint);
         kps_last.push_back(feature->keypoint);
         kps_current.push_back(cv::Point2f(px[0], px[1]));
@@ -267,7 +267,7 @@ int Frontend::DetectNewFeatures()
         cv::OPTFLOW_USE_INITIAL_FLOW);
 
     // triangulate new points
-    std::vector<SE3d> poses{camera_left->pose, camera_right->pose};
+    std::vector<SE3d> poses{left_camera_->extrinsic, right_camera_->extrinsic};
     SE3d current_pose_Twc = current_frame->pose.inverse();
     int num_triangulated_pts = 0;
     int num_good_pts = 0;
@@ -278,14 +278,13 @@ int Frontend::DetectNewFeatures()
             num_good_pts++;
             // triangulation
             std::vector<Vector3d> points{
-                camera_left->pixel2camera(to_vector2d(kps_left[i])),
-                camera_right->pixel2camera(to_vector2d(kps_right[i]))};
+                left_camera_->Pixel2Camera(to_vector2d(kps_left[i])),
+                right_camera_->Pixel2Camera(to_vector2d(kps_right[i]))};
             Vector3d pworld = Vector3d::Zero();
 
             if (triangulation(poses, points, pworld))
             {
-                pworld = current_pose_Twc * pworld;
-                auto new_mappoint = MapPoint::CreateNewMappoint(pworld);
+                auto new_mappoint = MapPoint::CreateNewMappoint(pworld.z(), left_camera_);
                 auto new_left_feature = Feature::CreateFeature(current_frame, kps_left[i], new_mappoint);
                 auto new_right_feature = Feature::CreateFeature(current_frame, kps_right[i], new_mappoint);
                 new_right_feature->is_on_left_image = false;

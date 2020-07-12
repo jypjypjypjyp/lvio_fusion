@@ -1,7 +1,6 @@
 #ifndef lvio_fusion_FRAME_H
 #define lvio_fusion_FRAME_H
 
-#include "lvio_fusion/camera.h"
 #include "lvio_fusion/common.h"
 #include "lvio_fusion/feature.h"
 #include "lvio_fusion/semantic/detected_object.h"

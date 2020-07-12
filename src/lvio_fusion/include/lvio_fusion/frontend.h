@@ -1,10 +1,10 @@
-
 #ifndef lvio_fusion_FRONTEND_H
 #define lvio_fusion_FRONTEND_H
 
 #include "lvio_fusion/common.h"
 #include "lvio_fusion/frame.h"
 #include "lvio_fusion/map.h"
+#include "lvio_fusion/sensors/camera.hpp"
 
 namespace lvio_fusion
 {
@@ -48,16 +48,14 @@ public:
 
     void SetCameras(Camera::Ptr left, Camera::Ptr right)
     {
-        camera_left = left;
-        camera_right = right;
+        left_camera_ = left;
+        right_camera_ = right;
     }
 
     int flags = Flag::None;
     FrontendStatus status = FrontendStatus::INITING;
     Frame::Ptr current_frame = nullptr;
     Frame::Ptr last_frame = nullptr;
-    Camera::Ptr camera_left = nullptr;
-    Camera::Ptr camera_right = nullptr;
     SE3d relative_motion;
     std::mutex local_map_mutex;
 
@@ -87,6 +85,8 @@ private:
     // data
     Map::Ptr map_ = nullptr;
     std::shared_ptr<Backend> backend_ = nullptr;
+    Camera::Ptr left_camera_ = nullptr;
+    Camera::Ptr right_camera_ = nullptr;
 
     // params
     int num_features_ = 200;

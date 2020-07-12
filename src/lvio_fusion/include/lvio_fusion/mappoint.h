@@ -1,6 +1,7 @@
 #ifndef lvio_fusion_MAPPOINT_H
 #define lvio_fusion_MAPPOINT_H
 
+#include "lvio_fusion/sensor.h"
 #include "lvio_fusion/common.h"
 #include "lvio_fusion/feature.h"
 #include "lvio_fusion/frame.h"
@@ -16,6 +17,8 @@ public:
 
     MapPoint() {}
 
+    Vector3d Position();
+
     Frame::Ptr FindFirstFrame();
 
     Frame::Ptr FindLastFrame();
@@ -25,11 +28,12 @@ public:
     void RemoveObservation(Feature::Ptr feature);
 
     // factory function
-    static MapPoint::Ptr CreateNewMappoint(Vector3d position);
+    static MapPoint::Ptr CreateNewMappoint(double depth, Sensor::Ptr sensor);
 
     unsigned long id = 0;               // ID
+    Sensor::Ptr sensor = nullptr;       // observed by which sensor
     Features observations;              // only for left feature
-    Feature::Ptr right_observation;     // only one right observation
+    Feature::Ptr init_observation;      // only one initial observation
     double depth;                       // depth in the first frame
     LabelType label = LabelType::None;  // Sematic Label
 

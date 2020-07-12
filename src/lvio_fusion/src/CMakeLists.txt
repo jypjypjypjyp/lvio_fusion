@@ -2,7 +2,6 @@ add_library(lvio_fusion SHARED
         frame.cpp
         mappoint.cpp
         map.cpp
-        camera.cpp
         config.cpp
         frontend.cpp
         backend.cpp
