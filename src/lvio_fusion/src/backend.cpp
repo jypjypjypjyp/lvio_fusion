@@ -57,8 +57,7 @@ void Backend::BackendLoop()
         auto t1 = std::chrono::steady_clock::now();
         Optimize();
         auto t2 = std::chrono::steady_clock::now();
-        auto time_used =
-            std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);
+        auto time_used = std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);
         LOG(INFO) << "Backend cost time: " << time_used.count() << " seconds.";
     }
 }
@@ -89,11 +88,11 @@ void Backend::Optimize(bool full)
             ceres::CostFunction *cost_function;
             if (first_frame == frame)
             {
-                double *para_depth = &(landmark->depth);
-                problem.AddParameterBlock(para_depth, 1);
-                auto init_ob = landmark->init_observation;
-                cost_function = TwoCameraReprojectionError::Create(to_vector2d(feature->keypoint), to_vector2d(init_ob->keypoint), left_camera_, right_camera_);
-                problem.AddResidualBlock(cost_function, loss_function, para_depth);
+                // double *para_depth = &(landmark->depth);
+                // problem.AddParameterBlock(para_depth, 1);
+                // auto init_ob = landmark->init_observation;
+                // cost_function = TwoCameraReprojectionError::Create(to_vector2d(feature->keypoint), to_vector2d(init_ob->keypoint), left_camera_, right_camera_);
+                // problem.AddResidualBlock(cost_function, loss_function, para_depth);
             }
             else if (first_frame->time < start_time)
             {
@@ -102,12 +101,12 @@ void Backend::Optimize(bool full)
             }
             else
             {
-                double *para_depth = &(landmark->depth);
-                problem.AddParameterBlock(para_depth, 1);
-                double *para_fist_kf = first_frame->pose.data();
-                auto init_ob = landmark->observations.begin()->second;
-                cost_function = TwoFrameReprojectionError::Create(to_vector2d(feature->keypoint), to_vector2d(init_ob->keypoint), left_camera_);
-                problem.AddResidualBlock(cost_function, loss_function, para_fist_kf, para_kf, para_depth);
+                // double *para_depth = &(landmark->depth);
+                // problem.AddParameterBlock(para_depth, 1);
+                // double *para_fist_kf = first_frame->pose.data();
+                // auto init_ob = landmark->observations.begin()->second;
+                // cost_function = TwoFrameReprojectionError::Create(to_vector2d(feature->keypoint), to_vector2d(init_ob->keypoint), left_camera_);
+                // problem.AddResidualBlock(cost_function, loss_function, para_fist_kf, para_kf, para_depth);
             }
         }
     }
@@ -179,22 +178,22 @@ void Backend::Optimize(bool full)
             auto feature = feature_pair.second;
             auto landmark = feature->mappoint.lock();
             auto first_frame = landmark->FindFirstFrame();
-            double error[2] = {0, 0};
+            Vector2d error(0, 0);
             if (first_frame != frame)
             {
             }
             else if (first_frame->time < active_kfs.begin()->first)
             {
-                PoseOnlyReprojectionError(to_vector2d(feature->keypoint), left_camera_, landmark)(para_kf, error);
+                PoseOnlyReprojectionError(to_vector2d(feature->keypoint), left_camera_, landmark)(para_kf, error.data());
             }
             else
             {
-                double *para_depth = &(landmark->depth);
-                double *para_fist_kf = first_frame->pose.data();
-                auto init_ob = landmark->observations.begin()->second;
-                TwoFrameReprojectionError(to_vector2d(feature->keypoint), to_vector2d(init_ob->keypoint), left_camera_)(para_fist_kf, para_kf, para_depth, error);
+                // double *para_depth = &(landmark->depth);
+                // double *para_fist_kf = first_frame->pose.data();
+                // auto init_ob = landmark->observations.begin()->second;
+                // TwoFrameReprojectionError(to_vector2d(feature->keypoint), to_vector2d(init_ob->keypoint), left_camera_)(para_fist_kf, para_kf, para_depth, error.data());
             }
-            if (error[0] > 2 || error[1] > 2)
+            if (error.norm() > 1000)
             {
                 landmark->RemoveObservation(feature);
                 frame->RemoveFeature(feature);
@@ -207,7 +206,7 @@ void Backend::Optimize(bool full)
     }
 
     // propagate
-    Propagate((--active_kfs.end())->second->time);
+    Propagate(end_time);
 }
 
 void Backend::Propagate(double time)
@@ -239,11 +238,11 @@ void Backend::Propagate(double time)
             ceres::CostFunction *cost_function;
             if (first_frame == frame)
             {
-                double *para_depth = &(landmark->depth);
-                problem.AddParameterBlock(para_depth, 1);
-                auto init_ob = landmark->init_observation;
-                cost_function = TwoCameraReprojectionError::Create(to_vector2d(feature->keypoint), to_vector2d(init_ob->keypoint), left_camera_, right_camera_);
-                problem.AddResidualBlock(cost_function, loss_function, para_depth);
+                // double *para_depth = &(landmark->depth);
+                // problem.AddParameterBlock(para_depth, 1);
+                // auto init_ob = landmark->init_observation;
+                // cost_function = TwoCameraReprojectionError::Create(to_vector2d(feature->keypoint), to_vector2d(init_ob->keypoint), left_camera_, right_camera_);
+                // problem.AddResidualBlock(cost_function, loss_function, para_depth);
             }
             else if (first_frame->time <= time)
             {
@@ -252,12 +251,12 @@ void Backend::Propagate(double time)
             }
             else
             {
-                double *para_depth = &(landmark->depth);
-                problem.AddParameterBlock(para_depth, 1);
-                double *para_fist_kf = first_frame->pose.data();
-                auto init_ob = landmark->observations.begin()->second;
-                cost_function = TwoFrameReprojectionError::Create(to_vector2d(feature->keypoint), to_vector2d(init_ob->keypoint), left_camera_);
-                problem.AddResidualBlock(cost_function, loss_function, para_fist_kf, para_kf, para_depth);
+                // double *para_depth = &(landmark->depth);
+                // problem.AddParameterBlock(para_depth, 1);
+                // double *para_fist_kf = first_frame->pose.data();
+                // auto init_ob = landmark->observations.begin()->second;
+                // cost_function = TwoFrameReprojectionError::Create(to_vector2d(feature->keypoint), to_vector2d(init_ob->keypoint), left_camera_);
+                // problem.AddResidualBlock(cost_function, loss_function, para_fist_kf, para_kf, para_depth);
             }
         }
     }

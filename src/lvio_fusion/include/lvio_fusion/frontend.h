@@ -46,7 +46,7 @@ public:
 
     void SetBackend(std::shared_ptr<Backend> backend) { backend_ = backend; }
 
-    void SetCameras(Camera::Ptr left, Camera::Ptr right)
+    void SetCameras(Camerad::Ptr left, Camerad::Ptr right)
     {
         left_camera_ = left;
         right_camera_ = right;
@@ -85,8 +85,8 @@ private:
     // data
     Map::Ptr map_ = nullptr;
     std::shared_ptr<Backend> backend_ = nullptr;
-    Camera::Ptr left_camera_ = nullptr;
-    Camera::Ptr right_camera_ = nullptr;
+    Camerad::Ptr left_camera_ = nullptr;
+    Camerad::Ptr right_camera_ = nullptr;
 
     // params
     int num_features_ = 200;

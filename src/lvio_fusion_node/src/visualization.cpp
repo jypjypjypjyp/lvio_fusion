@@ -120,36 +120,36 @@ void pub_tf(Estimator::Ptr estimator, double time)
 
 void pub_point_cloud(Estimator::Ptr estimator, double time)
 {
-    sensor_msgs::PointCloud2 ros_cloud;
-    PointCloudRGB pcl_cloud;
-    auto landmarks = estimator->map->GetAllMapPoints();
-    for (auto mappoint : landmarks)
-    {
-        PointRGB p;
-        Vector3d pos = mappoint.second->Position();
-        p.x = pos.x();
-        p.y = pos.y();
-        p.z = pos.z();
-        //NOTE: semantic map
-        LabelType label = mappoint.second->label;
-        switch (label)
-        {
-        case LabelType::Car:
-            p.rgba = 0xFF0000FF;
-            break;
-        case LabelType::Person:
-            p.rgba = 0x0000FFFF;
-            break;
-        case LabelType::Truck:
-            p.rgba = 0xFF0000FF;
-            break;
-        default:
-            p.rgba = 0x00FF00FF;
-        }
-        pcl_cloud.push_back(p);
-    }
-    pcl::toROSMsg(pcl_cloud, ros_cloud);
-    ros_cloud.header.stamp = ros::Time(time);
-    ros_cloud.header.frame_id = "world";
-    points_cloud_pub.publish(ros_cloud);
+    // sensor_msgs::PointCloud2 ros_cloud;
+    // PointCloudRGB pcl_cloud;
+    // auto landmarks = estimator->map->GetAllMapPoints();
+    // for (auto mappoint : landmarks)
+    // {
+    //     PointRGB p;
+    //     Vector3d pos = mappoint.second->Position();
+    //     p.x = pos.x();
+    //     p.y = pos.y();
+    //     p.z = pos.z();
+    //     //NOTE: semantic map
+    //     LabelType label = mappoint.second->label;
+    //     switch (label)
+    //     {
+    //     case LabelType::Car:
+    //         p.rgba = 0xFF0000FF;
+    //         break;
+    //     case LabelType::Person:
+    //         p.rgba = 0x0000FFFF;
+    //         break;
+    //     case LabelType::Truck:
+    //         p.rgba = 0xFF0000FF;
+    //         break;
+    //     default:
+    //         p.rgba = 0x00FF00FF;
+    //     }
+    //     pcl_cloud.push_back(p);
+    // }
+    // pcl::toROSMsg(pcl_cloud, ros_cloud);
+    // ros_cloud.header.stamp = ros::Time(time);
+    // ros_cloud.header.frame_id = "world";
+    // points_cloud_pub.publish(ros_cloud);
 }

@@ -6,46 +6,41 @@
 namespace lvio_fusion
 {
 
+template <typename T>
 class Sensor
 {
 public:
-    typedef std::shared_ptr<Sensor> Ptr;
+    typedef std::shared_ptr<Sensor<T>> Ptr;
 
-    Sensor(SE3d extrinsic): extrinsic(extrinsic) {}
+    Sensor(SE3d extrinsic) : extrinsic(extrinsic) {}
 
     // coordinate transform: world, sensor, pixel
-    template <typename T>
-    Matrix<T,3,1> World2Sensor(const Matrix<T,3,1> &p_w, const Sophus::SE3<T> &T_c_w)
+    virtual Matrix<T, 3, 1> World2Sensor(const Matrix<T, 3, 1> &p_w, const Sophus::SE3<T> &T_c_w)
     {
         throw NotImplemented();
     }
 
-    template <typename T>
-    Matrix<T,3,1> Sensor2World(const Matrix<T,3,1> &p_c, const Sophus::SE3<T> &T_c_w)
+    virtual Matrix<T, 3, 1> Sensor2World(const Matrix<T, 3, 1> &p_c, const Sophus::SE3<T> &T_c_w)
     {
         throw NotImplemented();
     }
 
-    template <typename T>
-    Matrix<T,2,1> Sensor2Pixel(const Matrix<T,3,1> &p_c)
+    virtual Matrix<T, 2, 1> Sensor2Pixel(const Matrix<T, 3, 1> &p_c)
     {
         throw NotImplemented();
     }
 
-    template <typename T>
-    Matrix<T,3,1> Pixel2Sensor(const Matrix<T,2,1> &p_p, T depth = 1)
+    virtual Matrix<T, 3, 1> Pixel2Sensor(const Matrix<T, 2, 1> &p_p, T depth = 1)
     {
         throw NotImplemented();
     }
 
-    template <typename T>
-    Matrix<T,3,1> Pixel2World(const Matrix<T,2,1> &p_p, const Sophus::SE3<T> &T_c_w, T depth = 1)
+    virtual Matrix<T, 3, 1> Pixel2World(const Matrix<T, 2, 1> &p_p, const Sophus::SE3<T> &T_c_w, T depth = 1)
     {
         return Sensor2World(Pixel2Sensor(p_p, depth), T_c_w);
     }
 
-    template <typename T>
-    Matrix<T,2,1> World2Pixel(const Matrix<T,3,1> &p_w, const Sophus::SE3<T> &T_c_w)
+    virtual Matrix<T, 2, 1> World2Pixel(const Matrix<T, 3, 1> &p_w, const Sophus::SE3<T> &T_c_w)
     {
         return Sensor2Pixel(World2Sensor(p_w, T_c_w));
     }
@@ -53,11 +48,7 @@ public:
     SE3d extrinsic;
 };
 
-class GlobalSensor
-{
-public:
-    SE3d tf;
-};
+typedef Sensor<double> Sensord;
 
 } // namespace lvio_fusion
 #endif // lvio_fusion_SENSOR_H

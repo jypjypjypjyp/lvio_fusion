@@ -56,7 +56,7 @@ bool Frontend::Track()
     TrackLastFrame();
     InitFramePoseByPnP();
     int tracking_inliers_ = Optimize();
-
+    
     static int num_tries = 0;
     if (tracking_inliers_ > num_features_tracking_)
     {
@@ -164,9 +164,9 @@ int Frontend::Optimize()
     {
         auto feature = feature_pair.second;
         auto mappoint = feature->mappoint.lock();
-        double error[2];
-        PoseOnlyReprojectionError(to_vector2d(feature->keypoint), left_camera_, mappoint)(current_frame->pose.data(), error);
-        if (error[0] > 2 || error[1] > 2)
+        Vector2d error(0,0);
+        PoseOnlyReprojectionError(to_vector2d(feature->keypoint), left_camera_, mappoint)(current_frame->pose.data(), error.data());
+        if (error.norm() > 1000)
         {
             current_frame->RemoveFeature(feature);
         }
@@ -278,8 +278,8 @@ int Frontend::DetectNewFeatures()
             num_good_pts++;
             // triangulation
             std::vector<Vector3d> points{
-                left_camera_->Pixel2Camera(to_vector2d(kps_left[i])),
-                right_camera_->Pixel2Camera(to_vector2d(kps_right[i]))};
+                left_camera_->Pixel2Sensor(to_vector2d(kps_left[i])),
+                right_camera_->Pixel2Sensor(to_vector2d(kps_right[i]))};
             Vector3d pworld = Vector3d::Zero();
 
             if (triangulation(poses, points, pworld))

@@ -33,12 +33,19 @@ void Map::RemoveOldKeyframe()
     active_keyframes_.erase(active_keyframes_.begin());
 }
 
-// freeze the current frame
+// freeze the first frame of the map point in the last frame
 Map::Keyframes Map::GetActiveKeyFrames(bool full)
 {
     std::unique_lock<std::mutex> lock(data_mutex_);
     Keyframes keyframes = full ? keyframes_ : active_keyframes_;
-    keyframes.erase(current_frame->time);
+    double time = current_frame->time;
+    for(auto feature_pair: current_frame->left_features)
+    {
+        auto feature = feature_pair.second;
+        auto landmark = feature->mappoint.lock();
+        time = std::min(time, landmark->FindFirstFrame()->time);
+    }
+    keyframes.erase(keyframes.find(time), keyframes.end());
     return keyframes;
 }
 

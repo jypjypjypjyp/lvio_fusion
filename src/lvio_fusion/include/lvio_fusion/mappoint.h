@@ -28,10 +28,10 @@ public:
     void RemoveObservation(Feature::Ptr feature);
 
     // factory function
-    static MapPoint::Ptr CreateNewMappoint(double depth, Sensor::Ptr sensor);
+    static MapPoint::Ptr CreateNewMappoint(double depth, Sensord::Ptr sensor);
 
     unsigned long id = 0;               // ID
-    Sensor::Ptr sensor = nullptr;       // observed by which sensor
+    Sensord::Ptr sensor = nullptr;       // observed by which sensor
     Features observations;              // only for left feature
     Feature::Ptr init_observation;      // only one initial observation
     double depth;                       // depth in the first frame

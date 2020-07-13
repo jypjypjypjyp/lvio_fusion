@@ -25,7 +25,7 @@ public:
 
     Backend();
 
-    void SetCameras(Camera::Ptr left, Camera::Ptr right)
+    void SetCameras(Camerad::Ptr left, Camerad::Ptr right)
     {
         left_camera_ = left;
         right_camera_ = right;
@@ -58,7 +58,8 @@ private:
     std::condition_variable pausing_;
     std::condition_variable map_update_;
 
-    Camera::Ptr left_camera_ = nullptr, right_camera_ = nullptr;
+    Camerad::Ptr left_camera_ = nullptr;
+    Camerad::Ptr right_camera_ = nullptr;
 
 };
 

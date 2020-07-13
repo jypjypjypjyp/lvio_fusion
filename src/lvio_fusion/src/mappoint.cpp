@@ -5,7 +5,7 @@
 namespace lvio_fusion
 {
 
-MapPoint::Ptr MapPoint::CreateNewMappoint(double depth, Sensor::Ptr sensor)
+MapPoint::Ptr MapPoint::CreateNewMappoint(double depth, Sensord::Ptr sensor)
 {
     MapPoint::Ptr new_mappoint(new MapPoint);
     new_mappoint->id = Map::current_mappoint_id + 1;
@@ -22,7 +22,7 @@ Vector3d MapPoint::Position()
 
 Frame::Ptr MapPoint::FindFirstFrame()
 {
-    return init_observation->frame.lock();
+    return observations.begin()->second->frame.lock();
 }
 
 Frame::Ptr MapPoint::FindLastFrame()

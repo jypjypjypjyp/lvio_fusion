@@ -42,7 +42,7 @@ bool Estimator::Init()
     Quaterniond q_body_T_cam0(R_body_T_cam0);
     Vector3d t_body_T_cam0(0, 0, 0);
     t_body_T_cam0 << body_T_cam0(0, 3), body_T_cam0(1, 3), body_T_cam0(2, 3);
-    Camera::Ptr camera1(new Camera(Config::Get<double>("camera1.fx"),
+    Camerad::Ptr camera1(new Camerad(Config::Get<double>("camera1.fx"),
                                    Config::Get<double>("camera1.fy"),
                                    Config::Get<double>("camera1.cx"),
                                    Config::Get<double>("camera1.cy"),
@@ -54,7 +54,7 @@ bool Estimator::Init()
     Quaterniond q_body_T_cam1(R_body_T_cam1);
     Vector3d t_body_T_cam1(0, 0, 0);
     t_body_T_cam1 << body_T_cam1(0, 3), body_T_cam1(1, 3), body_T_cam1(2, 3);
-    Camera::Ptr camera2(new Camera(Config::Get<double>("camera2.fx"),
+    Camerad::Ptr camera2(new Camerad(Config::Get<double>("camera2.fx"),
                                    Config::Get<double>("camera2.fy"),
                                    Config::Get<double>("camera2.cx"),
                                    Config::Get<double>("camera2.cy"),

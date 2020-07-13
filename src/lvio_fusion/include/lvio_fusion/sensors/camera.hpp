@@ -10,13 +10,14 @@ namespace lvio_fusion
 {
 
 // Pinhole stereo camera model
-class Camera : public Sensor
+template <typename T>
+class Camera : public Sensor<T>
 {
 public:
-    typedef std::shared_ptr<Camera> Ptr;
+    typedef std::shared_ptr<Camera<T>> Ptr;
 
     Camera(double fx, double fy, double cx, double cy, const SE3d &extrinsic)
-        : fx(fx), fy(fy), cx(cx), cy(cy), Sensor(extrinsic) {}
+        : fx(fx), fy(fy), cx(cx), cy(cy), Sensor<T>(extrinsic) {}
 
     // return intrinsic matrix
     Matrix3d K() const
@@ -27,28 +28,24 @@ public:
     }
 
     // coordinate transform: world, sensor, pixel
-    template <typename T>
-    Matrix<T, 3, 1> World2Sensor(const Matrix<T, 3, 1> &p_w, const Sophus::SE3<T> &T_c_w)
+    virtual Matrix<T, 3, 1> World2Sensor(const Matrix<T, 3, 1> &p_w, const Sophus::SE3<T> &T_c_w)
     {
-        return extrinsic.template cast<T>() * T_c_w * p_w;
+        return Sensor<T>::extrinsic.template cast<T>() * T_c_w * p_w;
     }
 
-    template <typename T>
-    Matrix<T, 3, 1> Sensor2World(const Matrix<T, 3, 1> &p_c, const Sophus::SE3<T> &T_c_w)
+    virtual Matrix<T, 3, 1> Sensor2World(const Matrix<T, 3, 1> &p_c, const Sophus::SE3<T> &T_c_w)
     {
-        return T_c_w.inverse() * extrinsic.inverse().template cast<T>() * p_c;
+        return T_c_w.inverse() * Sensor<T>::extrinsic.inverse().template cast<T>() * p_c;
     }
 
-    template <typename T>
-    Matrix<T, 2, 1> Camera2Pixel(const Matrix<T, 3, 1> &p_c)
+    virtual Matrix<T, 2, 1> Sensor2Pixel(const Matrix<T, 3, 1> &p_c)
     {
         return Matrix<T, 2, 1>(
             T(fx) * p_c(0, 0) / p_c(2, 0) + T(cx),
             T(fy) * p_c(1, 0) / p_c(2, 0) + T(cy));
     }
 
-    template <typename T>
-    Matrix<T, 3, 1> Pixel2Camera(const Matrix<T, 2, 1> &p_p, T depth = T(1))
+    virtual Matrix<T, 3, 1> Pixel2Sensor(const Matrix<T, 2, 1> &p_p, T depth = T(1))
     {
         return Matrix<T, 3, 1>(
             (p_p(0, 0) - T(cx)) * depth / T(fx),
@@ -56,8 +53,16 @@ public:
             depth);
     }
 
+    template <typename NEW_TYPE>
+    Camera<NEW_TYPE> cast()
+    {
+        return Camera<NEW_TYPE>(fx, fy, cx, cy, Sensor<T>::extrinsic);
+    }
+
     double fx = 0, fy = 0, cx = 0, cy = 0; // Camera intrinsics
 };
+
+typedef Camera<double> Camerad;
 
 } // namespace lvio_fusion
 #endif // lvio_fusion_CAMERA_H
