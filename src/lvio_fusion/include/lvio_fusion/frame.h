@@ -24,7 +24,7 @@ public:
     //NOTE: semantic map
     void UpdateLabel();
 
-    static Frame::Ptr CreateFrame();
+    static Frame::Ptr Create();
 
     unsigned long id;
     double time;
@@ -35,7 +35,6 @@ public:
     // corresponding features in right image, only for this frame
     Features right_features;
     SE3d pose;
-    Vector3d velocity;
 
 private:
     //NOTE: semantic map

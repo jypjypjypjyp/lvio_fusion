@@ -78,9 +78,6 @@ bool Estimator::Init()
     backend->SetCameras(camera1, camera2);
     backend->SetFrontend(frontend);
 
-    TwoCameraReprojectionError::sqrt_information = camera1->fx / 1.5 * Matrix2d::Identity();
-    TwoFrameReprojectionError::sqrt_information = camera1->fx / 1.5 * Matrix2d::Identity();
-    PoseOnlyReprojectionError::sqrt_information = camera1->fx / 1.5 * Matrix2d::Identity();
     NavsatError::sqrt_information = 1e6 * Matrix3d::Identity();
 
     // semantic map
@@ -94,7 +91,7 @@ bool Estimator::Init()
 
 void Estimator::InputImage(double time, cv::Mat &left_image, cv::Mat &right_image, std::vector<DetectedObject> objects)
 {
-    Frame::Ptr new_frame = Frame::CreateFrame();
+    Frame::Ptr new_frame = Frame::Create();
     new_frame->time = time;
     new_frame->left_image = left_image;
     new_frame->right_image = right_image;

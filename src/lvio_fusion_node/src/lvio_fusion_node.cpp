@@ -104,17 +104,13 @@ void write_result(Estimator::Ptr estimator, double time)
     SE3d pose = estimator->frontend->current_frame->pose.inverse();
     Vector3d T = pose.translation();
     Quaterniond R = pose.unit_quaternion();
-    Vector3d velocity = estimator->frontend->current_frame->velocity;
     foutC << T.x() << ","
           << T.y() << ","
           << T.z() << ","
           << R.w() << ","
           << R.x() << ","
           << R.y() << ","
-          << R.z() << ","
-          << velocity.x() << ","
-          << velocity.y() << ","
-          << velocity.z() << "," << endl;
+          << R.z() << endl;
     foutC.close();
 }
 

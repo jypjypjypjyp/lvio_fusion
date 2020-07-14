@@ -6,7 +6,7 @@
 namespace lvio_fusion
 {
 
-Frame::Ptr Frame::CreateFrame()
+Frame::Ptr Frame::Create()
 {
     Frame::Ptr new_frame(new Frame);
     new_frame->id = Map::current_frame_id + 1;

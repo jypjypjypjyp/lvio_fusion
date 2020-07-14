@@ -17,7 +17,7 @@ public:
 
     Feature() {}
     
-    static Feature::Ptr CreateFeature(std::shared_ptr<Frame> frame, const cv::Point2f &kp, std::shared_ptr<MapPoint> mappoint)
+    static Feature::Ptr Create(std::shared_ptr<Frame> frame, const cv::Point2f &kp, std::shared_ptr<MapPoint> mappoint)
     {
         Feature::Ptr new_feature(new Feature);
         new_feature->frame = frame;

@@ -52,12 +52,16 @@ public:
         right_camera_ = right;
     }
 
+    void UpdateCache();
+
+    std::map<unsigned long, Vector3d> GetPositionCache();
+
     int flags = Flag::None;
     FrontendStatus status = FrontendStatus::INITING;
     Frame::Ptr current_frame = nullptr;
     Frame::Ptr last_frame = nullptr;
     SE3d relative_motion;
-    std::mutex local_map_mutex;
+    std::mutex last_frame_mutex;
 
 private:
     bool Track();
@@ -87,6 +91,8 @@ private:
     std::shared_ptr<Backend> backend_ = nullptr;
     Camerad::Ptr left_camera_ = nullptr;
     Camerad::Ptr right_camera_ = nullptr;
+    std::map<unsigned long, Vector3d> position_cache_;
+    SE3d last_frame_pose_cache_;
 
     // params
     int num_features_ = 200;

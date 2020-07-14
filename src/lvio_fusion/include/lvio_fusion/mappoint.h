@@ -28,7 +28,7 @@ public:
     void RemoveObservation(Feature::Ptr feature);
 
     // factory function
-    static MapPoint::Ptr CreateNewMappoint(double depth, Sensord::Ptr sensor);
+    static MapPoint::Ptr Create(double depth, Sensord::Ptr sensor);
 
     unsigned long id = 0;               // ID
     Sensord::Ptr sensor = nullptr;       // observed by which sensor

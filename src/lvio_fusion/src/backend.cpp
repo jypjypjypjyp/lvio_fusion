@@ -62,18 +62,12 @@ void Backend::BackendLoop()
     }
 }
 
-void Backend::Optimize(bool full)
+inline void build_problem(Map::Keyframes& active_kfs, ceres::Problem& problem, Camerad::Ptr left_camera_, Camerad::Ptr right_camera_)
 {
-    Map::Keyframes active_kfs = map_->GetActiveKeyFrames(full);
-    if (active_kfs.empty())
-        return;
-
-    ceres::Problem problem;
     ceres::LossFunction *loss_function = new ceres::HuberLoss(1.0);
     ceres::LocalParameterization *local_parameterization = new SE3dParameterization();
 
     double start_time = active_kfs.begin()->first;
-    double end_time = (--active_kfs.end())->first;
 
     for (auto kf_pair : active_kfs)
     {
@@ -88,28 +82,35 @@ void Backend::Optimize(bool full)
             ceres::CostFunction *cost_function;
             if (first_frame == frame)
             {
-                // double *para_depth = &(landmark->depth);
-                // problem.AddParameterBlock(para_depth, 1);
-                // auto init_ob = landmark->init_observation;
-                // cost_function = TwoCameraReprojectionError::Create(to_vector2d(feature->keypoint), to_vector2d(init_ob->keypoint), left_camera_, right_camera_);
-                // problem.AddResidualBlock(cost_function, loss_function, para_depth);
+                double *para_depth = &(landmark->depth);
+                problem.AddParameterBlock(para_depth, 1);
+                auto init_ob = landmark->init_observation;
+                cost_function = TwoCameraReprojectionError::Create(to_vector2d(feature->keypoint), to_vector2d(init_ob->keypoint), left_camera_, right_camera_);
+                problem.AddResidualBlock(cost_function, loss_function, para_depth);
             }
             else if (first_frame->time < start_time)
             {
-                cost_function = PoseOnlyReprojectionError::Create(to_vector2d(feature->keypoint), left_camera_, landmark);
+                cost_function = PoseOnlyReprojectionError::Create(to_vector2d(feature->keypoint), left_camera_, landmark->Position());
                 problem.AddResidualBlock(cost_function, loss_function, para_kf);
             }
             else
             {
-                // double *para_depth = &(landmark->depth);
-                // problem.AddParameterBlock(para_depth, 1);
-                // double *para_fist_kf = first_frame->pose.data();
-                // auto init_ob = landmark->observations.begin()->second;
-                // cost_function = TwoFrameReprojectionError::Create(to_vector2d(feature->keypoint), to_vector2d(init_ob->keypoint), left_camera_);
-                // problem.AddResidualBlock(cost_function, loss_function, para_fist_kf, para_kf, para_depth);
+                double *para_depth = &(landmark->depth);
+                double *para_fist_kf = first_frame->pose.data();
+                auto init_ob = landmark->observations.begin()->second;
+                cost_function = TwoFrameReprojectionError::Create(to_vector2d(init_ob->keypoint), to_vector2d(feature->keypoint),  left_camera_);
+                problem.AddResidualBlock(cost_function, loss_function, para_fist_kf, para_kf, para_depth);
             }
         }
     }
+}
+
+void Backend::Optimize(bool full)
+{
+    Map::Keyframes active_kfs = map_->GetActiveKeyFrames(full);
+
+    ceres::Problem problem;
+    build_problem(active_kfs, problem, left_camera_, right_camera_);
 
     if (active_kfs.begin()->first == map_->GetAllKeyFrames().begin()->first)
     {
@@ -184,34 +185,36 @@ void Backend::Optimize(bool full)
             }
             else if (first_frame->time < active_kfs.begin()->first)
             {
-                PoseOnlyReprojectionError(to_vector2d(feature->keypoint), left_camera_, landmark)(para_kf, error.data());
+                PoseOnlyReprojectionError(to_vector2d(feature->keypoint), left_camera_, landmark->Position())(para_kf, error.data());
             }
             else
             {
-                // double *para_depth = &(landmark->depth);
-                // double *para_fist_kf = first_frame->pose.data();
-                // auto init_ob = landmark->observations.begin()->second;
-                // TwoFrameReprojectionError(to_vector2d(feature->keypoint), to_vector2d(init_ob->keypoint), left_camera_)(para_fist_kf, para_kf, para_depth, error.data());
+                double *para_depth = &(landmark->depth);
+                double *para_fist_kf = first_frame->pose.data();
+                auto init_ob = landmark->observations.begin()->second;
+                TwoFrameReprojectionError(to_vector2d(feature->keypoint), to_vector2d(init_ob->keypoint), left_camera_)(para_fist_kf, para_kf, para_depth, error.data());
             }
-            if (error.norm() > 1000)
+            if (error.norm() > 20)
             {
                 landmark->RemoveObservation(feature);
                 frame->RemoveFeature(feature);
             }
-            if (landmark->observations.size() == 1)
+            if (landmark->observations.size() == 1 && frame != map_->current_frame)
             {
                 map_->RemoveMapPoint(landmark);
             }
         }
     }
 
-    // propagate
+    // propagate to the last frame
+    double end_time = (--active_kfs.end())->first;
     Propagate(end_time);
 }
 
 void Backend::Propagate(double time)
 {
-    std::unique_lock<std::mutex> lock(frontend_.lock()->local_map_mutex);
+    std::unique_lock<std::mutex> lock(frontend_.lock()->last_frame_mutex);
+
     Frame::Ptr last_frame = frontend_.lock()->last_frame;
     Map::Keyframes &all_kfs = map_->GetAllKeyFrames();
     Map::Keyframes active_kfs(all_kfs.upper_bound(time), all_kfs.end());
@@ -219,47 +222,9 @@ void Backend::Propagate(double time)
     {
         active_kfs.insert(std::make_pair(last_frame->time, last_frame));
     }
-    SE3d old_base = (--active_kfs.end())->second->pose;
 
     ceres::Problem problem;
-    ceres::LossFunction *loss_function = new ceres::HuberLoss(1.0);
-    ceres::LocalParameterization *local_parameterization = new SE3dParameterization();
-
-    for (auto kf_pair : active_kfs)
-    {
-        auto frame = kf_pair.second;
-        double *para_kf = frame->pose.data();
-        problem.AddParameterBlock(para_kf, SE3d::num_parameters, local_parameterization);
-        for (auto feature_pair : frame->left_features)
-        {
-            auto feature = feature_pair.second;
-            auto landmark = feature->mappoint.lock();
-            auto first_frame = landmark->FindFirstFrame();
-            ceres::CostFunction *cost_function;
-            if (first_frame == frame)
-            {
-                // double *para_depth = &(landmark->depth);
-                // problem.AddParameterBlock(para_depth, 1);
-                // auto init_ob = landmark->init_observation;
-                // cost_function = TwoCameraReprojectionError::Create(to_vector2d(feature->keypoint), to_vector2d(init_ob->keypoint), left_camera_, right_camera_);
-                // problem.AddResidualBlock(cost_function, loss_function, para_depth);
-            }
-            else if (first_frame->time <= time)
-            {
-                cost_function = PoseOnlyReprojectionError::Create(to_vector2d(feature->keypoint), left_camera_, landmark);
-                problem.AddResidualBlock(cost_function, loss_function, para_kf);
-            }
-            else
-            {
-                // double *para_depth = &(landmark->depth);
-                // problem.AddParameterBlock(para_depth, 1);
-                // double *para_fist_kf = first_frame->pose.data();
-                // auto init_ob = landmark->observations.begin()->second;
-                // cost_function = TwoFrameReprojectionError::Create(to_vector2d(feature->keypoint), to_vector2d(init_ob->keypoint), left_camera_);
-                // problem.AddResidualBlock(cost_function, loss_function, para_fist_kf, para_kf, para_depth);
-            }
-        }
-    }
+    build_problem(active_kfs, problem, left_camera_, right_camera_);
 
     ceres::Solver::Options options;
     options.linear_solver_type = ceres::SPARSE_NORMAL_CHOLESKY;
@@ -267,6 +232,8 @@ void Backend::Propagate(double time)
     options.num_threads = 8;
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
+
+    frontend_.lock()->UpdateCache();
 }
 
 } // namespace lvio_fusion
