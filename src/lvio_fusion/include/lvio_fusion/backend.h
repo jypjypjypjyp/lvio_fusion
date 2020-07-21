@@ -4,7 +4,9 @@
 #include "lvio_fusion/common.h"
 #include "lvio_fusion/frame.h"
 #include "lvio_fusion/map.h"
-#include "lvio_fusion/sensors/camera.hpp"
+// #include "lvio_fusion/sensors/camera.hpp"
+
+#include <ceres/ceres.h>
 
 namespace lvio_fusion
 {
@@ -25,11 +27,11 @@ public:
 
     Backend();
 
-    void SetCameras(Camerad::Ptr left, Camerad::Ptr right)
-    {
-        left_camera_ = left;
-        right_camera_ = right;
-    }
+    // void SetCameras(Camerad::Ptr left, Camerad::Ptr right)
+    // {
+    //     left_camera_ = left;
+    //     right_camera_ = right;
+    // }
 
     void SetMap(Map::Ptr map) { map_ = map; }
 
@@ -50,6 +52,8 @@ private:
 
     void Propagate(double time);
 
+    void BuildProblem(Map::Keyframes &active_kfs, ceres::Problem &problem);
+
     Map::Ptr map_;
     std::weak_ptr<Frontend> frontend_;
     std::thread thread_;
@@ -58,8 +62,8 @@ private:
     std::condition_variable pausing_;
     std::condition_variable map_update_;
 
-    Camerad::Ptr left_camera_ = nullptr;
-    Camerad::Ptr right_camera_ = nullptr;
+    // Camerad::Ptr left_camera_ = nullptr;
+    // Camerad::Ptr right_camera_ = nullptr;
 
 };
 

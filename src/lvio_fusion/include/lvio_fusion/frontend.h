@@ -5,6 +5,7 @@
 #include "lvio_fusion/frame.h"
 #include "lvio_fusion/map.h"
 #include "lvio_fusion/sensors/camera.hpp"
+#include "lvio_fusion/camera.h"
 
 namespace lvio_fusion
 {
@@ -38,7 +39,7 @@ class Frontend
 public:
     typedef std::shared_ptr<Frontend> Ptr;
 
-    Frontend();
+    Frontend(int num_features, int init, int tracking, int tracking_bad, int need_for_keyframe);
 
     bool AddFrame(Frame::Ptr frame);
 
@@ -54,7 +55,7 @@ public:
 
     void UpdateCache();
 
-    std::map<unsigned long, Vector3d> GetPositionCache();
+    std::unordered_map<unsigned long, Vector3d> GetPositionCache();
 
     int flags = Flag::None;
     FrontendStatus status = FrontendStatus::INITING;
@@ -91,15 +92,15 @@ private:
     std::shared_ptr<Backend> backend_ = nullptr;
     Camerad::Ptr left_camera_ = nullptr;
     Camerad::Ptr right_camera_ = nullptr;
-    std::map<unsigned long, Vector3d> position_cache_;
+    std::unordered_map<unsigned long, Vector3d> position_cache_;
     SE3d last_frame_pose_cache_;
 
     // params
-    int num_features_ = 200;
-    int num_features_init_ = 100;
-    int num_features_tracking_ = 50;
-    int num_features_tracking_bad_ = 8;
-    int num_features_needed_for_keyframe_ = 80;
+    int num_features_;
+    int num_features_init_;
+    int num_features_tracking_;
+    int num_features_tracking_bad_;
+    int num_features_needed_for_keyframe_;
 };
 
 } // namespace lvio_fusion

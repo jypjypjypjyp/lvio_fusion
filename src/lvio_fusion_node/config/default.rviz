@@ -109,7 +109,7 @@ Visualization Manager:
       Buffer Length: 1
       Class: rviz/Path
       Color: 255; 25; 25
-      Enabled: false
+      Enabled: true
       Head Diameter: 0.30000001192092896
       Head Length: 0.20000000298023224
       Length: 0.30000001192092896
@@ -127,7 +127,7 @@ Visualization Manager:
       Shaft Length: 0.10000000149011612
       Topic: /lvio_fusion_node/navsat_path
       Unreliable: false
-      Value: false
+      Value: true
     - Alpha: 1
       Autocompute Intensity Bounds: true
       Autocompute Value Bounds:
@@ -223,7 +223,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 588.2626342773438
+      Distance: 168.19775390625
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -238,10 +238,10 @@ Visualization Manager:
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 1.5697963237762451
+      Pitch: 0.7897970080375671
       Target Frame: <Fixed Frame>
       Value: Orbit (rviz)
-      Yaw: 6.273548603057861
+      Yaw: 5.673555850982666
     Saved: ~
 Window Geometry:
   Displays:

@@ -16,8 +16,8 @@ MapPoint::Ptr MapPoint::Create(double depth, Sensord::Ptr sensor)
 
 Vector3d MapPoint::Position()
 {
-    cv::Point2f kp = observations.begin()->second->keypoint;
-    return sensor->Pixel2World(Vector2d(kp.x, kp.y), FindFirstFrame()->pose, depth);
+    Vector2d kp = observations.begin()->second->keypoint;
+    return sensor->Pixel2World(kp, FindFirstFrame()->pose, depth);
 }
 
 Frame::Ptr MapPoint::FindFirstFrame()

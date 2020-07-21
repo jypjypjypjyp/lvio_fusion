@@ -14,11 +14,10 @@
 namespace lvio_fusion
 {
 
-Matrix2d TwoCameraReprojectionError::sqrt_information = Matrix2d::Identity();
-Matrix2d TwoFrameReprojectionError::sqrt_information = Matrix2d::Identity();
+// Matrix2d TwoCameraReprojectionError::sqrt_information = Matrix2d::Identity();
+// Matrix2d TwoFrameReprojectionError::sqrt_information = Matrix2d::Identity();
 Matrix2d PoseOnlyReprojectionError::sqrt_information = Matrix2d::Identity();
 Matrix3d NavsatError::sqrt_information = Matrix3d::Identity();
-Matrix3d VehicleMotionError::sqrt_information = Matrix3d::Identity();
 
 Estimator::Estimator(std::string &config_path)
     : config_file_path_(config_path) {}
@@ -63,7 +62,13 @@ bool Estimator::Init()
               << " extrinsics: " << t_body_T_cam1.transpose();
 
     // create components and links
-    frontend = Frontend::Ptr(new Frontend());
+    frontend = Frontend::Ptr(new Frontend(
+        Config::Get<int>("num_features_"),
+        Config::Get<int>("num_features_init_"),
+        Config::Get<int>("num_features_tracking_"),
+        Config::Get<int>("num_features_tracking_bad_"),
+        Config::Get<int>("num_features_needed_for_keyframe_")
+    ));
     backend = Backend::Ptr(new Backend());
     map = Map::Ptr(new Map());
     auto navsat_map = NavsatMap::Ptr(new NavsatMap(map));
@@ -75,10 +80,8 @@ bool Estimator::Init()
     frontend->flags += Flag::Stereo;
 
     backend->SetMap(map);
-    backend->SetCameras(camera1, camera2);
+    // backend->SetCameras(camera1, camera2);
     backend->SetFrontend(frontend);
-
-    NavsatError::sqrt_information = 1e6 * Matrix3d::Identity();
 
     // semantic map
     if (Config::Get<int>("is_semantic"))

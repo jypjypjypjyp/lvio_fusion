@@ -61,7 +61,7 @@ void pub_navsat(Estimator::Ptr estimator, double time)
     {
         if (navsat_path.poses.size() == 0)
         {
-            for (auto mp_pair : estimator->map->navsat_map->GetAllPoints())
+            for (auto mp_pair : estimator->map->navsat_map->navsat_points)
             {
                 NavsatPoint point = mp_pair.second;
                 geometry_msgs::PoseStamped pose_stamped;
@@ -76,7 +76,7 @@ void pub_navsat(Estimator::Ptr estimator, double time)
         else
         {
             geometry_msgs::PoseStamped pose_stamped;
-            NavsatPoint point = (--estimator->map->navsat_map->GetAllPoints().end())->second;
+            NavsatPoint point = (--estimator->map->navsat_map->navsat_points.end())->second;
             pose_stamped.pose.position.x = point.position.x();
             pose_stamped.pose.position.y = point.position.y();
             pose_stamped.pose.position.z = point.position.z();
@@ -122,16 +122,35 @@ void pub_point_cloud(Estimator::Ptr estimator, double time)
 {
     // sensor_msgs::PointCloud2 ros_cloud;
     // PointCloudRGB pcl_cloud;
-    // auto landmarks = estimator->map->GetAllMapPoints();
-    // for (auto mappoint : landmarks)
+    // static std::unordered_map<unsigned long, Vector3d> position_cache;
+    // for (auto kf_pair : estimator->map->GetActiveKeyFrames())
     // {
+    //     auto frame = kf_pair.second;
+    //     auto features = frame->right_features;
+    //     for (auto feature_pair : features)
+    //     {
+    //         if (!feature_pair.second->mappoint.expired())
+    //         {
+    //             auto landmark = feature_pair.second->mappoint.lock();
+    //             position_cache[landmark->id] = landmark->Position();
+    //         }
+    //     }
+    // }
+
+    // auto landmarks = estimator->map->GetAllMapPoints();
+    // for (auto point_pair : position_cache)
+    // {
+    //     auto landmark_iter = landmarks.find(point_pair.first);
+    //     if (landmark_iter == landmarks.end())
+    //         continue;
+
     //     PointRGB p;
-    //     Vector3d pos = mappoint.second->Position();
+    //     Vector3d pos = point_pair.second;
     //     p.x = pos.x();
     //     p.y = pos.y();
     //     p.z = pos.z();
     //     //NOTE: semantic map
-    //     LabelType label = mappoint.second->label;
+    //     LabelType label = landmark_iter->second->label;
     //     switch (label)
     //     {
     //     case LabelType::Car:

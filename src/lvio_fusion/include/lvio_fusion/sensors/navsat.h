@@ -10,16 +10,11 @@ namespace lvio_fusion
 {
 struct NavsatPoint
 {
+    NavsatPoint() {}
     NavsatPoint(double time, double x, double y, double z)
         : time(time), position(Vector3d(x, y, z)) {}
     double time;
     Vector3d position;
-};
-
-struct NavsatFrame
-{
-    double time;
-    Vector3d A, B;
 };
 
 class Map;
@@ -28,63 +23,30 @@ class NavsatMap
 {
 public:
     typedef std::map<double, NavsatPoint> NavsatPoints;
-    typedef std::unordered_map<double, NavsatFrame> NavsatFrames;
     typedef std::shared_ptr<NavsatMap> Ptr;
 
     NavsatMap(std::shared_ptr<Map> map) : map_(map) {}
 
     void AddPoint(NavsatPoint point)
     {
-        navsat_points_.insert(std::make_pair(point.time, point));
+        navsat_points.insert(std::make_pair(point.time, point));
     }
 
-    NavsatPoints &GetAllPoints()
+    void Transfrom(NavsatPoint &point)
     {
-        return navsat_points_;
-    }
-
-    NavsatFrame GetFrame(double t1, double t2)
-    {
-        // t1 < t2
-        NavsatFrame frame;
-        auto nf_pair = navsat_frames_.find(t2);
-        if (nf_pair == navsat_frames_.end())
-        {
-            auto start = navsat_points_.lower_bound(t1);
-            auto end = navsat_points_.lower_bound(t2);
-            int n = std::distance(start, end) + 1;
-            MatrixXd points(n, 3);
-            auto iter = start;
-            for (int i = 0; i < n; i++, iter++)
-            {
-                points.row(i) = (*iter).second.position;
-            }
-            frame.time = t2;
-            line_fitting(points, frame.A, frame.B);
-            navsat_frames_.insert(std::make_pair(t2, frame));
-        }
-        else
-        {
-            frame = (*nf_pair).second;
-        }
-        return frame;
-    }
-
-    void Transfrom(NavsatFrame &frame)
-    {
-        frame.A = tf * frame.A;
-        frame.B = tf * frame.B;
+        point.position = tf * point.position;
     }
 
     void Initialize();
 
     bool initialized = false;
     int num_frames_init = 20;
+    int epoch = 0;
+    int num_frames_epoch = 40;
+    NavsatPoints navsat_points;
     SE3d tf;
 
 private:
-    NavsatPoints navsat_points_;
-    NavsatFrames navsat_frames_;
     std::weak_ptr<Map> map_;
 };
 

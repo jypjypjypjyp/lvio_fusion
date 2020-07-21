@@ -55,185 +55,211 @@ void Backend::BackendLoop()
         }
         map_update_.wait(lock);
         auto t1 = std::chrono::steady_clock::now();
-        Optimize();
+        // Optimize();
         auto t2 = std::chrono::steady_clock::now();
         auto time_used = std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);
         LOG(INFO) << "Backend cost time: " << time_used.count() << " seconds.";
     }
 }
 
-inline void build_problem(Map::Keyframes& active_kfs, ceres::Problem& problem, Camerad::Ptr left_camera_, Camerad::Ptr right_camera_)
-{
-    ceres::LossFunction *loss_function = new ceres::HuberLoss(1.0);
-    ceres::LocalParameterization *local_parameterization = new SE3dParameterization();
+// void Backend::BuildProblem(Map::Keyframes &active_kfs, ceres::Problem &problem)
+// {
+//     ceres::LossFunction *loss_function = new ceres::HuberLoss(1.0);
+//     ceres::LocalParameterization *local_parameterization = new SE3Parameterization();
 
-    double start_time = active_kfs.begin()->first;
+//     double start_time = active_kfs.begin()->first;
 
-    for (auto kf_pair : active_kfs)
-    {
-        auto frame = kf_pair.second;
-        double *para_kf = frame->pose.data();
-        problem.AddParameterBlock(para_kf, SE3d::num_parameters, local_parameterization);
-        for (auto feature_pair : frame->left_features)
-        {
-            auto feature = feature_pair.second;
-            auto landmark = feature->mappoint.lock();
-            auto first_frame = landmark->FindFirstFrame();
-            ceres::CostFunction *cost_function;
-            if (first_frame == frame)
-            {
-                double *para_depth = &(landmark->depth);
-                problem.AddParameterBlock(para_depth, 1);
-                auto init_ob = landmark->init_observation;
-                cost_function = TwoCameraReprojectionError::Create(to_vector2d(feature->keypoint), to_vector2d(init_ob->keypoint), left_camera_, right_camera_);
-                problem.AddResidualBlock(cost_function, loss_function, para_depth);
-            }
-            else if (first_frame->time < start_time)
-            {
-                cost_function = PoseOnlyReprojectionError::Create(to_vector2d(feature->keypoint), left_camera_, landmark->Position());
-                problem.AddResidualBlock(cost_function, loss_function, para_kf);
-            }
-            else
-            {
-                double *para_depth = &(landmark->depth);
-                double *para_fist_kf = first_frame->pose.data();
-                auto init_ob = landmark->observations.begin()->second;
-                cost_function = TwoFrameReprojectionError::Create(to_vector2d(init_ob->keypoint), to_vector2d(feature->keypoint),  left_camera_);
-                problem.AddResidualBlock(cost_function, loss_function, para_fist_kf, para_kf, para_depth);
-            }
-        }
-    }
-}
+//     for (auto kf_pair : active_kfs)
+//     {
+//         auto frame = kf_pair.second;
+//         double *para_kf = frame->pose.data();
+//         problem.AddParameterBlock(para_kf, SE3d::num_parameters, local_parameterization);
+//         for (auto feature_pair : frame->left_features)
+//         {
+//             auto feature = feature_pair.second;
+//             auto landmark = feature->mappoint.lock();
+//             auto first_frame = landmark->FindFirstFrame();
+//             ceres::CostFunction *cost_function;
+//             if (first_frame == frame)
+//             {
+//                 double *para_depth = &(landmark->depth);
+//                 problem.AddParameterBlock(para_depth, 1);
+//                 auto init_ob = landmark->init_observation;
+//                 cost_function = TwoCameraReprojectionError::Create(feature->keypoint, init_ob->keypoint, left_camera_, right_camera_);
+//                 problem.AddResidualBlock(cost_function, loss_function, para_depth);
+//             }
+//             else if (first_frame->time < start_time)
+//             {
+//                 // cost_function = PoseOnlyReprojectionError::Create(feature->keypoint, left_camera_, landmark->Position());
+//                 // problem.AddResidualBlock(cost_function, loss_function, para_kf);
+//             }
+//             else
+//             {
+//                 double *para_depth = &(landmark->depth);
+//                 double *para_fist_kf = first_frame->pose.data();
+//                 auto init_ob = landmark->observations.begin()->second;
+//                 cost_function = TwoFrameReprojectionError::Create(init_ob->keypoint, feature->keypoint, left_camera_);
+//                 problem.AddResidualBlock(cost_function, loss_function, para_fist_kf, para_kf);
+//             }
+//         }
+//     }
+//     // std::vector<ceres::ResidualBlockId> residual_blocks;
+//     // problem.GetResidualBlocksForParameterBlock(para_depth, &residual_blocks);
+//     // ceres::Problem::EvaluateOptions EvalOpts;
+//     // EvalOpts.num_threads = 4;
+//     // EvalOpts.apply_loss_function = false;
+//     // EvalOpts.residual_blocks = residual_blocks;
+//     // problem.Evaluate(EvalOpts, nullptr, nullptr, nullptr, nullptr);
 
-void Backend::Optimize(bool full)
-{
-    Map::Keyframes active_kfs = map_->GetActiveKeyFrames(full);
+//     // navsat constraints
+//     // auto navsat_map = map_->navsat_map;
+//     // if (map_->navsat_map != nullptr && navsat_map->initialized)
+//     // {
+//     //     ceres::LossFunction *navsat_loss_function = new ceres::TrivialLoss();
+//     //     for (auto kf_pair : active_kfs)
+//     //     {
+//     //         auto frame = kf_pair.second;
+//     //         auto para_kf = frame->pose.data();
+//     //         auto np_iter = navsat_map->navsat_points.lower_bound(kf_pair.first);
+//     //         auto navsat_point = np_iter->second;
+//     //         navsat_map->Transfrom(navsat_point);
+//     //         if (std::fabs(navsat_point.time - frame->time) < 1e-1)
+//     //         {
+//     //             ceres::CostFunction *cost_function = NavsatError::Create(navsat_point.position);
+//     //             problem.AddResidualBlock(cost_function, navsat_loss_function, para_kf);
+//     //         }
+//     //         // np_iter--;
+//     //         // auto navsat_point1 = np_iter->second;
+//     //         // np_iter--;
+//     //         // auto navsat_point2 = np_iter->second;
+//     //         // auto v1 = (navsat_point.position - navsat_point1.position).normalized();
+//     //         // auto v2 = (navsat_point1.position - navsat_point2.position).normalized();
+//     //         // if ((v1 - v2).norm() < 1e-2)
+//     //         // {
+//     //         //     ceres::CostFunction *cost_function = VehicleMotionErrorA::Create(v1);
+//     //         //     problem.AddResidualBlock(cost_function, navsat_loss_function, para_kf);
+//     //         // }
+//     //     }
+//     // }
 
-    ceres::Problem problem;
-    build_problem(active_kfs, problem, left_camera_, right_camera_);
+//     // vehicle motion constraints
+//     // ceres::LossFunction *vehicle_loss_function = new ceres::TrivialLoss();
+//     // Frame::Ptr frame1 = nullptr;
+//     // for (auto kf_pair : active_kfs)
+//     // {
+//     //     auto frame2 = kf_pair.second;
+//     //     ceres::CostFunction *cost_function;
+//     //     if (frame1 != nullptr)
+//     //     {
+//     //         double *para1 = frame1->pose.data();
+//     //         double *para2 = frame2->pose.data();
+//     //         cost_function = VehicleMotionErrorB::Create(frame2->time - frame1->time);
+//     //         problem.AddResidualBlock(cost_function, vehicle_loss_function, para1, para2);
+//     //         cost_function = VehicleMotionErrorA::Create();
+//     //         problem.AddResidualBlock(cost_function, vehicle_loss_function, para2);
+//     //     }
+//     //     frame1 = frame2;
+//     // }
 
-    if (active_kfs.begin()->first == map_->GetAllKeyFrames().begin()->first)
-    {
-        auto &pose = active_kfs.begin()->second->pose;
-        problem.SetParameterBlockConstant(pose.data());
-    }
+//     if (active_kfs.begin()->first == map_->GetAllKeyFrames().begin()->first)
+//     {
+//         auto &pose = active_kfs.begin()->second->pose;
+//         problem.SetParameterBlockConstant(pose.data());
+//     }
+// }
 
-    // navsat constraints
-    // auto navsat_map = map_->navsat_map;
-    // if (map_->navsat_map != nullptr)
-    // {
-    //     if (navsat_map->initialized)
-    //     {
-    //         double t1 = -1, t2 = -1;
-    //         for (auto kf_pair : active_kfs)
-    //         {
-    //             t2 = kf_pair.first;
-    //             if (t1 != -1)
-    //             {
-    //                 auto navsat_frame = navsat_map->GetFrame(t1, t2);
-    //                 navsat_map->Transfrom(navsat_frame);
-    //                 double *para_kf = kf_pair.second->pose.data();
-    //                 auto p = kf_pair.second->pose.inverse().translation();
-    //                 auto closest = closest_point_on_a_line(navsat_frame.A, navsat_frame.B, p);
-    //                 ceres::CostFunction *cost_function = NavsatError::Create(closest);
-    //                 problem.AddResidualBlock(cost_function, loss_function, para_kf);
-    //             }
-    //             t1 = t2;
-    //         }
-    //     }
-    //     else if (map_->GetAllKeyFrames().size() >= navsat_map->num_frames_init)
-    //     {
-    //         navsat_map->Initialize();
-    //         Optimize(true);
-    //         return;
-    //     }
-    // }
+// void Backend::Optimize(bool full)
+// {
+//     Map::Keyframes active_kfs = map_->GetActiveKeyFrames(full);
 
-    // vehicle motion constraints
-    // if (full)
-    // {
-    // ceres::LossFunction *vehicle_loss_function = new ceres::TrivialLoss();
-    // for (auto kf_pair : active_kfs)
-    // {
-    //     double *para = kf_pair.second->pose.data();
-    //     ceres::CostFunction *cost_function = VehicleMotionError::Create();
-    //     problem.AddResidualBlock(cost_function, loss_function, para);
-    // }
-    // }
+//     // navsat init
+//     // auto navsat_map = map_->navsat_map;
+//     // if (!full && map_->navsat_map != nullptr && map_->GetAllKeyFrames().size() >= navsat_map->num_frames_init + navsat_map->epoch * navsat_map->num_frames_epoch)
+//     // {
+//     //     navsat_map->Initialize();
+//     //     Optimize(true);
+//     //     navsat_map->epoch++;
+//     //     return;
+//     // }
 
-    ceres::Solver::Options options;
-    options.linear_solver_type = ceres::SPARSE_NORMAL_CHOLESKY;
-    options.max_num_iterations = 10;
-    options.num_threads = 8;
-    ceres::Solver::Summary summary;
-    ceres::Solve(options, &problem, &summary);
+//     ceres::Problem problem;
+//     BuildProblem(active_kfs, problem);
 
-    // reject outliers and clean the map
-    for (auto kf_pair : active_kfs)
-    {
-        auto frame = kf_pair.second;
-        double *para_kf = frame->pose.data();
-        auto left_features = frame->left_features;
-        for (auto feature_pair : left_features)
-        {
-            auto feature = feature_pair.second;
-            auto landmark = feature->mappoint.lock();
-            auto first_frame = landmark->FindFirstFrame();
-            Vector2d error(0, 0);
-            if (first_frame != frame)
-            {
-            }
-            else if (first_frame->time < active_kfs.begin()->first)
-            {
-                PoseOnlyReprojectionError(to_vector2d(feature->keypoint), left_camera_, landmark->Position())(para_kf, error.data());
-            }
-            else
-            {
-                double *para_depth = &(landmark->depth);
-                double *para_fist_kf = first_frame->pose.data();
-                auto init_ob = landmark->observations.begin()->second;
-                TwoFrameReprojectionError(to_vector2d(feature->keypoint), to_vector2d(init_ob->keypoint), left_camera_)(para_fist_kf, para_kf, para_depth, error.data());
-            }
-            if (error.norm() > 20)
-            {
-                landmark->RemoveObservation(feature);
-                frame->RemoveFeature(feature);
-            }
-            if (landmark->observations.size() == 1 && frame != map_->current_frame)
-            {
-                map_->RemoveMapPoint(landmark);
-            }
-        }
-    }
+//     ceres::Solver::Options options;
+//     options.linear_solver_type = ceres::DENSE_SCHUR;
+//     options.trust_region_strategy_type = ceres::DOGLEG;
+//     options.max_num_iterations = 10;
+//     options.num_threads = 4;
+//     ceres::Solver::Summary summary;
+//     ceres::Solve(options, &problem, &summary);
 
-    // propagate to the last frame
-    double end_time = (--active_kfs.end())->first;
-    Propagate(end_time);
-}
+//     // reject outliers and clean the map
+//     for (auto kf_pair : active_kfs)
+//     {
+//         auto frame = kf_pair.second;
+//         double *para_kf = frame->pose.data();
+//         auto left_features = frame->left_features;
+//         for (auto feature_pair : left_features)
+//         {
+//             auto feature = feature_pair.second;
+//             auto landmark = feature->mappoint.lock();
+//             auto first_frame = landmark->FindFirstFrame();
+//             Vector2d error(0, 0);
+//             if (first_frame != frame)
+//             {
+//             }
+//             else if (first_frame->time < active_kfs.begin()->first)
+//             {
+//                 // PoseOnlyReprojectionError(feature->keypoint, left_camera_, landmark->Position())(para_kf, error.data());
+//             }
+//             else
+//             {
+//                 double *para_depth = &(landmark->depth);
+//                 double *para_fist_kf = first_frame->pose.data();
+//                 auto init_ob = landmark->observations.begin()->second;
+//                 TwoFrameReprojectionError(init_ob->keypoint, feature->keypoint, left_camera_)(para_fist_kf, para_kf, para_depth, error.data());
+//             }
+//             if (error.norm() > 5)
+//             {
+//                 landmark->RemoveObservation(feature);
+//                 frame->RemoveFeature(feature);
+//             }
+//             if (landmark->observations.size() == 1 && frame != map_->current_frame)
+//             {
+//                 map_->RemoveMapPoint(landmark);
+//             }
+//         }
+//     }
 
-void Backend::Propagate(double time)
-{
-    std::unique_lock<std::mutex> lock(frontend_.lock()->last_frame_mutex);
+//     // propagate to the last frame
+//     double end_time = (--active_kfs.end())->first;
+//     Propagate(end_time);
+// }
 
-    Frame::Ptr last_frame = frontend_.lock()->last_frame;
-    Map::Keyframes &all_kfs = map_->GetAllKeyFrames();
-    Map::Keyframes active_kfs(all_kfs.upper_bound(time), all_kfs.end());
-    if (active_kfs.find(last_frame->time) == active_kfs.end())
-    {
-        active_kfs.insert(std::make_pair(last_frame->time, last_frame));
-    }
+// void Backend::Propagate(double time)
+// {
+//     std::unique_lock<std::mutex> lock(frontend_.lock()->last_frame_mutex);
 
-    ceres::Problem problem;
-    build_problem(active_kfs, problem, left_camera_, right_camera_);
+//     Frame::Ptr last_frame = frontend_.lock()->last_frame;
+//     Map::Keyframes &all_kfs = map_->GetAllKeyFrames();
+//     Map::Keyframes active_kfs(all_kfs.upper_bound(time), all_kfs.end());
+//     if (active_kfs.find(last_frame->time) == active_kfs.end())
+//     {
+//         active_kfs.insert(std::make_pair(last_frame->time, last_frame));
+//     }
 
-    ceres::Solver::Options options;
-    options.linear_solver_type = ceres::SPARSE_NORMAL_CHOLESKY;
-    options.max_num_iterations = 3;
-    options.num_threads = 8;
-    ceres::Solver::Summary summary;
-    ceres::Solve(options, &problem, &summary);
+//     ceres::Problem problem;
+//     BuildProblem(active_kfs, problem);
 
-    frontend_.lock()->UpdateCache();
-}
+//     ceres::Solver::Options options;
+//     options.linear_solver_type = ceres::DENSE_SCHUR;
+//     options.trust_region_strategy_type = ceres::DOGLEG;
+//     options.max_num_iterations = 5;
+//     options.num_threads = 8;
+//     ceres::Solver::Summary summary;
+//     ceres::Solve(options, &problem, &summary);
+
+//     frontend_.lock()->UpdateCache();
+// }
 
 } // namespace lvio_fusion

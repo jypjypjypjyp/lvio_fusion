@@ -50,7 +50,7 @@ void Frame::UpdateLabel()
     for (auto feature_pair : left_features)
     {
         auto mappoint = feature_pair.second->mappoint.lock();
-        mappoint->label = GetLabelType(feature_pair.second->keypoint.x, feature_pair.second->keypoint.y);
+        mappoint->label = GetLabelType(feature_pair.second->keypoint.x(), feature_pair.second->keypoint.y());
     }
 }
 

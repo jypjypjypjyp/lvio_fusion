@@ -41,7 +41,9 @@ inline bool triangulation(const std::vector<SE3d> &poses,
     return true;
 }
 
-inline Vector2d to_vector2d(const cv::Point2f p) { return Vector2d(p.x, p.y); }
+inline Vector2d cv2eigen(const cv::Point2f &p) { return Vector2d(p.x, p.y); }
+
+inline cv::Point2f eigen2cv(const Vector2d &p) { return cv::Point2f(p.x(), p.y()); }
 
 /**
  * line fitting

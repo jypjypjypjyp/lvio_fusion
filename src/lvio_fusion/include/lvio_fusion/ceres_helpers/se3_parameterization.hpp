@@ -6,11 +6,11 @@
 
 namespace lvio_fusion
 {
-class SE3dParameterization : public ceres::LocalParameterization
+class SE3Parameterization : public ceres::LocalParameterization
 {
 public:
-    SE3dParameterization() {}
-    virtual ~SE3dParameterization() {}
+    SE3Parameterization() {}
+    virtual ~SE3Parameterization() {}
 
     // SE3d plus operation for Ceres
     //

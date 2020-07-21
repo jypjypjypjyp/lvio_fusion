@@ -12,7 +12,10 @@ class Sensor
 public:
     typedef std::shared_ptr<Sensor<T>> Ptr;
 
-    Sensor(SE3d extrinsic) : extrinsic(extrinsic) {}
+    Sensor(SE3d extrinsic) : extrinsic(extrinsic) 
+    {
+        extrinsic_t = extrinsic.template cast<T>();
+    }
 
     // coordinate transform: world, sensor, pixel
     virtual Matrix<T, 3, 1> World2Sensor(const Matrix<T, 3, 1> &p_w, const Sophus::SE3<T> &T_c_w)
@@ -46,6 +49,8 @@ public:
     }
 
     SE3d extrinsic;
+protected:
+    Sophus::SE3<T> extrinsic_t;
 };
 
 typedef Sensor<double> Sensord;

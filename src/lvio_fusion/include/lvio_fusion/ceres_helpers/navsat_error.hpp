@@ -38,30 +38,27 @@ private:
 class NavsatInitError
 {
 public:
-    NavsatInitError(Vector3d p0, Vector3d p1, Vector3d p2)
-        : p0_(p0), p1_(p1), p2_(p2) {}
+    NavsatInitError(Vector3d p0, Vector3d p1)
+        : p0_(p0), p1_(p1) {}
 
     template <typename T>
-    bool operator()(const T *pose_, T *residuals) const
+    bool operator()(const T *tf_, T *residuals_) const
     {
-        Eigen::Map<Sophus::SE3<T> const> pose(pose_);
-        Sophus::SE3<T> better_pose(pose);
-        better_pose.translation().x() = T(0);
-        better_pose.translation().y() = T(0);
-        Matrix<T, 3, 1> p1 = better_pose * p1_.template cast<T>();
-        Matrix<T, 3, 1> p2 = better_pose * p2_.template cast<T>();
+        Eigen::Map<Sophus::SE3<T> const> tf(tf_);
+        Eigen::Map<Matrix<T, 3, 1>> residuals(residuals_);
+        Matrix<T, 3, 1> p1 = tf * p1_.template cast<T>();
         Matrix<T, 3, 1> p0 = p0_.template cast<T>();
-        residuals[0] = ((p1 - p2).cross(p1 - p0)).norm() / (p2 - p1)[0];
+        residuals = p0 - p1;
         return true;
     }
 
-    static ceres::CostFunction *Create(Vector3d p0, Vector3d p1, Vector3d p2)
+    static ceres::CostFunction *Create(Vector3d p0, Vector3d p1)
     {
-        return (new ceres::AutoDiffCostFunction<NavsatInitError, 1, 7>(new NavsatInitError(p0, p1, p2)));
+        return (new ceres::AutoDiffCostFunction<NavsatInitError, 3, 7>(new NavsatInitError(p0, p1)));
     }
 
 private:
-    Vector3d p0_, p1_, p2_;
+    Vector3d p0_, p1_;
 };
 
 // class NavsatPoseError
