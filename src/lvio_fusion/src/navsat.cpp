@@ -1,9 +1,9 @@
-#include <ceres/ceres.h>
-
 #include "lvio_fusion/ceres_helpers/navsat_error.hpp"
-#include "lvio_fusion/ceres_helpers/se3_parameterization.hpp"
 #include "lvio_fusion/map.h"
 #include "lvio_fusion/sensors/navsat.h"
+
+#include <ceres/ceres.h>
+
 
 namespace lvio_fusion
 {
@@ -44,7 +44,9 @@ void NavsatMap::Initialize()
     initialized = false;
     ceres::Problem problem;
     ceres::LossFunction *loss_function = new ceres::HuberLoss(1.0);
-    ceres::LocalParameterization *local_parameterization = new SE3Parameterization();
+    ceres::LocalParameterization *local_parameterization = new ceres::ProductParameterization(
+        new ceres::EigenQuaternionParameterization(),
+        new ceres::IdentityParameterization(3));
 
     problem.AddParameterBlock(tf.data(), SE3d::num_parameters, local_parameterization);
 

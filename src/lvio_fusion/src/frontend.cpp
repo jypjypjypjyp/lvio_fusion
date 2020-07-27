@@ -1,7 +1,6 @@
 #include "lvio_fusion/frontend.h"
 #include "lvio_fusion/backend.h"
 #include "lvio_fusion/ceres_helpers/pose_only_reprojection_error.hpp"
-#include "lvio_fusion/ceres_helpers/se3_parameterization.hpp"
 #include "lvio_fusion/config.h"
 #include "lvio_fusion/feature.h"
 #include "lvio_fusion/map.h"
@@ -143,56 +142,41 @@ int Frontend::Optimize()
     ceres::Problem problem;
     ceres::LossFunction *loss_function = new ceres::HuberLoss(1.0);
     double *para = current_frame->pose.data();
-    ceres::LocalParameterization *local_parameterization = new SE3Parameterization();
+    SE3d pose_copy = current_frame->pose;
+    ceres::LocalParameterization *local_parameterization = new ceres::ProductParameterization(
+        new ceres::EigenQuaternionParameterization(),
+        new ceres::IdentityParameterization(3));
     problem.AddParameterBlock(para, SE3d::num_parameters, local_parameterization);
 
     for (auto feature_pair : current_frame->left_features)
     {
         auto feature = feature_pair.second;
         auto mappoint = feature->mappoint.lock();
-        // ceres::CostFunction *cost_function = PoseOnlyReprojectionError::Create(feature->keypoint, left_camera_, position_cache_[mappoint->id]);
-        ceres::CostFunction *cost_function;
-        cost_function = new PoseOnlyReprojectionError(feature->keypoint, left_camera_, position_cache_[mappoint->id]);
+        ceres::CostFunction *cost_function = PoseOnlyReprojectionError::Create(feature->keypoint, left_camera_, position_cache_[mappoint->id]);
         problem.AddResidualBlock(cost_function, loss_function, para);
     }
 
     ceres::Solver::Options options;
-    options.linear_solver_type = ceres::SPARSE_NORMAL_CHOLESKY;
-    options.max_num_iterations = 5;
-    options.num_threads = 8;
+    options.linear_solver_type = ceres::DENSE_NORMAL_CHOLESKY;
+    options.max_num_iterations = 10;
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
 
     // reject outliers
-    // Features left_features = current_frame->left_features;
-    // for (auto feature_pair : left_features)
-    // {
-    //     auto feature = feature_pair.second;
-    //     auto mappoint = feature->mappoint.lock();
-    //     Vector2d error(0, 0);
-    //     PoseOnlyReprojectionError(feature->keypoint, left_camera_, position_cache_[mappoint->id])(current_frame->pose.data(), error.data());
-    //     if (error.norm() > 3)
-    //     {
-    //         current_frame->RemoveFeature(feature);
-    //     }
-    // }
-    Features inliners;
-    for (auto feature_pair : current_frame->left_features)
+    Features left_features = current_frame->left_features;
+    for (auto feature_pair : left_features)
     {
         auto feature = feature_pair.second;
         auto mappoint = feature->mappoint.lock();
-        Vector2d error = feature->keypoint - left_camera_->World2Pixel(position_cache_[mappoint->id], current_frame->pose);
-        if (error[0] * error[0] + error[1] * error[1] < 9)
+        Vector2d error(0, 0);
+        PoseOnlyReprojectionError(feature->keypoint, left_camera_, position_cache_[mappoint->id])(current_frame->pose.data(), error.data());
+        if (error.norm() > 3)
         {
-            inliners.insert(std::make_pair(feature_pair.first, feature_pair.second));
+            current_frame->RemoveFeature(feature);
         }
     }
-    current_frame->left_features = inliners;
-    // LOG(INFO) << "Current Pose = \n"
-    //           << current_frame->pose.matrix();
-    return inliners.size();
 
-    // return current_frame->left_features.size();
+    return current_frame->left_features.size();
 }
 
 int Frontend::TrackLastFrame()
@@ -273,12 +257,6 @@ int Frontend::DetectNewFeatures()
     }
 
     std::vector<cv::Point2f> kps_left, kps_right;
-
-    // std::vector<cv::KeyPoint> keypoints;
-    // fast_->detect(current_frame->left_image, keypoints, mask);
-    // cv::KeyPointsFilter::retainBest(keypoints, num_features_ - current_frame->left_features.size());
-    // cv::KeyPoint::convert(keypoints, kps_left);
-
     cv::goodFeaturesToTrack(current_frame->left_image, kps_left, num_features_ - current_frame->left_features.size(), 0.01, 30, mask);
 
     // use LK flow to estimate points in the right image
@@ -308,21 +286,21 @@ int Frontend::DetectNewFeatures()
             Vector3d pworld = Vector3d::Zero();
 
             // clang-format off
-            if (triangulation(poses, points, pworld))
-                // && (left_camera_->World2Pixel(pworld, SE3d()) - cv2eigen(kps_left[i])).norm() < 0.2
-                // && (right_camera_->World2Pixel(pworld, SE3d()) - cv2eigen(kps_right[i])).norm() < 0.2)
+            if (triangulation(poses, points, pworld)
+                && (left_camera_->World2Pixel(pworld, SE3d()) - cv2eigen(kps_left[i])).norm() < 0.2
+                && (right_camera_->World2Pixel(pworld, SE3d()) - cv2eigen(kps_right[i])).norm() < 0.2)
             // clang-format on
             {
-                auto new_mappoint = MapPoint::Create(pworld.z(), nullptr);
-                auto new_left_feature = Feature::Create(current_frame, cv2eigen(kps_left[i]), new_mappoint);
-                auto new_right_feature = Feature::Create(current_frame, cv2eigen(kps_right[i]), new_mappoint);
+                auto new_mappoint = MapPoint::Create(pworld.z(), left_camera_);
+                auto new_left_feature = Feature::Create(current_frame, left_camera_->Sensor2Pixel(pworld), new_mappoint);
+                auto new_right_feature = Feature::Create(current_frame, right_camera_->Sensor2Pixel(pworld), new_mappoint);
                 new_right_feature->is_on_left_image = false;
                 new_mappoint->AddObservation(new_left_feature);
                 new_mappoint->AddObservation(new_right_feature);
                 current_frame->AddFeature(new_left_feature);
                 current_frame->AddFeature(new_right_feature);
                 map_->InsertMapPoint(new_mappoint);
-                position_cache_[new_mappoint->id] = current_pose_Twc * pworld;
+                position_cache_[new_mappoint->id] = new_mappoint->Position();
                 num_triangulated_pts++;
             }
         }
@@ -346,14 +324,14 @@ bool Frontend::Reset()
 
 void Frontend::UpdateCache()
 {
-    // position_cache_.clear();
-    // for (auto feature_pair : last_frame->left_features)
-    // {
-    //     auto feature = feature_pair.second;
-    //     auto mappoint = feature->mappoint.lock();
-    //     position_cache_.insert(std::make_pair(mappoint->id, mappoint->Position()));
-    // }
-    // last_frame_pose_cache_ = last_frame->pose;
+    position_cache_.clear();
+    for (auto feature_pair : last_frame->left_features)
+    {
+        auto feature = feature_pair.second;
+        auto mappoint = feature->mappoint.lock();
+        position_cache_.insert(std::make_pair(mappoint->id, mappoint->Position()));
+    }
+    last_frame_pose_cache_ = last_frame->pose;
 }
 
 std::unordered_map<unsigned long, Vector3d> Frontend::GetPositionCache()

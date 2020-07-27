@@ -47,7 +47,7 @@ public:
 
     void SetBackend(std::shared_ptr<Backend> backend) { backend_ = backend; }
 
-    void SetCameras(Camerad::Ptr left, Camerad::Ptr right)
+    void SetCameras(Camera::Ptr left, Camera::Ptr right)
     {
         left_camera_ = left;
         right_camera_ = right;
@@ -90,8 +90,8 @@ private:
     // data
     Map::Ptr map_ = nullptr;
     std::shared_ptr<Backend> backend_ = nullptr;
-    Camerad::Ptr left_camera_ = nullptr;
-    Camerad::Ptr right_camera_ = nullptr;
+    Camera::Ptr left_camera_ = nullptr;
+    Camera::Ptr right_camera_ = nullptr;
     std::unordered_map<unsigned long, Vector3d> position_cache_;
     SE3d last_frame_pose_cache_;
 

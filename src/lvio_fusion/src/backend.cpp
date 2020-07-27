@@ -1,8 +1,6 @@
 #include "lvio_fusion/backend.h"
 #include "lvio_fusion/ceres_helpers/navsat_error.hpp"
 #include "lvio_fusion/ceres_helpers/pose_only_reprojection_error.hpp"
-#include "lvio_fusion/ceres_helpers/se3_parameterization.hpp"
-#include "lvio_fusion/ceres_helpers/two_camera_reprojection_error.hpp"
 #include "lvio_fusion/ceres_helpers/two_frame_reprojection_error.hpp"
 #include "lvio_fusion/ceres_helpers/vehicle_motion_error.hpp"
 #include "lvio_fusion/feature.h"
@@ -65,7 +63,9 @@ void Backend::BackendLoop()
 // void Backend::BuildProblem(Map::Keyframes &active_kfs, ceres::Problem &problem)
 // {
 //     ceres::LossFunction *loss_function = new ceres::HuberLoss(1.0);
-//     ceres::LocalParameterization *local_parameterization = new SE3Parameterization();
+//     ceres::LocalParameterization *local_parameterization = new ceres::ProductParameterization(
+//         new ceres::EigenQuaternionParameterization(),
+//         new ceres::IdentityParameterization(3));
 
 //     double start_time = active_kfs.begin()->first;
 

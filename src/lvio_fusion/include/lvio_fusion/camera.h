@@ -8,13 +8,13 @@
 // namespace lvio_fusion {
 
 // // Pinhole stereo camera model
-// class Camerad {
+// class Camera {
 //    public:
-//     typedef std::shared_ptr<Camerad> Ptr;
+//     typedef std::shared_ptr<Camera> Ptr;
 
-//     Camerad();
+//     Camera();
 
-//     Camerad(double fx, double fy, double cx, double cy,const SE3d &pose)
+//     Camera(double fx, double fy, double cx, double cy,const SE3d &pose)
 //         : fx(fx), fy(fy), cx(cx), cy(cy), extrinsic(pose) {}
 
 //     // return intrinsic matrix

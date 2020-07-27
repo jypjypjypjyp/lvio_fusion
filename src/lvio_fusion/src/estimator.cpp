@@ -2,7 +2,6 @@
 
 #include "lvio_fusion/ceres_helpers/navsat_error.hpp"
 #include "lvio_fusion/ceres_helpers/pose_only_reprojection_error.hpp"
-#include "lvio_fusion/ceres_helpers/two_camera_reprojection_error.hpp"
 #include "lvio_fusion/ceres_helpers/two_frame_reprojection_error.hpp"
 #include "lvio_fusion/ceres_helpers/vehicle_motion_error.hpp"
 #include "lvio_fusion/config.h"
@@ -14,7 +13,6 @@
 namespace lvio_fusion
 {
 
-// Matrix2d TwoCameraReprojectionError::sqrt_information = Matrix2d::Identity();
 // Matrix2d TwoFrameReprojectionError::sqrt_information = Matrix2d::Identity();
 Matrix2d PoseOnlyReprojectionError::sqrt_information = Matrix2d::Identity();
 Matrix3d NavsatError::sqrt_information = Matrix3d::Identity();
@@ -41,7 +39,7 @@ bool Estimator::Init()
     Quaterniond q_body_T_cam0(R_body_T_cam0);
     Vector3d t_body_T_cam0(0, 0, 0);
     t_body_T_cam0 << body_T_cam0(0, 3), body_T_cam0(1, 3), body_T_cam0(2, 3);
-    Camerad::Ptr camera1(new Camerad(Config::Get<double>("camera1.fx"),
+    Camera::Ptr camera1(new Camera(Config::Get<double>("camera1.fx"),
                                    Config::Get<double>("camera1.fy"),
                                    Config::Get<double>("camera1.cx"),
                                    Config::Get<double>("camera1.cy"),
@@ -53,7 +51,7 @@ bool Estimator::Init()
     Quaterniond q_body_T_cam1(R_body_T_cam1);
     Vector3d t_body_T_cam1(0, 0, 0);
     t_body_T_cam1 << body_T_cam1(0, 3), body_T_cam1(1, 3), body_T_cam1(2, 3);
-    Camerad::Ptr camera2(new Camerad(Config::Get<double>("camera2.fx"),
+    Camera::Ptr camera2(new Camera(Config::Get<double>("camera2.fx"),
                                    Config::Get<double>("camera2.fy"),
                                    Config::Get<double>("camera2.cx"),
                                    Config::Get<double>("camera2.cy"),

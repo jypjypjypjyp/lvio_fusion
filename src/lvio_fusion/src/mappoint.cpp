@@ -5,7 +5,7 @@
 namespace lvio_fusion
 {
 
-MapPoint::Ptr MapPoint::Create(double depth, Sensord::Ptr sensor)
+MapPoint::Ptr MapPoint::Create(double depth, Sensor::Ptr sensor)
 {
     MapPoint::Ptr new_mappoint(new MapPoint);
     new_mappoint->id = Map::current_mappoint_id + 1;
