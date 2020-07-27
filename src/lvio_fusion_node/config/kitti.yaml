@@ -69,7 +69,7 @@ body_T_cam1: !!opencv-matrix
 
 # number of features
 num_features_: 200
-num_features_init_: 100
+num_features_init_: 80
 num_features_tracking_: 50
 num_features_tracking_bad_: 8
 num_features_needed_for_keyframe_: 80

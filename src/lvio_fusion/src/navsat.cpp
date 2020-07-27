@@ -1,4 +1,4 @@
-#include "lvio_fusion/ceres_helpers/navsat_error.hpp"
+#include "lvio_fusion/ceres/navsat_error.hpp"
 #include "lvio_fusion/map.h"
 #include "lvio_fusion/sensors/navsat.h"
 

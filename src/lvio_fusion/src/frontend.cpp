@@ -1,6 +1,6 @@
 #include "lvio_fusion/frontend.h"
 #include "lvio_fusion/backend.h"
-#include "lvio_fusion/ceres_helpers/pose_only_reprojection_error.hpp"
+#include "lvio_fusion/ceres/pose_only_reprojection_error.hpp"
 #include "lvio_fusion/config.h"
 #include "lvio_fusion/feature.h"
 #include "lvio_fusion/map.h"
@@ -158,7 +158,7 @@ int Frontend::Optimize()
 
     ceres::Solver::Options options;
     options.linear_solver_type = ceres::DENSE_NORMAL_CHOLESKY;
-    options.max_num_iterations = 10;
+    options.max_num_iterations = 5;
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
 

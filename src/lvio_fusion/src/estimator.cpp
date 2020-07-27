@@ -1,9 +1,9 @@
 #include <fstream>
 
-#include "lvio_fusion/ceres_helpers/navsat_error.hpp"
-#include "lvio_fusion/ceres_helpers/pose_only_reprojection_error.hpp"
-#include "lvio_fusion/ceres_helpers/two_frame_reprojection_error.hpp"
-#include "lvio_fusion/ceres_helpers/vehicle_motion_error.hpp"
+#include "lvio_fusion/ceres/navsat_error.hpp"
+#include "lvio_fusion/ceres/pose_only_reprojection_error.hpp"
+#include "lvio_fusion/ceres/two_frame_reprojection_error.hpp"
+#include "lvio_fusion/ceres/vehicle_motion_error.hpp"
 #include "lvio_fusion/config.h"
 #include "lvio_fusion/estimator.h"
 #include "lvio_fusion/frame.h"
@@ -13,7 +13,7 @@
 namespace lvio_fusion
 {
 
-// Matrix2d TwoFrameReprojectionError::sqrt_information = Matrix2d::Identity();
+Matrix2d TwoFrameReprojectionError::sqrt_information = Matrix2d::Identity();
 Matrix2d PoseOnlyReprojectionError::sqrt_information = Matrix2d::Identity();
 Matrix3d NavsatError::sqrt_information = Matrix3d::Identity();
 
@@ -78,7 +78,7 @@ bool Estimator::Init()
     frontend->flags += Flag::Stereo;
 
     backend->SetMap(map);
-    // backend->SetCameras(camera1, camera2);
+    backend->SetCameras(camera1, camera2);
     backend->SetFrontend(frontend);
 
     // semantic map

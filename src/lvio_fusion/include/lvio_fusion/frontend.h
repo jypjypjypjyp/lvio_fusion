@@ -5,7 +5,6 @@
 #include "lvio_fusion/frame.h"
 #include "lvio_fusion/map.h"
 #include "lvio_fusion/sensors/camera.hpp"
-#include "lvio_fusion/camera.h"
 
 namespace lvio_fusion
 {

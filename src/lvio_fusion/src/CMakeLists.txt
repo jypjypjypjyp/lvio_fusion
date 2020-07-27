@@ -6,8 +6,7 @@ add_library(lvio_fusion SHARED
         frontend.cpp
         backend.cpp
         estimator.cpp
-        navsat.cpp
-        camera.cpp)
+        navsat.cpp)
 
 target_link_libraries(lvio_fusion ${THIRD_PARTY_LIBS})
 target_compile_features(lvio_fusion PRIVATE cxx_std_17)
