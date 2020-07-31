@@ -3,7 +3,6 @@
 
 #include "lvio_fusion/ceres/base.hpp"
 #include "lvio_fusion/sensors/camera.hpp"
-#include <ceres/ceres.h>
 
 namespace lvio_fusion
 {
@@ -35,8 +34,8 @@ public:
         T p_w[3] = {T(x_), T(y_), T(z_)};
         T ob[2] = {T(ob_x_), T(ob_y_)};
         Reprojection(p_w, T_c_w, camera_, p_p);
-        residuals[0] = T(sqrt_information(0, 0)) * (p_p[0] - ob[0]);
-        residuals[1] = T(sqrt_information(1, 1)) * (p_p[1] - ob[1]);
+        residuals[0] = T(sqrt_info(0, 0)) * (p_p[0] - ob[0]);
+        residuals[1] = T(sqrt_info(1, 1)) * (p_p[1] - ob[1]);
         return true;
     }
 
@@ -46,7 +45,7 @@ public:
             new PoseOnlyReprojectionError(ob, camera, point)));
     }
 
-    static Matrix2d sqrt_information;
+    static Matrix2d sqrt_info;
 
 private:
     double ob_x_, ob_y_;

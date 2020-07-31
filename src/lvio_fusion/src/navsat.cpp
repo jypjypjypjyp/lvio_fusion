@@ -63,7 +63,6 @@ void NavsatMap::Initialize()
 
     ceres::Solver::Options options;
     options.linear_solver_type = ceres::SPARSE_NORMAL_CHOLESKY;
-    options.max_num_iterations = 10;
     options.num_threads = 8;
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);

@@ -25,7 +25,7 @@ class Backend
 public:
     typedef std::shared_ptr<Backend> Ptr;
 
-    Backend();
+    Backend(double range);
 
     void SetCameras(Camera::Ptr left, Camera::Ptr right)
     {
@@ -43,8 +43,13 @@ public:
 
     void Continue();
 
-    BackendStatus status = BackendStatus::RUNNING;
+    double ActiveTime()
+    {
+        return head_ - range_;
+    }
 
+    BackendStatus status = BackendStatus::RUNNING;
+    
 private:
     void BackendLoop();
 
@@ -61,6 +66,8 @@ private:
     std::condition_variable running_;
     std::condition_variable pausing_;
     std::condition_variable map_update_;
+    double head_ = 0;
+    const double range_;
 
     Camera::Ptr left_camera_ = nullptr;
     Camera::Ptr right_camera_ = nullptr;

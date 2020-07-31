@@ -13,11 +13,6 @@ void Map::InsertKeyFrame(Frame::Ptr frame)
     current_frame_id++;
     current_frame = frame;
     keyframes_.insert(make_pair(frame->time, frame));
-    active_keyframes_.insert(make_pair(frame->time, frame));
-    if (active_keyframes_.size() > WINDOW_SIZE)
-    {
-        RemoveOldKeyframe();
-    }
 }
 
 void Map::InsertMapPoint(MapPoint::Ptr mappoint)
@@ -27,19 +22,11 @@ void Map::InsertMapPoint(MapPoint::Ptr mappoint)
     landmarks_.insert(make_pair(mappoint->id, mappoint));
 }
 
-void Map::RemoveOldKeyframe()
-{
-    LOG(INFO) << "remove keyframe " << active_keyframes_.begin()->second->id;
-    active_keyframes_.erase(active_keyframes_.begin());
-}
-
-// freeze the first frame of the map point in the last frame
-Map::Keyframes Map::GetActiveKeyFrames(bool full)
+Map::Keyframes Map::GetActiveKeyFrames(double time)
 {
     std::unique_lock<std::mutex> lock(data_mutex_);
-    Keyframes keyframes = full ? keyframes_ : active_keyframes_;
-    return keyframes;
-}
+    return Keyframes(keyframes_.upper_bound(time), keyframes_.end());
+} 
 
 void Map::RemoveMapPoint(MapPoint::Ptr mappoint)
 {

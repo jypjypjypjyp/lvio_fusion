@@ -13,9 +13,9 @@
 namespace lvio_fusion
 {
 
-Matrix2d TwoFrameReprojectionError::sqrt_information = Matrix2d::Identity();
-Matrix2d PoseOnlyReprojectionError::sqrt_information = Matrix2d::Identity();
-Matrix3d NavsatError::sqrt_information = Matrix3d::Identity();
+Matrix2d TwoFrameReprojectionError::sqrt_info = Matrix2d::Identity();
+Matrix2d PoseOnlyReprojectionError::sqrt_info = Matrix2d::Identity();
+Matrix3d NavsatError::sqrt_info = 10 * Matrix3d::Identity();
 
 Estimator::Estimator(std::string &config_path)
     : config_file_path_(config_path) {}
@@ -61,13 +61,15 @@ bool Estimator::Init()
 
     // create components and links
     frontend = Frontend::Ptr(new Frontend(
-        Config::Get<int>("num_features_"),
-        Config::Get<int>("num_features_init_"),
-        Config::Get<int>("num_features_tracking_"),
-        Config::Get<int>("num_features_tracking_bad_"),
-        Config::Get<int>("num_features_needed_for_keyframe_")
+        Config::Get<int>("num_features"),
+        Config::Get<int>("num_features_init"),
+        Config::Get<int>("num_features_tracking"),
+        Config::Get<int>("num_features_tracking_bad"),
+        Config::Get<int>("num_features_needed_for_keyframe")
     ));
-    backend = Backend::Ptr(new Backend());
+    backend = Backend::Ptr(new Backend(
+        Config::Get<double>("range")
+    ));
     map = Map::Ptr(new Map());
     auto navsat_map = NavsatMap::Ptr(new NavsatMap(map));
     map->navsat_map = navsat_map;
@@ -108,6 +110,7 @@ void Estimator::InputImage(double time, cv::Mat &left_image, cv::Mat &right_imag
 
 void Estimator::InputPointCloud(double time, PointCloudI::Ptr point_cloud)
 {
+    
 }
 
 void Estimator::InputIMU(double time, Vector3d acc, Vector3d gyr)

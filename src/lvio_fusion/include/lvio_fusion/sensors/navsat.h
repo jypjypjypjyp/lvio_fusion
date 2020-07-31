@@ -41,8 +41,6 @@ public:
 
     bool initialized = false;
     int num_frames_init = 20;
-    int epoch = 0;
-    int num_frames_epoch = 40;
     NavsatPoints navsat_points;
     SE3d tf;
 

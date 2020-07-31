@@ -14,8 +14,7 @@ namespace lvio_fusion
 Frontend::Frontend(int num_features, int init, int tracking, int tracking_bad, int need_for_keyframe)
     : num_features_(num_features), num_features_init_(init), num_features_tracking_(tracking),
       num_features_tracking_bad_(tracking_bad), num_features_needed_for_keyframe_(need_for_keyframe)
-{
-}
+{}
 
 bool Frontend::AddFrame(lvio_fusion::Frame::Ptr frame)
 {
@@ -59,7 +58,7 @@ bool Frontend::Track()
     current_frame->pose = relative_motion * last_frame_pose_cache_;
     TrackLastFrame();
     InitFramePoseByPnP();
-    int tracking_inliers_ = Optimize();
+    int tracking_inliers_ = current_frame->left_features.size();
 
     static int num_tries = 0;
     if (tracking_inliers_ > num_features_tracking_)
@@ -137,48 +136,6 @@ bool Frontend::InitFramePoseByPnP()
     return false;
 }
 
-int Frontend::Optimize()
-{
-    ceres::Problem problem;
-    ceres::LossFunction *loss_function = new ceres::HuberLoss(1.0);
-    double *para = current_frame->pose.data();
-    SE3d pose_copy = current_frame->pose;
-    ceres::LocalParameterization *local_parameterization = new ceres::ProductParameterization(
-        new ceres::EigenQuaternionParameterization(),
-        new ceres::IdentityParameterization(3));
-    problem.AddParameterBlock(para, SE3d::num_parameters, local_parameterization);
-
-    for (auto feature_pair : current_frame->left_features)
-    {
-        auto feature = feature_pair.second;
-        auto mappoint = feature->mappoint.lock();
-        ceres::CostFunction *cost_function = PoseOnlyReprojectionError::Create(feature->keypoint, left_camera_, position_cache_[mappoint->id]);
-        problem.AddResidualBlock(cost_function, loss_function, para);
-    }
-
-    ceres::Solver::Options options;
-    options.linear_solver_type = ceres::DENSE_NORMAL_CHOLESKY;
-    options.max_num_iterations = 5;
-    ceres::Solver::Summary summary;
-    ceres::Solve(options, &problem, &summary);
-
-    // reject outliers
-    Features left_features = current_frame->left_features;
-    for (auto feature_pair : left_features)
-    {
-        auto feature = feature_pair.second;
-        auto mappoint = feature->mappoint.lock();
-        Vector2d error(0, 0);
-        PoseOnlyReprojectionError(feature->keypoint, left_camera_, position_cache_[mappoint->id])(current_frame->pose.data(), error.data());
-        if (error.norm() > 3)
-        {
-            current_frame->RemoveFeature(feature);
-        }
-    }
-
-    return current_frame->left_features.size();
-}
-
 int Frontend::TrackLastFrame()
 {
     // use LK flow to estimate points in the last image
@@ -246,9 +203,6 @@ bool Frontend::StereoInit()
 
 int Frontend::DetectNewFeatures()
 {
-    if (current_frame->left_features.size() >= num_features_)
-        return -1;
-
     cv::Mat mask(current_frame->left_image.size(), CV_8UC1, 255);
     for (auto feature_pair : current_frame->left_features)
     {
@@ -256,16 +210,16 @@ int Frontend::DetectNewFeatures()
         cv::rectangle(mask, eigen2cv(feature->keypoint - Vector2d(10, 10)), eigen2cv(feature->keypoint + Vector2d(10, 10)), 0, CV_FILLED);
     }
 
-    std::vector<cv::Point2f> kps_left, kps_right;
-    cv::goodFeaturesToTrack(current_frame->left_image, kps_left, num_features_ - current_frame->left_features.size(), 0.01, 30, mask);
+    std::vector<cv::Point2f> left_kps, right_kps;
+    cv::goodFeaturesToTrack(current_frame->left_image, left_kps, num_features_ - current_frame->left_features.size(), 0.01, 30, mask);
 
     // use LK flow to estimate points in the right image
-    kps_right = kps_left;
+    right_kps = left_kps;
     std::vector<uchar> status;
     cv::Mat error;
     cv::calcOpticalFlowPyrLK(
-        current_frame->left_image, current_frame->right_image, kps_left,
-        kps_right, status, error, cv::Size(11, 11), 3,
+        current_frame->left_image, current_frame->right_image, left_kps,
+        right_kps, status, error, cv::Size(11, 11), 3,
         cv::TermCriteria(cv::TermCriteria::COUNT + cv::TermCriteria::EPS, 30, 0.01),
         cv::OPTFLOW_USE_INITIAL_FLOW);
 
@@ -274,21 +228,21 @@ int Frontend::DetectNewFeatures()
     SE3d current_pose_Twc = current_frame->pose.inverse();
     int num_triangulated_pts = 0;
     int num_good_pts = 0;
-    for (size_t i = 0; i < kps_left.size(); ++i)
+    for (size_t i = 0; i < left_kps.size(); ++i)
     {
         if (status[i])
         {
             num_good_pts++;
             // triangulation
             std::vector<Vector3d> points{
-                left_camera_->Pixel2Sensor(cv2eigen(kps_left[i])),
-                right_camera_->Pixel2Sensor(cv2eigen(kps_right[i]))};
+                left_camera_->Pixel2Sensor(cv2eigen(left_kps[i])),
+                right_camera_->Pixel2Sensor(cv2eigen(right_kps[i]))};
             Vector3d pworld = Vector3d::Zero();
 
             // clang-format off
             if (triangulation(poses, points, pworld)
-                && (left_camera_->World2Pixel(pworld, SE3d()) - cv2eigen(kps_left[i])).norm() < 0.2
-                && (right_camera_->World2Pixel(pworld, SE3d()) - cv2eigen(kps_right[i])).norm() < 0.2)
+                && (left_camera_->World2Pixel(pworld, SE3d()) - cv2eigen(left_kps[i])).norm() < 0.2
+                && (right_camera_->World2Pixel(pworld, SE3d()) - cv2eigen(right_kps[i])).norm() < 0.2)
             // clang-format on
             {
                 auto new_mappoint = MapPoint::Create(pworld.z(), left_camera_);
@@ -306,7 +260,7 @@ int Frontend::DetectNewFeatures()
         }
     }
 
-    LOG(INFO) << "Detect " << kps_left.size() << " new features";
+    LOG(INFO) << "Detect " << left_kps.size() << " new features";
     LOG(INFO) << "Find " << num_good_pts << " in the right image.";
     LOG(INFO) << "new landmarks: " << num_triangulated_pts;
     return num_triangulated_pts;

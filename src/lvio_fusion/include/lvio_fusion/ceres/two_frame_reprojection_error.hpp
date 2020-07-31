@@ -4,7 +4,6 @@
 #include "lvio_fusion/ceres/pose_only_reprojection_error.hpp"
 #include "lvio_fusion/sensors/camera.hpp"
 #include "lvio_fusion/utility.h"
-#include <ceres/ceres.h>
 
 namespace lvio_fusion
 {
@@ -39,8 +38,8 @@ public:
         T ob2[2] = {T(ob2_x_), T(ob2_y_)};
         Projection(ob1, T(depth_), Tcw1, camera_, p_w);
         Reprojection(p_w, Tcw2, camera_, p_p);
-        residuals[0] = T(sqrt_information(0, 0)) * (p_p[0] - ob2[0]);
-        residuals[1] = T(sqrt_information(1, 1)) * (p_p[1] - ob2[1]);
+        residuals[0] = T(sqrt_info(0, 0)) * (p_p[0] - ob2[0]);
+        residuals[1] = T(sqrt_info(1, 1)) * (p_p[1] - ob2[1]);
         // LOG(INFO) << "pw" << p_w[0];
         // LOG(INFO) << "pw" << p_w[1];
         // LOG(INFO) << "pw" << p_w[2];
@@ -63,7 +62,7 @@ public:
             new TwoFrameReprojectionError(ob1, ob2, depth, camera)));
     }
 
-    static Matrix2d sqrt_information;
+    static Matrix2d sqrt_info;
 
 private:
     double ob1_x_, ob1_y_;

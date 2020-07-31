@@ -30,7 +30,7 @@ public:
         return keyframes_;
     }
 
-    Keyframes GetActiveKeyFrames(bool full = false);
+    Keyframes GetActiveKeyFrames(double time);
 
     void InsertKeyFrame(Frame::Ptr frame);
 
@@ -42,7 +42,6 @@ public:
     {
         landmarks_.clear();
         keyframes_.clear();
-        active_keyframes_.clear();
     }
 
     Frame::Ptr current_frame = nullptr;
@@ -57,9 +56,7 @@ private:
     std::mutex data_mutex_;
     Landmarks landmarks_;
     Keyframes keyframes_;
-    Keyframes active_keyframes_;
 
-    static const int WINDOW_SIZE = 10;
 };
 } // namespace lvio_fusion
 

@@ -123,7 +123,7 @@ void pub_point_cloud(Estimator::Ptr estimator, double time)
     sensor_msgs::PointCloud2 ros_cloud;
     PointCloudRGB pcl_cloud;
     static std::unordered_map<unsigned long, Vector3d> position_cache;
-    for (auto kf_pair : estimator->map->GetActiveKeyFrames())
+    for (auto kf_pair : estimator->map->GetActiveKeyFrames(estimator->backend->ActiveTime()))
     {
         auto frame = kf_pair.second;
         auto features = frame->right_features;

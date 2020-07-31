@@ -70,8 +70,6 @@ private:
 
     int TrackLastFrame();
 
-    int Optimize();
-
     bool InitFramePoseByPnP();
 
     void CreateKeyframe();
@@ -79,10 +77,6 @@ private:
     bool StereoInit();
 
     int DetectNewFeatures();
-
-    int FindFeaturesInRight();
-
-    bool InitMap();
 
     int TriangulateNewPoints();
 
