@@ -17,24 +17,23 @@ public:
 
     MapPoint() {}
 
-    Vector3d Position();
+    Vector3d ToWorld();
 
-    Frame::Ptr FindFirstFrame();
-
-    Frame::Ptr FindLastFrame();
+    Frame::Ptr FirstFrame();
+    Frame::Ptr LastFrame();
 
     void AddObservation(Feature::Ptr feature);
 
     void RemoveObservation(Feature::Ptr feature);
 
     // factory function
-    static MapPoint::Ptr Create(double depth, Sensor::Ptr sensor);
+    static MapPoint::Ptr Create(Vector3d position, Sensor::Ptr sensor);
 
     unsigned long id = 0;               // ID
     Sensor::Ptr sensor = nullptr;       // observed by which sensor
     Features observations;              // only for left feature
-    Feature::Ptr init_observation;      // only one initial observation
-    double depth;                       // depth in the first frame
+    Feature::Ptr first_observation;     // the first observation
+    Vector3d position;                  // position in the first robot coordinate
     LabelType label = LabelType::None;  // Sematic Label
 
 };

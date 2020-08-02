@@ -58,7 +58,7 @@ bool Frontend::Track()
     current_frame->pose = relative_motion * last_frame_pose_cache_;
     TrackLastFrame();
     InitFramePoseByPnP();
-    int tracking_inliers_ = current_frame->left_features.size();
+    int tracking_inliers_ = current_frame->features_left.size();
 
     static int num_tries = 0;
     if (tracking_inliers_ > num_features_tracking_)
@@ -93,7 +93,7 @@ bool Frontend::Track()
 void Frontend::CreateKeyframe()
 {
     // first, add new observations of old points
-    for (auto feature_pair : current_frame->left_features)
+    for (auto feature_pair : current_frame->features_left)
     {
         auto feature = feature_pair.second;
         auto mp = feature->mappoint.lock();
@@ -112,7 +112,7 @@ bool Frontend::InitFramePoseByPnP()
 {
     std::vector<cv::Point3d> points_3d;
     std::vector<cv::Point2f> points_2d;
-    for (auto feature_pair : current_frame->left_features)
+    for (auto feature_pair : current_frame->features_left)
     {
         auto feature = feature_pair.second;
         auto mappoint = feature->mappoint.lock();
@@ -122,14 +122,14 @@ bool Frontend::InitFramePoseByPnP()
     }
 
     cv::Mat K;
-    cv::eigen2cv(left_camera_->K(), K);
+    cv::eigen2cv(camera_left_->K(), K);
     cv::Mat rvec, tvec, inliers, D, cv_R;
     if (cv::solvePnPRansac(points_3d, points_2d, K, D, rvec, tvec, false, 100, 8.0F, 0.98, cv::noArray(), cv::SOLVEPNP_EPNP))
     {
         cv::Rodrigues(rvec, cv_R);
         Matrix3d R;
         cv::cv2eigen(cv_R, R);
-        current_frame->pose = left_camera_->extrinsic.inverse() *
+        current_frame->pose = camera_left_->extrinsic.inverse() *
                               SE3d(SO3d(R), Vector3d(tvec.at<double>(0, 0), tvec.at<double>(1, 0), tvec.at<double>(2, 0)));
         return true;
     }
@@ -141,12 +141,12 @@ int Frontend::TrackLastFrame()
     // use LK flow to estimate points in the last image
     std::vector<cv::Point2f> kps_last, kps_current;
     std::vector<MapPoint::Ptr> mappoints;
-    for (auto feature_pair : last_frame->left_features)
+    for (auto feature_pair : last_frame->features_left)
     {
         // use project point
         auto feature = feature_pair.second;
         auto mappoint = feature->mappoint.lock();
-        auto px = left_camera_->World2Pixel(position_cache_[mappoint->id], current_frame->pose);
+        auto px = camera_left_->World2Pixel(position_cache_[mappoint->id], current_frame->pose);
         mappoints.push_back(mappoint);
         kps_last.push_back(eigen2cv(feature->keypoint));
         kps_current.push_back(cv::Point2f(px[0], px[1]));
@@ -155,7 +155,7 @@ int Frontend::TrackLastFrame()
     std::vector<uchar> status;
     cv::Mat error;
     cv::calcOpticalFlowPyrLK(
-        last_frame->left_image, current_frame->left_image, kps_last,
+        last_frame->image_left, current_frame->image_left, kps_last,
         kps_current, status, error, cv::Size(11, 11), 3,
         cv::TermCriteria(cv::TermCriteria::COUNT + cv::TermCriteria::EPS, 30, 0.01),
         cv::OPTFLOW_USE_INITIAL_FLOW);
@@ -165,7 +165,7 @@ int Frontend::TrackLastFrame()
 
     int num_good_pts = 0;
     //DEBUG
-    cv::Mat img_track = current_frame->left_image;
+    cv::Mat img_track = current_frame->image_left;
     cv::cvtColor(img_track, img_track, CV_GRAY2RGB);
     for (size_t i = 0; i < status.size(); ++i)
     {
@@ -203,64 +203,66 @@ bool Frontend::StereoInit()
 
 int Frontend::DetectNewFeatures()
 {
-    cv::Mat mask(current_frame->left_image.size(), CV_8UC1, 255);
-    for (auto feature_pair : current_frame->left_features)
+    cv::Mat mask(current_frame->image_left.size(), CV_8UC1, 255);
+    for (auto feature_pair : current_frame->features_left)
     {
         auto feature = feature_pair.second;
         cv::rectangle(mask, eigen2cv(feature->keypoint - Vector2d(10, 10)), eigen2cv(feature->keypoint + Vector2d(10, 10)), 0, CV_FILLED);
     }
 
-    std::vector<cv::Point2f> left_kps, right_kps;
-    cv::goodFeaturesToTrack(current_frame->left_image, left_kps, num_features_ - current_frame->left_features.size(), 0.01, 30, mask);
+    std::vector<cv::Point2f> kps_left, kps_right;
+    cv::goodFeaturesToTrack(current_frame->image_left, kps_left, num_features_ - current_frame->features_left.size(), 0.01, 30, mask);
 
     // use LK flow to estimate points in the right image
-    right_kps = left_kps;
+    kps_right = kps_left;
     std::vector<uchar> status;
     cv::Mat error;
     cv::calcOpticalFlowPyrLK(
-        current_frame->left_image, current_frame->right_image, left_kps,
-        right_kps, status, error, cv::Size(11, 11), 3,
+        current_frame->image_left, current_frame->image_right, kps_left,
+        kps_right, status, error, cv::Size(21, 21), 3,
         cv::TermCriteria(cv::TermCriteria::COUNT + cv::TermCriteria::EPS, 30, 0.01),
         cv::OPTFLOW_USE_INITIAL_FLOW);
 
     // triangulate new points
-    std::vector<SE3d> poses{left_camera_->extrinsic, right_camera_->extrinsic};
+    std::vector<SE3d> extrinsics{camera_left_->extrinsic, camera_right_->extrinsic};
     SE3d current_pose_Twc = current_frame->pose.inverse();
     int num_triangulated_pts = 0;
     int num_good_pts = 0;
-    for (size_t i = 0; i < left_kps.size(); ++i)
+    for (size_t i = 0; i < kps_left.size(); ++i)
     {
         if (status[i])
         {
             num_good_pts++;
             // triangulation
-            std::vector<Vector3d> points{
-                left_camera_->Pixel2Sensor(cv2eigen(left_kps[i])),
-                right_camera_->Pixel2Sensor(cv2eigen(right_kps[i]))};
-            Vector3d pworld = Vector3d::Zero();
+            Vector2d kp_left = cv2eigen(kps_left[i]);
+            Vector2d kp_right = cv2eigen(kps_right[i]);
+            std::vector<Vector3d> ps_sensor{
+                camera_left_->Pixel2Sensor(kp_left),
+                camera_right_->Pixel2Sensor(kp_right)};
+            Vector3d p_robot = Vector3d::Zero();
 
             // clang-format off
-            if (triangulation(poses, points, pworld)
-                && (left_camera_->World2Pixel(pworld, SE3d()) - cv2eigen(left_kps[i])).norm() < 0.2
-                && (right_camera_->World2Pixel(pworld, SE3d()) - cv2eigen(right_kps[i])).norm() < 0.2)
+            if (triangulation(extrinsics, ps_sensor, p_robot)
+                && (camera_left_->Robot2Pixel(p_robot) - kp_left).norm() < 0.5
+                && (camera_right_->Robot2Pixel(p_robot) - kp_right).norm() < 0.5)
             // clang-format on
             {
-                auto new_mappoint = MapPoint::Create(pworld.z(), left_camera_);
-                auto new_left_feature = Feature::Create(current_frame, left_camera_->Sensor2Pixel(pworld), new_mappoint);
-                auto new_right_feature = Feature::Create(current_frame, right_camera_->Sensor2Pixel(pworld), new_mappoint);
+                auto new_mappoint = MapPoint::Create(p_robot, camera_left_);
+                auto new_left_feature = Feature::Create(current_frame, kp_left, new_mappoint);
+                auto new_right_feature = Feature::Create(current_frame, kp_right, new_mappoint);
                 new_right_feature->is_on_left_image = false;
                 new_mappoint->AddObservation(new_left_feature);
                 new_mappoint->AddObservation(new_right_feature);
                 current_frame->AddFeature(new_left_feature);
                 current_frame->AddFeature(new_right_feature);
                 map_->InsertMapPoint(new_mappoint);
-                position_cache_[new_mappoint->id] = new_mappoint->Position();
+                position_cache_[new_mappoint->id] = new_mappoint->ToWorld();
                 num_triangulated_pts++;
             }
         }
     }
 
-    LOG(INFO) << "Detect " << left_kps.size() << " new features";
+    LOG(INFO) << "Detect " << kps_left.size() << " new features";
     LOG(INFO) << "Find " << num_good_pts << " in the right image.";
     LOG(INFO) << "new landmarks: " << num_triangulated_pts;
     return num_triangulated_pts;
@@ -279,11 +281,11 @@ bool Frontend::Reset()
 void Frontend::UpdateCache()
 {
     position_cache_.clear();
-    for (auto feature_pair : last_frame->left_features)
+    for (auto feature_pair : last_frame->features_left)
     {
         auto feature = feature_pair.second;
         auto mappoint = feature->mappoint.lock();
-        position_cache_.insert(std::make_pair(mappoint->id, mappoint->Position()));
+        position_cache_.insert(std::make_pair(mappoint->id, mappoint->ToWorld()));
     }
     last_frame_pose_cache_ = last_frame->pose;
 }

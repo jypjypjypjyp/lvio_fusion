@@ -5,27 +5,26 @@
 namespace lvio_fusion
 {
 
-MapPoint::Ptr MapPoint::Create(double depth, Sensor::Ptr sensor)
+MapPoint::Ptr MapPoint::Create(Vector3d position, Sensor::Ptr sensor)
 {
     MapPoint::Ptr new_mappoint(new MapPoint);
     new_mappoint->id = Map::current_mappoint_id + 1;
-    new_mappoint->depth = depth;
+    new_mappoint->position = position;
     new_mappoint->sensor = sensor;
     return new_mappoint;
 }
 
-Vector3d MapPoint::Position()
+Vector3d MapPoint::ToWorld()
 {
-    Vector2d kp = observations.begin()->second->keypoint;
-    return sensor->Pixel2World(kp, FindFirstFrame()->pose, depth);
+    return sensor->Robot2World(position, FirstFrame()->pose);
 }
 
-Frame::Ptr MapPoint::FindFirstFrame()
+Frame::Ptr MapPoint::FirstFrame()
 {
-    return observations.begin()->second->frame.lock();
+    return first_observation->frame.lock();
 }
 
-Frame::Ptr MapPoint::FindLastFrame()
+Frame::Ptr MapPoint::LastFrame()
 {
     return (--observations.end())->second->frame.lock();
 }
@@ -40,7 +39,7 @@ void MapPoint::AddObservation(Feature::Ptr feature)
     else
     {
         assert(feature->frame.lock()->id == observations.begin()->first);
-        init_observation = feature;
+        first_observation = feature;
     }
 }
 

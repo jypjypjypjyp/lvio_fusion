@@ -48,8 +48,8 @@ public:
 
     void SetCameras(Camera::Ptr left, Camera::Ptr right)
     {
-        left_camera_ = left;
-        right_camera_ = right;
+        camera_left_ = left;
+        camera_right_ = right;
     }
 
     void UpdateCache();
@@ -83,8 +83,8 @@ private:
     // data
     Map::Ptr map_ = nullptr;
     std::shared_ptr<Backend> backend_ = nullptr;
-    Camera::Ptr left_camera_ = nullptr;
-    Camera::Ptr right_camera_ = nullptr;
+    Camera::Ptr camera_left_ = nullptr;
+    Camera::Ptr camera_right_ = nullptr;
     std::unordered_map<unsigned long, Vector3d> position_cache_;
     SE3d last_frame_pose_cache_;
 

@@ -126,26 +126,29 @@ void pub_point_cloud(Estimator::Ptr estimator, double time)
     for (auto kf_pair : estimator->map->GetActiveKeyFrames(estimator->backend->ActiveTime()))
     {
         auto frame = kf_pair.second;
-        auto features = frame->right_features;
+        auto features = frame->features_right;
         for (auto feature_pair : features)
         {
             if (!feature_pair.second->mappoint.expired())
             {
                 auto landmark = feature_pair.second->mappoint.lock();
-                position_cache[landmark->id] = landmark->Position();
+                position_cache[landmark->id] = landmark->ToWorld();
             }
         }
     }
 
     auto landmarks = estimator->map->GetAllMapPoints();
-    for (auto point_pair : position_cache)
+    for (auto point_pair_iter = position_cache.begin(); point_pair_iter != position_cache.end();)
     {
-        auto landmark_iter = landmarks.find(point_pair.first);
+        auto landmark_iter = landmarks.find(point_pair_iter->first);
         if (landmark_iter == landmarks.end())
+        {
+            point_pair_iter = position_cache.erase(point_pair_iter);
             continue;
+        }
 
         PointRGB p;
-        Vector3d pos = point_pair.second;
+        Vector3d pos = point_pair_iter->second;
         p.x = pos.x();
         p.y = pos.y();
         p.z = pos.z();
@@ -166,6 +169,7 @@ void pub_point_cloud(Estimator::Ptr estimator, double time)
             p.rgba = 0x00FF00FF;
         }
         pcl_cloud.push_back(p);
+        point_pair_iter++;
     }
     pcl::toROSMsg(pcl_cloud, ros_cloud);
     ros_cloud.header.stamp = ros::Time(time);

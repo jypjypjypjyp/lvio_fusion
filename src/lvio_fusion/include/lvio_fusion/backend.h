@@ -29,8 +29,8 @@ public:
 
     void SetCameras(Camera::Ptr left, Camera::Ptr right)
     {
-        left_camera_ = left;
-        right_camera_ = right;
+        camera_left_ = left;
+        camera_right_ = right;
     }
 
     void SetMap(Map::Ptr map) { map_ = map; }
@@ -69,8 +69,8 @@ private:
     double head_ = 0;
     const double range_;
 
-    Camera::Ptr left_camera_ = nullptr;
-    Camera::Ptr right_camera_ = nullptr;
+    Camera::Ptr camera_left_ = nullptr;
+    Camera::Ptr camera_right_ = nullptr;
 };
 
 } // namespace lvio_fusion

@@ -13,35 +13,35 @@ public:
 
     Sensor(const SE3d &extrinsic) : extrinsic(extrinsic) {}
 
-    // coordinate transform: world, sensor, pixel
+    // coordinate transform: world, sensor
     virtual Vector3d World2Sensor(const Vector3d &p_w, const SE3d &T_c_w)
     {
-        throw NotImplemented();
+        return extrinsic * T_c_w * p_w;
     }
 
     virtual Vector3d Sensor2World(const Vector3d &p_c, const SE3d &T_c_w)
     {
-        throw NotImplemented();
+        return T_c_w.inverse() * extrinsic.inverse() * p_c;
     }
 
-    virtual Vector2d Sensor2Pixel(const Vector3d &p_c)
+    virtual Vector3d World2Robot(const Vector3d &p_w, const SE3d &T_c_w)
     {
-        throw NotImplemented();
+        return T_c_w * p_w;
     }
 
-    virtual Vector3d Pixel2Sensor(const Vector2d &p_p, double depth = 1)
+    virtual Vector3d Robot2World(const Vector3d &p_c, const SE3d &T_c_w)
     {
-        throw NotImplemented();
+        return T_c_w.inverse() * p_c;
     }
 
-    virtual Vector3d Pixel2World(const Vector2d &p_p, const SE3d &T_c_w, double depth = 1)
+    virtual Vector3d Robot2Sensor(const Vector3d &p_w)
     {
-        return Sensor2World(Pixel2Sensor(p_p, depth), T_c_w);
+        return extrinsic * p_w;
     }
 
-    virtual Vector2d World2Pixel(const Vector3d &p_w, const SE3d &T_c_w)
+    virtual Vector3d Sensor2Robot(const Vector3d &p_c)
     {
-        return Sensor2Pixel(World2Sensor(p_w, T_c_w));
+        return extrinsic.inverse() * p_c;
     }
 
     SE3d extrinsic;

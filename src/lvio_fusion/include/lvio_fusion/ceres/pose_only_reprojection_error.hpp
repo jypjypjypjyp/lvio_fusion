@@ -24,32 +24,32 @@ inline void Reprojection(const T *p_w, const T *Tcw, Camera::Ptr camera, T *resu
 class PoseOnlyReprojectionError
 {
 public:
-    PoseOnlyReprojectionError(Vector2d ob, Camera::Ptr camera, Vector3d point)
-        : ob_x_(ob.x()), ob_y_(ob.y()), camera_(camera), x_(point.x()), y_(point.y()), z_(point.z()) {}
+    PoseOnlyReprojectionError(Vector2d ob, Vector3d p_w, Camera::Ptr camera)
+        : ob_(ob), p_w_(p_w), camera_(camera) {}
 
     template <typename T>
     bool operator()(const T *T_c_w, T *residuals) const
     {
         T p_p[2];
-        T p_w[3] = {T(x_), T(y_), T(z_)};
-        T ob[2] = {T(ob_x_), T(ob_y_)};
+        T p_w[3] = {T(p_w_.x()), T(p_w_.y()), T(p_w_.z())};
+        T ob[2] = {T(ob_.x()), T(ob_.y())};
         Reprojection(p_w, T_c_w, camera_, p_p);
         residuals[0] = T(sqrt_info(0, 0)) * (p_p[0] - ob[0]);
         residuals[1] = T(sqrt_info(1, 1)) * (p_p[1] - ob[1]);
         return true;
     }
 
-    static ceres::CostFunction *Create(Vector2d ob, Camera::Ptr camera, Vector3d point)
+    static ceres::CostFunction *Create(Vector2d ob, Vector3d p_w, Camera::Ptr camera)
     {
         return (new ceres::AutoDiffCostFunction<PoseOnlyReprojectionError, 2, 7>(
-            new PoseOnlyReprojectionError(ob, camera, point)));
+            new PoseOnlyReprojectionError(ob, p_w, camera)));
     }
 
     static Matrix2d sqrt_info;
 
 private:
-    double ob_x_, ob_y_;
-    double x_, y_, z_;
+    Vector2d ob_;
+    Vector3d p_w_;
     Camera::Ptr camera_;
 };
 

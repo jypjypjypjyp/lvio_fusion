@@ -34,10 +34,10 @@ void Map::RemoveMapPoint(MapPoint::Ptr mappoint)
     for (auto feature_pair : mappoint->observations)
     {
         auto feature = feature_pair.second;
-        feature->frame.lock()->left_features.erase(mappoint->id);
+        feature->frame.lock()->features_left.erase(mappoint->id);
     }
-    auto right_feature = mappoint->init_observation;
-    right_feature->frame.lock()->right_features.erase(mappoint->id);
+    auto right_feature = mappoint->first_observation;
+    right_feature->frame.lock()->features_right.erase(mappoint->id);
     landmarks_.erase(mappoint->id);
 }
 

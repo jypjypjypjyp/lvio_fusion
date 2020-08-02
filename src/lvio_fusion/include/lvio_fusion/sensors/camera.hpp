@@ -25,16 +25,6 @@ public:
     }
 
     // coordinate transform: world, sensor, pixel
-    virtual Vector3d World2Sensor(const Vector3d &p_w, const SE3d &T_c_w)
-    {
-        return extrinsic * T_c_w * p_w;
-    }
-
-    virtual Vector3d Sensor2World(const Vector3d &p_c, const SE3d &T_c_w)
-    {
-        return T_c_w.inverse() * extrinsic.inverse() * p_c;
-    }
-
     virtual Vector2d Sensor2Pixel(const Vector3d &p_c)
     {
         return Vector2d(
@@ -48,6 +38,26 @@ public:
             (p_p(0, 0) - cx) * depth / fx,
             (p_p(1, 0) - cy) * depth / fy,
             depth);
+    }
+
+    virtual Vector3d Pixel2World(const Vector2d &p_p, const SE3d &T_c_w, double depth = 1)
+    {
+        return Sensor2World(Pixel2Sensor(p_p, depth), T_c_w);
+    }
+
+    virtual Vector2d World2Pixel(const Vector3d &p_w, const SE3d &T_c_w)
+    {
+        return Sensor2Pixel(World2Sensor(p_w, T_c_w));
+    }
+
+    virtual Vector3d Pixel2Robot(const Vector2d &p_p, double depth = 1)
+    {
+        return Sensor2Robot(Pixel2Sensor(p_p, depth));
+    }
+
+    virtual Vector2d Robot2Pixel(const Vector3d &p_w)
+    {
+        return Sensor2Pixel(Robot2Sensor(p_w));
     }
 
     double fx = 0, fy = 0, cx = 0, cy = 0; // Camera intrinsics

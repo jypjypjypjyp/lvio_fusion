@@ -28,12 +28,12 @@ public:
 
     unsigned long id;
     double time;
-    cv::Mat left_image, right_image;
+    cv::Mat image_left, image_right;
     std::vector<DetectedObject> objects;
     // extracted features in left image
-    Features left_features;
+    Features features_left;
     // corresponding features in right image, only for this frame
-    Features right_features;
+    Features features_right;
     SE3d pose;
 
 private:
