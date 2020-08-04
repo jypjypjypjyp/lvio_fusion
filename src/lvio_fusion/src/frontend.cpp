@@ -219,12 +219,11 @@ int Frontend::DetectNewFeatures()
     cv::Mat error;
     cv::calcOpticalFlowPyrLK(
         current_frame->image_left, current_frame->image_right, kps_left,
-        kps_right, status, error, cv::Size(21, 21), 3,
+        kps_right, status, error, cv::Size(11, 11), 3,
         cv::TermCriteria(cv::TermCriteria::COUNT + cv::TermCriteria::EPS, 30, 0.01),
         cv::OPTFLOW_USE_INITIAL_FLOW);
 
     // triangulate new points
-    std::vector<SE3d> extrinsics{camera_left_->extrinsic, camera_right_->extrinsic};
     SE3d current_pose_Twc = current_frame->pose.inverse();
     int num_triangulated_pts = 0;
     int num_good_pts = 0;
@@ -236,16 +235,10 @@ int Frontend::DetectNewFeatures()
             // triangulation
             Vector2d kp_left = cv2eigen(kps_left[i]);
             Vector2d kp_right = cv2eigen(kps_right[i]);
-            std::vector<Vector3d> ps_sensor{
-                camera_left_->Pixel2Sensor(kp_left),
-                camera_right_->Pixel2Sensor(kp_right)};
             Vector3d p_robot = Vector3d::Zero();
-
-            // clang-format off
-            if (triangulation(extrinsics, ps_sensor, p_robot)
-                && (camera_left_->Robot2Pixel(p_robot) - kp_left).norm() < 0.5
-                && (camera_right_->Robot2Pixel(p_robot) - kp_right).norm() < 0.5)
-            // clang-format on
+            triangulate(camera_left_->extrinsic, camera_right_->extrinsic, 
+                camera_left_->Pixel2Sensor(kp_left), camera_right_->Pixel2Sensor(kp_right), p_robot);
+            if ((camera_left_->Robot2Pixel(p_robot) - kp_left).norm() < 0.5 && (camera_right_->Robot2Pixel(p_robot) - kp_right).norm() < 0.5)
             {
                 auto new_mappoint = MapPoint::Create(p_robot, camera_left_);
                 auto new_left_feature = Feature::Create(current_frame, kp_left, new_mappoint);

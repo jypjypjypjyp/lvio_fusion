@@ -12,36 +12,7 @@ void NavsatMap::Initialize()
 {
     Map::Keyframes keyframes = map_.lock()->GetAllKeyFrames();
 
-    // Init RT
-    if (!initialized)
-    {
-        std::vector<Vector3d> pts1, pts2;
-        for (auto kf_pair : keyframes)
-        {
-            auto kf_point = kf_pair.second->pose.inverse().translation();
-            auto navsat_point = navsat_points.lower_bound(kf_pair.first)->second.position;
-            pts1.push_back(kf_point);
-            pts2.push_back(navsat_point);
-        }
-        Vector3d p1(0, 0, 0), p2(0, 0, 0);
-        int N = pts1.size();
-        for (int i = 0; i < N; i++)
-        {
-            p1 += pts1[i];
-            p2 += pts2[i];
-        }
-        p1 = p1 / N;
-        p2 = p2 / N;
-        double a = atan2(p1[2], p1[0]);
-        double b = atan2(p2[1], p2[0]);
-        AngleAxisd v1(M_PI / 2, Eigen::Vector3d(1, 0, 0));
-        Matrix3d R1 = v1.toRotationMatrix();
-        AngleAxisd v2(b - a, Eigen::Vector3d(0, 1, 0));
-        Matrix3d R2 = v2.toRotationMatrix();
-        tf.setRotationMatrix(R2 * R1);
-    }
-
-    initialized = false;
+    // initialized = false;
     ceres::Problem problem;
     ceres::LossFunction *loss_function = new ceres::HuberLoss(1.0);
     ceres::LocalParameterization *local_parameterization = new ceres::ProductParameterization(

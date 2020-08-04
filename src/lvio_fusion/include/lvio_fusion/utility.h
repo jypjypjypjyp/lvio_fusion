@@ -14,31 +14,23 @@ namespace lvio_fusion
 
 /**
  * linear triangulation with SVD
- * @param poses     poses,
- * @param points    points in normalized plane
- * @param pt_world  triangulated point in the world
- * @return true if success
+ * @param pose0     pose,
+ * @param pose1     pose,
+ * @param p0        point in normalized plane
+ * @param p1        point in normalized plane
+ * @param p_3d      triangulated point in the world
  */
-inline bool triangulation(const std::vector<SE3d> &poses,
-                          const std::vector<Vector3d> points, Vector3d &pt_world)
+inline void triangulate(const SE3d &pose0, const SE3d &pose1, const Vector3d &p0, const Vector3d &p1, Vector3d &p_3d)
 {
-    MatrixXd A(2 * poses.size(), 4);
-    VectorXd b(2 * poses.size());
-    b.setZero();
-    for (size_t i = 0; i < poses.size(); ++i)
-    {
-        Matrix<double, 3, 4> m = poses[i].matrix3x4();
-        A.block<1, 4>(2 * i, 0) = points[i][0] * m.row(2) - m.row(0);
-        A.block<1, 4>(2 * i + 1, 0) = points[i][1] * m.row(2) - m.row(1);
-    }
-    auto svd = A.bdcSvd(Eigen::ComputeThinU | Eigen::ComputeThinV);
-    pt_world = (svd.matrixV().col(3) / svd.matrixV()(3, 3)).head<3>();
-
-    if (pt_world[2] < 0)
-    {
-        return false;
-    }
-    return true;
+    Matrix4d A = Matrix4d::Zero();
+    Matrix<double, 3, 4> P0 = pose0.matrix3x4();
+    Matrix<double, 3, 4> P1 = pose1.matrix3x4();
+    A.row(0) = p0[0] * P0.row(2) - P0.row(0);
+    A.row(1) = p0[1] * P0.row(2) - P0.row(1);
+    A.row(2) = p1[0] * P1.row(2) - P1.row(0);
+    A.row(3) = p1[1] * P1.row(2) - P1.row(1);
+    Vector4d p_norm = A.jacobiSvd(ComputeFullV).matrixV().rightCols<1>();
+    p_3d = (p_norm / p_norm(3)).head<3>();
 }
 
 inline Vector2d cv2eigen(const cv::Point2f &p) { return Vector2d(p.x, p.y); }
@@ -51,7 +43,7 @@ inline cv::Point2f eigen2cv(const Vector2d &p) { return cv::Point2f(p.x(), p.y()
  * @param A    A
  * @param B    B
  */
-inline void line_fitting(MatrixX3d P, Vector3d &A, Vector3d &B)
+inline void line_fitting(const MatrixX3d &P, Vector3d &A, Vector3d &B)
 {
     A = P.colwise().mean();
     MatrixXd P0 = P.rowwise() - A.transpose();
@@ -69,7 +61,7 @@ inline void line_fitting(MatrixX3d P, Vector3d &A, Vector3d &B)
  * @param P    P
  * @return closest point
  */
-inline Vector3d closest_point_on_a_line(Vector3d A, Vector3d B, Vector3d P)
+inline Vector3d closest_point_on_a_line(const Vector3d &A, const Vector3d &B, const Vector3d &P)
 {
     Vector3d AB = B - A, AP = P - A;
     double k = AB.dot(AP) / AB.norm();
