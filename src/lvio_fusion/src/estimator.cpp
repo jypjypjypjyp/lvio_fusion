@@ -1,5 +1,3 @@
-#include <fstream>
-
 #include "lvio_fusion/ceres/navsat_error.hpp"
 #include "lvio_fusion/ceres/pose_only_reprojection_error.hpp"
 #include "lvio_fusion/ceres/two_frame_reprojection_error.hpp"
@@ -109,7 +107,7 @@ void Estimator::InputImage(double time, cv::Mat &left_image, cv::Mat &right_imag
 
 void Estimator::InputPointCloud(double time, PointCloudI::Ptr point_cloud)
 {
-    
+    LOG(INFO) <<"llllllllllllllllllllllllllllllidar!!!!!!!!!!!!!"<< time;
 }
 
 void Estimator::InputIMU(double time, Vector3d acc, Vector3d gyr)

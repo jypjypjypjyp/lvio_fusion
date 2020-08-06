@@ -26,7 +26,6 @@ public:
 
     void RemoveObservation(Feature::Ptr feature);
 
-    // factory function
     static MapPoint::Ptr Create(Vector3d position, Sensor::Ptr sensor);
 
     unsigned long id = 0;               // ID

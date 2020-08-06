@@ -2,7 +2,7 @@
 #define lvio_fusion_POSE_ONLY_REPROJECTION_ERROR_H
 
 #include "lvio_fusion/ceres/base.hpp"
-#include "lvio_fusion/sensors/camera.hpp"
+#include "lvio_fusion/camera/camera.hpp"
 
 namespace lvio_fusion
 {

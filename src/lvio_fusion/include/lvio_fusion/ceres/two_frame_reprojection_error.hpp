@@ -2,7 +2,7 @@
 #define lvio_fusion_TWO_FRAME_REPROJECTION_ERROR_H
 
 #include "lvio_fusion/ceres/pose_only_reprojection_error.hpp"
-#include "lvio_fusion/sensors/camera.hpp"
+#include "lvio_fusion/camera/camera.hpp"
 #include "lvio_fusion/utility.h"
 
 namespace lvio_fusion

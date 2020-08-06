@@ -7,8 +7,10 @@
 namespace lvio_fusion
 {
 
-class Lidar
+class Lidar : public Sensor
 {
+public:
+    typedef std::shared_ptr<Lidar> Ptr;
 
 };
 

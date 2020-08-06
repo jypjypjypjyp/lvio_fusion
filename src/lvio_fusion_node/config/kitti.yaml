@@ -2,7 +2,7 @@
 
 # flags
 use_imu: 0
-use_lidar: 0
+use_lidar: 1
 use_navsat: 1
 num_of_cam: 2
 is_semantic: 0
@@ -26,6 +26,10 @@ camera2.fx: 7.188560000000e+02
 camera2.fy: 7.188560000000e+02
 camera2.cx: 6.071928000000e+02
 camera2.cy: 1.852157000000e+02
+
+# lidar param
+num_scans: 64
+cycle_time: 0.1036
 
 # body to camera0
 base_to_cam0: !!opencv-matrix

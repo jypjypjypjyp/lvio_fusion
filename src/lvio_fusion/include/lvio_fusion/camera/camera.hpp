@@ -63,5 +63,7 @@ public:
     double fx = 0, fy = 0, cx = 0, cy = 0; // Camera intrinsics
 };
 
+
+
 } // namespace lvio_fusion
 #endif // lvio_fusion_CAMERA_H

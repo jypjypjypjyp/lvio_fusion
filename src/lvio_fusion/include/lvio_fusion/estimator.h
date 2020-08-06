@@ -21,7 +21,6 @@ public:
 
     void InputNavSat(double time, double latitude, double longitude, double altitude, double posAccuracy);
 
-    //TODO
     void InputPointCloud(double time, PointCloudI::Ptr point_cloud);
 
     //TODO

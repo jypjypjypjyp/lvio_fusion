@@ -4,7 +4,7 @@
 #include "lvio_fusion/common.h"
 #include "lvio_fusion/frame.h"
 #include "lvio_fusion/mappoint.h"
-#include "lvio_fusion/sensors/navsat.h"
+#include "lvio_fusion/navsat/navsat.h"
 
 namespace lvio_fusion
 {
