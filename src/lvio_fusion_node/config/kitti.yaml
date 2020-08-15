@@ -9,7 +9,7 @@ is_semantic: 0
 
 # ros parameters
 imu_topic: '/kitti/oxts/imu'
-lidar_topic: 'kitti/velodye_pointcloud'
+lidar_topic: '/kitti/velo/pointcloud'
 navsat_topic: '/kitti/oxts/gps/fix'
 image0_topic: '/kitti/camera_gray_left/image_raw'
 image1_topic: '/kitti/camera_gray_right/image_raw'
@@ -30,6 +30,8 @@ camera2.cy: 1.852157000000e+02
 # lidar param
 num_scans: 64
 cycle_time: 0.1036
+minimum_range: 5
+deskew: 0
 
 # body to camera0
 base_to_cam0: !!opencv-matrix

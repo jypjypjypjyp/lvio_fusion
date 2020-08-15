@@ -3,7 +3,7 @@
 
 #include "lvio_fusion/common.h"
 #include "lvio_fusion/frame.h"
-#include "lvio_fusion/mappoint.h"
+#include "lvio_fusion/visual/landmark.h"
 #include "lvio_fusion/navsat/navsat.h"
 
 namespace lvio_fusion
@@ -13,12 +13,10 @@ class Map
 {
 public:
     typedef std::shared_ptr<Map> Ptr;
-    typedef std::unordered_map<unsigned long, MapPoint::Ptr> Landmarks;
-    typedef std::map<double, Frame::Ptr> Keyframes;
-
+    
     Map() {}
 
-    Landmarks &GetAllMapPoints()
+    visual::Landmarks &GetAllLandmarks()
     {
         std::unique_lock<std::mutex> lock(data_mutex_);
         return landmarks_;
@@ -34,9 +32,11 @@ public:
 
     void InsertKeyFrame(Frame::Ptr frame);
 
-    void InsertMapPoint(MapPoint::Ptr mappoint);
+    void InsertLandmark(visual::Landmark::Ptr landmark);
 
-    void RemoveMapPoint(MapPoint::Ptr mappoint);
+    void RemoveLandmark(visual::Landmark::Ptr landmark);
+
+    SE3d ComputePose(double time);
 
     void Reset()
     {
@@ -47,14 +47,9 @@ public:
     Frame::Ptr current_frame = nullptr;
     NavsatMap::Ptr navsat_map;
 
-    static unsigned long current_frame_id;
-    static unsigned long current_mappoint_id;
-
 private:
-    void RemoveOldKeyframe();
-
     std::mutex data_mutex_;
-    Landmarks landmarks_;
+    visual::Landmarks landmarks_;
     Keyframes keyframes_;
 
 };

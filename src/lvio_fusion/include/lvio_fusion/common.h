@@ -32,10 +32,12 @@ typedef Sophus::SO3d SO3d;
 // PCL
 #include <pcl/common/common_headers.h>
 
+typedef pcl::PointXYZ Point3;
+typedef typename pcl::PointCloud<Point3> Point3Cloud;
 typedef pcl::PointXYZI PointI;
-typedef typename pcl::PointCloud<PointI> PointCloudI;
+typedef typename pcl::PointCloud<PointI> PointICloud;
 typedef pcl::PointXYZRGB PointRGB;
-typedef typename pcl::PointCloud<PointRGB> PointCloudRGB;
+typedef typename pcl::PointCloud<PointRGB> PointRGBCloud;
 
 // glog
 #include <glog/logging.h>

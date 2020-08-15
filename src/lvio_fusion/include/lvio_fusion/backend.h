@@ -4,7 +4,8 @@
 #include "lvio_fusion/common.h"
 #include "lvio_fusion/frame.h"
 #include "lvio_fusion/map.h"
-#include "lvio_fusion/camera/camera.hpp"
+#include "lvio_fusion/visual/camera.hpp"
+#include "lvio_fusion/lidar/lidar.hpp"
 
 #include <ceres/ceres.h>
 
@@ -33,6 +34,11 @@ public:
         camera_right_ = right;
     }
 
+    void SetLidar(Lidar::Ptr lidar)
+    {
+        lidar_ = lidar;
+    }
+
     void SetMap(Map::Ptr map) { map_ = map; }
 
     void SetFrontend(std::shared_ptr<Frontend> frontend) { frontend_ = frontend; }
@@ -57,7 +63,7 @@ private:
 
     void Propagate(double time);
 
-    void BuildProblem(Map::Keyframes &active_kfs, ceres::Problem &problem);
+    void BuildProblem(Keyframes &active_kfs, ceres::Problem &problem);
 
     Map::Ptr map_;
     std::weak_ptr<Frontend> frontend_;
@@ -71,6 +77,7 @@ private:
 
     Camera::Ptr camera_left_ = nullptr;
     Camera::Ptr camera_right_ = nullptr;
+    Lidar::Ptr lidar_ = nullptr;
 };
 
 } // namespace lvio_fusion

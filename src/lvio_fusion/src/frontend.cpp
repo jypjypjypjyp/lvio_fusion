@@ -1,8 +1,9 @@
 #include "lvio_fusion/frontend.h"
 #include "lvio_fusion/backend.h"
+#include "lvio_fusion/visual/landmark.h"
 #include "lvio_fusion/ceres/pose_only_reprojection_error.hpp"
 #include "lvio_fusion/config.h"
-#include "lvio_fusion/feature.h"
+#include "lvio_fusion/visual/feature.h"
 #include "lvio_fusion/map.h"
 #include "lvio_fusion/utility.h"
 
@@ -96,7 +97,7 @@ void Frontend::CreateKeyframe()
     for (auto feature_pair : current_frame->features_left)
     {
         auto feature = feature_pair.second;
-        auto mp = feature->mappoint.lock();
+        auto mp = feature->landmark.lock();
         mp->AddObservation(feature);
     }
     // detect new features, track in right image and triangulate map points
@@ -105,7 +106,7 @@ void Frontend::CreateKeyframe()
     map_->InsertKeyFrame(current_frame);
     LOG(INFO) << "Add a keyframe " << current_frame->id;
     // update backend because we have a new keyframe
-    backend_->UpdateMap();
+    backend_.lock()->UpdateMap();
 }
 
 bool Frontend::InitFramePoseByPnP()
@@ -115,9 +116,9 @@ bool Frontend::InitFramePoseByPnP()
     for (auto feature_pair : current_frame->features_left)
     {
         auto feature = feature_pair.second;
-        auto mappoint = feature->mappoint.lock();
+        auto camera_point = feature->landmark.lock();
         points_2d.push_back(eigen2cv(feature->keypoint));
-        Vector3d p = position_cache_[mappoint->id];
+        Vector3d p = position_cache_[camera_point->id];
         points_3d.push_back(cv::Point3f(p.x(), p.y(), p.z()));
     }
 
@@ -140,14 +141,14 @@ int Frontend::TrackLastFrame()
 {
     // use LK flow to estimate points in the last image
     std::vector<cv::Point2f> kps_last, kps_current;
-    std::vector<MapPoint::Ptr> mappoints;
+    std::vector<visual::Landmark::Ptr> landmarks;
     for (auto feature_pair : last_frame->features_left)
     {
         // use project point
         auto feature = feature_pair.second;
-        auto mappoint = feature->mappoint.lock();
-        auto px = camera_left_->World2Pixel(position_cache_[mappoint->id], current_frame->pose);
-        mappoints.push_back(mappoint);
+        auto camera_point = feature->landmark.lock();
+        auto px = camera_left_->World2Pixel(position_cache_[camera_point->id], current_frame->pose);
+        landmarks.push_back(camera_point);
         kps_last.push_back(eigen2cv(feature->keypoint));
         kps_current.push_back(cv::Point2f(px[0], px[1]));
     }
@@ -172,7 +173,7 @@ int Frontend::TrackLastFrame()
         if (status[i])
         {
             cv::arrowedLine(img_track, kps_current[i], kps_last[i], cv::Scalar(0, 255, 0), 1, 8, 0, 0.2);
-            auto feature = Feature::Create(current_frame, cv2eigen(kps_current[i]), mappoints[i]);
+            auto feature = visual::Feature::Create(current_frame, cv2eigen(kps_current[i]), landmarks[i]);
             current_frame->AddFeature(feature);
             num_good_pts++;
         }
@@ -197,7 +198,7 @@ bool Frontend::StereoInit()
     LOG(INFO) << "Initial map created with " << num_new_features << " map points";
 
     // update backend because we have a new keyframe
-    backend_->UpdateMap();
+    backend_.lock()->UpdateMap();
     return true;
 }
 
@@ -240,16 +241,16 @@ int Frontend::DetectNewFeatures()
                 camera_left_->Pixel2Sensor(kp_left), camera_right_->Pixel2Sensor(kp_right), p_robot);
             if ((camera_left_->Robot2Pixel(p_robot) - kp_left).norm() < 0.5 && (camera_right_->Robot2Pixel(p_robot) - kp_right).norm() < 0.5)
             {
-                auto new_mappoint = MapPoint::Create(p_robot, camera_left_);
-                auto new_left_feature = Feature::Create(current_frame, kp_left, new_mappoint);
-                auto new_right_feature = Feature::Create(current_frame, kp_right, new_mappoint);
+                auto new_landmark = visual::Landmark::Create(p_robot, camera_left_);
+                auto new_left_feature = visual::Feature::Create(current_frame, kp_left, new_landmark);
+                auto new_right_feature = visual::Feature::Create(current_frame, kp_right, new_landmark);
                 new_right_feature->is_on_left_image = false;
-                new_mappoint->AddObservation(new_left_feature);
-                new_mappoint->AddObservation(new_right_feature);
+                new_landmark->AddObservation(new_left_feature);
+                new_landmark->AddObservation(new_right_feature);
                 current_frame->AddFeature(new_left_feature);
                 current_frame->AddFeature(new_right_feature);
-                map_->InsertMapPoint(new_mappoint);
-                position_cache_[new_mappoint->id] = new_mappoint->ToWorld();
+                map_->InsertLandmark(new_landmark);
+                position_cache_[new_landmark->id] = new_landmark->ToWorld();
                 num_triangulated_pts++;
             }
         }
@@ -263,9 +264,9 @@ int Frontend::DetectNewFeatures()
 
 bool Frontend::Reset()
 {
-    backend_->Pause();
+    backend_.lock()->Pause();
     map_->Reset();
-    backend_->Continue();
+    backend_.lock()->Continue();
     status = FrontendStatus::INITING;
     LOG(INFO) << "Reset Succeed";
     return true;
@@ -277,8 +278,8 @@ void Frontend::UpdateCache()
     for (auto feature_pair : last_frame->features_left)
     {
         auto feature = feature_pair.second;
-        auto mappoint = feature->mappoint.lock();
-        position_cache_.insert(std::make_pair(mappoint->id, mappoint->ToWorld()));
+        auto camera_point = feature->landmark.lock();
+        position_cache_.insert(std::make_pair(camera_point->id, camera_point->ToWorld()));
     }
     last_frame_pose_cache_ = last_frame->pose;
 }

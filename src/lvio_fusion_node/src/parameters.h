@@ -14,7 +14,6 @@ extern string result_path;
 extern int use_imu;
 extern int use_lidar;
 extern int use_navsat;
-extern int use_rtk;
 extern int is_semantic;
 extern int num_of_cam;
 

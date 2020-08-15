@@ -1,6 +1,8 @@
 add_library(lvio_fusion SHARED
         frame.cpp
-        mappoint.cpp
+        camera_point.cpp
+        lidar_point.cpp
+        landmark.cpp
         map.cpp
         config.cpp
         frontend.cpp

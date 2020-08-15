@@ -194,9 +194,9 @@ void sync_process()
 void lidar_callback(const sensor_msgs::PointCloud2ConstPtr &lidar_msg)
 {
     double t = lidar_msg->header.stamp.toSec();
-    PointCloudI point_cloud;
+    Point3Cloud point_cloud;
     pcl::fromROSMsg(*lidar_msg, point_cloud);
-    PointCloudI::Ptr laser_cloud_in_ptr(new PointCloudI(point_cloud));
+    Point3Cloud::Ptr laser_cloud_in_ptr(new PointCloud(point_cloud));
     estimator->InputPointCloud(t, laser_cloud_in_ptr);
 }
 
@@ -252,8 +252,6 @@ int get_flags()
         flags += Flag::Lidar;
     if (use_navsat)
         flags += Flag::GNSS;
-    if (use_rtk)
-        flags += Flag::RTK;
     if (is_semantic)
         flags += Flag::Semantic;
     return flags;
@@ -290,13 +288,13 @@ int main(int argc, char **argv)
     }
     read_parameters(config_file);
     estimator = Estimator::Ptr(new Estimator(config_file));
-    assert(estimator->Init() == true);
+    assert(estimator->Init(use_imu, use_lidar, use_navsat, is_semantic) == true);
     estimator->frontend->flags = get_flags();
 
     ROS_WARN("waiting for image and imu...");
 
     register_pub(n);
-    ros::Timer timer = n.createTimer(ros::Duration(0.01), timer_callback);
+    ros::Timer timer = n.createTimer(ros::Duration(0.0001), timer_callback);
 
     if (use_imu)
     {
@@ -310,7 +308,7 @@ int main(int argc, char **argv)
     }
     if (use_navsat)
     {
-        cout << "navsat:" << LIDAR_TOPIC << endl;
+        cout << "navsat:" << NAVSAT_TOPIC << endl;
         sub_navsat = n.subscribe(NAVSAT_TOPIC, 100, navsat_callback);
     }
     cout << "image0:" << IMAGE0_TOPIC << endl;

@@ -4,7 +4,7 @@
 #include "lvio_fusion/common.h"
 #include "lvio_fusion/frame.h"
 #include "lvio_fusion/map.h"
-#include "lvio_fusion/camera/camera.hpp"
+#include "lvio_fusion/visual/camera.hpp"
 
 namespace lvio_fusion
 {
@@ -29,8 +29,7 @@ enum Flag
     IMU = 1 << 3,
     Lidar = 1 << 4,
     GNSS = 1 << 5,
-    RTK = 1 << 6,
-    Semantic = 1 << 7,
+    Semantic = 1 << 6,
 };
 
 class Frontend
@@ -58,8 +57,8 @@ public:
 
     int flags = Flag::None;
     FrontendStatus status = FrontendStatus::INITING;
-    Frame::Ptr current_frame = nullptr;
-    Frame::Ptr last_frame = nullptr;
+    Frame::Ptr current_frame;
+    Frame::Ptr last_frame;
     SE3d relative_motion;
     std::mutex last_frame_mutex;
 
@@ -81,12 +80,13 @@ private:
     int TriangulateNewPoints();
 
     // data
-    Map::Ptr map_ = nullptr;
-    std::shared_ptr<Backend> backend_ = nullptr;
-    Camera::Ptr camera_left_ = nullptr;
-    Camera::Ptr camera_right_ = nullptr;
+    Map::Ptr map_;
+    std::weak_ptr<Backend> backend_;
     std::unordered_map<unsigned long, Vector3d> position_cache_;
     SE3d last_frame_pose_cache_;
+
+    Camera::Ptr camera_left_;
+    Camera::Ptr camera_right_;
 
     // params
     int num_features_;

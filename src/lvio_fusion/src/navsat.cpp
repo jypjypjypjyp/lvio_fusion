@@ -10,7 +10,7 @@ namespace lvio_fusion
 
 void NavsatMap::Initialize()
 {
-    Map::Keyframes keyframes = map_.lock()->GetAllKeyFrames();
+    Keyframes keyframes = map_.lock()->GetAllKeyFrames();
 
     // initialized = false;
     ceres::Problem problem;

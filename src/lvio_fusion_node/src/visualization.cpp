@@ -6,7 +6,6 @@ using namespace Eigen;
 ros::Publisher path_pub;
 ros::Publisher navsat_pub;
 ros::Publisher points_cloud_pub;
-ros::Publisher points_cloud_pub1;
 nav_msgs::Path path, navsat_path;
 
 void register_pub(ros::NodeHandle &n)
@@ -14,7 +13,6 @@ void register_pub(ros::NodeHandle &n)
     path_pub = n.advertise<nav_msgs::Path>("path", 1000);
     navsat_pub = n.advertise<nav_msgs::Path>("navsat_path", 1000);
     points_cloud_pub = n.advertise<sensor_msgs::PointCloud2>("point_cloud", 1000);
-    points_cloud_pub1 = n.advertise<sensor_msgs::PointCloud2>("point_cloud1", 1000);
 }
 
 void pub_odometry(Estimator::Ptr estimator, double time)
@@ -37,22 +35,6 @@ void pub_odometry(Estimator::Ptr estimator, double time)
         path.header.frame_id = "world";
         path_pub.publish(path);
     }
-    sensor_msgs::PointCloud2 ros_cloud;
-    PointCloudRGB pcl_cloud;
-    for (auto frame : estimator->map->GetAllKeyFrames())
-    {
-        auto position = frame.second->pose.inverse().translation();
-        PointRGB p;
-        p.x = position.x();
-        p.y = position.y();
-        p.z = position.z();
-        p.rgba = 0x00FF00FF;
-        pcl_cloud.push_back(p);
-    }
-    pcl::toROSMsg(pcl_cloud, ros_cloud);
-    ros_cloud.header.stamp = ros::Time(time);
-    ros_cloud.header.frame_id = "world";
-    points_cloud_pub1.publish(ros_cloud);
 }
 
 void pub_navsat(Estimator::Ptr estimator, double time)
@@ -120,59 +102,59 @@ void pub_tf(Estimator::Ptr estimator, double time)
 
 void pub_point_cloud(Estimator::Ptr estimator, double time)
 {
-    sensor_msgs::PointCloud2 ros_cloud;
-    PointCloudRGB pcl_cloud;
-    static std::unordered_map<unsigned long, Vector3d> position_cache;
-    for (auto kf_pair : estimator->map->GetActiveKeyFrames(estimator->backend->ActiveTime()))
-    {
-        auto frame = kf_pair.second;
-        auto features = frame->features_right;
-        for (auto feature_pair : features)
-        {
-            if (!feature_pair.second->mappoint.expired())
-            {
-                auto landmark = feature_pair.second->mappoint.lock();
-                position_cache[landmark->id] = landmark->ToWorld();
-            }
-        }
-    }
+    // sensor_msgs::PointCloud2 ros_cloud;
+    // PointCloudRGB pcl_cloud;
+    // static std::unordered_map<unsigned long, Vector3d> position_cache;
+    // for (auto kf_pair : estimator->map->GetActiveKeyFrames(estimator->backend->ActiveTime()))
+    // {
+    //     auto frame = kf_pair.second;
+    //     auto features = frame->features_right;
+    //     for (auto feature_pair : features)
+    //     {
+    //         if (!feature_pair.second->camera_point.expired())
+    //         {
+    //             visual::Landmark::Ptr landmark = std::dynamic_pointer_cast<Landmark>(feature_pair.second->camera_point.lock());
+    //             position_cache[landmark->id] = landmark->ToWorld();
+    //         }
+    //     }
+    // }
 
-    auto landmarks = estimator->map->GetAllMapPoints();
-    for (auto point_pair_iter = position_cache.begin(); point_pair_iter != position_cache.end();)
-    {
-        auto landmark_iter = landmarks.find(point_pair_iter->first);
-        if (landmark_iter == landmarks.end())
-        {
-            point_pair_iter = position_cache.erase(point_pair_iter);
-            continue;
-        }
+    // auto landmarks = estimator->map->GetAllLandmarks();
+    // for (auto point_pair_iter = position_cache.begin(); point_pair_iter != position_cache.end();)
+    // {
+    //     auto landmark_iter = landmarks.find(point_pair_iter->first);
+    //     if (landmark_iter == landmarks.end())
+    //     {
+    //         point_pair_iter = position_cache.erase(point_pair_iter);
+    //         continue;
+    //     }
 
-        PointRGB p;
-        Vector3d pos = point_pair_iter->second;
-        p.x = pos.x();
-        p.y = pos.y();
-        p.z = pos.z();
-        //NOTE: semantic map
-        LabelType label = landmark_iter->second->label;
-        switch (label)
-        {
-        case LabelType::Car:
-            p.rgba = 0xFF0000FF;
-            break;
-        case LabelType::Person:
-            p.rgba = 0x0000FFFF;
-            break;
-        case LabelType::Truck:
-            p.rgba = 0xFF0000FF;
-            break;
-        default:
-            p.rgba = 0x00FF00FF;
-        }
-        pcl_cloud.push_back(p);
-        point_pair_iter++;
-    }
-    pcl::toROSMsg(pcl_cloud, ros_cloud);
-    ros_cloud.header.stamp = ros::Time(time);
-    ros_cloud.header.frame_id = "world";
-    points_cloud_pub.publish(ros_cloud);
+    //     PointRGB p;
+    //     Vector3d pos = point_pair_iter->second;
+    //     p.x = pos.x();
+    //     p.y = pos.y();
+    //     p.z = pos.z();
+    //     //NOTE: semantic map
+    //     LabelType label = landmark_iter->second->label;
+    //     switch (label)
+    //     {
+    //     case LabelType::Car:
+    //         p.rgba = 0xFF0000FF;
+    //         break;
+    //     case LabelType::Person:
+    //         p.rgba = 0x0000FFFF;
+    //         break;
+    //     case LabelType::Truck:
+    //         p.rgba = 0xFF0000FF;
+    //         break;
+    //     default:
+    //         p.rgba = 0x00FF00FF;
+    //     }
+    //     pcl_cloud.push_back(p);
+    //     point_pair_iter++;
+    // }
+    // pcl::toROSMsg(pcl_cloud, ros_cloud);
+    // ros_cloud.header.stamp = ros::Time(time);
+    // ros_cloud.header.frame_id = "world";
+    // points_cloud_pub.publish(ros_cloud);
 }

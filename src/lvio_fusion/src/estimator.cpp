@@ -1,8 +1,8 @@
+#include "lvio_fusion/estimator.h"
 #include "lvio_fusion/ceres/navsat_error.hpp"
 #include "lvio_fusion/ceres/pose_only_reprojection_error.hpp"
 #include "lvio_fusion/ceres/two_frame_reprojection_error.hpp"
 #include "lvio_fusion/config.h"
-#include "lvio_fusion/estimator.h"
 #include "lvio_fusion/frame.h"
 
 #include <opencv2/core/eigen.hpp>
@@ -17,7 +17,7 @@ Matrix3d NavsatError::sqrt_info = 10 * Matrix3d::Identity();
 Estimator::Estimator(std::string &config_path)
     : config_file_path_(config_path) {}
 
-bool Estimator::Init()
+bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int is_semantic)
 {
     // read from config file
     if (!Config::SetParameterFile(config_file_path_))
@@ -62,14 +62,45 @@ bool Estimator::Init()
         Config::Get<int>("num_features_init"),
         Config::Get<int>("num_features_tracking"),
         Config::Get<int>("num_features_tracking_bad"),
-        Config::Get<int>("num_features_needed_for_keyframe")
-    ));
+        Config::Get<int>("num_features_needed_for_keyframe")));
     backend = Backend::Ptr(new Backend(
-        Config::Get<double>("range")
-    ));
+        Config::Get<double>("range")));
     map = Map::Ptr(new Map());
-    auto navsat_map = NavsatMap::Ptr(new NavsatMap(map));
-    map->navsat_map = navsat_map;
+
+    if (use_navsat)
+    {
+        NavsatMap::Ptr navsat_map(new NavsatMap(map));
+        map->navsat_map = navsat_map;
+    }
+
+    if (use_imu)
+    {
+    }
+
+    if (use_lidar)
+    {
+        cv::Mat cv_base_to_lidar = Config::Get<cv::Mat>("base_to_lidar");
+        Matrix4d base_to_lidar;
+        cv::cv2eigen(cv_base_to_lidar, base_to_lidar);
+        Matrix3d R_base_to_lidar(base_to_lidar.block(0, 0, 3, 3));
+        Quaterniond q_base_to_lidar(R_base_to_lidar);
+        Vector3d t_base_to_lidar(0, 0, 0);
+        t_base_to_lidar << base_to_lidar(0, 3), base_to_lidar(1, 3), base_to_lidar(2, 3);
+        Lidar::Ptr lidar(new Lidar(SE3d(q_base_to_lidar, t_base_to_lidar)));
+        
+        scan_registration = ScanRegistration::Ptr(new ScanRegistration(
+            Config::Get<int>("num_scan"),
+            Config::Get<double>("cycle_time"),
+            Config::Get<double>("minimum_range"),
+            Config::Get<int>("deskew")
+        ));
+        scan_registration->SetLidar(lidar);
+        scan_registration->SetMap(map);
+
+        mapping = Mapping::Ptr(new Mapping());
+        mapping->SetLidar(lidar);
+        mapping->SetMap(map);
+    }
 
     frontend->SetBackend(backend);
     frontend->SetMap(map);
@@ -105,9 +136,9 @@ void Estimator::InputImage(double time, cv::Mat &left_image, cv::Mat &right_imag
     LOG(INFO) << "VO status:" << (success ? "success" : "failed") << ",VO cost time: " << time_used.count() << " seconds.";
 }
 
-void Estimator::InputPointCloud(double time, PointCloudI::Ptr point_cloud)
+void Estimator::InputPointCloud(double time, Point3Cloud::Ptr point_cloud)
 {
-    LOG(INFO) <<"llllllllllllllllllllllllllllllidar!!!!!!!!!!!!!"<< time;
+    scan_registration->AddScan(point_cloud);
 }
 
 void Estimator::InputIMU(double time, Vector3d acc, Vector3d gyr)

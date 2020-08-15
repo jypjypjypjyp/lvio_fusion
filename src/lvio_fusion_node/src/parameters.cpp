@@ -1,12 +1,11 @@
 #include "parameters.h"
 
-bool UNEVEN;
 string IMU_TOPIC;
 string LIDAR_TOPIC;
 string NAVSAT_TOPIC;
 string IMAGE0_TOPIC, IMAGE1_TOPIC;
 string result_path;
-int use_imu, use_lidar, num_of_cam, use_navsat, use_rtk, is_semantic;
+int use_imu, use_lidar, num_of_cam, use_navsat, is_semantic;
 
 void read_parameters(string config_file)
 {
@@ -42,8 +41,7 @@ void read_parameters(string config_file)
     }
     if (use_lidar)
     {
-        fsSettings["lidar_topic"] >> UNEVEN;
-        fsSettings["lidar_topic"] >> IMU_TOPIC;
+        fsSettings["lidar_topic"] >> LIDAR_TOPIC;
     }
     if (use_navsat)
     {

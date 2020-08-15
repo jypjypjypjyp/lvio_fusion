@@ -1,35 +1,37 @@
 #include "lvio_fusion/frame.h"
-#include "lvio_fusion/feature.h"
+#include "lvio_fusion/visual/feature.h"
 #include "lvio_fusion/map.h"
-#include "lvio_fusion/mappoint.h"
+#include "lvio_fusion/visual/landmark.h"
 
 namespace lvio_fusion
 {
 
+unsigned long Frame::current_frame_id = 0;
+
 Frame::Ptr Frame::Create()
 {
     Frame::Ptr new_frame(new Frame);
-    new_frame->id = Map::current_frame_id + 1;
+    new_frame->id = current_frame_id + 1;
     return new_frame;
 }
 
-void Frame::AddFeature(Feature::Ptr feature)
+void Frame::AddFeature(visual::Feature::Ptr feature)
 {
     assert(feature->frame.lock()->id == id);
     if (feature->is_on_left_image)
     {
-        features_left.insert(std::make_pair(feature->mappoint.lock()->id, feature));
+        features_left.insert(std::make_pair(feature->landmark.lock()->id, feature));
     }
     else
     {
-        features_right.insert(std::make_pair(feature->mappoint.lock()->id, feature));
+        features_right.insert(std::make_pair(feature->landmark.lock()->id, feature));
     }
 }
 
-void Frame::RemoveFeature(Feature::Ptr feature)
+void Frame::RemoveFeature(visual::Feature::Ptr feature)
 {
-    assert(feature->is_on_left_image && id != feature->mappoint.lock()->FirstFrame()->id);
-    features_left.erase(feature->mappoint.lock()->id);
+    assert(feature->is_on_left_image && id != feature->landmark.lock()->FirstFrame().lock()->id);
+    features_left.erase(feature->landmark.lock()->id);
 }
 
 //NOTE:semantic map
@@ -49,8 +51,8 @@ void Frame::UpdateLabel()
 {
     for (auto feature_pair : features_left)
     {
-        auto mappoint = feature_pair.second->mappoint.lock();
-        mappoint->label = GetLabelType(feature_pair.second->keypoint.x(), feature_pair.second->keypoint.y());
+        auto camera_point = feature_pair.second->landmark.lock();
+        camera_point->label = GetLabelType(feature_pair.second->keypoint.x(), feature_pair.second->keypoint.y());
     }
 }
 
