@@ -2,8 +2,6 @@
 #define lvio_fusion_LIDAR_FEATURE_H
 
 #include "lvio_fusion/common.h"
-#include "lvio_fusion/lidar/lidar.hpp"
-#include <ceres/ceres.h>
 
 namespace lvio_fusion
 {
@@ -28,15 +26,26 @@ public:
         new_feature->cornerPointsLessSharp = cornerPointsLessSharp;
         new_feature->surfPointsFlat = surfPointsFlat;
         new_feature->surfPointsLessFlat = surfPointsLessFlat;
+        new_feature->cornerPointsSharpDeskew = cornerPointsSharp;
+        new_feature->cornerPointsLessSharpDeskew = cornerPointsLessSharp;
+        new_feature->surfPointsFlatDeskew = surfPointsFlat;
+        new_feature->surfPointsLessFlatDeskew = surfPointsLessFlat;
         return new_feature;
     }
 
+    // raw point cloud
     PointICloud cornerPointsSharp;
     PointICloud cornerPointsLessSharp;
     PointICloud surfPointsFlat;
     PointICloud surfPointsLessFlat;
 
-    static void Feature::Associate(Lidar::Ptr lidar, std::shared_ptr<Frame> current_frame, std::shared_ptr<Frame> last_frame, ceres::Problem &problem);
+    // undistorted point cloud
+    PointICloud cornerPointsSharpDeskew;
+    PointICloud cornerPointsLessSharpDeskew;
+    PointICloud surfPointsFlatDeskew;
+    PointICloud surfPointsLessFlatDeskew;
+
+    int iterations = 0;
 };
 
 } // namespace lidar

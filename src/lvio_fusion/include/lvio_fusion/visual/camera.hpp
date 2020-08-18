@@ -25,14 +25,14 @@ public:
     }
 
     // coordinate transform: world, sensor, pixel
-    virtual Vector2d Sensor2Pixel(const Vector3d &p_c)
+    Vector2d Sensor2Pixel(const Vector3d &p_c)
     {
         return Vector2d(
             fx * p_c(0, 0) / p_c(2, 0) + cx,
             fy * p_c(1, 0) / p_c(2, 0) + cy);
     }
 
-    virtual Vector3d Pixel2Sensor(const Vector2d &p_p, double depth = double(1))
+    Vector3d Pixel2Sensor(const Vector2d &p_p, double depth = double(1))
     {
         return Vector3d(
             (p_p(0, 0) - cx) * depth / fx,
@@ -40,30 +40,28 @@ public:
             depth);
     }
 
-    virtual Vector3d Pixel2World(const Vector2d &p_p, const SE3d &T_c_w, double depth = 1)
+    Vector3d Pixel2World(const Vector2d &p_p, const SE3d &T_c_w, double depth = 1)
     {
         return Sensor2World(Pixel2Sensor(p_p, depth), T_c_w);
     }
 
-    virtual Vector2d World2Pixel(const Vector3d &p_w, const SE3d &T_c_w)
+    Vector2d World2Pixel(const Vector3d &p_w, const SE3d &T_c_w)
     {
         return Sensor2Pixel(World2Sensor(p_w, T_c_w));
     }
 
-    virtual Vector3d Pixel2Robot(const Vector2d &p_p, double depth = 1)
+    Vector3d Pixel2Robot(const Vector2d &p_p, double depth = 1)
     {
         return Sensor2Robot(Pixel2Sensor(p_p, depth));
     }
 
-    virtual Vector2d Robot2Pixel(const Vector3d &p_w)
+    Vector2d Robot2Pixel(const Vector3d &p_w)
     {
         return Sensor2Pixel(Robot2Sensor(p_w));
     }
 
     double fx = 0, fy = 0, cx = 0, cy = 0; // Camera intrinsics
 };
-
-
 
 } // namespace lvio_fusion
 #endif // lvio_fusion_CAMERA_H

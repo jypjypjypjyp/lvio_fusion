@@ -3,188 +3,100 @@
 
 #include "base.hpp"
 #include "lvio_fusion/common.h"
+#include "lvio_fusion/lidar/lidar.hpp"
 #include <ceres/ceres.h>
-#include <ceres/rotation.h>
-#include <eigen3/Eigen/Dense>
 
 namespace lvio_fusion
 {
 
 // 点到线的残差距离计算
-class LidarEdgeFactor
+class LidarEdgeError
 {
 public:
-    LidarEdgeFactor(Eigen::Vector3d curr_point_, Eigen::Vector3d last_point_a_,
-                    Eigen::Vector3d last_point_b_)
-        : curr_point(curr_point_), last_point_a(last_point_a_), last_point_b(last_point_b_) {}
+    LidarEdgeError(Vector3d p, Vector3d pa, Vector3d pb, Lidar::Ptr lidar)
+        : p_(p), pa_(pa), pb_(pb), lidar_(lidar) {}
 
     template <typename T>
-    bool operator()(const T *pose, T *residual) const
+    bool operator()(const T *Tcw1, const T *Tcw2, T *residual) const
     {
-        Eigen::Matrix<T, 3, 1> cp{T(curr_point.x()), T(curr_point.y()), T(curr_point.z())};
-        Eigen::Matrix<T, 3, 1> lpa{T(last_point_a.x()), T(last_point_a.y()), T(last_point_a.z())};
-        Eigen::Matrix<T, 3, 1> lpb{T(last_point_b.x()), T(last_point_b.y()), T(last_point_b.z())};
-
-        //Eigen::Quaternion<T> q_last_curr{q[3], T(s) * q[0], T(s) * q[1], T(s) * q[2]};
-        Eigen::Quaternion<T> q_last_curr{q[3], q[0], q[1], q[2]};
-        Eigen::Quaternion<T> q_identity{T(1), T(0), T(0), T(0)};
-
-        Eigen::Matrix<T, 3, 1> lp;
-        // Odometry线程时，下面是将当前帧Lidar坐标系下的cp点变换到上一帧的Lidar坐标系下，然后在上一帧的Lidar坐标系计算点到线的残差距离
-        // Mapping线程时，下面是将当前帧Lidar坐标系下的cp点变换到world坐标系下，然后在world坐标系下计算点到线的残差距离
-        lp = q_last_curr * cp + t_last_curr;
-
-        // 点到线的计算如下图所示
-        Eigen::Matrix<T, 3, 1> nu = (lp - lpa).cross(lp - lpb);
-        Eigen::Matrix<T, 3, 1> de = lpa - lpb;
-
-        // 最终的残差本来应该是residual[0] = nu.norm() / de.norm(); 为啥也分成3个，我也不知
-        // 道，从我试验的效果来看，确实是下面的残差函数形式，最后输出的pose精度会好一点点，这里需要
-        // 注意的是，所有的residual都不用加fabs，因为Ceres内部会对其求 平方 作为最终的残差项
-        residual[0] = nu.x() / de.norm();
-        residual[1] = nu.y() / de.norm();
-        residual[2] = nu.z() / de.norm();
-
+        T cp[3] = {T(p_.x()), T(p_.y()), T(p_.z())};
+        T lpa[3] = {T(pa_.x()), T(pa_.y()), T(pa_.z())};
+        T lpb[3] = {T(pb_.x()), T(pb_.y()), T(pb_.z())};
+        T Twc1_inverse[7], extrinsic[7], extrinsic_inverse[7], se3[7], se3_[7];
+        T lp[3], nu[3], de[3], lp_lpa[3], lp_lpb[3], de_norm;
+        ceres::Cast(lidar_->extrinsic.data(), SE3d::num_parameters, extrinsic);
+        ceres::SE3Inverse(extrinsic, extrinsic_inverse);
+        ceres::SE3Inverse(Tcw1, Twc1_inverse);
+        ceres::SE3Product(extrinsic, Tcw2, se3);
+        ceres::SE3Product(se3, Twc1_inverse, se3_);
+        ceres::SE3Product(se3_, extrinsic_inverse, se3);
+        ceres::SE3TransformPoint(se3, cp, lp);
+        ceres::Minus(lp, lpa, lp_lpa);
+        ceres::Minus(lp, lpb, lp_lpb);
+        ceres::CrossProduct(lp_lpa, lp_lpb, nu);
+        ceres::Minus(lpa, lpb, de);
+        ceres::Norm(de, &de_norm);
+        residual[0] = T(sqrt_info(0, 0)) * nu[0] / de_norm;
+        residual[1] = T(sqrt_info(1, 1)) * nu[1] / de_norm;
+        residual[2] = T(sqrt_info(2, 2)) * nu[2] / de_norm;
         return true;
     }
 
-    static ceres::CostFunction *Create(const Eigen::Vector3d curr_point_, const Eigen::Vector3d last_point_a_,
-                                       const Eigen::Vector3d last_point_b_)
+    static ceres::CostFunction *Create(const Vector3d p, const Vector3d pa, const Vector3d pb, Lidar::Ptr lidar)
     {
-        return (new ceres::AutoDiffCostFunction<
-                LidarEdgeFactor, 3, 7>(new LidarEdgeFactor(curr_point_, last_point_a_, last_point_b_)));
+        return (new ceres::AutoDiffCostFunction<LidarEdgeError, 3, 7, 7>(new LidarEdgeError(p, pa, pb, lidar)));
     }
 
+    static Matrix3d sqrt_info;
+
 private:
-    Eigen::Vector3d curr_point, last_point_a, last_point_b;
+    Vector3d p_, pa_, pb_;
+    Lidar::Ptr lidar_;
 };
 
 // 计算Odometry线程中点到面的残差距离
-class LidarPlaneFactor
+class LidarPlaneError
 {
 public:
-    LidarPlaneFactor(Eigen::Vector3d curr_point_, Eigen::Vector3d last_point_j_,
-                     Eigen::Vector3d last_point_l_, Eigen::Vector3d last_point_m_, double s_)
-        : curr_point(curr_point_), last_point_j(last_point_j_), last_point_l(last_point_l_),
-          last_point_m(last_point_m_), s(s_)
+    LidarPlaneError(Vector3d p, Vector3d pa, Vector3d pb, Vector3d pc, Lidar::Ptr lidar)
+        : p_(p), pa_(pa), pb_(pb), pc_(pc), lidar_(lidar)
     {
-        // 点l、j、m就是搜索到的最近邻的3个点，下面就是计算出这三个点构成的平面ljlm的法向量
-        ljm_norm = (last_point_j - last_point_l).cross(last_point_j - last_point_m);
-        // 归一化法向量
-        ljm_norm.normalize();
+        abc_norm_ = (pa_ - pb_).cross(pa_ - pc_);
+        abc_norm_.normalize();
     }
 
     template <typename T>
-    bool operator()(const T *q, const T *t, T *residual) const
+    bool operator()(const T *Tcw1, const T *Tcw2, T *residual) const
     {
-
-        Eigen::Matrix<T, 3, 1> cp{T(curr_point.x()), T(curr_point.y()), T(curr_point.z())};
-        Eigen::Matrix<T, 3, 1> lpj{T(last_point_j.x()), T(last_point_j.y()), T(last_point_j.z())};
-        //Eigen::Matrix<T, 3, 1> lpl{T(last_point_l.x()), T(last_point_l.y()), T(last_point_l.z())};
-        //Eigen::Matrix<T, 3, 1> lpm{T(last_point_m.x()), T(last_point_m.y()), T(last_point_m.z())};
-        Eigen::Matrix<T, 3, 1> ljm{T(ljm_norm.x()), T(ljm_norm.y()), T(ljm_norm.z())};
-
-        //Eigen::Quaternion<T> q_last_curr{q[3], T(s) * q[0], T(s) * q[1], T(s) * q[2]};
-        Eigen::Quaternion<T> q_last_curr{q[3], q[0], q[1], q[2]};
-        Eigen::Quaternion<T> q_identity{T(1), T(0), T(0), T(0)};
-        q_last_curr = q_identity.slerp(T(s), q_last_curr);
-        Eigen::Matrix<T, 3, 1> t_last_curr{T(s) * t[0], T(s) * t[1], T(s) * t[2]};
-
-        Eigen::Matrix<T, 3, 1> lp;
-        lp = q_last_curr * cp + t_last_curr;
-
-        // 计算点到平面的残差距离，如下图所示
-        residual[0] = (lp - lpj).dot(ljm);
-
+        T cp[3] = {T(p_.x()), T(p_.y()), T(p_.z())};
+        T lpj[3] = {T(pa_.x()), T(pa_.y()), T(pa_.z())};
+        T ljm[3] = {T(abc_norm_.x()), T(abc_norm_.y()), T(abc_norm_.z())};
+        T Twc1_inverse[7], extrinsic[7], extrinsic_inverse[7], se3[7], se3_[7];
+        T lp[3], lp_lpj[3], de_norm;
+        ceres::Cast(lidar_->extrinsic.data(), SE3d::num_parameters, extrinsic);
+        ceres::SE3Inverse(extrinsic, extrinsic_inverse);
+        ceres::SE3Inverse(Tcw1, Twc1_inverse);
+        ceres::SE3Product(extrinsic, Tcw2, se3);
+        ceres::SE3Product(se3, Twc1_inverse, se3_);
+        ceres::SE3Product(se3_, extrinsic_inverse, se3);
+        ceres::SE3TransformPoint(se3, cp, lp);
+        ceres::Minus(lp, lpj, lp_lpj);
+        residual[0] = T(sqrt_info) * ceres::DotProduct(lp_lpj, ljm);
         return true;
     }
 
-    static ceres::CostFunction *Create(const Eigen::Vector3d curr_point_, const Eigen::Vector3d last_point_j_,
-                                       const Eigen::Vector3d last_point_l_, const Eigen::Vector3d last_point_m_,
-                                       const double s_)
+    static ceres::CostFunction *Create(const Vector3d p, const Vector3d pa, const Vector3d pb, const Vector3d pc, Lidar::Ptr lidar)
     {
-        return (new ceres::AutoDiffCostFunction<
-                LidarPlaneFactor, 1, 4, 3>(
-            //				 	              ^  ^  ^
-            //			 		              |  |  |
-            //			       残差的维度 ____|  |  |
-            //			  优化变量q的维度 _______|  |
-            //		 	  优化变量t的维度 __________|
-            new LidarPlaneFactor(curr_point_, last_point_j_, last_point_l_, last_point_m_, s_)));
+        return (new ceres::AutoDiffCostFunction<LidarPlaneError, 1, 7, 7>(
+            new LidarPlaneError(p, pa, pb, pc, lidar)));
     }
+
+    static double sqrt_info;
 
 private:
-    Eigen::Vector3d curr_point, last_point_j, last_point_l, last_point_m;
-    Eigen::Vector3d ljm_norm;
-    double s;
-};
-
-class LidarPlaneNormFactor
-{
-public:
-    LidarPlaneNormFactor(Eigen::Vector3d curr_point_, Eigen::Vector3d plane_unit_norm_,
-                         double negative_OA_dot_norm_) : curr_point(curr_point_), plane_unit_norm(plane_unit_norm_),
-                                                         negative_OA_dot_norm(negative_OA_dot_norm_) {}
-
-    template <typename T>
-    bool operator()(const T *q, const T *t, T *residual) const
-    {
-        Eigen::Quaternion<T> q_w_curr{q[3], q[0], q[1], q[2]};
-        Eigen::Matrix<T, 3, 1> t_w_curr{t[0], t[1], t[2]};
-        Eigen::Matrix<T, 3, 1> cp{T(curr_point.x()), T(curr_point.y()), T(curr_point.z())};
-        Eigen::Matrix<T, 3, 1> point_w;
-        point_w = q_w_curr * cp + t_w_curr;
-
-        Eigen::Matrix<T, 3, 1> norm(T(plane_unit_norm.x()), T(plane_unit_norm.y()), T(plane_unit_norm.z()));
-        residual[0] = norm.dot(point_w) + T(negative_OA_dot_norm);
-        return true;
-    }
-
-    static ceres::CostFunction *Create(const Eigen::Vector3d curr_point_, const Eigen::Vector3d plane_unit_norm_,
-                                       const double negative_OA_dot_norm_)
-    {
-        return (new ceres::AutoDiffCostFunction<
-                LidarPlaneNormFactor, 1, 4, 3>(
-            new LidarPlaneNormFactor(curr_point_, plane_unit_norm_, negative_OA_dot_norm_)));
-    }
-
-private:
-    Eigen::Vector3d curr_point;
-    Eigen::Vector3d plane_unit_norm;
-    double negative_OA_dot_norm;
-};
-
-class LidarDistanceFactor
-{
-public:
-    LidarDistanceFactor(Eigen::Vector3d curr_point_, Eigen::Vector3d closed_point_)
-        : curr_point(curr_point_), closed_point(closed_point_) {}
-
-    template <typename T>
-    bool operator()(const T *q, const T *t, T *residual) const
-    {
-        Eigen::Quaternion<T> q_w_curr{q[3], q[0], q[1], q[2]};
-        Eigen::Matrix<T, 3, 1> t_w_curr{t[0], t[1], t[2]};
-        Eigen::Matrix<T, 3, 1> cp{T(curr_point.x()), T(curr_point.y()), T(curr_point.z())};
-        Eigen::Matrix<T, 3, 1> point_w;
-        point_w = q_w_curr * cp + t_w_curr;
-
-        residual[0] = point_w.x() - T(closed_point.x());
-        residual[1] = point_w.y() - T(closed_point.y());
-        residual[2] = point_w.z() - T(closed_point.z());
-        return true;
-    }
-
-    static ceres::CostFunction *Create(const Eigen::Vector3d curr_point_, const Eigen::Vector3d closed_point_)
-    {
-        return (new ceres::AutoDiffCostFunction<
-                LidarDistanceFactor, 3, 4, 3>(
-            new LidarDistanceFactor(curr_point_, closed_point_)));
-    }
-
-private:
-    Eigen::Vector3d curr_point;
-    Eigen::Vector3d closed_point;
+    Vector3d p_, pa_, pb_, pc_;
+    Vector3d abc_norm_;
+    Lidar::Ptr lidar_;
 };
 
 } // namespace lvio_fusion

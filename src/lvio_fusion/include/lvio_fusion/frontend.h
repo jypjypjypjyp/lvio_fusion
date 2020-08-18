@@ -27,7 +27,7 @@ enum Flag
     Stereo = 1 << 1,
     RGBD = 1 << 2,
     IMU = 1 << 3,
-    Lidar = 1 << 4,
+    Laser = 1 << 4,
     GNSS = 1 << 5,
     Semantic = 1 << 6,
 };

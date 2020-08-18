@@ -196,7 +196,7 @@ void lidar_callback(const sensor_msgs::PointCloud2ConstPtr &lidar_msg)
     double t = lidar_msg->header.stamp.toSec();
     Point3Cloud point_cloud;
     pcl::fromROSMsg(*lidar_msg, point_cloud);
-    Point3Cloud::Ptr laser_cloud_in_ptr(new PointCloud(point_cloud));
+    Point3Cloud::Ptr laser_cloud_in_ptr(new Point3Cloud(point_cloud));
     estimator->InputPointCloud(t, laser_cloud_in_ptr);
 }
 
@@ -249,7 +249,7 @@ int get_flags()
     if (use_imu)
         flags += Flag::IMU;
     if (use_lidar)
-        flags += Flag::Lidar;
+        flags += Flag::Laser;
     if (use_navsat)
         flags += Flag::GNSS;
     if (is_semantic)

@@ -1,11 +1,10 @@
 #include "lvio_fusion/frontend.h"
 #include "lvio_fusion/backend.h"
-#include "lvio_fusion/visual/landmark.h"
-#include "lvio_fusion/ceres/pose_only_reprojection_error.hpp"
 #include "lvio_fusion/config.h"
-#include "lvio_fusion/visual/feature.h"
 #include "lvio_fusion/map.h"
 #include "lvio_fusion/utility.h"
+#include "lvio_fusion/visual/feature.h"
+#include "lvio_fusion/visual/landmark.h"
 
 #include <opencv2/core/eigen.hpp>
 
@@ -15,7 +14,8 @@ namespace lvio_fusion
 Frontend::Frontend(int num_features, int init, int tracking, int tracking_bad, int need_for_keyframe)
     : num_features_(num_features), num_features_init_(init), num_features_tracking_(tracking),
       num_features_tracking_bad_(tracking_bad), num_features_needed_for_keyframe_(need_for_keyframe)
-{}
+{
+}
 
 bool Frontend::AddFrame(lvio_fusion::Frame::Ptr frame)
 {
@@ -237,8 +237,8 @@ int Frontend::DetectNewFeatures()
             Vector2d kp_left = cv2eigen(kps_left[i]);
             Vector2d kp_right = cv2eigen(kps_right[i]);
             Vector3d p_robot = Vector3d::Zero();
-            triangulate(camera_left_->extrinsic, camera_right_->extrinsic, 
-                camera_left_->Pixel2Sensor(kp_left), camera_right_->Pixel2Sensor(kp_right), p_robot);
+            triangulate(camera_left_->extrinsic, camera_right_->extrinsic,
+                        camera_left_->Pixel2Sensor(kp_left), camera_right_->Pixel2Sensor(kp_right), p_robot);
             if ((camera_left_->Robot2Pixel(p_robot) - kp_left).norm() < 0.5 && (camera_right_->Robot2Pixel(p_robot) - kp_right).norm() < 0.5)
             {
                 auto new_landmark = visual::Landmark::Create(p_robot, camera_left_);

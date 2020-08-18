@@ -46,6 +46,7 @@ public:
 
     Frame::Ptr current_frame = nullptr;
     NavsatMap::Ptr navsat_map;
+    Point3Cloud simple_map;
 
 private:
     std::mutex data_mutex_;

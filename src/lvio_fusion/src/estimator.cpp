@@ -1,7 +1,7 @@
 #include "lvio_fusion/estimator.h"
+#include "lvio_fusion/ceres/lidar_error.hpp"
 #include "lvio_fusion/ceres/navsat_error.hpp"
-#include "lvio_fusion/ceres/pose_only_reprojection_error.hpp"
-#include "lvio_fusion/ceres/two_frame_reprojection_error.hpp"
+#include "lvio_fusion/ceres/visual_error.hpp"
 #include "lvio_fusion/config.h"
 #include "lvio_fusion/frame.h"
 
@@ -12,6 +12,8 @@ namespace lvio_fusion
 
 Matrix2d TwoFrameReprojectionError::sqrt_info = Matrix2d::Identity();
 Matrix2d PoseOnlyReprojectionError::sqrt_info = Matrix2d::Identity();
+Matrix3d LidarEdgeError::sqrt_info = 0.2 * Matrix3d::Identity();
+double LidarPlaneError::sqrt_info = 0.2;
 Matrix3d NavsatError::sqrt_info = 10 * Matrix3d::Identity();
 
 Estimator::Estimator(std::string &config_path)
@@ -67,14 +69,25 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int is_semantic
         Config::Get<double>("range")));
     map = Map::Ptr(new Map());
 
+    frontend->SetBackend(backend);
+    frontend->SetMap(map);
+    frontend->SetCameras(camera1, camera2);
+    frontend->flags += Flag::Stereo;
+
+    backend->SetMap(map);
+    backend->SetCameras(camera1, camera2);
+    backend->SetFrontend(frontend);
+
     if (use_navsat)
     {
         NavsatMap::Ptr navsat_map(new NavsatMap(map));
         map->navsat_map = navsat_map;
+        frontend->flags += Flag::GNSS;
     }
 
     if (use_imu)
     {
+        frontend->flags += Flag::IMU;
     }
 
     if (use_lidar)
@@ -87,29 +100,22 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int is_semantic
         Vector3d t_base_to_lidar(0, 0, 0);
         t_base_to_lidar << base_to_lidar(0, 3), base_to_lidar(1, 3), base_to_lidar(2, 3);
         Lidar::Ptr lidar(new Lidar(SE3d(q_base_to_lidar, t_base_to_lidar)));
-        
+
         scan_registration = ScanRegistration::Ptr(new ScanRegistration(
-            Config::Get<int>("num_scan"),
+            Config::Get<int>("num_scans"),
             Config::Get<double>("cycle_time"),
             Config::Get<double>("minimum_range"),
-            Config::Get<int>("deskew")
-        ));
+            Config::Get<int>("deskew")));
         scan_registration->SetLidar(lidar);
         scan_registration->SetMap(map);
 
         mapping = Mapping::Ptr(new Mapping());
         mapping->SetLidar(lidar);
         mapping->SetMap(map);
+        mapping->SetBackend(backend);
+
+        frontend->flags += Flag::Laser;
     }
-
-    frontend->SetBackend(backend);
-    frontend->SetMap(map);
-    frontend->SetCameras(camera1, camera2);
-    frontend->flags += Flag::Stereo;
-
-    backend->SetMap(map);
-    backend->SetCameras(camera1, camera2);
-    backend->SetFrontend(frontend);
 
     // semantic map
     if (Config::Get<int>("is_semantic"))
@@ -138,7 +144,12 @@ void Estimator::InputImage(double time, cv::Mat &left_image, cv::Mat &right_imag
 
 void Estimator::InputPointCloud(double time, Point3Cloud::Ptr point_cloud)
 {
-    scan_registration->AddScan(point_cloud);
+    auto t1 = std::chrono::steady_clock::now();
+    scan_registration->AddScan(time, point_cloud);
+    auto t2 = std::chrono::steady_clock::now();
+    auto time_used =
+        std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);
+    LOG(INFO) << "Scan Registration cost time: " << time_used.count() << " seconds.";
 }
 
 void Estimator::InputIMU(double time, Vector3d acc, Vector3d gyr)

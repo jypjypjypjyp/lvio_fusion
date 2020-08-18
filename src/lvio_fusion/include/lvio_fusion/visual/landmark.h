@@ -3,6 +3,7 @@
 
 #include "lvio_fusion/visual/camera.hpp"
 #include "lvio_fusion/visual/feature.h"
+#include "lvio_fusion/semantic/detected_object.h"
 
 namespace lvio_fusion
 {

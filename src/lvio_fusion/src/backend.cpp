@@ -1,7 +1,6 @@
 #include "lvio_fusion/backend.h"
 #include "lvio_fusion/ceres/navsat_error.hpp"
-#include "lvio_fusion/ceres/pose_only_reprojection_error.hpp"
-#include "lvio_fusion/ceres/two_frame_reprojection_error.hpp"
+#include "lvio_fusion/ceres/visual_error.hpp"
 #include "lvio_fusion/frontend.h"
 #include "lvio_fusion/utility.h"
 #include "lvio_fusion/visual/feature.h"
@@ -116,11 +115,22 @@ void Backend::BuildProblem(Keyframes &active_kfs, ceres::Problem &problem)
     // lidar constraints
     if (lidar_)
     {
-        ceres::LossFunction *navsat_loss_function = new ceres::HuberLoss(1.0);
+        ceres::LossFunction *lidar_loss_function = new ceres::HuberLoss(1);
+        Frame::Ptr last_frame = nullptr;
+        Frame::Ptr current_frame = nullptr;
         for (auto kf_pair : active_kfs)
         {
+            // only optimize before head
+            // if (kf_pair.first > head_)
+            //     break;
             if (kf_pair.second->feature_lidar)
             {
+                current_frame = kf_pair.second;
+                if (last_frame)
+                {
+                    scan_registration_->Associate(current_frame, last_frame, problem, lidar_loss_function);
+                }
+                last_frame = current_frame;
             }
         }
     }
@@ -154,6 +164,7 @@ void Backend::Optimize(bool full)
     options.num_threads = 4;
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
+    LOG(INFO) << summary.FullReport();
 
     // reject outliers and clean the map
     for (auto kf_pair : active_kfs)

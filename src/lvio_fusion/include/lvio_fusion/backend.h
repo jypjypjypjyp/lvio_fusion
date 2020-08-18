@@ -3,9 +3,10 @@
 
 #include "lvio_fusion/common.h"
 #include "lvio_fusion/frame.h"
+#include "lvio_fusion/lidar/lidar.hpp"
+#include "lvio_fusion/lidar/scan_registration.h"
 #include "lvio_fusion/map.h"
 #include "lvio_fusion/visual/camera.hpp"
-#include "lvio_fusion/lidar/lidar.hpp"
 
 #include <ceres/ceres.h>
 
@@ -43,6 +44,8 @@ public:
 
     void SetFrontend(std::shared_ptr<Frontend> frontend) { frontend_ = frontend; }
 
+    void SetScanRegistration(ScanRegistration::Ptr scan_registration) { scan_registration_ = scan_registration; }
+
     void UpdateMap();
 
     void Pause();
@@ -55,7 +58,7 @@ public:
     }
 
     BackendStatus status = BackendStatus::RUNNING;
-    
+
 private:
     void BackendLoop();
 
@@ -67,6 +70,7 @@ private:
 
     Map::Ptr map_;
     std::weak_ptr<Frontend> frontend_;
+    ScanRegistration::Ptr scan_registration_ = nullptr;
     std::thread thread_;
     std::mutex running_mutex_, pausing_mutex_;
     std::condition_variable running_;

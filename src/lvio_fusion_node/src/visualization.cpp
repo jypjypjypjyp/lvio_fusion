@@ -102,59 +102,9 @@ void pub_tf(Estimator::Ptr estimator, double time)
 
 void pub_point_cloud(Estimator::Ptr estimator, double time)
 {
-    // sensor_msgs::PointCloud2 ros_cloud;
-    // PointCloudRGB pcl_cloud;
-    // static std::unordered_map<unsigned long, Vector3d> position_cache;
-    // for (auto kf_pair : estimator->map->GetActiveKeyFrames(estimator->backend->ActiveTime()))
-    // {
-    //     auto frame = kf_pair.second;
-    //     auto features = frame->features_right;
-    //     for (auto feature_pair : features)
-    //     {
-    //         if (!feature_pair.second->camera_point.expired())
-    //         {
-    //             visual::Landmark::Ptr landmark = std::dynamic_pointer_cast<Landmark>(feature_pair.second->camera_point.lock());
-    //             position_cache[landmark->id] = landmark->ToWorld();
-    //         }
-    //     }
-    // }
-
-    // auto landmarks = estimator->map->GetAllLandmarks();
-    // for (auto point_pair_iter = position_cache.begin(); point_pair_iter != position_cache.end();)
-    // {
-    //     auto landmark_iter = landmarks.find(point_pair_iter->first);
-    //     if (landmark_iter == landmarks.end())
-    //     {
-    //         point_pair_iter = position_cache.erase(point_pair_iter);
-    //         continue;
-    //     }
-
-    //     PointRGB p;
-    //     Vector3d pos = point_pair_iter->second;
-    //     p.x = pos.x();
-    //     p.y = pos.y();
-    //     p.z = pos.z();
-    //     //NOTE: semantic map
-    //     LabelType label = landmark_iter->second->label;
-    //     switch (label)
-    //     {
-    //     case LabelType::Car:
-    //         p.rgba = 0xFF0000FF;
-    //         break;
-    //     case LabelType::Person:
-    //         p.rgba = 0x0000FFFF;
-    //         break;
-    //     case LabelType::Truck:
-    //         p.rgba = 0xFF0000FF;
-    //         break;
-    //     default:
-    //         p.rgba = 0x00FF00FF;
-    //     }
-    //     pcl_cloud.push_back(p);
-    //     point_pair_iter++;
-    // }
-    // pcl::toROSMsg(pcl_cloud, ros_cloud);
-    // ros_cloud.header.stamp = ros::Time(time);
-    // ros_cloud.header.frame_id = "world";
-    // points_cloud_pub.publish(ros_cloud);
+    sensor_msgs::PointCloud2 ros_cloud;
+    pcl::toROSMsg(estimator->map->simple_map, ros_cloud);
+    ros_cloud.header.stamp = ros::Time(time);
+    ros_cloud.header.frame_id = "world";
+    points_cloud_pub.publish(ros_cloud);
 }
