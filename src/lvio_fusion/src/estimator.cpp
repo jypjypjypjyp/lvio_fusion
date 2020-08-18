@@ -12,8 +12,8 @@ namespace lvio_fusion
 
 Matrix2d TwoFrameReprojectionError::sqrt_info = Matrix2d::Identity();
 Matrix2d PoseOnlyReprojectionError::sqrt_info = Matrix2d::Identity();
-Matrix3d LidarEdgeError::sqrt_info = 0.2 * Matrix3d::Identity();
-double LidarPlaneError::sqrt_info = 0.2;
+Matrix3d LidarEdgeError::sqrt_info = Matrix3d::Identity();
+double LidarPlaneError::sqrt_info = 1;
 Matrix3d NavsatError::sqrt_info = 10 * Matrix3d::Identity();
 
 Estimator::Estimator(std::string &config_path)

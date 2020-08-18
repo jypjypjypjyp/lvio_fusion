@@ -54,7 +54,7 @@ public:
 
     double ActiveTime()
     {
-        return head_ - range_;
+        return head_ - range_ * 1.5;
     }
 
     BackendStatus status = BackendStatus::RUNNING;
