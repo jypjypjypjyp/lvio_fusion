@@ -111,6 +111,7 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int is_semantic
 
         mapping = Mapping::Ptr(new Mapping());
         mapping->SetLidar(lidar);
+        mapping->SetCamera(camera1);
         mapping->SetMap(map);
         mapping->SetBackend(backend);
 

@@ -183,7 +183,6 @@ void sync_process()
             }
             write_result(estimator, time);
             pub_odometry(estimator, time);
-            pub_point_cloud(estimator, time);
         }
 
         chrono::milliseconds dura(2);
@@ -234,9 +233,14 @@ void navsat_callback(const sensor_msgs::NavSatFixConstPtr &navsat_msg)
     pub_navsat(estimator, t);
 }
 
-void timer_callback(const ros::TimerEvent &timer_event)
+void tf_timer_callback(const ros::TimerEvent &timer_event)
 {
     pub_tf(estimator, timer_event.current_real.toSec() - delta_time);
+}
+
+void pc_timer_callback(const ros::TimerEvent &timer_event)
+{
+    pub_point_cloud(estimator, timer_event.current_real.toSec() - delta_time);
 }
 
 int get_flags()
@@ -294,7 +298,8 @@ int main(int argc, char **argv)
     ROS_WARN("waiting for image and imu...");
 
     register_pub(n);
-    ros::Timer timer = n.createTimer(ros::Duration(0.0001), timer_callback);
+    ros::Timer tf_timer = n.createTimer(ros::Duration(0.0001), tf_timer_callback);
+    ros::Timer pc_timer = n.createTimer(ros::Duration(1), pc_timer_callback);
 
     if (use_imu)
     {

@@ -16,36 +16,36 @@ public:
     typedef std::shared_ptr<Feature> Ptr;
 
     static Feature::Ptr Create(
-        const PointICloud &cornerPointsSharp,
-        const PointICloud &cornerPointsLessSharp,
-        const PointICloud &surfPointsFlat,
-        const PointICloud &surfPointsLessFlat)
+        const PointICloud &points_sharp,
+        const PointICloud &points_less_sharp,
+        const PointICloud &points_flat,
+        const PointICloud &points_less_flat)
     {
         Feature::Ptr new_feature(new Feature);
-        new_feature->cornerPointsSharp = cornerPointsSharp;
-        new_feature->cornerPointsLessSharp = cornerPointsLessSharp;
-        new_feature->surfPointsFlat = surfPointsFlat;
-        new_feature->surfPointsLessFlat = surfPointsLessFlat;
-        new_feature->cornerPointsSharpDeskew = cornerPointsSharp;
-        new_feature->cornerPointsLessSharpDeskew = cornerPointsLessSharp;
-        new_feature->surfPointsFlatDeskew = surfPointsFlat;
-        new_feature->surfPointsLessFlatDeskew = surfPointsLessFlat;
+        new_feature->points_sharp_raw = points_sharp;
+        new_feature->points_less_sharp_raw = points_less_sharp;
+        new_feature->points_flat_raw = points_flat;
+        new_feature->points_less_flat_raw = points_less_flat;
+        new_feature->points_sharp = points_sharp;
+        new_feature->points_less_sharp = points_less_sharp;
+        new_feature->points_flat = points_flat;
+        new_feature->points_less_flat = points_less_flat;
         return new_feature;
     }
 
     // raw point cloud
-    PointICloud cornerPointsSharp;
-    PointICloud cornerPointsLessSharp;
-    PointICloud surfPointsFlat;
-    PointICloud surfPointsLessFlat;
+    PointICloud points_sharp_raw;               // points on a edge
+    PointICloud points_less_sharp_raw;          // more points on a edge
+    PointICloud points_flat_raw;                // points on a surface
+    PointICloud points_less_flat_raw;           // more points on a surface
 
     // undistorted point cloud
-    PointICloud cornerPointsSharpDeskew;
-    PointICloud cornerPointsLessSharpDeskew;
-    PointICloud surfPointsFlatDeskew;
-    PointICloud surfPointsLessFlatDeskew;
+    PointICloud points_sharp;
+    PointICloud points_less_sharp;
+    PointICloud points_flat;
+    PointICloud points_less_flat;
 
-    int iterations = 0;
+    int num_extractions = 0;
 };
 
 } // namespace lidar

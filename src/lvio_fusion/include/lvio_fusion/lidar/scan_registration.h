@@ -33,14 +33,14 @@ public:
     void Associate(Frame::Ptr current_frame, Frame::Ptr last_frame, ceres::Problem &problem, ceres::LossFunction *loss_function);
 
 private:
-    void UndistortPoint(PointI &p, Frame::Ptr frame);
-    void UndistortPointCloud(PointICloud &pc, Frame::Ptr frame);
+    void UndistortPoint(PointI &point, Frame::Ptr frame);
+    void UndistortPointCloud(PointICloud &points, Frame::Ptr frame);
 
     void Deskew(Frame::Ptr frame);
 
     bool TimeAlign(double time, PointICloud &out);
 
-    void Preprocess(PointICloud &pc, Frame::Ptr frame);
+    void Preprocess(PointICloud &points, Frame::Ptr frame);
 
     void Transform(const PointI &in, Frame::Ptr from, Frame::Ptr to, PointI &out);
 

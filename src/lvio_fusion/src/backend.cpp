@@ -115,14 +115,11 @@ void Backend::BuildProblem(Keyframes &active_kfs, ceres::Problem &problem)
     // lidar constraints
     if (lidar_)
     {
-        ceres::LossFunction *lidar_loss_function = new ceres::HuberLoss(0.1);
+        ceres::LossFunction *lidar_loss_function = new ceres::HuberLoss(1);
         Frame::Ptr last_frame = nullptr;
         Frame::Ptr current_frame = nullptr;
         for (auto kf_pair : active_kfs)
         {
-            // only optimize before head
-            if (kf_pair.first > head_)
-                break;
             if (kf_pair.second->feature_lidar)
             {
                 current_frame = kf_pair.second;
@@ -161,11 +158,10 @@ void Backend::Optimize(bool full)
     ceres::Solver::Options options;
     options.linear_solver_type = ceres::DENSE_SCHUR;
     options.function_tolerance = 1e-9;
-    options.max_solver_time_in_seconds = range_ * 0.9;
+    options.max_solver_time_in_seconds = range_ * 0.6;
     options.num_threads = 4;
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
-    LOG(INFO) << summary.FullReport();
 
     // reject outliers and clean the map
     for (auto kf_pair : active_kfs)

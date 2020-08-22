@@ -13,6 +13,7 @@ lidar_topic: '/kitti/velo/pointcloud'
 navsat_topic: '/kitti/oxts/gps/fix'
 image0_topic: '/kitti/camera_gray_left/image_raw'
 image1_topic: '/kitti/camera_gray_right/image_raw'
+color_topic: '/kitti/camera_color_left/image_raw'
 result_path: '/home/jyp/Projects/lvio-fusion/result/result.csv'
 
 # camera1 intrinsics
@@ -28,7 +29,7 @@ camera2.cx: 6.071928000000e+02
 camera2.cy: 1.852157000000e+02
 
 # lidar param
-num_scans: 64
+num_scans: 64     # only for 16, 32, 64
 cycle_time: 0.1036
 minimum_range: 5
 deskew: 0
@@ -71,4 +72,4 @@ num_features_tracking_bad: 8
 num_features_needed_for_keyframe: 120
 
 # backend
-range: 5
+range: 7

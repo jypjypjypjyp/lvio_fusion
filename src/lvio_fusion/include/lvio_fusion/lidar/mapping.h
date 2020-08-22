@@ -5,6 +5,7 @@
 #include "lvio_fusion/common.h"
 #include "lvio_fusion/lidar/lidar.hpp"
 #include "lvio_fusion/map.h"
+#include "lvio_fusion/visual/camera.hpp"
 
 namespace lvio_fusion
 {
@@ -21,6 +22,11 @@ public:
         lidar_ = lidar;
     }
 
+    void SetCamera(Camera::Ptr camera)
+    {
+        camera_ = camera;
+    }
+
     void SetMap(Map::Ptr map)
     {
         map_ = map;
@@ -33,8 +39,8 @@ public:
 
 private:
     void MappingLoop();
-    
-    void AddToWorld(const PointICloud &in, Frame::Ptr frame, Point3Cloud &out);
+
+    void AddToWorld(const PointICloud &in, Frame::Ptr frame, PointRGBCloud &out);
 
     void Optimize();
 
@@ -42,6 +48,7 @@ private:
     Map::Ptr map_ = nullptr;
     Backend::Ptr backend_ = nullptr;
     Lidar::Ptr lidar_ = nullptr;
+    Camera::Ptr camera_ = nullptr;
     double head_ = 0;
 };
 
