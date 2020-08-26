@@ -11,6 +11,8 @@
 namespace lvio_fusion
 {
 
+Vector3d g{0, 0, 9.8};
+
 Frontend::Frontend(int num_features, int init, int tracking, int tracking_bad, int need_for_keyframe)
     : num_features_(num_features), num_features_init_(init), num_features_tracking_(tracking),
       num_features_tracking_bad_(tracking_bad), num_features_needed_for_keyframe_(need_for_keyframe)
@@ -24,9 +26,10 @@ bool Frontend::AddFrame(lvio_fusion::Frame::Ptr frame)
 
     switch (status)
     {
-    case FrontendStatus::INITING:
-        StereoInit();
+    case FrontendStatus::BUILDING:
+        BuildMap();
         break;
+    case FrontendStatus::INITIALIZING:
     case FrontendStatus::TRACKING_GOOD:
     case FrontendStatus::TRACKING_BAD:
     case FrontendStatus::TRACKING_TRY:
@@ -45,13 +48,33 @@ bool Frontend::AddFrame(lvio_fusion::Frame::Ptr frame)
         }
     case FrontendStatus::LOST:
         Reset();
-        StereoInit();
+        BuildMap();
         break;
     }
 
     last_frame = current_frame;
     last_frame_pose_cache_ = last_frame->pose;
     return true;
+}
+
+void Frontend::AddImu(double time, Vector3d acc, Vector3d gyr)
+{
+    static double current_imu_time = 0;
+    static bool first = false;
+    static Vector3d acc0, gyr0;
+    double dt = time - current_imu_time;
+    current_imu_time = time;
+    if (!first)
+    {
+        first = true;
+        acc0 = acc;
+        gyr0 = gyr;
+    }
+    if (!current_frame->preintegration)
+    {
+        current_frame->preintegration = imu::IntegrationBase::Create(acc0, gyr0, Vector3d::Zero(), Vector3d::Zero(), imu_);
+    }
+    current_frame->preintegration->push_back(dt, acc, gyr);
 }
 
 bool Frontend::Track()
@@ -184,14 +207,21 @@ int Frontend::TrackLastFrame()
     return num_good_pts;
 }
 
-bool Frontend::StereoInit()
+bool Frontend::BuildMap()
 {
     int num_new_features = DetectNewFeatures();
     if (num_new_features < num_features_init_)
     {
         return false;
     }
-    status = FrontendStatus::TRACKING_GOOD;
+    if (imu_)
+    {
+        status = FrontendStatus::INITIALIZING;
+    }
+    else
+    {
+        status = FrontendStatus::TRACKING_GOOD;
+    }
 
     // the first frame is a keyframe
     map_->InsertKeyFrame(current_frame);
@@ -267,7 +297,7 @@ bool Frontend::Reset()
     backend_.lock()->Pause();
     map_->Reset();
     backend_.lock()->Continue();
-    status = FrontendStatus::INITING;
+    status = FrontendStatus::BUILDING;
     LOG(INFO) << "Reset Succeed";
     return true;
 }

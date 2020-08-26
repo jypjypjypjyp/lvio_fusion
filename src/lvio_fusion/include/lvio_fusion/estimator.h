@@ -5,6 +5,7 @@
 #include "lvio_fusion/backend.h"
 #include "lvio_fusion/common.h"
 #include "lvio_fusion/frontend.h"
+#include "lvio_fusion/imu/initialization.h"
 #include "lvio_fusion/lidar/mapping.h"
 #include "lvio_fusion/lidar/scan_registration.h"
 #include "lvio_fusion/semantic/detected_object.h"
@@ -25,16 +26,16 @@ public:
 
     void InputPointCloud(double time, Point3Cloud::Ptr point_cloud);
 
-    //TODO
     void InputIMU(double time, Vector3d acc, Vector3d gyr);
 
     bool Init(int use_imu, int use_lidar, int use_navsat, int is_semantic);
 
-    Frontend::Ptr frontend = nullptr;
-    Backend::Ptr backend = nullptr;
-    Map::Ptr map = nullptr;
-    ScanRegistration::Ptr scan_registration = nullptr;
-    Mapping::Ptr mapping = nullptr;
+    Frontend::Ptr frontend;
+    Backend::Ptr backend;
+    Map::Ptr map;
+    ScanRegistration::Ptr scan_registration;
+    Mapping::Ptr mapping;
+    Initialization::Ptr initialization;
 
 private:
     std::string config_file_path_;

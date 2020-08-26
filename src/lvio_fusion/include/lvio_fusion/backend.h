@@ -3,6 +3,8 @@
 
 #include "lvio_fusion/common.h"
 #include "lvio_fusion/frame.h"
+#include "lvio_fusion/imu/imu.hpp"
+#include "lvio_fusion/imu/initialization.h"
 #include "lvio_fusion/lidar/lidar.hpp"
 #include "lvio_fusion/lidar/scan_registration.h"
 #include "lvio_fusion/map.h"
@@ -40,6 +42,11 @@ public:
         lidar_ = lidar;
     }
 
+    void SetImu(Imu::Ptr imu)
+    {
+        imu_ = imu;
+    }
+
     void SetMap(Map::Ptr map) { map_ = map; }
 
     void SetFrontend(std::shared_ptr<Frontend> frontend) { frontend_ = frontend; }
@@ -70,7 +77,9 @@ private:
 
     Map::Ptr map_;
     std::weak_ptr<Frontend> frontend_;
-    ScanRegistration::Ptr scan_registration_ = nullptr;
+    ScanRegistration::Ptr scan_registration_;
+    Initialization::Ptr initialization_;
+
     std::thread thread_;
     std::mutex running_mutex_, pausing_mutex_;
     std::condition_variable running_;
@@ -79,9 +88,10 @@ private:
     double head_ = 0;
     const double range_;
 
-    Camera::Ptr camera_left_ = nullptr;
-    Camera::Ptr camera_right_ = nullptr;
-    Lidar::Ptr lidar_ = nullptr;
+    Camera::Ptr camera_left_;
+    Camera::Ptr camera_right_;
+    Lidar::Ptr lidar_;
+    Imu::Ptr imu_;
 };
 
 } // namespace lvio_fusion

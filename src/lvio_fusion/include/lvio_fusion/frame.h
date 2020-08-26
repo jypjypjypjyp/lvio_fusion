@@ -2,10 +2,11 @@
 #define lvio_fusion_FRAME_H
 
 #include "lvio_fusion/common.h"
+#include "lvio_fusion/imu/integration_base.h"
 #include "lvio_fusion/lidar/feature.h"
+#include "lvio_fusion/semantic/detected_object.h"
 #include "lvio_fusion/visual/feature.h"
 #include "lvio_fusion/visual/landmark.h"
-#include "lvio_fusion/semantic/detected_object.h"
 
 namespace lvio_fusion
 {
@@ -31,9 +32,10 @@ public:
     double time;
     cv::Mat image_left, image_right;
     std::vector<DetectedObject> objects;
-    visual::Features features_left;         // extracted features in left image
-    visual::Features features_right;        // corresponding features in right image, only for this frame
-    lidar::Feature::Ptr feature_lidar;           // extracted features in lidar point cloud
+    visual::Features features_left;    // extracted features in left image
+    visual::Features features_right;   // corresponding features in right image, only for this frame
+    lidar::Feature::Ptr feature_lidar; // extracted features in lidar point cloud
+    imu::IntegrationBase::Ptr preintegration;
     SE3d pose;
 
 private:

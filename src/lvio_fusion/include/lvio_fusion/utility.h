@@ -48,7 +48,7 @@ inline void line_fitting(const MatrixX3d &P, Vector3d &A, Vector3d &B)
     A = P.colwise().mean();
     MatrixXd P0 = P.rowwise() - A.transpose();
     auto cov = (P0.adjoint() * P0) / double(P.rows() - 1);
-    auto svd = cov.bdcSvd(Eigen::ComputeThinV);
+    auto svd = cov.bdcSvd(ComputeThinV);
     auto V = svd.matrixV();
     Vector3d v(V.block<3, 1>(0, 0));
     B = A + v * 1;
@@ -101,6 +101,117 @@ void remove_close_points(const pcl::PointCloud<PointT> &cloud_in, pcl::PointClou
     cloud_out.width = static_cast<uint32_t>(j);
     cloud_out.is_dense = true;
 }
+
+template <typename Derived>
+inline Quaternion<typename Derived::Scalar> deltaQ(const MatrixBase<Derived> &theta)
+{
+    typedef typename Derived::Scalar Scalar_t;
+
+    Quaternion<Scalar_t> dq;
+    Matrix<Scalar_t, 3, 1> half_theta = theta;
+    half_theta /= static_cast<Scalar_t>(2.0);
+    dq.w() = static_cast<Scalar_t>(1.0);
+    dq.x() = half_theta.x();
+    dq.y() = half_theta.y();
+    dq.z() = half_theta.z();
+    return dq;
+}
+
+template <typename Derived>
+inline Matrix<typename Derived::Scalar, 3, 3> skewSymmetric(const MatrixBase<Derived> &q)
+{
+    Matrix<typename Derived::Scalar, 3, 3> ans;
+    ans << typename Derived::Scalar(0), -q(2), q(1),
+        q(2), typename Derived::Scalar(0), -q(0),
+        -q(1), q(0), typename Derived::Scalar(0);
+    return ans;
+}
+
+template <typename Derived>
+inline Matrix<typename Derived::Scalar, 4, 4> Qleft(const QuaternionBase<Derived> &q)
+{
+    Matrix<typename Derived::Scalar, 4, 4> ans;
+    ans(0, 0) = q.w(), ans.template block<1, 3>(0, 1) = -q.vec().transpose();
+    ans.template block<3, 1>(1, 0) = q.vec(), ans.template block<3, 3>(1, 1) = q.w() * Matrix<typename Derived::Scalar, 3, 3>::Identity() + skewSymmetric(q.vec());
+    return ans;
+}
+
+template <typename Derived>
+inline Matrix<typename Derived::Scalar, 4, 4> Qright(const QuaternionBase<Derived> &p)
+{
+    Matrix<typename Derived::Scalar, 4, 4> ans;
+    ans(0, 0) = p.w(), ans.template block<1, 3>(0, 1) = -p.vec().transpose();
+    ans.template block<3, 1>(1, 0) = p.vec(), ans.template block<3, 3>(1, 1) = p.w() * Matrix<typename Derived::Scalar, 3, 3>::Identity() - skewSymmetric(p.vec());
+    return ans;
+}
+
+inline Vector3d R2ypr(const Matrix3d &R)
+{
+    Vector3d n = R.col(0);
+    Vector3d o = R.col(1);
+    Vector3d a = R.col(2);
+
+    Vector3d ypr(3);
+    double y = atan2(n(1), n(0));
+    double p = atan2(-n(2), n(0) * cos(y) + n(1) * sin(y));
+    double r = atan2(a(0) * sin(y) - a(1) * cos(y), -o(0) * sin(y) + o(1) * cos(y));
+    ypr(0) = y;
+    ypr(1) = p;
+    ypr(2) = r;
+
+    return ypr / M_PI * 180.0;
+}
+
+template <typename Derived>
+inline Matrix<typename Derived::Scalar, 3, 3> ypr2R(const MatrixBase<Derived> &ypr)
+{
+    typedef typename Derived::Scalar Scalar_t;
+
+    Scalar_t y = ypr(0) / 180.0 * M_PI;
+    Scalar_t p = ypr(1) / 180.0 * M_PI;
+    Scalar_t r = ypr(2) / 180.0 * M_PI;
+
+    Matrix<Scalar_t, 3, 3> Rz;
+    Rz << cos(y), -sin(y), 0,
+        sin(y), cos(y), 0,
+        0, 0, 1;
+
+    Matrix<Scalar_t, 3, 3> Ry;
+    Ry << cos(p), 0., sin(p),
+        0., 1., 0.,
+        -sin(p), 0., cos(p);
+
+    Matrix<Scalar_t, 3, 3> Rx;
+    Rx << 1., 0., 0.,
+        0., cos(r), -sin(r),
+        0., sin(r), cos(r);
+
+    return Rz * Ry * Rx;
+}
+
+inline Matrix3d g2R(const Vector3d &g)
+{
+    Eigen::Matrix3d R0;
+    Eigen::Vector3d ng1 = g.normalized();
+    Eigen::Vector3d ng2{0, 0, 1.0};
+    R0 = Eigen::Quaterniond::FromTwoVectors(ng1, ng2).toRotationMatrix();
+    double yaw = R2ypr(R0).x();
+    R0 = ypr2R(Eigen::Vector3d{-yaw, 0, 0}) * R0;
+    // R0 = Utility::ypr2R(Eigen::Vector3d{-90, 0, 0}) * R0;
+    return R0;
+}
+
+template <typename T>
+inline T normalizeAngle(const T &angle_degrees)
+{
+    T two_pi(2.0 * 180);
+    if (angle_degrees > 0)
+        return angle_degrees -
+               two_pi * std::floor((angle_degrees + T(180)) / two_pi);
+    else
+        return angle_degrees +
+               two_pi * std::floor((-angle_degrees + T(180)) / two_pi);
+};
 
 } // namespace lvio_fusion
 

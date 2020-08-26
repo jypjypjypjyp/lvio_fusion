@@ -22,6 +22,6 @@ Config::~Config()
         file_.release();
 }
 
-std::shared_ptr<Config> Config::config_ = nullptr;
+std::shared_ptr<Config> Config::config_;
 
 } // namespace lvio_fusion

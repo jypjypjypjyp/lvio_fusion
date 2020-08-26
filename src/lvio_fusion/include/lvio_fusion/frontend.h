@@ -5,6 +5,7 @@
 #include "lvio_fusion/frame.h"
 #include "lvio_fusion/map.h"
 #include "lvio_fusion/visual/camera.hpp"
+#include "lvio_fusion/imu/imu.hpp"
 
 namespace lvio_fusion
 {
@@ -13,7 +14,8 @@ class Backend;
 
 enum class FrontendStatus
 {
-    INITING,
+    BUILDING,
+    INITIALIZING,
     TRACKING_GOOD,
     TRACKING_BAD,
     TRACKING_TRY,
@@ -41,6 +43,8 @@ public:
 
     bool AddFrame(Frame::Ptr frame);
 
+    void AddImu(double time, Vector3d acc, Vector3d gyr);
+
     void SetMap(Map::Ptr map) { map_ = map; }
 
     void SetBackend(std::shared_ptr<Backend> backend) { backend_ = backend; }
@@ -51,12 +55,17 @@ public:
         camera_right_ = right;
     }
 
+    void SetImu(Imu::Ptr imu)
+    {
+        imu_ = imu;
+    }
+
     void UpdateCache();
 
     std::unordered_map<unsigned long, Vector3d> GetPositionCache();
 
     int flags = Flag::None;
-    FrontendStatus status = FrontendStatus::INITING;
+    FrontendStatus status = FrontendStatus::BUILDING;
     Frame::Ptr current_frame;
     Frame::Ptr last_frame;
     SE3d relative_motion;
@@ -73,7 +82,7 @@ private:
 
     void CreateKeyframe();
 
-    bool StereoInit();
+    bool BuildMap();
 
     int DetectNewFeatures();
 
@@ -87,6 +96,7 @@ private:
 
     Camera::Ptr camera_left_;
     Camera::Ptr camera_right_;
+    Imu::Ptr imu_;
 
     // params
     int num_features_;

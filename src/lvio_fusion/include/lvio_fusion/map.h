@@ -44,7 +44,7 @@ public:
         keyframes_.clear();
     }
 
-    Frame::Ptr current_frame = nullptr;
+    Frame::Ptr current_frame;
     NavsatMap::Ptr navsat_map;
     PointRGBCloud simple_map;
 

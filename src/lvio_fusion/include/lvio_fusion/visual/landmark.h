@@ -28,7 +28,7 @@ public:
 
     static unsigned long current_landmark_id;
     unsigned long id = 0;                   // ID
-    Camera::Ptr camera = nullptr;           // observed by which sensor
+    Camera::Ptr camera;           // observed by which sensor
     Vector3d position;                      // position in the first robot coordinate
     LabelType label = LabelType::None;      // Sematic Label
     Features observations;                  // only for left feature

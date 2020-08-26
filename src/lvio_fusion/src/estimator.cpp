@@ -12,8 +12,8 @@ namespace lvio_fusion
 
 Matrix2d TwoFrameReprojectionError::sqrt_info = Matrix2d::Identity();
 Matrix2d PoseOnlyReprojectionError::sqrt_info = Matrix2d::Identity();
-Matrix3d LidarEdgeError::sqrt_info = Matrix3d::Identity();
-double LidarPlaneError::sqrt_info = 1;
+Matrix3d LidarEdgeError::sqrt_info = 0.1 * Matrix3d::Identity();
+double LidarPlaneError::sqrt_info = 0.1;
 Matrix3d NavsatError::sqrt_info = 10 * Matrix3d::Identity();
 
 Estimator::Estimator(std::string &config_path)
@@ -87,6 +87,14 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int is_semantic
 
     if (use_imu)
     {
+        Imu::Ptr imu(new Imu(SE3d()));
+
+        initialization = Initialization::Ptr(new Initialization);
+        initialization->SetMap(map);
+
+        backend->SetImu(imu);
+
+        frontend->SetImu(imu);
         frontend->flags += Flag::IMU;
     }
 
@@ -114,6 +122,9 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int is_semantic
         mapping->SetCamera(camera1);
         mapping->SetMap(map);
         mapping->SetBackend(backend);
+
+        backend->SetLidar(lidar);
+        backend->SetScanRegistration(scan_registration);
 
         frontend->flags += Flag::Laser;
     }
@@ -155,6 +166,7 @@ void Estimator::InputPointCloud(double time, Point3Cloud::Ptr point_cloud)
 
 void Estimator::InputIMU(double time, Vector3d acc, Vector3d gyr)
 {
+    frontend->AddImu(time, acc, gyr);
 }
 
 void Estimator::InputNavSat(double time, double x, double y, double z, double posAccuracy)

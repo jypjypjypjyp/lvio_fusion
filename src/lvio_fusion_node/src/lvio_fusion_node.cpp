@@ -19,7 +19,7 @@
 
 using namespace std;
 
-Estimator::Ptr estimator = nullptr;
+Estimator::Ptr estimator;
 
 ros::Subscriber sub_imu, sub_lidar, sub_navsat, sub_img0, sub_img1, sub_objects;
 ros::Publisher pub_detector;
@@ -27,7 +27,7 @@ ros::Publisher pub_detector;
 queue<sensor_msgs::ImageConstPtr> img0_buf;
 queue<sensor_msgs::ImageConstPtr> img1_buf;
 GeographicLib::LocalCartesian geo_converter;
-object_detector::BoundingBoxesConstPtr obj_buf = nullptr;
+object_detector::BoundingBoxesConstPtr obj_buf;
 mutex m_img_buf, m_cond;
 condition_variable cond;
 double delta_time = 0;
@@ -157,7 +157,7 @@ void sync_process()
                 if (obj_buf != nullptr)
                 {
                     auto objects = get_objects_from_msg(obj_buf);
-                    obj_buf = nullptr;
+                    obj_buf;
                     // DEBUG
                     // for (auto object : objects)
                     // {

@@ -45,10 +45,10 @@ private:
     void Optimize();
 
     std::thread thread_;
-    Map::Ptr map_ = nullptr;
-    Backend::Ptr backend_ = nullptr;
-    Lidar::Ptr lidar_ = nullptr;
-    Camera::Ptr camera_ = nullptr;
+    Map::Ptr map_;
+    Backend::Ptr backend_;
+    Lidar::Ptr lidar_;
+    Camera::Ptr camera_;
     double head_ = 0;
 };
 

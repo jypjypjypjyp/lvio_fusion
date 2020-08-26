@@ -116,8 +116,8 @@ void Backend::BuildProblem(Keyframes &active_kfs, ceres::Problem &problem)
     if (lidar_)
     {
         ceres::LossFunction *lidar_loss_function = new ceres::HuberLoss(1);
-        Frame::Ptr last_frame = nullptr;
-        Frame::Ptr current_frame = nullptr;
+        Frame::Ptr last_frame;
+        Frame::Ptr current_frame;
         for (auto kf_pair : active_kfs)
         {
             if (kf_pair.second->feature_lidar)
@@ -143,9 +143,16 @@ void Backend::Optimize(bool full)
 {
     Keyframes active_kfs = map_->GetActiveKeyFrames(full ? 0 : ActiveTime());
 
+    // imu init
+    if(imu_)
+    {
+        // initialization_->InitialStructure();
+        
+    }
+
     // navsat init
     auto navsat_map = map_->navsat_map;
-    if (!full && map_->navsat_map != nullptr && !navsat_map->initialized && map_->GetAllKeyFrames().size() >= navsat_map->num_frames_init)
+    if (!full && map_->navsat_map && !navsat_map->initialized && map_->GetAllKeyFrames().size() >= navsat_map->num_frames_init)
     {
         navsat_map->Initialize();
         Optimize(true);
