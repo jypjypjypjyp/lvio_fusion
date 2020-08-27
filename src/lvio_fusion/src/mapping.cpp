@@ -44,10 +44,10 @@ void Mapping::MappingLoop()
         {
             Frame::Ptr frame = iter->second;
             PointRGBCloud &map = map_->simple_map;
-            AddToWorld(frame->feature_lidar->points_sharp_raw, frame, map);
-            AddToWorld(frame->feature_lidar->points_less_sharp_raw, frame, map);
-            AddToWorld(frame->feature_lidar->points_flat_raw, frame, map);
-            AddToWorld(frame->feature_lidar->points_less_flat_raw, frame, map);
+            AddToWorld(frame->feature_lidar->points_sharp, frame, map);
+            AddToWorld(frame->feature_lidar->points_less_sharp, frame, map);
+            AddToWorld(frame->feature_lidar->points_flat, frame, map);
+            AddToWorld(frame->feature_lidar->points_less_flat, frame, map);
             frame->feature_lidar.reset();
             head_ = iter->first;
         }

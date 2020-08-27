@@ -16,7 +16,7 @@ class ScanRegistration
 public:
     typedef std::shared_ptr<ScanRegistration> Ptr;
 
-    ScanRegistration(int num_scans, double cycle_time, double minimum_range, double deskew) : num_scans_(num_scans), cycle_time_(cycle_time), minimum_range_(minimum_range), deskew_(deskew) {}
+    ScanRegistration(int num_scans, double cycle_time, double min_range, double max_range, double deskew) : num_scans_(num_scans), cycle_time_(cycle_time), min_range_(min_range), max_range_(max_range), deskew_(deskew) {}
 
     void SetLidar(Lidar::Ptr lidar)
     {
@@ -36,13 +36,9 @@ private:
     void UndistortPoint(PointI &point, Frame::Ptr frame);
     void UndistortPointCloud(PointICloud &points, Frame::Ptr frame);
 
-    void Deskew(Frame::Ptr frame);
-
     bool TimeAlign(double time, PointICloud &out);
 
     void Preprocess(PointICloud &points, Frame::Ptr frame);
-
-    void Transform(const PointI &in, Frame::Ptr from, Frame::Ptr to, PointI &out);
 
     Map::Ptr map_;
     std::map<double, Point3Cloud::Ptr> raw_point_clouds_;
@@ -52,7 +48,8 @@ private:
     // params
     const int num_scans_;
     const double cycle_time_;
-    const double minimum_range_;
+    const double min_range_;
+    const double max_range_;
     const bool deskew_;
 };
 

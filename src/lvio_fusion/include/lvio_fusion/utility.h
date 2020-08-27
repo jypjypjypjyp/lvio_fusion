@@ -75,7 +75,7 @@ inline Vector3d closest_point_on_a_line(const Vector3d &A, const Vector3d &B, co
  * @param thres         threshold
  */
 template <typename PointT>
-void remove_close_points(const pcl::PointCloud<PointT> &cloud_in, pcl::PointCloud<PointT> &cloud_out, float thres)
+void filter_points_by_distance(const pcl::PointCloud<PointT> &cloud_in, pcl::PointCloud<PointT> &cloud_out, float min_range, float max_range)
 {
     if (&cloud_in != &cloud_out)
     {
@@ -87,10 +87,12 @@ void remove_close_points(const pcl::PointCloud<PointT> &cloud_in, pcl::PointClou
 
     for (size_t i = 0; i < cloud_in.points.size(); ++i)
     {
-        if (cloud_in.points[i].x * cloud_in.points[i].x + cloud_in.points[i].y * cloud_in.points[i].y + cloud_in.points[i].z * cloud_in.points[i].z < thres * thres)
-            continue;
-        cloud_out.points[j] = cloud_in.points[i];
-        j++;
+        float d = cloud_in.points[i].x * cloud_in.points[i].x + cloud_in.points[i].y * cloud_in.points[i].y + cloud_in.points[i].z * cloud_in.points[i].z;
+        if (d > min_range * min_range && d < max_range * max_range)
+        {
+            cloud_out.points[j] = cloud_in.points[i];
+            j++;
+        }
     }
     if (j != cloud_in.points.size())
     {

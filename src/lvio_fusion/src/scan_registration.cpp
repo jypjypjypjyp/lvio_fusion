@@ -67,18 +67,6 @@ inline void ScanRegistration::UndistortPointCloud(PointICloud &points, Frame::Pt
     }
 }
 
-inline void ScanRegistration::Deskew(Frame::Ptr frame)
-{
-    frame->feature_lidar->points_sharp = frame->feature_lidar->points_sharp_raw;
-    frame->feature_lidar->points_less_sharp = frame->feature_lidar->points_less_sharp_raw;
-    frame->feature_lidar->points_flat = frame->feature_lidar->points_flat_raw;
-    frame->feature_lidar->points_less_flat = frame->feature_lidar->points_less_flat_raw;
-    UndistortPointCloud(frame->feature_lidar->points_sharp, frame);
-    UndistortPointCloud(frame->feature_lidar->points_less_sharp, frame);
-    UndistortPointCloud(frame->feature_lidar->points_flat, frame);
-    UndistortPointCloud(frame->feature_lidar->points_less_flat, frame);
-}
-
 void ScanRegistration::Preprocess(PointICloud &points, Frame::Ptr frame)
 {
     PointICloud points_sharp;
@@ -88,7 +76,7 @@ void ScanRegistration::Preprocess(PointICloud &points, Frame::Ptr frame)
 
     std::vector<int> indices;
     pcl::removeNaNFromPointCloud(points, points, indices);
-    remove_close_points(points, points, minimum_range_);
+    filter_points_by_distance(points, points, min_range_, max_range_);
 
     int raw_size = points.size();
     float start_ori = -atan2(points.points[0].y, points.points[0].x);
@@ -212,10 +200,10 @@ void ScanRegistration::Preprocess(PointICloud &points, Frame::Ptr frame)
 
     // extract features
     static pcl::VoxelGrid<PointI> down_sampling;
-    down_sampling.setLeafSize(0.5, 0.5, 0.5);
+    down_sampling.setLeafSize(0.2, 0.2, 0.2);
     for (int i = 0; i < num_scans_; i++)
     {
-        if (end_index[i] - start_index[i] < 6) // 如果该scan的点数少于7个点，就跳过
+        if (end_index[i] - start_index[i] < 6) // too few
             continue;
         PointICloud::Ptr scan_less_flat(new PointICloud());
         // divide one scan into six segments
@@ -347,40 +335,14 @@ void ScanRegistration::Preprocess(PointICloud &points, Frame::Ptr frame)
     frame->feature_lidar = feature;
 }
 
-inline void ScanRegistration::Transform(const PointI &in, Frame::Ptr from, Frame::Ptr to, PointI &out)
-{
-    auto p1 = lidar_->Sensor2World(Vector3d(in.x, in.y, in.z), from->pose);
-    auto p2 = lidar_->World2Sensor(p1, to->pose);
-    PointI r;
-    out.x = p2.x();
-    out.y = p2.y();
-    out.z = p2.z();
-    out.intensity = in.intensity;
-}
-
 void ScanRegistration::Associate(Frame::Ptr current_frame, Frame::Ptr last_frame, ceres::Problem &problem, ceres::LossFunction *loss_function)
 {
-    auto t1 = std::chrono::steady_clock::now();
-    if (deskew_)
-    {
-        assert(last_frame->feature_lidar->num_extractions >= current_frame->feature_lidar->num_extractions);
-        if (last_frame->feature_lidar->num_extractions == current_frame->feature_lidar->num_extractions)
-        {
-            Deskew(last_frame);
-            last_frame->feature_lidar->num_extractions = current_frame->feature_lidar->num_extractions + 1;
-        }
-        Deskew(current_frame);
-        current_frame->feature_lidar->num_extractions = last_frame->feature_lidar->num_extractions;
-    }
     PointICloud &points_sharp = current_frame->feature_lidar->points_sharp;
     PointICloud &points_less_sharp = current_frame->feature_lidar->points_less_sharp;
     PointICloud &points_flat = current_frame->feature_lidar->points_flat;
     PointICloud &points_less_flat = current_frame->feature_lidar->points_less_flat;
     PointICloud &points_less_sharp_last = last_frame->feature_lidar->points_less_sharp;
     PointICloud &points_less_flat_last = last_frame->feature_lidar->points_less_flat;
-
-    int num_points_sharp = points_sharp.points.size();
-    int num_points_flat = points_flat.points.size();
 
     static pcl::KdTreeFLANN<PointI> kdtree_sharp_last;
     static pcl::KdTreeFLANN<PointI> kdtree_flat_last;
@@ -394,33 +356,34 @@ void ScanRegistration::Associate(Frame::Ptr current_frame, Frame::Ptr last_frame
     std::vector<int> points_index;
     std::vector<float> points_distance;
 
+    static const double distance_threshold = 0.5;
+    static const double nearby_scan = 2.5;
+    int num_points_sharp = points_sharp.points.size();
+    int num_points_flat = points_flat.points.size();
+    float *tf = lidar_->TransformMatrix(current_frame->pose, last_frame->pose).cast<float>().data();
     // find correspondence for corner features
-    static const double DISTANCE_THRESHOLD = 25;
-    static const double NEARBY_SCAN = 2.5;
-    LOG(INFO) << num_points_flat;
-    LOG(INFO) << num_points_sharp;
     for (int i = 0; i < num_points_sharp; ++i)
     {
-        Transform(points_sharp.points[i], current_frame, last_frame, point);        // 将当前帧的corner_sharp特征点O_cur，从当前帧的Lidar坐标系下变换到上一帧的Lidar坐标系下（记为点O，注意与前面的点O_cur不同），以利于寻找corner特征点的correspondence
-        kdtree_sharp_last.nearestKSearch(point, 1, points_index, points_distance); // kdtree中的点云是上一帧的corner_less_sharp，所以这是在上一帧
-                                                                                    // 的corner_less_sharp中寻找当前帧corner_sharp特征点O的最近邻点（记为A）
+        // lidar_->Transform(points_sharp.points[i], current_frame->pose, last_frame->pose, point);  //  too slow
+        ceres::SE3TransformPoint(tf, points_sharp.points[i].data, point.data);
+        point.intensity = points_sharp.points[i].intensity;
+        kdtree_sharp_last.nearestKSearch(point, 1, points_index, points_distance);
 
         int closest_index = -1, closest_index2 = -1;
-        if (points_distance[0] < DISTANCE_THRESHOLD) // 如果最近邻的corner特征点之间距离平方小于阈值，则最近邻点A有效
+        if (points_distance[0] < distance_threshold)
         {
             closest_index = points_index[0];
             int scan_id = int(points_less_sharp_last.points[closest_index].intensity);
-
-            double distance_threshold = DISTANCE_THRESHOLD;
+            double distance_threshold = distance_threshold;
             // point b in the direction of increasing scan line
-            for (int j = closest_index + 1; j < (int)points_less_sharp_last.points.size(); ++j) // cornerPointsLessSharpLast 来自上一帧的corner_less_sharp特征点,由于提取特征时是
-            {                                                                                   // 按照scan的顺序提取的，所以cornerPointsLessSharpLast中的点也是按照scanID递增的顺序存放的
+            for (int j = closest_index + 1; j < (int)points_less_sharp_last.points.size(); ++j)
+            {
                 // if in the same scan line, continue
-                if (int(points_less_sharp_last.points[j].intensity) <= scan_id) // intensity整数部分存放的是scanID
+                if (int(points_less_sharp_last.points[j].intensity) <= scan_id)
                     continue;
 
                 // if not in nearby scans, end the loop
-                if (int(points_less_sharp_last.points[j].intensity) > (scan_id + NEARBY_SCAN))
+                if (int(points_less_sharp_last.points[j].intensity) > (scan_id + nearby_scan))
                     break;
 
                 double point_distance = (points_less_sharp_last.points[j].x - point.x) *
@@ -430,7 +393,7 @@ void ScanRegistration::Associate(Frame::Ptr current_frame, Frame::Ptr last_frame
                                         (points_less_sharp_last.points[j].z - point.z) *
                                             (points_less_sharp_last.points[j].z - point.z);
 
-                if (point_distance < distance_threshold) // 第二个最近邻点有效,，更新点B
+                if (point_distance < distance_threshold)
                 {
                     // find nearer point
                     distance_threshold = point_distance;
@@ -446,7 +409,7 @@ void ScanRegistration::Associate(Frame::Ptr current_frame, Frame::Ptr last_frame
                     continue;
 
                 // if not in nearby scans, end the loop
-                if (int(points_less_sharp_last.points[j].intensity) < (scan_id - NEARBY_SCAN))
+                if (int(points_less_sharp_last.points[j].intensity) < (scan_id - nearby_scan))
                     break;
 
                 double point_distance = (points_less_sharp_last.points[j].x - point.x) *
@@ -456,7 +419,7 @@ void ScanRegistration::Associate(Frame::Ptr current_frame, Frame::Ptr last_frame
                                         (points_less_sharp_last.points[j].z - point.z) *
                                             (points_less_sharp_last.points[j].z - point.z);
 
-                if (point_distance < distance_threshold) // 第二个最近邻点有效，更新点B
+                if (point_distance < distance_threshold)
                 {
                     // find nearer point
                     distance_threshold = point_distance;
@@ -482,23 +445,25 @@ void ScanRegistration::Associate(Frame::Ptr current_frame, Frame::Ptr last_frame
     // find correspondence for plane features
     for (int i = 0; i < num_points_flat; ++i)
     {
-        Transform(points_flat.points[i], current_frame, last_frame, point);
+        // lidar_->Transform(points_flat.points[i], current_frame->pose, last_frame->pose, point); // too slow
+        ceres::SE3TransformPoint(tf, points_flat.points[i].data, point.data);
+        point.intensity = points_flat.points[i].intensity;
         kdtree_flat_last.nearestKSearch(point, 1, points_index, points_distance);
 
         int closest_index = -1, closest_index2 = -1, closest_index3 = -1;
-        if (points_distance[0] < DISTANCE_THRESHOLD)
+        if (points_distance[0] < distance_threshold && points_index[0] < points_less_flat_last.size())
         {
             closest_index = points_index[0];
 
             // get closest point's scan ID
             int scan_id = int(points_less_flat_last.points[closest_index].intensity);
-            double distance_threshold2 = DISTANCE_THRESHOLD, distance_threshold3 = DISTANCE_THRESHOLD;
+            double distance_threshold2 = distance_threshold, distance_threshold3 = distance_threshold;
 
             // search in the direction of increasing scan line
             for (int j = closest_index + 1; j < (int)points_less_flat_last.points.size(); ++j)
             {
                 // if not in nearby scans, end the loop
-                if (int(points_less_flat_last.points[j].intensity) > (scan_id + NEARBY_SCAN))
+                if (int(points_less_flat_last.points[j].intensity) > (scan_id + nearby_scan))
                     break;
 
                 double point_distance = (points_less_flat_last.points[j].x - point.x) *
@@ -511,13 +476,13 @@ void ScanRegistration::Associate(Frame::Ptr current_frame, Frame::Ptr last_frame
                 // if in the same or lower scan line
                 if (int(points_less_flat_last.points[j].intensity) <= scan_id && point_distance < distance_threshold2)
                 {
-                    distance_threshold2 = point_distance; // 找到的第2个最近邻点有效，更新点B，注意如果scanID准确的话，一般点A和点B的scanID相同
+                    distance_threshold2 = point_distance;
                     closest_index2 = j;
                 }
                 // if in the higher scan line
                 else if (int(points_less_flat_last.points[j].intensity) > scan_id && point_distance < distance_threshold3)
                 {
-                    distance_threshold3 = point_distance; // 找到的第3个最近邻点有效，更新点C，注意如果scanID准确的话，一般点A和点B的scanID相同,且与点C的scanID不同，与LOAM的paper叙述一致
+                    distance_threshold3 = point_distance;
                     closest_index3 = j;
                 }
             }
@@ -526,7 +491,7 @@ void ScanRegistration::Associate(Frame::Ptr current_frame, Frame::Ptr last_frame
             for (int j = closest_index - 1; j >= 0; --j)
             {
                 // if not in nearby scans, end the loop
-                if (int(points_less_flat_last.points[j].intensity) < (scan_id - NEARBY_SCAN))
+                if (int(points_less_flat_last.points[j].intensity) < (scan_id - nearby_scan))
                     break;
 
                 double point_distance = (points_less_flat_last.points[j].x - point.x) *
@@ -550,7 +515,7 @@ void ScanRegistration::Associate(Frame::Ptr current_frame, Frame::Ptr last_frame
                 }
             }
 
-            if (closest_index2 >= 0 && closest_index3 >= 0) // 如果三个最近邻点都有效
+            if (closest_index2 >= 0 && closest_index3 >= 0)
             {
 
                 Vector3d curr_point(points_flat.points[i].x,
@@ -570,9 +535,5 @@ void ScanRegistration::Associate(Frame::Ptr current_frame, Frame::Ptr last_frame
             }
         }
     }
-    auto t2 = std::chrono::steady_clock::now();
-    auto time_used =
-        std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);
-    LOG(INFO) << "Associate cost time: " << time_used.count() << " seconds.";
 }
 } // namespace lvio_fusion

@@ -112,7 +112,8 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int is_semantic
         scan_registration = ScanRegistration::Ptr(new ScanRegistration(
             Config::Get<int>("num_scans"),
             Config::Get<double>("cycle_time"),
-            Config::Get<double>("minimum_range"),
+            Config::Get<double>("min_range"),
+            Config::Get<double>("max_range"),
             Config::Get<int>("deskew")));
         scan_registration->SetLidar(lidar);
         scan_registration->SetMap(map);
@@ -161,7 +162,8 @@ void Estimator::InputPointCloud(double time, Point3Cloud::Ptr point_cloud)
     auto t2 = std::chrono::steady_clock::now();
     auto time_used =
         std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);
-    LOG(INFO) << "Scan Registration cost time: " << time_used.count() << " seconds.";
+    if(time_used.count() > 1e-2)
+        LOG(INFO) << "Scan Registration cost time: " << time_used.count() << " seconds.";
 }
 
 void Estimator::InputIMU(double time, Vector3d acc, Vector3d gyr)

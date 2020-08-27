@@ -73,7 +73,7 @@ private:
 
     void Propagate(double time);
 
-    void BuildProblem(Keyframes &active_kfs, ceres::Problem &problem);
+    void BuildProblem(Keyframes &active_kfs, ceres::Problem &problem, bool propagate);
 
     Map::Ptr map_;
     std::weak_ptr<Frontend> frontend_;

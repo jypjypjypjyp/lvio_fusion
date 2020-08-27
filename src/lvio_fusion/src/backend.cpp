@@ -58,7 +58,7 @@ void Backend::BackendLoop()
     }
 }
 
-void Backend::BuildProblem(Keyframes &active_kfs, ceres::Problem &problem)
+void Backend::BuildProblem(Keyframes &active_kfs, ceres::Problem &problem, bool propagate)
 {
     ceres::LossFunction *loss_function = new ceres::HuberLoss(1.0);
     ceres::LocalParameterization *local_parameterization = new ceres::ProductParameterization(
@@ -113,9 +113,9 @@ void Backend::BuildProblem(Keyframes &active_kfs, ceres::Problem &problem)
     }
 
     // lidar constraints
-    if (lidar_)
+    if (lidar_ && !propagate)
     {
-        ceres::LossFunction *lidar_loss_function = new ceres::HuberLoss(1);
+        ceres::LossFunction *lidar_loss_function = new ceres::HuberLoss(0.1);
         Frame::Ptr last_frame;
         Frame::Ptr current_frame;
         for (auto kf_pair : active_kfs)
@@ -160,7 +160,7 @@ void Backend::Optimize(bool full)
     }
 
     ceres::Problem problem;
-    BuildProblem(active_kfs, problem);
+    BuildProblem(active_kfs, problem, false);
 
     ceres::Solver::Options options;
     options.linear_solver_type = ceres::DENSE_SCHUR;
@@ -220,7 +220,7 @@ void Backend::Propagate(double time)
     }
 
     ceres::Problem problem;
-    BuildProblem(active_kfs, problem);
+    BuildProblem(active_kfs, problem, true);
 
     ceres::Solver::Options options;
     options.linear_solver_type = ceres::DENSE_SCHUR;
