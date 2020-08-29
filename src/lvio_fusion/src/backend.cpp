@@ -58,7 +58,7 @@ void Backend::BackendLoop()
     }
 }
 
-void Backend::BuildProblem(Keyframes &active_kfs, ceres::Problem &problem, bool propagate)
+void Backend::BuildProblem(Frames &active_kfs, ceres::Problem &problem, bool propagate)
 {
     ceres::LossFunction *loss_function = new ceres::HuberLoss(1.0);
     ceres::LocalParameterization *local_parameterization = new ceres::ProductParameterization(
@@ -141,7 +141,7 @@ void Backend::BuildProblem(Keyframes &active_kfs, ceres::Problem &problem, bool 
 
 void Backend::Optimize(bool full)
 {
-    Keyframes active_kfs = map_->GetActiveKeyFrames(full ? 0 : ActiveTime());
+    Frames active_kfs = map_->GetActiveKeyFrames(full ? 0 : ActiveTime());
 
     // imu init
     if(imu_)
@@ -213,7 +213,7 @@ void Backend::Propagate(double time)
     std::unique_lock<std::mutex> lock(frontend_.lock()->last_frame_mutex);
 
     Frame::Ptr last_frame = frontend_.lock()->last_frame;
-    Keyframes active_kfs = map_->GetActiveKeyFrames(time);
+    Frames active_kfs = map_->GetActiveKeyFrames(time);
     if (active_kfs.find(last_frame->time) == active_kfs.end())
     {
         active_kfs.insert(std::make_pair(last_frame->time, last_frame));

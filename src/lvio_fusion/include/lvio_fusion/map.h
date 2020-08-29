@@ -22,13 +22,13 @@ public:
         return landmarks_;
     }
 
-    Keyframes &GetAllKeyFrames()
+    Frames &GetAllKeyFrames()
     {
         std::unique_lock<std::mutex> lock(data_mutex_);
         return keyframes_;
     }
 
-    Keyframes GetActiveKeyFrames(double time);
+    Frames GetActiveKeyFrames(double time);
 
     void InsertKeyFrame(Frame::Ptr frame);
 
@@ -51,7 +51,7 @@ public:
 private:
     std::mutex data_mutex_;
     visual::Landmarks landmarks_;
-    Keyframes keyframes_;
+    Frames keyframes_;
 
 };
 } // namespace lvio_fusion

@@ -11,8 +11,6 @@
 namespace lvio_fusion
 {
 
-Vector3d g{0, 0, 9.8};
-
 Frontend::Frontend(int num_features, int init, int tracking, int tracking_bad, int need_for_keyframe)
     : num_features_(num_features), num_features_init_(init), num_features_tracking_(tracking),
       num_features_tracking_bad_(tracking_bad), num_features_needed_for_keyframe_(need_for_keyframe)
@@ -52,6 +50,13 @@ bool Frontend::AddFrame(lvio_fusion::Frame::Ptr frame)
         break;
     }
 
+    if(imu_)
+    {
+        if(current_key_frame != current_frame)
+        {
+            current_key_frame->preintegration->Append(current_frame->preintegration);
+        }
+    }
     last_frame = current_frame;
     last_frame_pose_cache_ = last_frame->pose;
     return true;
@@ -60,21 +65,22 @@ bool Frontend::AddFrame(lvio_fusion::Frame::Ptr frame)
 void Frontend::AddImu(double time, Vector3d acc, Vector3d gyr)
 {
     static double current_imu_time = 0;
-    static bool first = false;
+    static bool first = true;
     static Vector3d acc0, gyr0;
     double dt = time - current_imu_time;
     current_imu_time = time;
-    if (!first)
+    if (first)
     {
-        first = true;
+        first = false;
         acc0 = acc;
         gyr0 = gyr;
     }
     if (!current_frame->preintegration)
     {
-        current_frame->preintegration = imu::IntegrationBase::Create(acc0, gyr0, Vector3d::Zero(), Vector3d::Zero(), imu_);
+        current_frame->preintegration = imu::PreIntegration::Create(acc0, gyr0, Vector3d::Zero(), Vector3d::Zero(), imu_);
+        current_frame->preintegration->frame = current_frame;
     }
-    current_frame->preintegration->push_back(dt, acc, gyr);
+    current_frame->preintegration->Append(dt, acc, gyr);
 }
 
 bool Frontend::Track()
@@ -82,31 +88,43 @@ bool Frontend::Track()
     current_frame->pose = relative_motion * last_frame_pose_cache_;
     TrackLastFrame();
     InitFramePoseByPnP();
-    int tracking_inliers_ = current_frame->features_left.size();
+    int inliers = current_frame->features_left.size();
 
     static int num_tries = 0;
-    if (tracking_inliers_ > num_features_tracking_)
+    if (status == FrontendStatus::INITIALIZING)
     {
-        // tracking good
-        status = FrontendStatus::TRACKING_GOOD;
-        num_tries = 0;
-    }
-    else if (tracking_inliers_ > num_features_tracking_bad_)
-    {
-        // tracking bad
-        status = FrontendStatus::TRACKING_BAD;
-        num_tries = 0;
+        if (inliers <= num_features_tracking_bad_)
+        {
+            status = FrontendStatus::BUILDING;
+        }
+        initialization_->AddFrame(current_frame);
     }
     else
     {
-        // lost, but give a chance
-        num_tries++;
-        status = num_tries >= 4 ? FrontendStatus::LOST : FrontendStatus::TRACKING_TRY;
-        num_tries %= 4;
-        return false;
+        if (inliers > num_features_tracking_)
+        {
+            // tracking good
+            status = FrontendStatus::TRACKING_GOOD;
+            num_tries = 0;
+        }
+        else if (inliers > num_features_tracking_bad_)
+        {
+            // tracking bad
+            status = FrontendStatus::TRACKING_BAD;
+            num_tries = 0;
+        }
+        else
+        {
+            // lost, but give a chance
+            num_tries++;
+            status = num_tries >= 4 ? FrontendStatus::LOST : FrontendStatus::TRACKING_TRY;
+            num_tries %= 4;
+            return false;
+        }
     }
 
-    if (tracking_inliers_ < num_features_needed_for_keyframe_)
+    // Add every frame during initializing
+    if (inliers < num_features_needed_for_keyframe_ || status == FrontendStatus::INITIALIZING)
     {
         CreateKeyframe();
     }
@@ -127,9 +145,10 @@ void Frontend::CreateKeyframe()
     DetectNewFeatures();
     // insert!
     map_->InsertKeyFrame(current_frame);
+    current_key_frame = current_frame;
     LOG(INFO) << "Add a keyframe " << current_frame->id;
     // update backend because we have a new keyframe
-    backend_.lock()->UpdateMap();
+    backend_->UpdateMap();
 }
 
 bool Frontend::InitFramePoseByPnP()
@@ -228,7 +247,7 @@ bool Frontend::BuildMap()
     LOG(INFO) << "Initial map created with " << num_new_features << " map points";
 
     // update backend because we have a new keyframe
-    backend_.lock()->UpdateMap();
+    backend_->UpdateMap();
     return true;
 }
 
@@ -294,9 +313,9 @@ int Frontend::DetectNewFeatures()
 
 bool Frontend::Reset()
 {
-    backend_.lock()->Pause();
+    backend_->Pause();
     map_->Reset();
-    backend_.lock()->Continue();
+    backend_->Continue();
     status = FrontendStatus::BUILDING;
     LOG(INFO) << "Reset Succeed";
     return true;

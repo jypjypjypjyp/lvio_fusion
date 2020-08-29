@@ -25,39 +25,39 @@ public:
     }
 
     // coordinate transform: world, sensor, pixel
-    Vector2d Sensor2Pixel(const Vector3d &p_c)
+    Vector2d Sensor2Pixel(const Vector3d &pc)
     {
         return Vector2d(
-            fx * p_c(0, 0) / p_c(2, 0) + cx,
-            fy * p_c(1, 0) / p_c(2, 0) + cy);
+            fx * pc(0, 0) / pc(2, 0) + cx,
+            fy * pc(1, 0) / pc(2, 0) + cy);
     }
 
-    Vector3d Pixel2Sensor(const Vector2d &p_p, double depth = double(1))
+    Vector3d Pixel2Sensor(const Vector2d &pp, double depth = double(1))
     {
         return Vector3d(
-            (p_p(0, 0) - cx) * depth / fx,
-            (p_p(1, 0) - cy) * depth / fy,
+            (pp(0, 0) - cx) * depth / fx,
+            (pp(1, 0) - cy) * depth / fy,
             depth);
     }
 
-    Vector3d Pixel2World(const Vector2d &p_p, const SE3d &T_c_w, double depth = 1)
+    Vector3d Pixel2World(const Vector2d &pp, const SE3d &Tcw, double depth = 1)
     {
-        return Sensor2World(Pixel2Sensor(p_p, depth), T_c_w);
+        return Sensor2World(Pixel2Sensor(pp, depth), Tcw);
     }
 
-    Vector2d World2Pixel(const Vector3d &p_w, const SE3d &T_c_w)
+    Vector2d World2Pixel(const Vector3d &pw, const SE3d &Tcw)
     {
-        return Sensor2Pixel(World2Sensor(p_w, T_c_w));
+        return Sensor2Pixel(World2Sensor(pw, Tcw));
     }
 
-    Vector3d Pixel2Robot(const Vector2d &p_p, double depth = 1)
+    Vector3d Pixel2Robot(const Vector2d &pp, double depth = 1)
     {
-        return Sensor2Robot(Pixel2Sensor(p_p, depth));
+        return Sensor2Robot(Pixel2Sensor(pp, depth));
     }
 
-    Vector2d Robot2Pixel(const Vector3d &p_w)
+    Vector2d Robot2Pixel(const Vector3d &pw)
     {
-        return Sensor2Pixel(Robot2Sensor(p_w));
+        return Sensor2Pixel(Robot2Sensor(pw));
     }
 
     double fx = 0, fy = 0, cx = 0, cy = 0; // Camera intrinsics

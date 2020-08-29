@@ -3,9 +3,10 @@
 
 #include "lvio_fusion/common.h"
 #include "lvio_fusion/frame.h"
+#include "lvio_fusion/imu/imu.hpp"
+#include "lvio_fusion/imu/initialization.h"
 #include "lvio_fusion/map.h"
 #include "lvio_fusion/visual/camera.hpp"
-#include "lvio_fusion/imu/imu.hpp"
 
 namespace lvio_fusion
 {
@@ -49,6 +50,8 @@ public:
 
     void SetBackend(std::shared_ptr<Backend> backend) { backend_ = backend; }
 
+    void SetInitialization(Initialization::Ptr initialization) { initialization_ = initialization; }
+
     void SetCameras(Camera::Ptr left, Camera::Ptr right)
     {
         camera_left_ = left;
@@ -68,6 +71,7 @@ public:
     FrontendStatus status = FrontendStatus::BUILDING;
     Frame::Ptr current_frame;
     Frame::Ptr last_frame;
+    Frame::Ptr current_key_frame;
     SE3d relative_motion;
     std::mutex last_frame_mutex;
 
@@ -90,7 +94,8 @@ private:
 
     // data
     Map::Ptr map_;
-    std::weak_ptr<Backend> backend_;
+    Backend::Ptr backend_;
+    Initialization::Ptr initialization_;
     std::unordered_map<unsigned long, Vector3d> position_cache_;
     SE3d last_frame_pose_cache_;
 

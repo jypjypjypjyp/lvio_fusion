@@ -2,7 +2,7 @@
 #define lvio_fusion_FRAME_H
 
 #include "lvio_fusion/common.h"
-#include "lvio_fusion/imu/integration_base.h"
+#include "lvio_fusion/imu/preintegration.h"
 #include "lvio_fusion/lidar/feature.h"
 #include "lvio_fusion/semantic/detected_object.h"
 #include "lvio_fusion/visual/feature.h"
@@ -35,7 +35,7 @@ public:
     visual::Features features_left;    // extracted features in left image
     visual::Features features_right;   // corresponding features in right image, only for this frame
     lidar::Feature::Ptr feature_lidar; // extracted features in lidar point cloud
-    imu::IntegrationBase::Ptr preintegration;
+    imu::PreIntegration::Ptr preintegration;
     SE3d pose;
 
 private:
@@ -43,7 +43,7 @@ private:
     LabelType GetLabelType(int x, int y);
 };
 
-typedef std::map<double, Frame::Ptr> Keyframes;
+typedef std::map<double, Frame::Ptr> Frames;
 
 } // namespace lvio_fusion
 

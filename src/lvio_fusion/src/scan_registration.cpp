@@ -12,7 +12,7 @@ void ScanRegistration::AddScan(double time, Point3Cloud::Ptr new_scan)
 {
     raw_point_clouds_.insert(std::make_pair(time, new_scan));
 
-    Keyframes &all_kfs = map_->GetAllKeyFrames();
+    Frames &all_kfs = map_->GetAllKeyFrames();
     for (auto iter = all_kfs.upper_bound(head_); iter != all_kfs.end() && iter->first < time; iter++)
     {
         PointICloud point_cloud;
@@ -364,6 +364,7 @@ void ScanRegistration::Associate(Frame::Ptr current_frame, Frame::Ptr last_frame
     // find correspondence for corner features
     for (int i = 0; i < num_points_sharp; ++i)
     {
+        //NOTE: Sophus is too slow
         // lidar_->Transform(points_sharp.points[i], current_frame->pose, last_frame->pose, point);  //  too slow
         ceres::SE3TransformPoint(tf, points_sharp.points[i].data, point.data);
         point.intensity = points_sharp.points[i].intensity;
@@ -445,7 +446,8 @@ void ScanRegistration::Associate(Frame::Ptr current_frame, Frame::Ptr last_frame
     // find correspondence for plane features
     for (int i = 0; i < num_points_flat; ++i)
     {
-        // lidar_->Transform(points_flat.points[i], current_frame->pose, last_frame->pose, point); // too slow
+        //NOTE: Sophus is too slow
+        // lidar_->Transform(points_flat.points[i], current_frame->pose, last_frame->pose, point);
         ceres::SE3TransformPoint(tf, points_flat.points[i].data, point.data);
         point.intensity = points_flat.points[i].intensity;
         kdtree_flat_last.nearestKSearch(point, 1, points_index, points_distance);

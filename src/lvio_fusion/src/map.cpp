@@ -19,7 +19,7 @@ void Map::InsertLandmark(visual::Landmark::Ptr landmark)
     landmarks_.insert(make_pair(landmark->id, landmark));
 }
 
-Keyframes Map::GetActiveKeyFrames(double time)
+Frames Map::GetActiveKeyFrames(double time)
 {
     std::unique_lock<std::mutex> lock(data_mutex_);
     return Keyframes(keyframes_.upper_bound(time), keyframes_.end());

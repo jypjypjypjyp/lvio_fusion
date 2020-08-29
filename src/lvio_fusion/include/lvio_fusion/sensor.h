@@ -1,6 +1,7 @@
 #ifndef lvio_fusion_SENSOR_H
 #define lvio_fusion_SENSOR_H
 
+#include "lvio_fusion/ceres/base.hpp"
 #include "lvio_fusion/common.h"
 
 namespace lvio_fusion
@@ -14,34 +15,34 @@ public:
     Sensor(const SE3d &extrinsic) : extrinsic(extrinsic) {}
 
     // coordinate transform: world, sensor
-    virtual Vector3d World2Sensor(const Vector3d &p_w, const SE3d &T_c_w)
+    virtual Vector3d World2Sensor(const Vector3d &pw, const SE3d &Tcw)
     {
-        return extrinsic * T_c_w * p_w;
+        return extrinsic * Tcw * pw;
     }
 
-    virtual Vector3d Sensor2World(const Vector3d &p_c, const SE3d &T_c_w)
+    virtual Vector3d Sensor2World(const Vector3d &pc, const SE3d &Tcw)
     {
-        return T_c_w.inverse() * extrinsic.inverse() * p_c;
+        return Tcw.inverse() * extrinsic.inverse() * pc;
     }
 
-    virtual Vector3d World2Robot(const Vector3d &p_w, const SE3d &T_c_w)
+    virtual Vector3d World2Robot(const Vector3d &pw, const SE3d &Tcw)
     {
-        return T_c_w * p_w;
+        return Tcw * pw;
     }
 
-    virtual Vector3d Robot2World(const Vector3d &p_c, const SE3d &T_c_w)
+    virtual Vector3d Robot2World(const Vector3d &pc, const SE3d &Tcw)
     {
-        return T_c_w.inverse() * p_c;
+        return Tcw.inverse() * pc;
     }
 
-    virtual Vector3d Robot2Sensor(const Vector3d &p_w)
+    virtual Vector3d Robot2Sensor(const Vector3d &pw)
     {
-        return extrinsic * p_w;
+        return extrinsic * pw;
     }
 
-    virtual Vector3d Sensor2Robot(const Vector3d &p_c)
+    virtual Vector3d Sensor2Robot(const Vector3d &pc)
     {
-        return extrinsic.inverse() * p_c;
+        return extrinsic.inverse() * pc;
     }
 
     SE3d extrinsic;
