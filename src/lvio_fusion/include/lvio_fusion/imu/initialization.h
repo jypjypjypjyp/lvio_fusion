@@ -20,11 +20,17 @@ public:
 
     bool Initialize();
 
-    bool Align();
-
+private:
     bool VisualInitialAlign();
 
-private:
+    void SolveGyroscopeBias(Vector3d *Bgs);
+
+    void RefineGravity(Vector3d &g, VectorXd &x);
+
+    bool LinearAlignment(Vector3d &g, VectorXd &x);
+
+    bool VisualIMUAlignment(Vector3d *Bgs, Vector3d &g, VectorXd &x);
+
     Frames frames_;
 };
 
