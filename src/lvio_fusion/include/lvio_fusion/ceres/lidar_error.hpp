@@ -1,10 +1,9 @@
 #ifndef lvio_fusion_LIDAR_ERROR_H
 #define lvio_fusion_LIDAR_ERROR_H
 
-#include "base.hpp"
+#include "lvio_fusion/ceres/base.hpp"
 #include "lvio_fusion/common.h"
 #include "lvio_fusion/lidar/lidar.hpp"
-#include <ceres/ceres.h>
 
 namespace lvio_fusion
 {

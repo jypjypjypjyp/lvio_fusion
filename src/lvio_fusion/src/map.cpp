@@ -19,10 +19,43 @@ void Map::InsertLandmark(visual::Landmark::Ptr landmark)
     landmarks_.insert(make_pair(landmark->id, landmark));
 }
 
-Frames Map::GetActiveKeyFrames(double time)
+// 1: start
+// 2: start -> end
+// 2: start -> num
+// 3: num -> end
+Frames Map::GetKeyFrames(double start, double end, int num)
 {
     std::unique_lock<std::mutex> lock(data_mutex_);
-    return Keyframes(keyframes_.upper_bound(time), keyframes_.end());
+    if (end == 0 && num == 0)
+    {
+        return Frames(keyframes_.upper_bound(start), keyframes_.end());
+    }
+    else if (num == 0)
+    {
+        return Frames(keyframes_.upper_bound(start), keyframes_.lower_bound(end));
+    }
+    else if (end == 0)
+    {
+        auto iter = keyframes_.upper_bound(start);
+        Frames frames;
+        for (size_t i = 0; i < num; i++)
+        {
+            frames.insert(*iter);
+            iter++;
+        }
+        return frames;
+    }
+    else if (start == 0)
+    {
+        auto iter = keyframes_.lower_bound(end);
+        Frames frames;
+        for (size_t i = 0; i < num; i++)
+        {
+            frames.insert(*iter);
+            iter--;
+        }
+        return frames;
+    }
 }
 
 void Map::RemoveLandmark(visual::Landmark::Ptr landmark)

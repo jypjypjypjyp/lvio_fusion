@@ -50,9 +50,9 @@ bool Frontend::AddFrame(lvio_fusion::Frame::Ptr frame)
         break;
     }
 
-    if(imu_)
+    if (imu_)
     {
-        if(current_key_frame != current_frame)
+        if (current_key_frame != current_frame)
         {
             current_key_frame->preintegration->Append(current_frame->preintegration);
         }
@@ -66,7 +66,7 @@ void Frontend::AddImu(double time, Vector3d acc, Vector3d gyr)
 {
     static double current_imu_time = 0;
     static bool first = true;
-    static Vector3d acc0, gyr0;
+    static Vector3d acc0(0, 0, 0), gyr0(0, 0, 0), R(0, 0, 0), T(0, 0, 0), V(0, 0, 0);
     double dt = time - current_imu_time;
     current_imu_time = time;
     if (first)
@@ -77,8 +77,14 @@ void Frontend::AddImu(double time, Vector3d acc, Vector3d gyr)
     }
     if (!current_frame->preintegration)
     {
-        current_frame->preintegration = imu::PreIntegration::Create(acc0, gyr0, Vector3d::Zero(), Vector3d::Zero(), imu_);
-        current_frame->preintegration->frame = current_frame;
+        Vector3d ba = Vector3d::Zero(), bg = Vector3d::Zero(), v0 = Vector3d::Zero();
+        if (last_frame)
+        {
+            ba = last_frame->preintegration->linearized_ba;
+            bg = last_frame->preintegration->linearized_bg;
+            v0 = last_frame->preintegration->v0 + last_frame->preintegration->delta_v;
+        }
+        current_frame->preintegration = imu::Preintegration::Create(acc0, gyr0, v0, ba, bg, imu_);
     }
     current_frame->preintegration->Append(dt, acc, gyr);
 }
@@ -97,7 +103,6 @@ bool Frontend::Track()
         {
             status = FrontendStatus::BUILDING;
         }
-        initialization_->AddFrame(current_frame);
     }
     else
     {
@@ -148,7 +153,7 @@ void Frontend::CreateKeyframe()
     current_key_frame = current_frame;
     LOG(INFO) << "Add a keyframe " << current_frame->id;
     // update backend because we have a new keyframe
-    backend_->UpdateMap();
+    backend_.lock()->UpdateMap();
 }
 
 bool Frontend::InitFramePoseByPnP()
@@ -209,7 +214,7 @@ int Frontend::TrackLastFrame()
     int num_good_pts = 0;
     //DEBUG
     cv::Mat img_track = current_frame->image_left;
-    cv::cvtColor(img_track, img_track, CV_GRAY2RGB);
+    cv::cvtColor(img_track, img_track, cv::COLOR_GRAY2RGB);
     for (size_t i = 0; i < status.size(); ++i)
     {
         if (status[i])
@@ -247,7 +252,7 @@ bool Frontend::BuildMap()
     LOG(INFO) << "Initial map created with " << num_new_features << " map points";
 
     // update backend because we have a new keyframe
-    backend_->UpdateMap();
+    backend_.lock()->UpdateMap();
     return true;
 }
 
@@ -257,7 +262,7 @@ int Frontend::DetectNewFeatures()
     for (auto feature_pair : current_frame->features_left)
     {
         auto feature = feature_pair.second;
-        cv::rectangle(mask, eigen2cv(feature->keypoint - Vector2d(10, 10)), eigen2cv(feature->keypoint + Vector2d(10, 10)), 0, CV_FILLED);
+        cv::rectangle(mask, eigen2cv(feature->keypoint - Vector2d(10, 10)), eigen2cv(feature->keypoint + Vector2d(10, 10)), 0, cv::FILLED);
     }
 
     std::vector<cv::Point2f> kps_left, kps_right;
@@ -313,9 +318,9 @@ int Frontend::DetectNewFeatures()
 
 bool Frontend::Reset()
 {
-    backend_->Pause();
+    backend_.lock()->Pause();
     map_->Reset();
-    backend_->Continue();
+    backend_.lock()->Continue();
     status = FrontendStatus::BUILDING;
     LOG(INFO) << "Reset Succeed";
     return true;

@@ -6,19 +6,14 @@ namespace lvio_fusion
 {
 namespace imu
 {
-void PreIntegration::push_back(double dt, const Vector3d &acc, const Vector3d &gyr)
-{
-    dt_buf.push_back(dt);
-    acc_buf.push_back(acc);
-    gyr_buf.push_back(gyr);
-    propagate(dt, acc, gyr);
-}
+int O_R = 0, O_P = 3, O_V = 6, O_BA = 9, O_BG = 12;
+Vector3d g(0, 0, 9.8);
 
-void PreIntegration::Repropagate(const Vector3d &_linearized_ba, const Vector3d &_linearized_bg)
+void Preintegration::Repropagate(const Vector3d &_linearized_ba, const Vector3d &_linearized_bg)
 {
     sum_dt = 0.0;
-    acc_0 = linearized_acc;
-    gyr_0 = linearized_gyr;
+    acc0 = linearized_acc;
+    gyr0 = linearized_gyr;
     delta_p.setZero();
     delta_q.setIdentity();
     delta_v.setZero();
@@ -30,7 +25,7 @@ void PreIntegration::Repropagate(const Vector3d &_linearized_ba, const Vector3d 
         Propagate(dt_buf[i], acc_buf[i], gyr_buf[i]);
 }
 
-void PreIntegration::MidPointIntegration(double _dt,
+void Preintegration::MidPointIntegration(double _dt,
                                          const Vector3d &_acc_0, const Vector3d &_gyr_0,
                                          const Vector3d &_acc_1, const Vector3d &_gyr_1,
                                          const Vector3d &delta_p, const Quaterniond &delta_q, const Vector3d &delta_v,
@@ -81,7 +76,6 @@ void PreIntegration::MidPointIntegration(double _dt,
         F.block<3, 3>(6, 12) = -0.5 * result_delta_q.toRotationMatrix() * R_a_1_x * _dt * -_dt;
         F.block<3, 3>(9, 9) = Matrix3d::Identity();
         F.block<3, 3>(12, 12) = Matrix3d::Identity();
-        //cout<<"A"<<endl<<A<<endl;
 
         MatrixXd V = MatrixXd::Zero(15, 18);
         V.block<3, 3>(0, 0) = 0.25 * delta_q.toRotationMatrix() * _dt * _dt;
@@ -97,31 +91,27 @@ void PreIntegration::MidPointIntegration(double _dt,
         V.block<3, 3>(9, 12) = MatrixXd::Identity(3, 3) * _dt;
         V.block<3, 3>(12, 15) = MatrixXd::Identity(3, 3) * _dt;
 
-        //step_jacobian = F;
-        //step_V = V;
         jacobian = F * jacobian;
         covariance = F * covariance * F.transpose() + V * noise * V.transpose();
     }
 }
 
-void PreIntegration::Propagate(double _dt, const Vector3d &_acc_1, const Vector3d &_gyr_1)
+void Preintegration::Propagate(double _dt, const Vector3d &_acc_1, const Vector3d &_gyr_1)
 {
     dt = _dt;
-    acc_1 = _acc_1;
-    gyr_1 = _gyr_1;
+    acc1 = _acc_1;
+    gyr1 = _gyr_1;
     Vector3d result_delta_p;
     Quaterniond result_delta_q;
     Vector3d result_delta_v;
     Vector3d result_linearized_ba;
     Vector3d result_linearized_bg;
 
-    MidPointIntegration(_dt, acc_0, gyr_0, _acc_1, _gyr_1, delta_p, delta_q, delta_v,
+    MidPointIntegration(_dt, acc0, gyr0, _acc_1, _gyr_1, delta_p, delta_q, delta_v,
                         linearized_ba, linearized_bg,
                         result_delta_p, result_delta_q, result_delta_v,
                         result_linearized_ba, result_linearized_bg, 1);
 
-    //checkJacobian(_dt, acc_0, gyr_0, acc_1, gyr_1, delta_p, delta_q, delta_v,
-    //                    linearized_ba, linearized_bg);
     delta_p = result_delta_p;
     delta_q = result_delta_q;
     delta_v = result_delta_v;
@@ -129,31 +119,24 @@ void PreIntegration::Propagate(double _dt, const Vector3d &_acc_1, const Vector3
     linearized_bg = result_linearized_bg;
     delta_q.normalize();
     sum_dt += dt;
-    acc_0 = acc_1;
-    gyr_0 = gyr_1;
+    acc0 = acc1;
+    gyr0 = gyr1;
 }
 
-Matrix<double, 15, 1> PreIntegration::Evaluate(const Vector3d &Pi, const Quaterniond &Qi, const Vector3d &Vi, const Vector3d &Bai, const Vector3d &Bgi,
+Matrix<double, 15, 1> Preintegration::Evaluate(const Vector3d &Pi, const Quaterniond &Qi, const Vector3d &Vi, const Vector3d &Bai, const Vector3d &Bgi,
                                                const Vector3d &Pj, const Quaterniond &Qj, const Vector3d &Vj, const Vector3d &Baj, const Vector3d &Bgj)
 {
-    static int O_P = 0, O_R = 3, O_V = 6, O_BA = 9, O_BG = 12;
     Matrix<double, 15, 1> residuals;
-
     Matrix3d dp_dba = jacobian.block<3, 3>(O_P, O_BA);
     Matrix3d dp_dbg = jacobian.block<3, 3>(O_P, O_BG);
-
     Matrix3d dq_dbg = jacobian.block<3, 3>(O_R, O_BG);
-
     Matrix3d dv_dba = jacobian.block<3, 3>(O_V, O_BA);
     Matrix3d dv_dbg = jacobian.block<3, 3>(O_V, O_BG);
-
     Vector3d dba = Bai - linearized_ba;
     Vector3d dbg = Bgi - linearized_bg;
-
-    Quaterniond corrected_delta_q = delta_q * deltaQ(dq_dbg * dbg);
+    Quaterniond corrected_delta_q = delta_q * q_delta(dq_dbg * dbg);
     Vector3d corrected_delta_v = delta_v + dv_dba * dba + dv_dbg * dbg;
     Vector3d corrected_delta_p = delta_p + dp_dba * dba + dp_dbg * dbg;
-
     residuals.block<3, 1>(O_P, 0) = Qi.inverse() * (0.5 * g * sum_dt * sum_dt + Pj - Pi - Vi * sum_dt) - corrected_delta_p;
     residuals.block<3, 1>(O_R, 0) = 2 * (corrected_delta_q.inverse() * (Qi.inverse() * Qj)).vec();
     residuals.block<3, 1>(O_V, 0) = Qi.inverse() * (g * sum_dt + Vj - Vi) - corrected_delta_v;

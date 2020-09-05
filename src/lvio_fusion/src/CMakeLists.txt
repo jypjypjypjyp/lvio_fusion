@@ -4,10 +4,12 @@ add_library(lvio_fusion SHARED
         estimator.cpp
         frame.cpp
         frontend.cpp
+        initializer.cpp
         landmark.cpp
         map.cpp
         mapping.cpp
         navsat.cpp
+        preintegration.cpp
         scan_registration.cpp)
 
 target_link_libraries(lvio_fusion ${THIRD_PARTY_LIBS})

@@ -104,8 +104,13 @@ void filter_points_by_distance(const pcl::PointCloud<PointT> &cloud_in, pcl::Poi
     cloud_out.is_dense = true;
 }
 
+/**
+ * delta Q
+ * @param theta
+ * @return delta Q
+ */
 template <typename Derived>
-inline Quaternion<typename Derived::Scalar> deltaQ(const MatrixBase<Derived> &theta)
+inline Quaternion<typename Derived::Scalar> q_delta(const MatrixBase<Derived> &theta)
 {
     typedef typename Derived::Scalar Scalar_t;
 
@@ -119,8 +124,13 @@ inline Quaternion<typename Derived::Scalar> deltaQ(const MatrixBase<Derived> &th
     return dq;
 }
 
+/**
+ * skewSymmetric
+ * @param q
+ * @return skewSymmetric
+ */
 template <typename Derived>
-inline Matrix<typename Derived::Scalar, 3, 3> skewSymmetric(const MatrixBase<Derived> &q)
+inline Matrix<typename Derived::Scalar, 3, 3> skew_symmetric(const MatrixBase<Derived> &q)
 {
     Matrix<typename Derived::Scalar, 3, 3> ans;
     ans << typename Derived::Scalar(0), -q(2), q(1),
@@ -129,41 +139,39 @@ inline Matrix<typename Derived::Scalar, 3, 3> skewSymmetric(const MatrixBase<Der
     return ans;
 }
 
+/**
+ * Q left
+ * @param q
+ * @return Q left
+ */
 template <typename Derived>
-inline Matrix<typename Derived::Scalar, 4, 4> Qleft(const QuaternionBase<Derived> &q)
+inline Matrix<typename Derived::Scalar, 4, 4> q_left(const QuaternionBase<Derived> &q)
 {
     Matrix<typename Derived::Scalar, 4, 4> ans;
     ans(0, 0) = q.w(), ans.template block<1, 3>(0, 1) = -q.vec().transpose();
-    ans.template block<3, 1>(1, 0) = q.vec(), ans.template block<3, 3>(1, 1) = q.w() * Matrix<typename Derived::Scalar, 3, 3>::Identity() + skewSymmetric(q.vec());
+    ans.template block<3, 1>(1, 0) = q.vec(), ans.template block<3, 3>(1, 1) = q.w() * Matrix<typename Derived::Scalar, 3, 3>::Identity() + skew_symmetric(q.vec());
     return ans;
 }
 
+/**
+ * Q right
+ * @param q
+ * @return Q right
+ */
 template <typename Derived>
-inline Matrix<typename Derived::Scalar, 4, 4> Qright(const QuaternionBase<Derived> &p)
+inline Matrix<typename Derived::Scalar, 4, 4> q_right(const QuaternionBase<Derived> &p)
 {
     Matrix<typename Derived::Scalar, 4, 4> ans;
     ans(0, 0) = p.w(), ans.template block<1, 3>(0, 1) = -p.vec().transpose();
-    ans.template block<3, 1>(1, 0) = p.vec(), ans.template block<3, 3>(1, 1) = p.w() * Matrix<typename Derived::Scalar, 3, 3>::Identity() - skewSymmetric(p.vec());
+    ans.template block<3, 1>(1, 0) = p.vec(), ans.template block<3, 3>(1, 1) = p.w() * Matrix<typename Derived::Scalar, 3, 3>::Identity() - skew_symmetric(p.vec());
     return ans;
 }
 
-inline Vector3d R2ypr(const Matrix3d &R)
-{
-    Vector3d n = R.col(0);
-    Vector3d o = R.col(1);
-    Vector3d a = R.col(2);
-
-    Vector3d ypr(3);
-    double y = atan2(n(1), n(0));
-    double p = atan2(-n(2), n(0) * cos(y) + n(1) * sin(y));
-    double r = atan2(a(0) * sin(y) - a(1) * cos(y), -o(0) * sin(y) + o(1) * cos(y));
-    ypr(0) = y;
-    ypr(1) = p;
-    ypr(2) = r;
-
-    return ypr / M_PI * 180.0;
-}
-
+/**
+ * ypr2R
+ * @param ypr
+ * @return R
+ */
 template <typename Derived>
 inline Matrix<typename Derived::Scalar, 3, 3> ypr2R(const MatrixBase<Derived> &ypr)
 {
@@ -191,20 +199,52 @@ inline Matrix<typename Derived::Scalar, 3, 3> ypr2R(const MatrixBase<Derived> &y
     return Rz * Ry * Rx;
 }
 
+/**
+ * R2ypr
+ * @param R
+ * @return ypr
+ */
+inline Vector3d R2ypr(const Matrix3d &R)
+{
+    Vector3d n = R.col(0);
+    Vector3d o = R.col(1);
+    Vector3d a = R.col(2);
+
+    Vector3d ypr(3);
+    double y = atan2(n(1), n(0));
+    double p = atan2(-n(2), n(0) * cos(y) + n(1) * sin(y));
+    double r = atan2(a(0) * sin(y) - a(1) * cos(y), -o(0) * sin(y) + o(1) * cos(y));
+    ypr(0) = y;
+    ypr(1) = p;
+    ypr(2) = r;
+
+    return ypr / M_PI * 180.0;
+}
+
+/**
+ * g2R
+ * @param g
+ * @return R
+ */
 inline Matrix3d g2R(const Vector3d &g)
 {
-    Eigen::Matrix3d R0;
-    Eigen::Vector3d ng1 = g.normalized();
-    Eigen::Vector3d ng2{0, 0, 1.0};
-    R0 = Eigen::Quaterniond::FromTwoVectors(ng1, ng2).toRotationMatrix();
+    Matrix3d R0;
+    Vector3d ng1 = g.normalized();
+    Vector3d ng2{0, 0, 1.0};
+    R0 = Quaterniond::FromTwoVectors(ng1, ng2).toRotationMatrix();
     double yaw = R2ypr(R0).x();
-    R0 = ypr2R(Eigen::Vector3d{-yaw, 0, 0}) * R0;
-    // R0 = Utility::ypr2R(Eigen::Vector3d{-90, 0, 0}) * R0;
+    R0 = ypr2R(Vector3d{-yaw, 0, 0}) * R0;
+    // R0 = Utility::ypr2R(Vector3d{-90, 0, 0}) * R0;
     return R0;
 }
 
+/**
+ * normalize Angle
+ * @param degrees
+ * @return normalize Angle
+ */
 template <typename T>
-inline T normalizeAngle(const T &angle_degrees)
+inline T normalize_angle(const T &angle_degrees)
 {
     T two_pi(2.0 * 180);
     if (angle_degrees > 0)

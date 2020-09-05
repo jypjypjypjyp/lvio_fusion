@@ -1,4 +1,5 @@
 #include "lvio_fusion/backend.h"
+#include "lvio_fusion/ceres/imu_error.hpp"
 #include "lvio_fusion/ceres/navsat_error.hpp"
 #include "lvio_fusion/ceres/visual_error.hpp"
 #include "lvio_fusion/frontend.h"
@@ -132,6 +133,31 @@ void Backend::BuildProblem(Frames &active_kfs, ceres::Problem &problem, bool pro
         }
     }
 
+    // imu constraints
+    if (imu_ && initializer_->initialized)
+    {
+        Frame::Ptr last_frame;
+        Frame::Ptr current_frame;
+        for (auto kf_pair : active_kfs)
+        {
+            current_frame = kf_pair.second;
+            if (last_frame && last_frame->preintegration->sum_dt < 10.0)
+            {
+                auto para_kf = current_frame->pose.data();
+                auto para_kf_last = last_frame->pose.data();
+                auto para_v = current_frame->velocity.data();
+                auto para_v_last = last_frame->velocity.data();
+                auto para_ba = current_frame->preintegration->linearized_ba.data();
+                auto para_ba_last = last_frame->preintegration->linearized_ba.data();
+                auto para_bg = current_frame->preintegration->linearized_bg.data();
+                auto para_bg_last = last_frame->preintegration->linearized_bg.data();
+                ceres::CostFunction *cost_function = ImuError::Create(last_frame->preintegration);
+                problem.AddResidualBlock(cost_function, NULL, para_kf_last, para_v_last, para_ba_last, para_bg_last, para_kf, para_v, para_ba, para_bg);
+            }
+            last_frame = current_frame;
+        }
+    }
+
     if (active_kfs.begin()->first == map_->GetAllKeyFrames().begin()->first)
     {
         auto &pose = active_kfs.begin()->second->pose;
@@ -141,13 +167,12 @@ void Backend::BuildProblem(Frames &active_kfs, ceres::Problem &problem, bool pro
 
 void Backend::Optimize(bool full)
 {
-    Frames active_kfs = map_->GetActiveKeyFrames(full ? 0 : ActiveTime());
+    Frames active_kfs = map_->GetKeyFrames(full ? 0 : ActiveTime());
 
     // imu init
-    if(imu_)
+    if (imu_ && !initializer_->initialized && map_->GetAllKeyFrames().size() >= initializer_->num_frames)
     {
-        // initialization_->InitialStructure();
-        
+        initializer_->Initialize(map_->GetKeyFrames(0, ActiveTime(), 10));
     }
 
     // navsat init
@@ -213,7 +238,7 @@ void Backend::Propagate(double time)
     std::unique_lock<std::mutex> lock(frontend_.lock()->last_frame_mutex);
 
     Frame::Ptr last_frame = frontend_.lock()->last_frame;
-    Frames active_kfs = map_->GetActiveKeyFrames(time);
+    Frames active_kfs = map_->GetKeyFrames(time);
     if (active_kfs.find(last_frame->time) == active_kfs.end())
     {
         active_kfs.insert(std::make_pair(last_frame->time, last_frame));

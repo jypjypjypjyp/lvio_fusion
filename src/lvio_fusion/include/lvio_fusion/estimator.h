@@ -5,7 +5,7 @@
 #include "lvio_fusion/backend.h"
 #include "lvio_fusion/common.h"
 #include "lvio_fusion/frontend.h"
-#include "lvio_fusion/imu/initialization.h"
+#include "lvio_fusion/imu/initializer.h"
 #include "lvio_fusion/lidar/mapping.h"
 #include "lvio_fusion/lidar/scan_registration.h"
 #include "lvio_fusion/semantic/detected_object.h"
@@ -35,7 +35,7 @@ public:
     Map::Ptr map;
     ScanRegistration::Ptr scan_registration;
     Mapping::Ptr mapping;
-    Initialization::Ptr initialization;
+    Initializer::Ptr initializer;
 
 private:
     std::string config_file_path_;

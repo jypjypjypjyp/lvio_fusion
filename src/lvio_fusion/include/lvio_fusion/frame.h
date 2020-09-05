@@ -32,11 +32,12 @@ public:
     double time;
     cv::Mat image_left, image_right;
     std::vector<DetectedObject> objects;
-    visual::Features features_left;    // extracted features in left image
-    visual::Features features_right;   // corresponding features in right image, only for this frame
-    lidar::Feature::Ptr feature_lidar; // extracted features in lidar point cloud
-    imu::PreIntegration::Ptr preintegration;
+    visual::Features features_left;     // extracted features in left image
+    visual::Features features_right;    // corresponding features in right image, only for this frame
+    lidar::Feature::Ptr feature_lidar;  // extracted features in lidar point cloud
+    imu::Preintegration::Ptr preintegration;
     SE3d pose;
+    Vector3d velocity;                         // velocity
 
 private:
     //NOTE: semantic map

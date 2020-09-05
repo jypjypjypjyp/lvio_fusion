@@ -4,7 +4,7 @@
 #include "lvio_fusion/common.h"
 #include "lvio_fusion/frame.h"
 #include "lvio_fusion/imu/imu.hpp"
-#include "lvio_fusion/imu/initialization.h"
+#include "lvio_fusion/imu/initializer.h"
 #include "lvio_fusion/lidar/lidar.hpp"
 #include "lvio_fusion/lidar/scan_registration.h"
 #include "lvio_fusion/map.h"
@@ -53,6 +53,8 @@ public:
 
     void SetScanRegistration(ScanRegistration::Ptr scan_registration) { scan_registration_ = scan_registration; }
 
+    void SetInitializer(Initializer::Ptr initializer) { initializer_ = initializer; }
+
     void UpdateMap();
 
     void Pause();
@@ -78,7 +80,7 @@ private:
     Map::Ptr map_;
     std::weak_ptr<Frontend> frontend_;
     ScanRegistration::Ptr scan_registration_;
-    Initialization::Ptr initialization_;
+    Initializer::Ptr initializer_;
 
     std::thread thread_;
     std::mutex running_mutex_, pausing_mutex_;

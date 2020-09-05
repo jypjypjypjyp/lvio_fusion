@@ -7,8 +7,6 @@
 namespace lvio_fusion
 {
 
-extern Vector3d g;
-
 class Imu : public Sensor
 {
 public:

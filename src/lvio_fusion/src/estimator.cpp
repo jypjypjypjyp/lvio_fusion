@@ -89,10 +89,10 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int is_semantic
     {
         Imu::Ptr imu(new Imu(SE3d()));
 
-        initialization = Initialization::Ptr(new Initialization);
-        initialization->SetMap(map);
+        initializer = Initializer::Ptr(new Initializer);
 
         backend->SetImu(imu);
+        backend->SetInitializer(initializer);
 
         frontend->SetImu(imu);
         frontend->flags += Flag::IMU;

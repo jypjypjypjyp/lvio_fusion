@@ -12,20 +12,23 @@ class Frame;
 namespace imu
 {
 
-class PreIntegration
+extern int O_P, O_R, O_V, O_BA, O_BG;
+extern Vector3d g;
+
+class Preintegration
 {
 public:
-    typedef std::shared_ptr<PreIntegration> Ptr;
+    typedef std::shared_ptr<Preintegration> Ptr;
 
-    static PreIntegration::Ptr Create(const Vector3d &_acc_0, const Vector3d &_gyr_0, const Vector3d &_linearized_ba, const Vector3d &_linearized_bg, const Imu::Ptr imu)
+    static Preintegration::Ptr Create(const Vector3d &_acc_0, const Vector3d &_gyr_0, const Vector3d &_v0, const Vector3d &_linearized_ba, const Vector3d &_linearized_bg, const Imu::Ptr imu)
     {
-        PreIntegration::Ptr new_preintegration(new PreIntegration(_acc_0, _gyr_0, _linearized_ba, _linearized_bg, imu));
+        Preintegration::Ptr new_preintegration(new Preintegration(_acc_0, _gyr_0, _v0, _linearized_ba, _linearized_bg, imu));
         return new_preintegration;
     }
 
-    static PreIntegration::Ptr Create(PreIntegration::Ptr other)
+    static Preintegration::Ptr Create(Preintegration::Ptr other)
     {
-        PreIntegration::Ptr new_preintegration(new PreIntegration());
+        Preintegration::Ptr new_preintegration(new Preintegration());
         *new_preintegration = *other;
         return new_preintegration;
     }
@@ -38,7 +41,7 @@ public:
         Propagate(dt, acc, gyr);
     }
 
-    void Append(const PreIntegration::Ptr other)
+    void Append(const Preintegration::Ptr other)
     {
         for (int i = 0; i < other->dt_buf.size(); i++)
         {
@@ -65,8 +68,8 @@ public:
                                    const Vector3d &Pj, const Quaterniond &Qj, const Vector3d &Vj, const Vector3d &Baj, const Vector3d &Bgj);
 
     double dt;
-    Vector3d acc_0, gyr_0;
-    Vector3d acc_1, gyr_1;
+    Vector3d acc0, gyr0;
+    Vector3d acc1, gyr1;
     Vector3d linearized_acc, linearized_gyr;
     Vector3d linearized_ba, linearized_bg;
     Matrix<double, 15, 15> jacobian, covariance;
@@ -77,27 +80,21 @@ public:
     Vector3d delta_p;
     Quaterniond delta_q;
     Vector3d delta_v;
-
-    Vector3d Ba, Bg;
-    std::vector<SE3d> poses;
+    Vector3d v0;
 
     std::vector<double> dt_buf;
     std::vector<Vector3d> acc_buf;
     std::vector<Vector3d> gyr_buf;
 
-    Imu::Ptr imu_;
-    std::weak_ptr<Frame> frame;
-
 private:
-    PreIntegration() = default;
+    Preintegration() = default;
 
-    PreIntegration(const Vector3d &_acc_0, const Vector3d &_gyr_0,
+    Preintegration(const Vector3d &_acc_0, const Vector3d &_gyr_0, const Vector3d &_v0,
                    const Vector3d &_linearized_ba, const Vector3d &_linearized_bg, const Imu::Ptr imu)
-        : acc_0{_acc_0}, gyr_0{_gyr_0}, linearized_acc{_acc_0}, linearized_gyr{_gyr_0},
+        : acc0{_acc_0}, gyr0{_gyr_0}, v0(_v0), linearized_acc{_acc_0}, linearized_gyr{_gyr_0},
           linearized_ba{_linearized_ba}, linearized_bg{_linearized_bg},
           jacobian{Matrix<double, 15, 15>::Identity()}, covariance{Matrix<double, 15, 15>::Zero()},
           sum_dt{0.0}, delta_p{Vector3d::Zero()}, delta_q{Quaterniond::Identity()}, delta_v{Vector3d::Zero()}
-
     {
         noise = Matrix<double, 18, 18>::Zero();
         noise.block<3, 3>(0, 0) = (imu->ACC_N * imu->ACC_N) * Matrix3d::Identity();
@@ -109,7 +106,7 @@ private:
     }
 };
 
-typedef std::map<double, PreIntegration::Ptr> PreIntegrations;
+typedef std::map<double, Preintegration::Ptr> PreIntegrations;
 } // namespace imu
 
 } // namespace lvio_fusion

@@ -3,8 +3,8 @@
 
 #include "lvio_fusion/common.h"
 #include "lvio_fusion/frame.h"
-#include "lvio_fusion/visual/landmark.h"
 #include "lvio_fusion/navsat/navsat.h"
+#include "lvio_fusion/visual/landmark.h"
 
 namespace lvio_fusion
 {
@@ -13,7 +13,7 @@ class Map
 {
 public:
     typedef std::shared_ptr<Map> Ptr;
-    
+
     Map() {}
 
     visual::Landmarks &GetAllLandmarks()
@@ -28,7 +28,7 @@ public:
         return keyframes_;
     }
 
-    Frames GetActiveKeyFrames(double time);
+    Frames GetKeyFrames(double start, double end = 0, int num = 0);
 
     void InsertKeyFrame(Frame::Ptr frame);
 
@@ -52,7 +52,6 @@ private:
     std::mutex data_mutex_;
     visual::Landmarks landmarks_;
     Frames keyframes_;
-
 };
 } // namespace lvio_fusion
 

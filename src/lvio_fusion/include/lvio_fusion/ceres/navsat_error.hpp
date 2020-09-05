@@ -1,7 +1,7 @@
 #ifndef lvio_fusion_NAVSAT_ERROR_H
 #define lvio_fusion_NAVSAT_ERROR_H
 
-#include "base.hpp"
+#include "lvio_fusion/ceres/base.hpp"
 #include "lvio_fusion/common.h"
 
 namespace lvio_fusion
