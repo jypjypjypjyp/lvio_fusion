@@ -6,7 +6,8 @@ namespace lvio_fusion
 {
 namespace imu
 {
-int O_R = 0, O_P = 3, O_V = 6, O_BA = 9, O_BG = 12;
+//NOTE:translation,rotation,velocity,ba,bg,para_pose(rotation,translation)
+int O_T = 0, O_R = 3, O_V = 6, O_BA = 9, O_BG = 12, O_PR = 0, O_PT = 4;
 Vector3d g(0, 0, 9.8);
 
 void Preintegration::Repropagate(const Vector3d &_linearized_ba, const Vector3d &_linearized_bg)
@@ -127,8 +128,8 @@ Matrix<double, 15, 1> Preintegration::Evaluate(const Vector3d &Pi, const Quatern
                                                const Vector3d &Pj, const Quaterniond &Qj, const Vector3d &Vj, const Vector3d &Baj, const Vector3d &Bgj)
 {
     Matrix<double, 15, 1> residuals;
-    Matrix3d dp_dba = jacobian.block<3, 3>(O_P, O_BA);
-    Matrix3d dp_dbg = jacobian.block<3, 3>(O_P, O_BG);
+    Matrix3d dp_dba = jacobian.block<3, 3>(O_T, O_BA);
+    Matrix3d dp_dbg = jacobian.block<3, 3>(O_T, O_BG);
     Matrix3d dq_dbg = jacobian.block<3, 3>(O_R, O_BG);
     Matrix3d dv_dba = jacobian.block<3, 3>(O_V, O_BA);
     Matrix3d dv_dbg = jacobian.block<3, 3>(O_V, O_BG);
@@ -137,7 +138,7 @@ Matrix<double, 15, 1> Preintegration::Evaluate(const Vector3d &Pi, const Quatern
     Quaterniond corrected_delta_q = delta_q * q_delta(dq_dbg * dbg);
     Vector3d corrected_delta_v = delta_v + dv_dba * dba + dv_dbg * dbg;
     Vector3d corrected_delta_p = delta_p + dp_dba * dba + dp_dbg * dbg;
-    residuals.block<3, 1>(O_P, 0) = Qi.inverse() * (0.5 * g * sum_dt * sum_dt + Pj - Pi - Vi * sum_dt) - corrected_delta_p;
+    residuals.block<3, 1>(O_T, 0) = Qi.inverse() * (0.5 * g * sum_dt * sum_dt + Pj - Pi - Vi * sum_dt) - corrected_delta_p;
     residuals.block<3, 1>(O_R, 0) = 2 * (corrected_delta_q.inverse() * (Qi.inverse() * Qj)).vec();
     residuals.block<3, 1>(O_V, 0) = Qi.inverse() * (g * sum_dt + Vj - Vi) - corrected_delta_v;
     residuals.block<3, 1>(O_BA, 0) = Baj - Bai;

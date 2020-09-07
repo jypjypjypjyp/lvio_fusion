@@ -25,7 +25,7 @@ public:
     static T Get(const std::string &key)
     {
         T result;
-        Config::config_->file_[key] >> result;
+        Config::config_->file_[key.c_str()] >> result;
         return result;
     }
 };

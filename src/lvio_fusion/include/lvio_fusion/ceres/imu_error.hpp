@@ -39,8 +39,8 @@ public:
         if (jacobians)
         {
             double sum_dt = preintegration_->sum_dt;
-            Matrix3d dp_dba = preintegration_->jacobian.template block<3, 3>(imu::O_P, imu::O_BA);
-            Matrix3d dp_dbg = preintegration_->jacobian.template block<3, 3>(imu::O_P, imu::O_BG);
+            Matrix3d dp_dba = preintegration_->jacobian.template block<3, 3>(imu::O_T, imu::O_BA);
+            Matrix3d dp_dbg = preintegration_->jacobian.template block<3, 3>(imu::O_T, imu::O_BG);
             Matrix3d dq_dbg = preintegration_->jacobian.template block<3, 3>(imu::O_R, imu::O_BG);
             Matrix3d dv_dba = preintegration_->jacobian.template block<3, 3>(imu::O_V, imu::O_BA);
             Matrix3d dv_dbg = preintegration_->jacobian.template block<3, 3>(imu::O_V, imu::O_BG);
@@ -49,18 +49,18 @@ public:
             {
                 Eigen::Map<Matrix<double, 15, 7, RowMajor>> jacobian_pose_i(jacobians[0]);
                 jacobian_pose_i.setZero();
-                jacobian_pose_i.block<3, 3>(imu::O_P, imu::O_P) = -Qi.inverse().toRotationMatrix();
-                jacobian_pose_i.block<3, 3>(imu::O_P, imu::O_R) = skew_symmetric(Qi.inverse() * (0.5 * imu::g * sum_dt * sum_dt + Pj - Pi - Vi * sum_dt));
+                jacobian_pose_i.block<3, 3>(imu::O_T, imu::O_PT) = -Qi.inverse().toRotationMatrix();
+                jacobian_pose_i.block<3, 3>(imu::O_T, imu::O_PR) = skew_symmetric(Qi.inverse() * (0.5 * imu::g * sum_dt * sum_dt + Pj - Pi - Vi * sum_dt));
                 Quaterniond corrected_delta_q = preintegration_->delta_q * q_delta(dq_dbg * (Bgi - preintegration_->linearized_bg));
-                jacobian_pose_i.block<3, 3>(imu::O_R, imu::O_R) = -(q_left(Qj.inverse() * Qi) * q_right(corrected_delta_q)).bottomRightCorner<3, 3>();
-                jacobian_pose_i.block<3, 3>(imu::O_V, imu::O_R) = skew_symmetric(Qi.inverse() * (imu::g * sum_dt + Vj - Vi));
+                jacobian_pose_i.block<3, 3>(imu::O_R, imu::O_PR) = -(q_left(Qj.inverse() * Qi) * q_right(corrected_delta_q)).bottomRightCorner<3, 3>();
+                jacobian_pose_i.block<3, 3>(imu::O_V, imu::O_PR) = skew_symmetric(Qi.inverse() * (imu::g * sum_dt + Vj - Vi));
                 jacobian_pose_i = sqrt_info * jacobian_pose_i;
             }
             if (jacobians[1])
             {
                 Eigen::Map<Matrix<double, 15, 3, RowMajor>> jacobian_v_i(jacobians[1]);
                 jacobian_v_i.setZero();
-                jacobian_v_i.block<3, 3>(imu::O_P, 0) = -Qi.inverse().toRotationMatrix() * sum_dt;
+                jacobian_v_i.block<3, 3>(imu::O_T, 0) = -Qi.inverse().toRotationMatrix() * sum_dt;
                 jacobian_v_i.block<3, 3>(imu::O_V, 0) = -Qi.inverse().toRotationMatrix();
                 jacobian_v_i = sqrt_info * jacobian_v_i;
             }
@@ -68,7 +68,7 @@ public:
             {
                 Eigen::Map<Matrix<double, 15, 3, RowMajor>> jacobian_ba_i(jacobians[2]);
                 jacobian_ba_i.setZero();
-                jacobian_ba_i.block<3, 3>(imu::O_P, 0) = -dp_dba;
+                jacobian_ba_i.block<3, 3>(imu::O_T, 0) = -dp_dba;
                 jacobian_ba_i.block<3, 3>(imu::O_V, 0) = -dv_dba;
                 jacobian_ba_i.block<3, 3>(imu::O_BA, 0) = -Matrix3d::Identity();
                 jacobian_ba_i = sqrt_info * jacobian_ba_i;
@@ -77,7 +77,7 @@ public:
             {
                 Eigen::Map<Matrix<double, 15, 3, RowMajor>> jacobian_bg_i(jacobians[3]);
                 jacobian_bg_i.setZero();
-                jacobian_bg_i.block<3, 3>(imu::O_P, 0) = -dp_dbg;
+                jacobian_bg_i.block<3, 3>(imu::O_T, 0) = -dp_dbg;
                 jacobian_bg_i.block<3, 3>(imu::O_R, 0) = -q_left(Qj.inverse() * Qi * preintegration_->delta_q).bottomRightCorner<3, 3>() * dq_dbg;
                 jacobian_bg_i.block<3, 3>(imu::O_V, 0) = -dv_dbg;
                 jacobian_bg_i.block<3, 3>(imu::O_BG, 0) = -Matrix3d::Identity();
@@ -87,9 +87,9 @@ public:
             {
                 Eigen::Map<Matrix<double, 15, 7, RowMajor>> jacobian_pose_j(jacobians[4]);
                 jacobian_pose_j.setZero();
-                jacobian_pose_j.block<3, 3>(imu::O_P, imu::O_P) = Qi.inverse().toRotationMatrix();
+                jacobian_pose_j.block<3, 3>(imu::O_T, imu::O_PT) = Qi.inverse().toRotationMatrix();
                 Quaterniond corrected_delta_q = preintegration_->delta_q * q_delta(dq_dbg * (Bgi - preintegration_->linearized_bg));
-                jacobian_pose_j.block<3, 3>(imu::O_R, imu::O_R) = q_left(corrected_delta_q.inverse() * Qi.inverse() * Qj).bottomRightCorner<3, 3>();
+                jacobian_pose_j.block<3, 3>(imu::O_R, imu::O_PR) = q_left(corrected_delta_q.inverse() * Qi.inverse() * Qj).bottomRightCorner<3, 3>();
                 jacobian_pose_j = sqrt_info * jacobian_pose_j;
             }
             if (jacobians[5])

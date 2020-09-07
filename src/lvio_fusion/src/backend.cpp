@@ -141,15 +141,18 @@ void Backend::BuildProblem(Frames &active_kfs, ceres::Problem &problem, bool pro
         for (auto kf_pair : active_kfs)
         {
             current_frame = kf_pair.second;
+            auto para_kf = current_frame->pose.data();
+            auto para_v = current_frame->velocity.data();
+            auto para_ba = current_frame->preintegration->linearized_ba.data();
+            auto para_bg = current_frame->preintegration->linearized_bg.data();
+            problem.AddParameterBlock(para_v, 3);
+            problem.AddParameterBlock(para_ba, 3);
+            problem.AddParameterBlock(para_bg, 3);
             if (last_frame && last_frame->preintegration->sum_dt < 10.0)
             {
-                auto para_kf = current_frame->pose.data();
                 auto para_kf_last = last_frame->pose.data();
-                auto para_v = current_frame->velocity.data();
                 auto para_v_last = last_frame->velocity.data();
-                auto para_ba = current_frame->preintegration->linearized_ba.data();
                 auto para_ba_last = last_frame->preintegration->linearized_ba.data();
-                auto para_bg = current_frame->preintegration->linearized_bg.data();
                 auto para_bg_last = last_frame->preintegration->linearized_bg.data();
                 ceres::CostFunction *cost_function = ImuError::Create(last_frame->preintegration);
                 problem.AddResidualBlock(cost_function, NULL, para_kf_last, para_v_last, para_ba_last, para_bg_last, para_kf, para_v, para_ba, para_bg);
@@ -170,10 +173,15 @@ void Backend::Optimize(bool full)
     Frames active_kfs = map_->GetKeyFrames(full ? 0 : ActiveTime());
 
     // imu init
-    if (imu_ && !initializer_->initialized && map_->GetAllKeyFrames().size() >= initializer_->num_frames)
-    {
-        initializer_->Initialize(map_->GetKeyFrames(0, ActiveTime(), 10));
-    }
+    // if (imu_ && !initializer_->initialized)
+    // {
+    //     Frames frames_init = map_->GetKeyFrames(0, ActiveTime(), initializer_->num_frames);
+    //     if (frames_init.size() == initializer_->num_frames)
+    //     {
+    //         initializer_->Initialize(frames_init);
+    //         frontend_.lock()->status = FrontendStatus::TRACKING_GOOD;
+    //     }
+    // }
 
     // navsat init
     auto navsat_map = map_->navsat_map;

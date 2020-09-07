@@ -49,14 +49,6 @@ bool Frontend::AddFrame(lvio_fusion::Frame::Ptr frame)
         BuildMap();
         break;
     }
-
-    if (imu_)
-    {
-        if (current_key_frame != current_frame)
-        {
-            current_key_frame->preintegration->Append(current_frame->preintegration);
-        }
-    }
     last_frame = current_frame;
     last_frame_pose_cache_ = last_frame->pose;
     return true;
@@ -69,24 +61,33 @@ void Frontend::AddImu(double time, Vector3d acc, Vector3d gyr)
     static Vector3d acc0(0, 0, 0), gyr0(0, 0, 0), R(0, 0, 0), T(0, 0, 0), V(0, 0, 0);
     double dt = time - current_imu_time;
     current_imu_time = time;
-    if (first)
+    if (current_frame)
     {
-        first = false;
-        acc0 = acc;
-        gyr0 = gyr;
-    }
-    if (!current_frame->preintegration)
-    {
-        Vector3d ba = Vector3d::Zero(), bg = Vector3d::Zero(), v0 = Vector3d::Zero();
-        if (last_frame)
+        if (first)
         {
-            ba = last_frame->preintegration->linearized_ba;
-            bg = last_frame->preintegration->linearized_bg;
-            v0 = last_frame->preintegration->v0 + last_frame->preintegration->delta_v;
+            first = false;
+            acc0 = acc;
+            gyr0 = gyr;
         }
-        current_frame->preintegration = imu::Preintegration::Create(acc0, gyr0, v0, ba, bg, imu_);
+        if (!current_frame->preintegration)
+        {
+            Vector3d ba = Vector3d::Zero(), bg = Vector3d::Zero(), v0 = Vector3d::Zero();
+            if (last_frame && last_frame->preintegration)
+            {
+                ba = last_frame->preintegration->linearized_ba;
+                bg = last_frame->preintegration->linearized_bg;
+                v0 = last_frame->preintegration->v0 + last_frame->preintegration->delta_v;
+            }
+            current_frame->preintegration = imu::Preintegration::Create(acc0, gyr0, v0, ba, bg, imu_);
+        }
+        current_frame->preintegration->Append(dt, acc, gyr);
+        if (current_key_frame != current_frame)
+        {
+            current_key_frame->preintegration->Append(dt, acc, gyr);
+        }
+        acc0 = acc;
+        gyr0 = acc;
     }
-    current_frame->preintegration->Append(dt, acc, gyr);
 }
 
 bool Frontend::Track()

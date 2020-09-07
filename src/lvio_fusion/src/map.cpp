@@ -49,13 +49,14 @@ Frames Map::GetKeyFrames(double start, double end, int num)
     {
         auto iter = keyframes_.lower_bound(end);
         Frames frames;
-        for (size_t i = 0; i < num; i++)
+        for (size_t i = 0; i < num && iter != --keyframes_.begin(); i++)
         {
             frames.insert(*iter);
             iter--;
         }
         return frames;
     }
+    return Frames();
 }
 
 void Map::RemoveLandmark(visual::Landmark::Ptr landmark)

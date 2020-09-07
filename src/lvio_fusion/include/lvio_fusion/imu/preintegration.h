@@ -12,7 +12,7 @@ class Frame;
 namespace imu
 {
 
-extern int O_P, O_R, O_V, O_BA, O_BG;
+extern int O_T, O_R, O_V, O_BA, O_BG, O_PR, O_PT;
 extern Vector3d g;
 
 class Preintegration
@@ -26,30 +26,12 @@ public:
         return new_preintegration;
     }
 
-    static Preintegration::Ptr Create(Preintegration::Ptr other)
-    {
-        Preintegration::Ptr new_preintegration(new Preintegration());
-        *new_preintegration = *other;
-        return new_preintegration;
-    }
-
     void Append(double dt, const Vector3d &acc, const Vector3d &gyr)
     {
         dt_buf.push_back(dt);
         acc_buf.push_back(acc);
         gyr_buf.push_back(gyr);
         Propagate(dt, acc, gyr);
-    }
-
-    void Append(const Preintegration::Ptr other)
-    {
-        for (int i = 0; i < other->dt_buf.size(); i++)
-        {
-            dt_buf.push_back(other->dt_buf[i]);
-            acc_buf.push_back(other->acc_buf[i]);
-            gyr_buf.push_back(other->gyr_buf[i]);
-            Propagate(other->dt_buf[i], other->acc_buf[i], other->gyr_buf[i]);
-        }
     }
 
     void Repropagate(const Vector3d &_linearized_ba, const Vector3d &_linearized_bg);

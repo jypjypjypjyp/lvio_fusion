@@ -23,6 +23,7 @@ bool Initializer::Initialize(Frames kfs)
     {
         frame.preintegration->Repropagate(Vector3d::Zero(), frame.Bg);
     }
+    initialized = true;
     return true;
     // //check imu observibility
     // Frames::iterator frame_it;
