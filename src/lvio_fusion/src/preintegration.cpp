@@ -111,7 +111,7 @@ void Preintegration::Propagate(double _dt, const Vector3d &_acc_1, const Vector3
     MidPointIntegration(_dt, acc0, gyr0, _acc_1, _gyr_1, delta_p, delta_q, delta_v,
                         linearized_ba, linearized_bg,
                         result_delta_p, result_delta_q, result_delta_v,
-                        result_linearized_ba, result_linearized_bg, 1);
+                        result_linearized_ba, result_linearized_bg, true);
 
     delta_p = result_delta_p;
     delta_q = result_delta_q;

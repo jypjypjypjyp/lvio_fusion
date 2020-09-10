@@ -20,22 +20,22 @@ public:
         Vector3d Pi(parameters[0][4], parameters[0][5], parameters[0][6]);
 
         Vector3d Vi(parameters[1][0], parameters[1][1], parameters[1][2]);
-        Vector3d Bai(parameters[2][0], parameters[1][1], parameters[1][2]);
-        Vector3d Bgi(parameters[3][0], parameters[1][1], parameters[1][2]);
+        Vector3d Bai(parameters[2][0], parameters[2][1], parameters[2][2]);
+        Vector3d Bgi(parameters[3][0], parameters[3][1], parameters[3][2]);
 
-        Quaterniond Qj(parameters[4][3], parameters[2][0], parameters[2][1], parameters[2][2]);
-        Vector3d Pj(parameters[4][4], parameters[2][5], parameters[2][6]);
+        Quaterniond Qj(parameters[4][3], parameters[4][0], parameters[4][1], parameters[4][2]);
+        Vector3d Pj(parameters[4][4], parameters[4][5], parameters[4][6]);
 
-        Vector3d Vj(parameters[5][0], parameters[3][1], parameters[3][2]);
-        Vector3d Baj(parameters[6][0], parameters[3][1], parameters[3][2]);
-        Vector3d Bgj(parameters[7][0], parameters[3][1], parameters[3][2]);
+        Vector3d Vj(parameters[5][0], parameters[5][1], parameters[5][2]);
+        Vector3d Baj(parameters[6][0], parameters[6][1], parameters[6][2]);
+        Vector3d Bgj(parameters[7][0], parameters[7][1], parameters[7][2]);
 
         Eigen::Map<Matrix<double, 15, 1>> residual(residuals);
-        residual = preintegration_->Evaluate(Pi, Qi, Vi, Bai, Bgi,
-                                             Pj, Qj, Vj, Baj, Bgj);
-
+        residual = preintegration_->Evaluate(Pi, Qi, Vi, Bai, Bgi, Pj, Qj, Vj, Baj, Bgj);
         Matrix<double, 15, 15> sqrt_info = LLT<Matrix<double, 15, 15>>(preintegration_->covariance.inverse()).matrixL().transpose();
         residual = sqrt_info * residual;
+        LOG(INFO) << residual;
+        
         if (jacobians)
         {
             double sum_dt = preintegration_->sum_dt;
@@ -94,21 +94,21 @@ public:
             }
             if (jacobians[5])
             {
-                Eigen::Map<Matrix<double, 15, 9, RowMajor>> jacobian_v_j(jacobians[5]);
+                Eigen::Map<Matrix<double, 15, 3, RowMajor>> jacobian_v_j(jacobians[5]);
                 jacobian_v_j.setZero();
                 jacobian_v_j.block<3, 3>(imu::O_V, 0) = Qi.inverse().toRotationMatrix();
                 jacobian_v_j = sqrt_info * jacobian_v_j;
             }
             if (jacobians[6])
             {
-                Eigen::Map<Matrix<double, 15, 9, RowMajor>> jacobian_ba_j(jacobians[6]);
+                Eigen::Map<Matrix<double, 15, 3, RowMajor>> jacobian_ba_j(jacobians[6]);
                 jacobian_ba_j.setZero();
                 jacobian_ba_j.block<3, 3>(imu::O_BA, 0) = Matrix3d::Identity();
                 jacobian_ba_j = sqrt_info * jacobian_ba_j;
             }
             if (jacobians[7])
             {
-                Eigen::Map<Matrix<double, 15, 9, RowMajor>> jacobian_bg_j(jacobians[7]);
+                Eigen::Map<Matrix<double, 15, 3, RowMajor>> jacobian_bg_j(jacobians[7]);
                 jacobian_bg_j.setZero();
                 jacobian_bg_j.block<3, 3>(imu::O_BG, 0) = Matrix3d::Identity();
                 jacobian_bg_j = sqrt_info * jacobian_bg_j;

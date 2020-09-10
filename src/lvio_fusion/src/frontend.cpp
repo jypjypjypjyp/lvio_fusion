@@ -81,7 +81,7 @@ void Frontend::AddImu(double time, Vector3d acc, Vector3d gyr)
             current_frame->preintegration = imu::Preintegration::Create(acc0, gyr0, v0, ba, bg, imu_);
         }
         current_frame->preintegration->Append(dt, acc, gyr);
-        if (current_key_frame != current_frame)
+        if (current_key_frame && current_key_frame->preintegration && current_key_frame != current_frame)
         {
             current_key_frame->preintegration->Append(dt, acc, gyr);
         }
@@ -130,15 +130,19 @@ bool Frontend::Track()
     }
 
     // Add every frame during initializing
-    if (inliers < num_features_needed_for_keyframe_ || status == FrontendStatus::INITIALIZING)
+    if (inliers < num_features_needed_for_keyframe_)
     {
         CreateKeyframe();
+    }
+    else if (status == FrontendStatus::INITIALIZING)
+    {
+        CreateKeyframe(false);
     }
     relative_motion = current_frame->pose * last_frame_pose_cache_.inverse();
     return true;
 }
 
-void Frontend::CreateKeyframe()
+void Frontend::CreateKeyframe(bool need_new_features)
 {
     // first, add new observations of old points
     for (auto feature_pair : current_frame->features_left)
@@ -148,7 +152,10 @@ void Frontend::CreateKeyframe()
         mp->AddObservation(feature);
     }
     // detect new features, track in right image and triangulate map points
-    DetectNewFeatures();
+    if (need_new_features)
+    {
+        DetectNewFeatures();
+    }
     // insert!
     map_->InsertKeyFrame(current_frame);
     current_key_frame = current_frame;

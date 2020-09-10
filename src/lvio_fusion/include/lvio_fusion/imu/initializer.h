@@ -30,7 +30,7 @@ public:
 private:
     bool VisualInitialAlign();
 
-    void SolveGyroscopeBias(std::vector<Initializer::Frame> frames);
+    void SolveGyroscopeBias(std::vector<Initializer::Frame> &frames);
 
     // void RefineGravity(VectorXd &x);
 

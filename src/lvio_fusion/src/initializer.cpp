@@ -9,6 +9,8 @@ bool Initializer::Initialize(Frames kfs)
     std::vector<Initializer::Frame> frames;
     for (auto kf_pair : kfs)
     {
+        if (!kf_pair.second->preintegration)
+            return false;
         Initializer::Frame frame;
         frame.preintegration = kf_pair.second->preintegration;
         frame.R = kf_pair.second->pose.inverse().rotationMatrix();
@@ -23,6 +25,7 @@ bool Initializer::Initialize(Frames kfs)
     {
         frame.preintegration->Repropagate(Vector3d::Zero(), frame.Bg);
     }
+    LOG(INFO) << "IMU Initialization failed.";
     initialized = true;
     return true;
     // //check imu observibility
@@ -88,7 +91,7 @@ bool Initializer::Initialize(Frames kfs)
 //     return true;
 // }
 
-void Initializer::SolveGyroscopeBias(std::vector<Initializer::Frame> frames)
+void Initializer::SolveGyroscopeBias(std::vector<Initializer::Frame> &frames)
 {
     Matrix3d A = Matrix3d::Zero();
     Vector3d b = Vector3d::Zero();

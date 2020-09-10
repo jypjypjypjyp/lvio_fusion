@@ -82,7 +82,7 @@ private:
 
     bool InitFramePoseByPnP();
 
-    void CreateKeyframe();
+    void CreateKeyframe(bool need_new_features = true);
 
     bool BuildMap();
 
