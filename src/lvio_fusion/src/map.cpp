@@ -10,6 +10,7 @@ void Map::InsertKeyFrame(Frame::Ptr frame)
     Frame::current_frame_id++;
     current_frame = frame;
     keyframes_.insert(make_pair(frame->time, frame));
+    relocation->AddFrame(frame);
 }
 
 void Map::InsertLandmark(visual::Landmark::Ptr landmark)

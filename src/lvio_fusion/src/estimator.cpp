@@ -67,7 +67,12 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int is_semantic
         Config::Get<int>("num_features_needed_for_keyframe")));
     backend = Backend::Ptr(new Backend(
         Config::Get<double>("range")));
+
     map = Map::Ptr(new Map());
+    if(Config::Get<int>("use_loop"))
+    {
+        map->relocation = Relocation::Ptr(new Relocation(Config::Get<std::string>("voc_path")));
+    }
 
     frontend->SetBackend(backend);
     frontend->SetMap(map);

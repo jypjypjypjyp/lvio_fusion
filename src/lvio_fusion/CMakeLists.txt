@@ -30,6 +30,10 @@ include_directories(${CERES_INCLUDE_DIRS})
 find_package(Glog REQUIRED)
 include_directories(${GLOG_INCLUDE_DIRS})
 
+# DBoW3
+find_package(DBoW3 REQUIRED)
+include_directories(${DBoW3_INCLUDE_DIRS})
+
 # Thread
 find_package (Threads)
 

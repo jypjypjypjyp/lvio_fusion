@@ -19,36 +19,13 @@ find_package(catkin REQUIRED COMPONENTS
     pcl_ros)
 include_directories(${catkin_INCLUDE_DIRS})
 
-# # Eigen
-# find_package(Eigen3 REQUIRED)
-# include_directories(${EIGEN3_INCLUDE_DIR})
-
-# # Sophus
-# find_package(Sophus REQUIRED)
-# include_directories(${Sophus_INCLUDEDIRS})
-
-# # PCL
-# find_package(PCL REQUIRED)
-# include_directories(${PCL_INCLUDE_DIRS})
-
-# # OpenCV
-# find_package(OpenCV REQUIRED)
-# include_directories(${OpenCV_INCLUDE_DIRS})
-
 # GeographicLib
 find_package(GeographicLib REQUIRED)
 include_directories(${GeographicLib_INCLUDE_DIRS})
 
-# # Thread
-# find_package (Threads)
-
 set(THIRD_PARTY_LIBS
     ${catkin_LIBRARIES}
-    # ${OpenCV_LIBRARIES}
-    # ${PCL_LIBRARIES}
-    # ${Sophus_LIBRARIES}
     ${GeographicLib_LIBRARIES}
-    # ${CMAKE_THREAD_LIBS_INIT}
     )
 
 catkin_package()
