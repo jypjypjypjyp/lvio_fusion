@@ -1,4 +1,4 @@
-#include "lvio_fusion/lidar/mapping.h"
+#include "lvio_fusion/loop/mapping.h"
 #include "lvio_fusion/utility.h"
 #include <lvio_fusion/ceres/base.hpp>
 #include <pcl/filters/voxel_grid.h>
@@ -48,6 +48,23 @@ inline void Mapping::AddToWorld(const PointICloud &in, Frame::Ptr frame, PointRG
 
 void Mapping::MappingLoop()
 {
+    while (true)
+    {
+        std::unique_lock<std::mutex> lock(running_mutex_);
+        if (status == BackendStatus::TO_PAUSE)
+        {
+            status = BackendStatus::PAUSING;
+            pausing_.notify_one();
+            running_.wait(lock);
+        }
+        map_update_.wait(lock);
+        auto t1 = std::chrono::steady_clock::now();
+        Optimize();
+        auto t2 = std::chrono::steady_clock::now();
+        auto time_used = std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);
+        LOG(INFO) << "Backend cost time: " << time_used.count() << " seconds.";
+    }
+
     while (true)
     {
         std::this_thread::sleep_for(std::chrono::seconds(3));

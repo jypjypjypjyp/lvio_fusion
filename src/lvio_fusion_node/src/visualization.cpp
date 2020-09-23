@@ -30,6 +30,18 @@ void pub_odometry(Estimator::Ptr estimator, double time)
             pose_stamped.pose.position.y = position.y();
             pose_stamped.pose.position.z = position.z();
             path.poses.push_back(pose_stamped);
+            if(frame.second->loop)
+            {
+                auto position = frame.second->loop->pose.inverse().translation();
+                geometry_msgs::PoseStamped pose_stamped_loop;
+                pose_stamped_loop.header.stamp = ros::Time(frame.first);
+                pose_stamped_loop.header.frame_id = "world";
+                pose_stamped_loop.pose.position.x = position.x();
+                pose_stamped_loop.pose.position.y = position.y();
+                pose_stamped_loop.pose.position.z = position.z();
+                path.poses.push_back(pose_stamped_loop);
+                path.poses.push_back(pose_stamped);
+            }
         }
         path.header.stamp = ros::Time(time);
         path.header.frame_id = "world";

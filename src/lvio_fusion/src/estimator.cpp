@@ -69,7 +69,7 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int is_semantic
         Config::Get<double>("range")));
 
     map = Map::Ptr(new Map());
-    if(Config::Get<int>("use_loop"))
+    if (Config::Get<int>("use_loop"))
     {
         map->relocation = Relocation::Ptr(new Relocation(Config::Get<std::string>("voc_path")));
     }
@@ -82,6 +82,11 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int is_semantic
     backend->SetMap(map);
     backend->SetCameras(camera1, camera2);
     backend->SetFrontend(frontend);
+
+    mapping = Mapping::Ptr(new Mapping());
+    mapping->SetCamera(camera1);
+    mapping->SetMap(map);
+    mapping->SetBackend(backend);
 
     if (use_navsat)
     {
@@ -123,11 +128,7 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int is_semantic
         scan_registration->SetLidar(lidar);
         scan_registration->SetMap(map);
 
-        mapping = Mapping::Ptr(new Mapping());
         mapping->SetLidar(lidar);
-        mapping->SetCamera(camera1);
-        mapping->SetMap(map);
-        mapping->SetBackend(backend);
 
         backend->SetLidar(lidar);
         backend->SetScanRegistration(scan_registration);
@@ -167,7 +168,7 @@ void Estimator::InputPointCloud(double time, Point3Cloud::Ptr point_cloud)
     auto t2 = std::chrono::steady_clock::now();
     auto time_used =
         std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);
-    if(time_used.count() > 1e-2)
+    if (time_used.count() > 1e-2)
         LOG(INFO) << "Scan Registration cost time: " << time_used.count() << " seconds.";
 }
 

@@ -25,9 +25,15 @@ public:
 private:
     void RelocationLoop();
 
-    void DetectLoop(Frame::Ptr frame_);
+    bool DetectLoop(Frame::Ptr frame);
 
-    void AddKeyFrameIntoVoc(Frame::Ptr frame_);
+    void AddKeyFrameIntoVoc(Frame::Ptr frame);
+
+    void PnP(Frame::Ptr frame);
+
+    void VisualAssociate(Frame::Ptr frame, Frame::Ptr base_frame);
+
+    void LidarAssociate(Frame::Ptr frame, Frame::Ptr base_frame);
     
     std::thread thread_;
     cv::Ptr<cv::Feature2D> detector_;
