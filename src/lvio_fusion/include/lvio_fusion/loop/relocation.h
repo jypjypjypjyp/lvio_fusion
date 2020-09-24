@@ -29,11 +29,7 @@ private:
 
     void AddKeyFrameIntoVoc(Frame::Ptr frame);
 
-    void PnP(Frame::Ptr frame);
-
-    void VisualAssociate(Frame::Ptr frame, Frame::Ptr base_frame);
-
-    void LidarAssociate(Frame::Ptr frame, Frame::Ptr base_frame);
+    void Associate(Frame::Ptr frame);
     
     std::thread thread_;
     cv::Ptr<cv::Feature2D> detector_;
