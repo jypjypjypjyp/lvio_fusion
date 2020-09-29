@@ -82,3 +82,6 @@ num_features_needed_for_keyframe: 120
 
 # backend
 range: 7
+
+# loop
+voc_path: '/home/jyp/Projects/lvio-fusion/misc/orbvoc.dbow3'

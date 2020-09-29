@@ -162,17 +162,18 @@ void Frontend::CreateKeyframe(bool need_new_features)
     LOG(INFO) << "Add a keyframe " << current_frame->id;
     // update backend because we have a new keyframe
     backend_.lock()->UpdateMap();
+    relocation_->UpdateMap();
 }
 
 bool Frontend::InitFramePoseByPnP()
 {
     std::vector<cv::Point3d> points_3d;
-    std::vector<cv::Point2f> points_2d;
+    std::vector<cv::Point2d> points_2d;
     for (auto feature_pair : current_frame->features_left)
     {
         auto feature = feature_pair.second;
         auto camera_point = feature->landmark.lock();
-        points_2d.push_back(eigen2cv(feature->keypoint));
+        points_2d.push_back(feature->keypoint);
         Vector3d p = position_cache_[camera_point->id];
         points_3d.push_back(cv::Point3f(p.x(), p.y(), p.z()));
     }
@@ -195,7 +196,7 @@ bool Frontend::InitFramePoseByPnP()
 int Frontend::TrackLastFrame()
 {
     // use LK flow to estimate points in the last image
-    std::vector<cv::Point2f> kps_last, kps_current;
+    std::vector<cv::Point2d> kps_last, kps_current;
     std::vector<visual::Landmark::Ptr> landmarks;
     for (auto feature_pair : last_frame->features_left)
     {
@@ -204,8 +205,8 @@ int Frontend::TrackLastFrame()
         auto camera_point = feature->landmark.lock();
         auto px = camera_left_->World2Pixel(position_cache_[camera_point->id], current_frame->pose);
         landmarks.push_back(camera_point);
-        kps_last.push_back(eigen2cv(feature->keypoint));
-        kps_current.push_back(cv::Point2f(px[0], px[1]));
+        kps_last.push_back(feature->keypoint);
+        kps_current.push_back(cv::Point2d(px[0], px[1]));
     }
 
     std::vector<uchar> status;
@@ -228,7 +229,7 @@ int Frontend::TrackLastFrame()
         if (status[i])
         {
             cv::arrowedLine(img_track, kps_current[i], kps_last[i], cv::Scalar(0, 255, 0), 1, 8, 0, 0.2);
-            auto feature = visual::Feature::Create(current_frame, cv2eigen(kps_current[i]), landmarks[i]);
+            auto feature = visual::Feature::Create(current_frame, kps_current[i], landmarks[i]);
             current_frame->AddFeature(feature);
             num_good_pts++;
         }
@@ -259,8 +260,9 @@ bool Frontend::BuildMap()
     map_->InsertKeyFrame(current_frame);
     LOG(INFO) << "Initial map created with " << num_new_features << " map points";
 
-    // update backend because we have a new keyframe
+    // update backend and loop because we have a new keyframe
     backend_.lock()->UpdateMap();
+    relocation_->UpdateMap();
     return true;
 }
 
@@ -270,10 +272,10 @@ int Frontend::DetectNewFeatures()
     for (auto feature_pair : current_frame->features_left)
     {
         auto feature = feature_pair.second;
-        cv::rectangle(mask, eigen2cv(feature->keypoint - Vector2d(10, 10)), eigen2cv(feature->keypoint + Vector2d(10, 10)), 0, cv::FILLED);
+        cv::rectangle(mask, feature->keypoint - cv::Point2d(10, 10), feature->keypoint + cv::Point2d(10, 10), 0, cv::FILLED);
     }
 
-    std::vector<cv::Point2f> kps_left, kps_right;
+    std::vector<cv::Point2d> kps_left, kps_right;
     cv::goodFeaturesToTrack(current_frame->image_left, kps_left, num_features_ - current_frame->features_left.size(), 0.01, 30, mask);
 
     // use LK flow to estimate points in the right image
@@ -304,8 +306,8 @@ int Frontend::DetectNewFeatures()
             if ((camera_left_->Robot2Pixel(p_robot) - kp_left).norm() < 0.5 && (camera_right_->Robot2Pixel(p_robot) - kp_right).norm() < 0.5)
             {
                 auto new_landmark = visual::Landmark::Create(p_robot, camera_left_);
-                auto new_left_feature = visual::Feature::Create(current_frame, kp_left, new_landmark);
-                auto new_right_feature = visual::Feature::Create(current_frame, kp_right, new_landmark);
+                auto new_left_feature = visual::Feature::Create(current_frame, eigen2cv(kp_left), new_landmark);
+                auto new_right_feature = visual::Feature::Create(current_frame, eigen2cv(kp_right), new_landmark);
                 new_right_feature->is_on_left_image = false;
                 new_landmark->AddObservation(new_left_feature);
                 new_landmark->AddObservation(new_right_feature);
@@ -327,8 +329,10 @@ int Frontend::DetectNewFeatures()
 bool Frontend::Reset()
 {
     backend_.lock()->Pause();
+    relocation_->Pause();
     map_->Reset();
     backend_.lock()->Continue();
+    relocation_->Continue();
     status = FrontendStatus::BUILDING;
     LOG(INFO) << "Reset Succeed";
     return true;

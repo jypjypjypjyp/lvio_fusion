@@ -37,15 +37,9 @@ public:
         camera_right_ = right;
     }
 
-    void SetLidar(Lidar::Ptr lidar)
-    {
-        lidar_ = lidar;
-    }
+    void SetLidar(Lidar::Ptr lidar) { lidar_ = lidar; }
 
-    void SetImu(Imu::Ptr imu)
-    {
-        imu_ = imu;
-    }
+    void SetImu(Imu::Ptr imu) { imu_ = imu; }
 
     void SetMap(Map::Ptr map) { map_ = map; }
 
@@ -69,13 +63,20 @@ public:
     BackendStatus status = BackendStatus::RUNNING;
 
 private:
+    enum class ProblemType
+    {
+        Optimize,
+        ForwardPropagate,
+        BackwardPropagate
+    };
+
     void BackendLoop();
 
     void Optimize(bool full = false);
 
-    void Propagate(double time);
+    void ForwardPropagate(double time);
 
-    void BuildProblem(Frames &active_kfs, ceres::Problem &problem, bool propagate);
+    void BuildProblem(Frames &active_kfs, ceres::Problem &problem, ProblemType type);
 
     Map::Ptr map_;
     std::weak_ptr<Frontend> frontend_;

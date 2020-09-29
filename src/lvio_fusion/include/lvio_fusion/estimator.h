@@ -6,8 +6,9 @@
 #include "lvio_fusion/common.h"
 #include "lvio_fusion/frontend.h"
 #include "lvio_fusion/imu/initializer.h"
-#include "lvio_fusion/loop/mapping.h"
 #include "lvio_fusion/lidar/scan_registration.h"
+#include "lvio_fusion/loop/mapping.h"
+#include "lvio_fusion/loop/relocation.h"
 #include "lvio_fusion/semantic/detected_object.h"
 
 namespace lvio_fusion
@@ -28,11 +29,12 @@ public:
 
     void InputIMU(double time, Vector3d acc, Vector3d gyr);
 
-    bool Init(int use_imu, int use_lidar, int use_navsat, int is_semantic);
+    bool Init(int use_imu, int use_lidar, int use_navsat, int use_loop, int is_semantic);
 
+    Map::Ptr map;
     Frontend::Ptr frontend;
     Backend::Ptr backend;
-    Map::Ptr map;
+    Relocation::Ptr relocation;
     ScanRegistration::Ptr scan_registration;
     Mapping::Ptr mapping;
     Initializer::Ptr initializer;

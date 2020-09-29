@@ -5,7 +5,6 @@
 #include "lvio_fusion/frame.h"
 #include "lvio_fusion/navsat/navsat.h"
 #include "lvio_fusion/visual/landmark.h"
-#include "lvio_fusion/loop/relocation.h"
 
 namespace lvio_fusion
 {
@@ -48,7 +47,6 @@ public:
     Frame::Ptr current_frame;
     NavsatMap::Ptr navsat_map;
     PointRGBCloud simple_map;
-    Relocation::Ptr relocation;
 
 private:
     std::mutex data_mutex_;

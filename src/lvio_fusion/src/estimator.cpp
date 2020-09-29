@@ -19,7 +19,7 @@ Matrix3d NavsatError::sqrt_info = 10 * Matrix3d::Identity();
 Estimator::Estimator(std::string &config_path)
     : config_file_path_(config_path) {}
 
-bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int is_semantic)
+bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, int is_semantic)
 {
     // read from config file
     if (!Config::SetParameterFile(config_file_path_))
@@ -69,10 +69,6 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int is_semantic
         Config::Get<double>("range")));
 
     map = Map::Ptr(new Map());
-    if (Config::Get<int>("use_loop"))
-    {
-        map->relocation = Relocation::Ptr(new Relocation(Config::Get<std::string>("voc_path")));
-    }
 
     frontend->SetBackend(backend);
     frontend->SetMap(map);
@@ -88,6 +84,13 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int is_semantic
     mapping->SetMap(map);
     mapping->SetBackend(backend);
 
+    if (use_loop)
+    {
+        relocation = Relocation::Ptr(new Relocation(Config::Get<std::string>("voc_path")));
+        relocation->SetCameras(camera1, camera2);
+        relocation->SetMap(map);
+        frontend->SetRelocation(relocation);
+    }
     if (use_navsat)
     {
         NavsatMap::Ptr navsat_map(new NavsatMap(map));
@@ -132,6 +135,11 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int is_semantic
 
         backend->SetLidar(lidar);
         backend->SetScanRegistration(scan_registration);
+        if(relocation)
+        {
+            relocation->SetLidar(lidar);
+            relocation->SetScanRegistration(scan_registration);
+        }
 
         frontend->flags += Flag::Laser;
     }

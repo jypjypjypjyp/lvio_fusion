@@ -1,5 +1,8 @@
 #include "lvio_fusion/loop/relocation.h"
+#include "lvio_fusion/utility.h"
+
 #include <DBoW3/QueryResults.h>
+#include <opencv2/core/eigen.hpp>
 
 namespace lvio_fusion
 {
@@ -13,18 +16,52 @@ Relocation::Relocation(std::string voc_path)
     head_ = 0;
 }
 
+void Relocation::UpdateMap()
+{
+    map_update_.notify_one();
+}
+
+void Relocation::Pause()
+{
+    if (status == RelocationStatus::RUNNING)
+    {
+        std::unique_lock<std::mutex> lock(pausing_mutex_);
+        status = RelocationStatus::TO_PAUSE;
+        pausing_.wait(lock);
+    }
+}
+
+void Relocation::Continue()
+{
+    if (status == RelocationStatus::PAUSING)
+    {
+        status = RelocationStatus::RUNNING;
+        running_.notify_one();
+    }
+}
+
 void Relocation::RelocationLoop()
 {
     while (true)
     {
-        while (head_ < frames_.size())
+        std::unique_lock<std::mutex> lock(running_mutex_);
+        if (status == RelocationStatus::TO_PAUSE)
         {
-            AddKeyFrameIntoVoc(frames_[head_]);
-            if(DetectLoop(frames_[head_]))
+            status = RelocationStatus::PAUSING;
+            pausing_.notify_one();
+            running_.wait(lock);
+        }
+        map_update_.wait(lock);
+        auto new_kfs = map_->GetKeyFrames(head_);
+        for (auto kf_pair : new_kfs)
+        {
+            Frame::Ptr frame = kf_pair.second, frame_old;
+            AddKeyFrameIntoVoc(frame);
+            if (DetectLoop(frame, frame_old))
             {
-                Associate(frames_[head_]);
+                Associate(frame);
             }
-            head_++;
+            head_ = kf_pair.first;
         }
         std::chrono::milliseconds dura(100);
         std::this_thread::sleep_for(dura);
@@ -33,15 +70,19 @@ void Relocation::RelocationLoop()
 
 void Relocation::AddKeyFrameIntoVoc(Frame::Ptr frame)
 {
-    static int thershold = 20;
     // compute descriptors
     std::vector<cv::KeyPoint> keypoints;
-    cv::FAST(frame->image_left, keypoints, 20, true);
+    for (auto pair : frame->features_left)
+    {
+        keypoints.push_back(cv::KeyPoint(pair.second->keypoint, 1));
+    }
     detector_->compute(frame->image_left, keypoints, frame->descriptors);
-    db_.add(frame->descriptors);
+    LOG(INFO) << frame->descriptors;
+    DBoW3::EntryId id = db_.add(frame->descriptors);
+    map_db_to_frames_.insert(std::make_pair(id, frame->time));
 }
 
-bool Relocation::DetectLoop(Frame::Ptr frame)
+bool Relocation::DetectLoop(Frame::Ptr frame, Frame::Ptr &frame_old)
 {
     //first query; then add this frame into database!
     DBoW3::QueryResults ret;
@@ -58,7 +99,7 @@ bool Relocation::DetectLoop(Frame::Ptr frame)
                 find_loop = true;
             }
         }
-    
+
     if (find_loop && frame->id > 20)
     {
         int min_index = -1;
@@ -67,7 +108,7 @@ bool Relocation::DetectLoop(Frame::Ptr frame)
             if (min_index == -1 || (ret[i].Id < min_index && ret[i].Score > 0.015))
                 min_index = ret[i].Id;
         }
-        frame->loop = frames_[min_index];
+        frame_old = map_->GetAllKeyFrames()[map_db_to_frames_[min_index]];
         return true;
     }
     return false;
@@ -75,159 +116,93 @@ bool Relocation::DetectLoop(Frame::Ptr frame)
 
 void Relocation::Associate(Frame::Ptr frame)
 {
-    // Frame::Ptr base_frame = frame->loop;
-    
-	// Eigen::Vector3d PnP_T_old;
-	// Eigen::Matrix3d PnP_R_old;
-	// Eigen::Vector3d relative_t;
-	// Quaterniond relative_q;
-	// double relative_yaw;
-	// if ((int)matched_2d_cur.size() > MIN_LOOP_NUM)
-	// {
-	// 	status.clear();
-	//     PnPRANSAC(matched_2d_old_norm, matched_3d, status, PnP_T_old, PnP_R_old);
-	// }
-
-	// if ((int)matched_2d_cur.size() > MIN_LOOP_NUM)
-	// {
-	//     relative_t = PnP_R_old.transpose() * (origin_vio_T - PnP_T_old);
-	//     relative_q = PnP_R_old.transpose() * origin_vio_R;
-	//     relative_yaw = Utility::normalizeAngle(Utility::R2ypr(origin_vio_R).x() - Utility::R2ypr(PnP_R_old).x());
-	//     //printf("PNP relative\n");
-	//     //cout << "pnp relative_t " << relative_t.transpose() << endl;
-	//     //cout << "pnp relative_yaw " << relative_yaw << endl;
-	//     if (abs(relative_yaw) < 30.0 && relative_t.norm() < 20.0)
-	//     {
-
-	//     	has_loop = true;
-	//     	loop_index = old_kf->index;
-	//     	loop_info << relative_t.x(), relative_t.y(), relative_t.z(),
-	//     	             relative_q.w(), relative_q.x(), relative_q.y(), relative_q.z(),
-	//     	             relative_yaw;
-	//         return true;
-	//     }
-	// }
-	// //printf("loop final use num %d %lf--------------- \n", (int)matched_2d_cur.size(), t_match.toc());
-	// return false;
-
-
+    Frame::Ptr frame_old = frame->loop;
+    std::vector<cv::Point3d> points_3d;
+    std::vector<cv::Point2d> points_2d;
+    SearchByBRIEFDes(frame, frame_old, points_3d, points_2d);
+    if (UpdateFramePoseByPnP(frame, points_3d, points_2d) && lidar_)
+    {
+        UpdateFramePoseByLidar(frame, frame_old);
+    }
 }
 
-// void KeyFrame::PnPRANSAC(const vector<cv::Point2f> &matched_2d_old_norm,
-//                          const std::vector<cv::Point3f> &matched_3d,
-//                          std::vector<uchar> &status,
-//                          Eigen::Vector3d &PnP_T_old, Eigen::Matrix3d &PnP_R_old)
-// {
-// 	//for (int i = 0; i < matched_3d.size(); i++)
-// 	//	printf("3d x: %f, y: %f, z: %f\n",matched_3d[i].x, matched_3d[i].y, matched_3d[i].z );
-// 	//printf("match size %d \n", matched_3d.size());
-//     cv::Mat r, rvec, t, D, tmp_r;
-//     cv::Mat K = (cv::Mat_<double>(3, 3) << 1.0, 0, 0, 0, 1.0, 0, 0, 0, 1.0);
-//     Matrix3d R_inital;
-//     Vector3d P_inital;
-//     Matrix3d R_w_c = origin_vio_R * qic;
-//     Vector3d T_w_c = origin_vio_T + origin_vio_R * tic;
+void Relocation::SearchByBRIEFDes(Frame::Ptr frame, Frame::Ptr frame_old, std::vector<cv::Point3d> &points_3d, std::vector<cv::Point2d> &points_2d)
+{
+    auto descriptors = mat2briefs(frame);
+    auto descriptors_old = mat2briefs(frame_old);
+    for (auto pair : descriptors)
+    {
+        unsigned long best_id = 0;
+        if (SearchInAera(pair.second, descriptors_old, best_id))
+        {
+            points_2d.push_back(frame_old->features_left[best_id]->keypoint);
+            points_3d.push_back(eigen2cv(frame_old->features_left[best_id]->landmark.lock()->position));
+        }
+    }
+}
 
-//     R_inital = R_w_c.inverse();
-//     P_inital = -(R_inital * T_w_c);
+bool Relocation::SearchInAera(const BRIEF descriptor, const std::map<unsigned long, BRIEF> &descriptors_old, unsigned long &best_id)
+{
+    cv::Point2d best_pt;
+    int best_distance = 256;
+    for (auto pair : descriptors_old)
+    {
+        int distance = Hamming(descriptor, pair.second);
+        if (distance < best_distance)
+        {
+            best_distance = distance;
+            best_id = pair.first;
+        }
+    }
+    return best_distance < 160;
+}
 
-//     cv::eigen2cv(R_inital, tmp_r);
-//     cv::Rodrigues(tmp_r, rvec);
-//     cv::eigen2cv(P_inital, t);
+int Relocation::Hamming(const BRIEF &a, const BRIEF &b)
+{
+    BRIEF xor_of_bitset = a ^ b;
+    int dis = xor_of_bitset.count();
+    return dis;
+}
 
-//     cv::Mat inliers;
-//     TicToc t_pnp_ransac;
+bool Relocation::UpdateFramePoseByPnP(Frame::Ptr frame, std::vector<cv::Point3d> points_3d, std::vector<cv::Point2d> points_2d)
+{
+    cv::Mat K;
+    cv::eigen2cv(camera_left_->K(), K);
+    cv::Mat rvec, tvec, inliers, D, cv_R;
+    if (cv::solvePnPRansac(points_3d, points_2d, K, D, rvec, tvec, false, 100, 8.0F, 0.98, cv::noArray(), cv::SOLVEPNP_EPNP))
+    {
+        cv::Rodrigues(rvec, cv_R);
+        Matrix3d R;
+        cv::cv2eigen(cv_R, R);
+        frame->pose = camera_left_->extrinsic.inverse() *
+                      SE3d(SO3d(R), Vector3d(tvec.at<double>(0, 0), tvec.at<double>(1, 0), tvec.at<double>(2, 0)));
+        return true;
+    }
+    return false;
+}
 
-//     if (CV_MAJOR_VERSION < 3)
-//         solvePnPRansac(matched_3d, matched_2d_old_norm, K, D, rvec, t, true, 100, 10.0 / 460.0, 100, inliers);
-//     else
-//     {
-//         if (CV_MINOR_VERSION < 2)
-//             solvePnPRansac(matched_3d, matched_2d_old_norm, K, D, rvec, t, true, 100, sqrt(10.0 / 460.0), 0.99, inliers);
-//         else
-//             solvePnPRansac(matched_3d, matched_2d_old_norm, K, D, rvec, t, true, 100, 10.0 / 460.0, 0.99, inliers);
+void Relocation::UpdateFramePoseByLidar(Frame::Ptr frame, Frame::Ptr frame_old)
+{
+    ceres::Problem problem;
+    ceres::LossFunction *lidar_loss_function = new ceres::HuberLoss(0.1);
+    ceres::LocalParameterization *local_parameterization = new ceres::ProductParameterization(
+        new ceres::EigenQuaternionParameterization(),
+        new ceres::IdentityParameterization(3));
 
-//     }
+    double *para_kf = frame->pose.data();
+    problem.AddParameterBlock(para_kf, SE3d::num_parameters, local_parameterization);
+    double *para_kf_old = frame_old->pose.data();
+    problem.AddParameterBlock(para_kf_old, SE3d::num_parameters, local_parameterization);
+    problem.SetParameterBlockConstant(para_kf_old);
 
-//     for (int i = 0; i < (int)matched_2d_old_norm.size(); i++)
-//         status.push_back(0);
+    scan_registration_->Associate(frame, frame_old, problem, lidar_loss_function);
 
-//     for( int i = 0; i < inliers.rows; i++)
-//     {
-//         int n = inliers.at<int>(i);
-//         status[n] = 1;
-//     }
-
-//     cv::Rodrigues(rvec, r);
-//     Matrix3d R_pnp, R_w_c_old;
-//     cv::cv2eigen(r, R_pnp);
-//     R_w_c_old = R_pnp.transpose();
-//     Vector3d T_pnp, T_w_c_old;
-//     cv::cv2eigen(t, T_pnp);
-//     T_w_c_old = R_w_c_old * (-T_pnp);
-
-//     PnP_R_old = R_w_c_old * qic.transpose();
-//     PnP_T_old = T_w_c_old - PnP_R_old * tic;
-
-// }
-
-// void KeyFrame::searchByBRIEFDes(std::vector<cv::Point2f> &matched_2d_old,
-// 								std::vector<cv::Point2f> &matched_2d_old_norm,
-//                                 std::vector<uchar> &status,
-//                                 const std::vector<BRIEF::bitset> &descriptors_old,
-//                                 const std::vector<cv::KeyPoint> &keypoints_old,
-//                                 const std::vector<cv::KeyPoint> &keypoints_old_norm)
-// {
-//     for(int i = 0; i < (int)window_brief_descriptors.size(); i++)
-//     {
-//         cv::Point2f pt(0.f, 0.f);
-//         cv::Point2f pt_norm(0.f, 0.f);
-//         if (searchInAera(window_brief_descriptors[i], descriptors_old, keypoints_old, keypoints_old_norm, pt, pt_norm))
-//           status.push_back(1);
-//         else
-//           status.push_back(0);
-//         matched_2d_old.push_back(pt);
-//         matched_2d_old_norm.push_back(pt_norm);
-//     }
-
-// }
-
-// bool KeyFrame::searchInAera(const BRIEF::bitset window_descriptor,
-//                             const std::vector<BRIEF::bitset> &descriptors_old,
-//                             const std::vector<cv::KeyPoint> &keypoints_old,
-//                             const std::vector<cv::KeyPoint> &keypoints_old_norm,
-//                             cv::Point2f &best_match,
-//                             cv::Point2f &best_match_norm)
-// {
-//     cv::Point2f best_pt;
-//     int bestDist = 128;
-//     int bestIndex = -1;
-//     for(int i = 0; i < (int)descriptors_old.size(); i++)
-//     {
-
-//         int dis = HammingDis(window_descriptor, descriptors_old[i]);
-//         if(dis < bestDist)
-//         {
-//             bestDist = dis;
-//             bestIndex = i;
-//         }
-//     }
-//     //printf("best dist %d", bestDist);
-//     if (bestIndex != -1 && bestDist < 80)
-//     {
-//       best_match = keypoints_old[bestIndex].pt;
-//       best_match_norm = keypoints_old_norm[bestIndex].pt;
-//       return true;
-//     }
-//     else
-//       return false;
-// }
-
-// int KeyFrame::HammingDis(const BRIEF::bitset &a, const BRIEF::bitset &b)
-// {
-//     BRIEF::bitset xor_of_bitset = a ^ b;
-//     int dis = xor_of_bitset.count();
-//     return dis;
-// }
+    ceres::Solver::Options options;
+    options.linear_solver_type = ceres::DENSE_SCHUR;
+    options.function_tolerance = 1e-9;
+    options.num_threads = 4;
+    ceres::Solver::Summary summary;
+    ceres::Solve(options, &problem, &summary);
+}
 
 } // namespace lvio_fusion

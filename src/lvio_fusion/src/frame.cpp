@@ -52,7 +52,7 @@ void Frame::UpdateLabel()
     for (auto feature_pair : features_left)
     {
         auto camera_point = feature_pair.second->landmark.lock();
-        camera_point->label = GetLabelType(feature_pair.second->keypoint.x(), feature_pair.second->keypoint.y());
+        camera_point->label = GetLabelType(feature_pair.second->keypoint.x, feature_pair.second->keypoint.y);
     }
 }
 

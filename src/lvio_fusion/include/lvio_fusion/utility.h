@@ -33,9 +33,10 @@ inline void triangulate(const SE3d &pose0, const SE3d &pose1, const Vector3d &p0
     p_3d = (p_norm / p_norm(3)).head<3>();
 }
 
-inline Vector2d cv2eigen(const cv::Point2f &p) { return Vector2d(p.x, p.y); }
-
-inline cv::Point2f eigen2cv(const Vector2d &p) { return cv::Point2f(p.x(), p.y()); }
+inline Vector2d cv2eigen(const cv::Point2d &p) { return Vector2d(p.x, p.y); }
+inline Vector3d cv2eigen(const cv::Point3d &p) { return Vector3d(p.x, p.y, p.z); }
+inline cv::Point2d eigen2cv(const Vector2d &p) { return cv::Point2d(p.x(), p.y()); }
+inline cv::Point3d eigen2cv(const Vector3d &p) { return cv::Point3d(p.x(), p.y(), p.z()); }
 
 /**
  * line fitting

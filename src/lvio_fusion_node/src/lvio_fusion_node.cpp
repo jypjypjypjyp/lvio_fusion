@@ -9,6 +9,7 @@
 #include <opencv2/opencv.hpp>
 #include <pcl_conversions/pcl_conversions.h>
 #include <ros/ros.h>
+#include <sensor_msgs/Image.h>
 #include <sensor_msgs/NavSatFix.h>
 #include <sensor_msgs/PointCloud2.h>
 
@@ -292,7 +293,7 @@ int main(int argc, char **argv)
     }
     read_parameters(config_file);
     estimator = Estimator::Ptr(new Estimator(config_file));
-    assert(estimator->Init(use_imu, use_lidar, use_navsat, is_semantic) == true);
+    assert(estimator->Init(use_imu, use_lidar, use_navsat, use_loop, is_semantic) == true);
     estimator->frontend->flags = get_flags();
 
     ROS_WARN("waiting for image and imu...");

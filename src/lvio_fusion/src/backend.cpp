@@ -59,7 +59,7 @@ void Backend::BackendLoop()
     }
 }
 
-void Backend::BuildProblem(Frames &active_kfs, ceres::Problem &problem, bool propagate)
+void Backend::BuildProblem(Frames &active_kfs, ceres::Problem &problem, ProblemType type)
 {
     ceres::LossFunction *loss_function = new ceres::HuberLoss(1.0);
     ceres::LocalParameterization *local_parameterization = new ceres::ProductParameterization(
@@ -81,13 +81,13 @@ void Backend::BuildProblem(Frames &active_kfs, ceres::Problem &problem, bool pro
             ceres::CostFunction *cost_function;
             if (first_frame.lock()->time < start_time)
             {
-                cost_function = PoseOnlyReprojectionError::Create(feature->keypoint, landmark->ToWorld(), camera_left_);
+                cost_function = PoseOnlyReprojectionError::Create(cv2eigen(feature->keypoint), landmark->ToWorld(), camera_left_);
                 problem.AddResidualBlock(cost_function, loss_function, para_kf);
             }
             else if (first_frame.lock() != frame)
             {
                 double *para_fist_kf = first_frame.lock()->pose.data();
-                cost_function = TwoFrameReprojectionError::Create(landmark->position, feature->keypoint, camera_left_);
+                cost_function = TwoFrameReprojectionError::Create(landmark->position, cv2eigen(feature->keypoint), camera_left_);
                 problem.AddResidualBlock(cost_function, loss_function, para_fist_kf, para_kf);
             }
         }
@@ -114,7 +114,7 @@ void Backend::BuildProblem(Frames &active_kfs, ceres::Problem &problem, bool pro
     }
 
     // lidar constraints
-    if (lidar_ && !propagate)
+    if (lidar_ && type != ProblemType::ForwardPropagate)
     {
         ceres::LossFunction *lidar_loss_function = new ceres::HuberLoss(0.1);
         Frame::Ptr last_frame;
@@ -195,7 +195,7 @@ void Backend::Optimize(bool full)
     }
 
     ceres::Problem problem;
-    BuildProblem(active_kfs, problem, false);
+    BuildProblem(active_kfs, problem, ProblemType::Optimize);
 
     ceres::Solver::Options options;
     options.linear_solver_type = ceres::DENSE_SCHUR;
@@ -204,7 +204,6 @@ void Backend::Optimize(bool full)
     options.num_threads = 4;
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
-    LOG(INFO) << summary.FullReport();
 
     // reject outliers and clean the map
     for (auto kf_pair : active_kfs)
@@ -220,12 +219,12 @@ void Backend::Optimize(bool full)
             Vector2d error(0, 0);
             if (first_frame.lock()->time < active_kfs.begin()->first)
             {
-                PoseOnlyReprojectionError(feature->keypoint, landmark->ToWorld(), camera_left_)(para_kf, error.data());
+                PoseOnlyReprojectionError(cv2eigen(feature->keypoint), landmark->ToWorld(), camera_left_)(para_kf, error.data());
             }
             else if (first_frame.lock() != frame)
             {
                 double *para_fist_kf = first_frame.lock()->pose.data();
-                TwoFrameReprojectionError(landmark->position, feature->keypoint, camera_left_)(para_fist_kf, para_kf, error.data());
+                TwoFrameReprojectionError(landmark->position, cv2eigen(feature->keypoint), camera_left_)(para_fist_kf, para_kf, error.data());
             }
             if (error.norm() > 3)
             {
@@ -241,10 +240,10 @@ void Backend::Optimize(bool full)
 
     // propagate to the last frame
     head_ = (--active_kfs.end())->first;
-    Propagate(head_);
+    ForwardPropagate(head_);
 }
 
-void Backend::Propagate(double time)
+void Backend::ForwardPropagate(double time)
 {
     std::unique_lock<std::mutex> lock(frontend_.lock()->last_frame_mutex);
 
@@ -256,7 +255,7 @@ void Backend::Propagate(double time)
     }
 
     ceres::Problem problem;
-    BuildProblem(active_kfs, problem, true);
+    BuildProblem(active_kfs, problem, ProblemType::ForwardPropagate);
 
     ceres::Solver::Options options;
     options.linear_solver_type = ceres::DENSE_SCHUR;
