@@ -198,7 +198,7 @@ void Relocation::UpdateFramePoseByLidar(Frame::Ptr frame, Frame::Ptr frame_old)
     scan_registration_->Associate(frame, frame_old, problem, lidar_loss_function);
 
     ceres::Solver::Options options;
-    options.linear_solver_type = ceres::DENSE_SCHUR;
+    options.linear_solver_type = ceres::DENSE_NORMAL_CHOLESKY;
     options.function_tolerance = 1e-9;
     options.num_threads = 4;
     ceres::Solver::Summary summary;
