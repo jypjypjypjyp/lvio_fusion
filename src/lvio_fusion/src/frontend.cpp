@@ -92,7 +92,7 @@ void Frontend::AddImu(double time, Vector3d acc, Vector3d gyr)
 
 bool Frontend::Track()
 {
-    current_frame->pose = relative_motion * last_frame_pose_cache_;
+    current_frame->pose = relative_pose * last_frame_pose_cache_;
     TrackLastFrame();
     InitFramePoseByPnP();
     int inliers = current_frame->features_left.size();
@@ -138,7 +138,7 @@ bool Frontend::Track()
     {
         CreateKeyframe(false);
     }
-    relative_motion = current_frame->pose * last_frame_pose_cache_.inverse();
+    relative_pose = current_frame->pose * last_frame_pose_cache_.inverse();
     return true;
 }
 
@@ -162,7 +162,7 @@ void Frontend::CreateKeyframe(bool need_new_features)
     LOG(INFO) << "Add a keyframe " << current_frame->id;
     // update backend because we have a new keyframe
     backend_.lock()->UpdateMap();
-    relocation_->UpdateMap();
+    relocation_.lock()->UpdateMap();
 }
 
 bool Frontend::InitFramePoseByPnP()
@@ -262,7 +262,7 @@ bool Frontend::BuildMap()
 
     // update backend and loop because we have a new keyframe
     backend_.lock()->UpdateMap();
-    relocation_->UpdateMap();
+    relocation_.lock()->UpdateMap();
     return true;
 }
 
@@ -329,10 +329,10 @@ int Frontend::DetectNewFeatures()
 bool Frontend::Reset()
 {
     backend_.lock()->Pause();
-    relocation_->Pause();
+    relocation_.lock()->Pause();
     map_->Reset();
     backend_.lock()->Continue();
-    relocation_->Continue();
+    relocation_.lock()->Continue();
     status = FrontendStatus::BUILDING;
     LOG(INFO) << "Reset Succeed";
     return true;

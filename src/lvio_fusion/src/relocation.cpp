@@ -1,4 +1,5 @@
 #include "lvio_fusion/loop/relocation.h"
+#include "lvio_fusion/loop/loop_constraint.h"
 #include "lvio_fusion/utility.h"
 
 #include <DBoW3/QueryResults.h>
@@ -13,7 +14,7 @@ Relocation::Relocation(std::string voc_path)
     detector_ = cv::ORB::create();
     voc_ = DBoW3::Vocabulary(voc_path);
     db_ = DBoW3::Database(voc_, false, 0);
-    head_ = 0;
+    head = 0;
 }
 
 void Relocation::UpdateMap()
@@ -52,16 +53,16 @@ void Relocation::RelocationLoop()
             running_.wait(lock);
         }
         map_update_.wait(lock);
-        auto new_kfs = map_->GetKeyFrames(head_);
+        auto new_kfs = map_->GetKeyFrames(head);
         for (auto kf_pair : new_kfs)
         {
             Frame::Ptr frame = kf_pair.second, frame_old;
             AddKeyFrameIntoVoc(frame);
             if (DetectLoop(frame, frame_old))
             {
-                Associate(frame);
+                Associate(frame, frame_old);
             }
-            head_ = kf_pair.first;
+            head = kf_pair.first;
         }
         std::chrono::milliseconds dura(100);
         std::this_thread::sleep_for(dura);
@@ -114,15 +115,21 @@ bool Relocation::DetectLoop(Frame::Ptr frame, Frame::Ptr &frame_old)
     return false;
 }
 
-void Relocation::Associate(Frame::Ptr frame)
+void Relocation::Associate(Frame::Ptr frame, Frame::Ptr &frame_old)
 {
-    Frame::Ptr frame_old = frame->loop;
     std::vector<cv::Point3d> points_3d;
     std::vector<cv::Point2d> points_2d;
     SearchByBRIEFDes(frame, frame_old, points_3d, points_2d);
-    if (UpdateFramePoseByPnP(frame, points_3d, points_2d) && lidar_)
+    if (UpdateFramePoseByPnP(frame, points_3d, points_2d))
     {
-        UpdateFramePoseByLidar(frame, frame_old);
+        if (lidar_)
+        {
+            UpdateFramePoseByLidar(frame, frame_old);
+        }
+        loop::LoopConstraint::Ptr loop_constraint = loop::LoopConstraint::Ptr(new loop::LoopConstraint());
+        loop_constraint->relative_pose = frame->pose * frame_old->pose.inverse();
+        loop_constraint->frame_old = frame_old;
+        frame->loop_constraint = loop_constraint;
     }
 }
 

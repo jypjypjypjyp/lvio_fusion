@@ -57,7 +57,7 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
                                    SE3d(q_base_to_cam1, t_base_to_cam1)));
     LOG(INFO) << "Camera 2"
               << " extrinsics: " << t_base_to_cam1.transpose();
-
+    
     // create components and links
     frontend = Frontend::Ptr(new Frontend(
         Config::Get<int>("num_features"),
@@ -89,6 +89,7 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
         relocation = Relocation::Ptr(new Relocation(Config::Get<std::string>("voc_path")));
         relocation->SetCameras(camera1, camera2);
         relocation->SetMap(map);
+        relocation->SetBackend(backend);
         frontend->SetRelocation(relocation);
     }
     if (use_navsat)

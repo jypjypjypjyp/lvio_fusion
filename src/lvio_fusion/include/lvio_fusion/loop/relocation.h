@@ -75,15 +75,16 @@ public:
     void Continue();
 
     RelocationStatus status = RelocationStatus::RUNNING;
+    double head;
 
 private:
     void RelocationLoop();
 
-    bool DetectLoop(Frame::Ptr frame, Frame::Ptr &frame_old);
-
     void AddKeyFrameIntoVoc(Frame::Ptr frame);
 
-    void Associate(Frame::Ptr frame);
+    bool DetectLoop(Frame::Ptr frame, Frame::Ptr &frame_old);
+
+    void Associate(Frame::Ptr frame, Frame::Ptr &frame_old);
 
     void SearchByBRIEFDes(Frame::Ptr frame, Frame::Ptr frame_old, std::vector<cv::Point3d> &points_3d, std::vector<cv::Point2d> &points_2d);
 
@@ -107,7 +108,6 @@ private:
     std::condition_variable map_update_;
     cv::Ptr<cv::Feature2D> detector_;
     std::map<DBoW3::EntryId, double> map_db_to_frames_;
-    double head_;
 
     Camera::Ptr camera_left_;
     Camera::Ptr camera_right_;

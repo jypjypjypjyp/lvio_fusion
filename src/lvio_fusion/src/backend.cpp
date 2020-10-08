@@ -13,6 +13,7 @@ namespace lvio_fusion
 Backend::Backend(double range) : range_(range)
 {
     thread_ = std::thread(std::bind(&Backend::BackendLoop, this));
+    thread_global_ = std::thread(std::bind(&Backend::BackendLoop, this));
 }
 
 void Backend::UpdateMap()
@@ -39,6 +40,10 @@ void Backend::Continue()
     }
 }
 
+void Backend::NewLoop()
+{
+}
+
 void Backend::BackendLoop()
 {
     while (true)
@@ -56,6 +61,33 @@ void Backend::BackendLoop()
         auto t2 = std::chrono::steady_clock::now();
         auto time_used = std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);
         LOG(INFO) << "Backend cost time: " << time_used.count() << " seconds.";
+    }
+}
+
+void Backend::GlobalLoop()
+{
+    static double global_head = 0;
+    while (true)
+    {
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+        double relocation_head = std::min(ActiveTime(), relocation_.lock()->head);
+        Frames frames = map_->GetKeyFrames(global_head, relocation_head);
+        double start_time = 0, end_time = relocation_head;
+        bool has_loop = false;
+        for (auto kf_pair : frames)
+        {
+            if (kf_pair.second->loop_constraint)
+            {
+                has_loop = true;
+                start_time = std::max(kf_pair.first, start_time);
+                end_time = std::min(kf_pair.second->time, end_time);
+            }
+        }
+        global_head = relocation_head;
+        if (has_loop)
+        {
+            BackwardPropagate(start_time, end_time);
+        }
     }
 }
 
@@ -265,6 +297,11 @@ void Backend::ForwardPropagate(double time)
     ceres::Solve(options, &problem, &summary);
 
     frontend_.lock()->UpdateCache();
+}
+
+void Backend::BackwardPropagate(double start_time, double end_time)
+{
+    
 }
 
 } // namespace lvio_fusion

@@ -48,23 +48,6 @@ inline void Mapping::AddToWorld(const PointICloud &in, Frame::Ptr frame, PointRG
 
 void Mapping::MappingLoop()
 {
-    // while (true)
-    // {
-    //     std::unique_lock<std::mutex> lock(running_mutex_);
-    //     if (status == BackendStatus::TO_PAUSE)
-    //     {
-    //         status = BackendStatus::PAUSING;
-    //         pausing_.notify_one();
-    //         running_.wait(lock);
-    //     }
-    //     map_update_.wait(lock);
-    //     auto t1 = std::chrono::steady_clock::now();
-    //     Optimize();
-    //     auto t2 = std::chrono::steady_clock::now();
-    //     auto time_used = std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);
-    //     LOG(INFO) << "Backend cost time: " << time_used.count() << " seconds.";
-    // }
-
     while (true)
     {
         std::this_thread::sleep_for(std::chrono::seconds(3));
@@ -74,11 +57,19 @@ void Mapping::MappingLoop()
         {
             Frame::Ptr frame = iter->second;
             PointRGBCloud &map = map_->simple_map;
-            AddToWorld(frame->feature_lidar->points_sharp, frame, map);
-            AddToWorld(frame->feature_lidar->points_less_sharp, frame, map);
-            AddToWorld(frame->feature_lidar->points_flat, frame, map);
-            AddToWorld(frame->feature_lidar->points_less_flat, frame, map);
-            frame->feature_lidar.reset();
+            if (lidar_)
+            {
+                AddToWorld(frame->feature_lidar->points_sharp, frame, map);
+                AddToWorld(frame->feature_lidar->points_less_sharp, frame, map);
+                AddToWorld(frame->feature_lidar->points_flat, frame, map);
+                AddToWorld(frame->feature_lidar->points_less_flat, frame, map);
+                frame->feature_lidar.reset();
+            }
+            else
+            {
+                //TODO: visual mapping
+                // visual map points
+            }
             head_ = iter->first;
         }
         if (map_->simple_map.size() > 0)

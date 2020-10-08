@@ -7,7 +7,7 @@
 #include "lvio_fusion/semantic/detected_object.h"
 #include "lvio_fusion/visual/feature.h"
 #include "lvio_fusion/visual/landmark.h"
-#include <DBoW3/FeatureVector.h>
+#include "lvio_fusion/loop/loop_constraint.h"
 
 namespace lvio_fusion
 {
@@ -36,11 +36,10 @@ public:
     visual::Features features_left;             // extracted features in left image
     visual::Features features_right;            // corresponding features in right image, only for this frame
     lidar::Feature::Ptr feature_lidar;          // extracted features in lidar point cloud
-    imu::Preintegration::Ptr preintegration;
-    cv::Mat descriptors;
-    Frame::Ptr loop;
+    imu::Preintegration::Ptr preintegration;    // imu pre integration
+    cv::Mat descriptors;                        // orb descriptors
+    loop::LoopConstraint::Ptr loop_constraint;  // loop constraint
     SE3d pose;
-    Vector3d velocity;                          // velocity
 
 private:
     //NOTE: semantic map

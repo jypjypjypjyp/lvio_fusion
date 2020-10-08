@@ -9,6 +9,7 @@
 #include "lvio_fusion/lidar/scan_registration.h"
 #include "lvio_fusion/map.h"
 #include "lvio_fusion/visual/camera.hpp"
+#include "lvio_fusion/loop/relocation.h"
 
 #include <ceres/ceres.h>
 
@@ -55,6 +56,8 @@ public:
 
     void Continue();
 
+    void NewLoop();
+
     double ActiveTime()
     {
         return head_ - range_;
@@ -72,18 +75,24 @@ private:
 
     void BackendLoop();
 
+    void GlobalLoop();
+
     void Optimize(bool full = false);
 
     void ForwardPropagate(double time);
+
+    void BackwardPropagate(double start_time, double end_time);
 
     void BuildProblem(Frames &active_kfs, ceres::Problem &problem, ProblemType type);
 
     Map::Ptr map_;
     std::weak_ptr<Frontend> frontend_;
+    std::weak_ptr<Relocation> relocation_;
     ScanRegistration::Ptr scan_registration_;
     Initializer::Ptr initializer_;
 
     std::thread thread_;
+    std::thread thread_global_;
     std::mutex running_mutex_, pausing_mutex_;
     std::condition_variable running_;
     std::condition_variable pausing_;

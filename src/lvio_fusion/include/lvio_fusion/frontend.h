@@ -73,7 +73,7 @@ public:
     Frame::Ptr current_frame;
     Frame::Ptr last_frame;
     Frame::Ptr current_key_frame;
-    SE3d relative_motion;
+    SE3d relative_pose;
     std::mutex last_frame_mutex;
 
 private:
@@ -96,7 +96,7 @@ private:
     // data
     Map::Ptr map_;
     std::weak_ptr<Backend> backend_;
-    Relocation::Ptr relocation_;
+    std::weak_ptr<Relocation> relocation_;
     std::unordered_map<unsigned long, Vector3d> position_cache_;
     SE3d last_frame_pose_cache_;
 
