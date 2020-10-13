@@ -1,5 +1,4 @@
 #include "lvio_fusion/loop/relocation.h"
-#include "lvio_fusion/loop/loop_constraint.h"
 #include "lvio_fusion/utility.h"
 
 #include <DBoW3/QueryResults.h>
@@ -14,7 +13,6 @@ Relocation::Relocation(std::string voc_path)
     detector_ = cv::ORB::create();
     voc_ = DBoW3::Vocabulary(voc_path);
     db_ = DBoW3::Database(voc_, false, 0);
-    head = 0;
 }
 
 void Relocation::UpdateMap()
@@ -43,6 +41,10 @@ void Relocation::Continue()
 
 void Relocation::RelocationLoop()
 {
+    static bool is_last_loop = false;
+    static double end_time = DBL_MAX;
+    static double start_time = 0;
+    static double head = 0;
     while (true)
     {
         std::unique_lock<std::mutex> lock(running_mutex_);
@@ -56,14 +58,23 @@ void Relocation::RelocationLoop()
         auto new_kfs = map_->GetKeyFrames(head);
         for (auto kf_pair : new_kfs)
         {
-            Frame::Ptr frame = kf_pair.second, frame_old;
+            Frame::Ptr frame = kf_pair.second, old_frame;
             AddKeyFrameIntoVoc(frame);
-            if (DetectLoop(frame, frame_old))
+            bool is_loop = DetectLoop(frame, old_frame) && Associate(frame, old_frame);
+            if (is_loop)
             {
-                Associate(frame, frame_old);
+                start_time = frame->time;
+                end_time = std::min(end_time, old_frame->time);
             }
-            head = kf_pair.first;
+            else if (is_last_loop)
+            {
+                CorrectLoop(start_time, end_time);
+                end_time = DBL_MAX;
+                start_time = 0;
+            }
+            is_last_loop = is_loop;
         }
+        head = (--new_kfs.end())->first;
         std::chrono::milliseconds dura(100);
         std::this_thread::sleep_for(dura);
     }
@@ -83,7 +94,7 @@ void Relocation::AddKeyFrameIntoVoc(Frame::Ptr frame)
     map_db_to_frames_.insert(std::make_pair(id, frame->time));
 }
 
-bool Relocation::DetectLoop(Frame::Ptr frame, Frame::Ptr &frame_old)
+bool Relocation::DetectLoop(Frame::Ptr frame, Frame::Ptr &old_frame)
 {
     //first query; then add this frame into database!
     DBoW3::QueryResults ret;
@@ -109,40 +120,49 @@ bool Relocation::DetectLoop(Frame::Ptr frame, Frame::Ptr &frame_old)
             if (min_index == -1 || (ret[i].Id < min_index && ret[i].Score > 0.015))
                 min_index = ret[i].Id;
         }
-        frame_old = map_->GetAllKeyFrames()[map_db_to_frames_[min_index]];
+        old_frame = map_->GetAllKeyFrames()[map_db_to_frames_[min_index]];
         return true;
     }
     return false;
 }
 
-void Relocation::Associate(Frame::Ptr frame, Frame::Ptr &frame_old)
+bool Relocation::Associate(Frame::Ptr frame, Frame::Ptr &old_frame)
 {
     loop::LoopConstraint::Ptr loop_constraint = loop::LoopConstraint::Ptr(new loop::LoopConstraint());
-    if (UpdateFramePoseByPnP(frame, frame_old))
-    {
-        if (lidar_)
-        {
-            UpdateFramePoseByLidar(frame, frame_old);
-        }
-        loop_constraint->relative_pose = frame->pose * frame_old->pose.inverse();
-        loop_constraint->frame_old = frame_old;
-        frame->loop_constraint = loop_constraint;
-    }
-}
-
-void Relocation::SearchByBRIEFDes(Frame::Ptr frame, Frame::Ptr frame_old, std::vector<cv::Point3d> &points_3d, std::vector<cv::Point2d> &points_2d)
-{
+    std::vector<cv::Point3d> points_3d;
+    std::vector<cv::Point2d> points_2d;
+    // search by BRIEFDes
     auto descriptors = mat2briefs(frame);
-    auto descriptors_old = mat2briefs(frame_old);
+    auto descriptors_old = mat2briefs(old_frame);
     for (auto pair : descriptors)
     {
         unsigned long best_id = 0;
         if (SearchInAera(pair.second, descriptors_old, best_id))
         {
-            points_2d.push_back(frame_old->features_left[best_id]->keypoint);
-            points_3d.push_back(eigen2cv(frame_old->features_left[best_id]->landmark.lock()->position));
+            cv::Point2d point_2d = old_frame->features_left[best_id]->keypoint;
+            visual::Landmark::Ptr landmark = old_frame->features_left[best_id]->landmark.lock();
+            visual::Feature::Ptr new_left_feature = visual::Feature::Create(frame, point_2d, landmark);
+            loop_constraint->features_loop.insert(std::make_pair(landmark->id, new_left_feature));
+            points_2d.push_back(point_2d);
+            points_3d.push_back(eigen2cv(landmark->position));
         }
     }
+    // solve pnp ransca
+    cv::Mat K;
+    cv::eigen2cv(camera_left_->K(), K);
+    cv::Mat rvec, tvec, inliers, D, cv_R;
+    if (cv::solvePnPRansac(points_3d, points_2d, K, D, rvec, tvec, false, 100, 8.0F, 0.98, cv::noArray(), cv::SOLVEPNP_EPNP))
+    {
+        cv::Rodrigues(rvec, cv_R);
+        Matrix3d R;
+        cv::cv2eigen(cv_R, R);
+        loop_constraint->relative_pose = camera_left_->extrinsic.inverse() * SE3d(SO3d(R), Vector3d(tvec.at<double>(0, 0), tvec.at<double>(1, 0), tvec.at<double>(2, 0)));
+        loop_constraint->frame_old = old_frame;
+        frame->pose = loop_constraint->relative_pose * old_frame->pose;
+        frame->loop_constraint = loop_constraint;
+        return true;
+    }
+    return false;
 }
 
 bool Relocation::SearchInAera(const BRIEF descriptor, const std::map<unsigned long, BRIEF> &descriptors_old, unsigned long &best_id)
@@ -168,49 +188,50 @@ int Relocation::Hamming(const BRIEF &a, const BRIEF &b)
     return dis;
 }
 
-bool Relocation::UpdateFramePoseByPnP(Frame::Ptr frame, Frame::Ptr frame_old)
+// TODO
+void Relocation::CorrectLoop(double start_time, double end_time)
 {
-    std::vector<cv::Point3d> points_3d;
-    std::vector<cv::Point2d> points_2d;
-    SearchByBRIEFDes(frame, frame_old, points_3d, points_2d);
-
-    cv::Mat K;
-    cv::eigen2cv(camera_left_->K(), K);
-    cv::Mat rvec, tvec, inliers, D, cv_R;
-    if (cv::solvePnPRansac(points_3d, points_2d, K, D, rvec, tvec, false, 100, 8.0F, 0.98, cv::noArray(), cv::SOLVEPNP_EPNP))
+    double relocation_head = relocation_.lock()->head;
+    Frames frames = map_->GetKeyFrames(global_head, relocation_head);
+    Frame::Ptr frame, old_frame;
+    bool has_loop = false;
+    for (auto kf_pair : frames)
     {
-        cv::Rodrigues(rvec, cv_R);
-        Matrix3d R;
-        cv::cv2eigen(cv_R, R);
-        SE3d relative_pose = camera_left_->extrinsic.inverse() * SE3d(SO3d(R), Vector3d(tvec.at<double>(0, 0), tvec.at<double>(1, 0), tvec.at<double>(2, 0)));
-        frame->pose = relative_pose * frame_old->pose;
-        return true;
+        if (kf_pair.second->loop_constraint)
+        {
+            has_loop = true;
+            frame = kf_pair.second;
+            old_frame = frame->loop_constraint->frame_old;
+            break;
+        }
     }
-    return false;
+    global_head = relocation_head;
+    if (has_loop)
+    {
+        // Correct Loop
+        {
+            // forward
+            std::unique_lock<std::mutex> lock(running_mutex_);
+            std::unique_lock<std::mutex> lock(frontend_.lock()->last_frame_mutex);
+
+            Frame::Ptr last_frame = frontend_.lock()->last_frame;
+            Frames active_kfs = map_->GetKeyFrames(old_frame->time);
+            if (active_kfs.find(last_frame->time) == active_kfs.end())
+            {
+                active_kfs.insert(std::make_pair(last_frame->time, last_frame));
+            }
+            SE3d transform_pose = frame->pose.inverse() * frame->loop_constraint->relative_pose * old_frame->pose;
+            for (auto kf_pair : active_kfs)
+            {
+                kf_pair.second->pose = kf_pair.second->pose * transform_pose;
+                // TODO: Repropagate
+                // if(kf_pair.second->preintegration)
+                // {
+                //     kf_pair.second->preintegration->Repropagate();
+                // }
+            }
+            frontend_.lock()->UpdateCache();
+        }
+    }
 }
-
-void Relocation::UpdateFramePoseByLidar(Frame::Ptr frame, Frame::Ptr frame_old)
-{
-    ceres::Problem problem;
-    ceres::LossFunction *lidar_loss_function = new ceres::HuberLoss(0.1);
-    ceres::LocalParameterization *local_parameterization = new ceres::ProductParameterization(
-        new ceres::EigenQuaternionParameterization(),
-        new ceres::IdentityParameterization(3));
-
-    double *para_kf = frame->pose.data();
-    problem.AddParameterBlock(para_kf, SE3d::num_parameters, local_parameterization);
-    double *para_kf_old = frame_old->pose.data();
-    problem.AddParameterBlock(para_kf_old, SE3d::num_parameters, local_parameterization);
-    problem.SetParameterBlockConstant(para_kf_old);
-
-    scan_registration_->Associate(frame, frame_old, problem, lidar_loss_function);
-
-    ceres::Solver::Options options;
-    options.linear_solver_type = ceres::DENSE_NORMAL_CHOLESKY;
-    options.function_tolerance = 1e-9;
-    options.num_threads = 4;
-    ceres::Solver::Summary summary;
-    ceres::Solve(options, &problem, &summary);
-}
-
 } // namespace lvio_fusion

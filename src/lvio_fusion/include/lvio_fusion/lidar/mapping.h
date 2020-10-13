@@ -32,6 +32,11 @@ public:
         map_ = map;
     }
 
+    void SetScanRegistration(ScanRegistration::Ptr scan_registration)
+    {
+        scan_registration_ = scan_registration;
+    }
+
 private:
     void MappingLoop();
 
@@ -39,10 +44,15 @@ private:
 
     void Optimize();
 
+    void BuildGlobalMap(Frames& active_kfs);
+
     std::thread thread_;
+    std::mutex running_mutex_, pausing_mutex_;
+    std::condition_variable running_;
+    std::condition_variable pausing_;
+    std::condition_variable map_update_;
     Map::Ptr map_;
     ScanRegistration::Ptr scan_registration_;
-    double head_ = 0;
     Lidar::Ptr lidar_;
     Camera::Ptr camera_;
 };

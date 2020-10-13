@@ -87,7 +87,7 @@ private:
 
     void CreateKeyframe(bool need_new_features = true);
 
-    bool BuildMap();
+    bool InitMap();
 
     int DetectNewFeatures();
 

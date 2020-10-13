@@ -86,6 +86,7 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
         relocation->SetMap(map);
         frontend->SetRelocation(relocation);
     }
+
     if (use_navsat)
     {
         NavsatMap::Ptr navsat_map(new NavsatMap(map));
@@ -130,20 +131,13 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
         mapping->SetCamera(camera1);
         mapping->SetMap(map);
         mapping->SetLidar(lidar);
-
-        backend->SetLidar(lidar);
-        backend->SetScanRegistration(scan_registration);
-        if (relocation)
-        {
-            relocation->SetLidar(lidar);
-            relocation->SetScanRegistration(scan_registration);
-        }
+        mapping->SetScanRegistration(scan_registration);
 
         frontend->flags += Flag::Laser;
     }
 
     // semantic map
-    if (Config::Get<int>("is_semantic"))
+    if (is_semantic)
     {
         frontend->flags += Flag::Semantic;
     }

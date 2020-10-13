@@ -191,7 +191,6 @@ void ScanRegistration::Preprocess(PointICloud &points, Frame::Ptr frame)
         float dx = points.points[i - 5].x + points.points[i - 4].x + points.points[i - 3].x + points.points[i - 2].x + points.points[i - 1].x - 10 * points.points[i].x + points.points[i + 1].x + points.points[i + 2].x + points.points[i + 3].x + points.points[i + 4].x + points.points[i + 5].x;
         float dy = points.points[i - 5].y + points.points[i - 4].y + points.points[i - 3].y + points.points[i - 2].y + points.points[i - 1].y - 10 * points.points[i].y + points.points[i + 1].y + points.points[i + 2].y + points.points[i + 3].y + points.points[i + 4].y + points.points[i + 5].y;
         float dz = points.points[i - 5].z + points.points[i - 4].z + points.points[i - 3].z + points.points[i - 2].z + points.points[i - 1].z - 10 * points.points[i].z + points.points[i + 1].z + points.points[i + 2].z + points.points[i + 3].z + points.points[i + 4].z + points.points[i + 5].z;
-
         curvatures[i] = dx * dx + dy * dy + dz * dz;
         sort_index[i] = i;
         is_feature[i] = 0;
@@ -226,13 +225,13 @@ void ScanRegistration::Preprocess(PointICloud &points, Frame::Ptr frame)
                 if (is_feature[si] == 0 && curvatures[si] > 0.1)
                 {
                     num_largest_curvature++;
-                    if (num_largest_curvature <= 2) // mark sharp
+                    if (num_largest_curvature <= 2) // NOTE: change the number of sharpest points
                     {
                         label[si] = 2;
                         points_sharp.push_back(points.points[si]);
                         points_less_sharp.push_back(points.points[si]);
                     }
-                    else if (num_largest_curvature <= 20) // mark less sharp
+                    else if (num_largest_curvature <= 20) // NOTE: change the number of planar points
                     {
                         label[si] = 1;
                         points_less_sharp.push_back(points.points[si]);

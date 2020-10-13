@@ -25,7 +25,7 @@ bool Frontend::AddFrame(lvio_fusion::Frame::Ptr frame)
     switch (status)
     {
     case FrontendStatus::BUILDING:
-        BuildMap();
+        InitMap();
         break;
     case FrontendStatus::INITIALIZING:
     case FrontendStatus::TRACKING_GOOD:
@@ -46,7 +46,7 @@ bool Frontend::AddFrame(lvio_fusion::Frame::Ptr frame)
         }
     case FrontendStatus::LOST:
         Reset();
-        BuildMap();
+        InitMap();
         break;
     }
     last_frame = current_frame;
@@ -239,7 +239,7 @@ int Frontend::TrackLastFrame()
     return num_good_pts;
 }
 
-bool Frontend::BuildMap()
+bool Frontend::InitMap()
 {
     int num_new_features = DetectNewFeatures();
     if (num_new_features < num_features_init_)

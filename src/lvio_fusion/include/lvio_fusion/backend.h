@@ -38,8 +38,6 @@ public:
         camera_right_ = right;
     }
 
-    void SetLidar(Lidar::Ptr lidar) { lidar_ = lidar; }
-
     void SetImu(Imu::Ptr imu) { imu_ = imu; }
 
     void SetMap(Map::Ptr map) { map_ = map; }
@@ -80,12 +78,10 @@ private:
     std::condition_variable running_;
     std::condition_variable pausing_;
     std::condition_variable map_update_;
-    double head_ = 0;
     const double range_;
 
     Camera::Ptr camera_left_;
     Camera::Ptr camera_right_;
-    Lidar::Ptr lidar_;
     Imu::Ptr imu_;
 };
 

@@ -2,6 +2,7 @@
 #define lvio_fusion_LOOP_CONSTRAINT_H
 
 #include "lvio_fusion/common.h"
+#include "lvio_fusion/visual/feature.h"
 
 namespace lvio_fusion
 {
@@ -17,6 +18,7 @@ public:
     typedef std::shared_ptr<LoopConstraint> Ptr;
 
     std::shared_ptr<Frame> frame_old;
+    visual::Features features_loop;
     SE3d relative_pose;
 };
 

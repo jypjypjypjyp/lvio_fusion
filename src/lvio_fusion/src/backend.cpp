@@ -60,59 +60,6 @@ void Backend::BackendLoop()
     }
 }
 
-void Backend::GlobalLoop()
-{
-    static double global_head = 0;
-    while (true)
-    {
-        std::this_thread::sleep_for(std::chrono::seconds(1));
-        double relocation_head = relocation_.lock()->head;
-        Frames frames = map_->GetKeyFrames(global_head, relocation_head);
-        Frame::Ptr frame, frame_old;
-        bool has_loop = false;
-        for (auto kf_pair : frames)
-        {
-            if (kf_pair.second->loop_constraint)
-            {
-                has_loop = true;
-                frame = kf_pair.second;
-                frame_old = frame->loop_constraint->frame_old;
-                break;
-            }
-        }
-        global_head = relocation_head;
-        if (has_loop)
-        {
-            // Correct Loop
-            {
-                // forward
-                std::unique_lock<std::mutex> lock(running_mutex_);
-                std::unique_lock<std::mutex> lock(frontend_.lock()->last_frame_mutex);
-
-                Frame::Ptr last_frame = frontend_.lock()->last_frame;
-                Frames active_kfs = map_->GetKeyFrames(frame_old->time);
-                if (active_kfs.find(last_frame->time) == active_kfs.end())
-                {
-                    active_kfs.insert(std::make_pair(last_frame->time, last_frame));
-                }
-                SE3d transform_pose = frame->pose.inverse() * frame->loop_constraint->relative_pose * frame_old->pose;
-                for (auto kf_pair : active_kfs)
-                {
-                    kf_pair.second->pose = kf_pair.second->pose * transform_pose;
-                    // TODO: Repropagate
-                    // if(kf_pair.second->preintegration)
-                    // {
-                    //     kf_pair.second->preintegration->Repropagate();
-                    // }
-                }
-                frontend_.lock()->UpdateCache();
-            }
-            // backward
-            BackwardPropagate(frame_old->time, frame->time);
-        }
-    }
-}
-
 void Backend::BuildProblem(Frames &active_kfs, ceres::Problem &problem)
 {
     ceres::LossFunction *loss_function = new ceres::HuberLoss(1.0);
@@ -146,16 +93,6 @@ void Backend::BuildProblem(Frames &active_kfs, ceres::Problem &problem)
             }
         }
     }
-
-    // loop constraints
-    // if (type == ProblemType::BackwardPropagate)
-    // {
-    //     for (auto kf_pair : active_kfs)
-    //     {
-            
-    //     }
-    // }
-    
 
     // navsat constraints
     auto navsat_map = map_->navsat_map;
@@ -216,7 +153,8 @@ void Backend::BuildProblem(Frames &active_kfs, ceres::Problem &problem)
 
 void Backend::Optimize(bool full)
 {
-    map_->active_time = head_ - range_;
+    static double head = 0;
+    map_->active_time = std::max(0.0, head - range_);
     Frames active_kfs = map_->GetKeyFrames(full ? 0 : map_->active_time);
 
     // imu init
@@ -235,6 +173,7 @@ void Backend::Optimize(bool full)
     if (!full && map_->navsat_map && !navsat_map->initialized && map_->GetAllKeyFrames().size() >= navsat_map->num_frames_init)
     {
         navsat_map->Initialize();
+        // TODO: full optimize
         Optimize(true);
         return;
     }
@@ -284,8 +223,8 @@ void Backend::Optimize(bool full)
     }
 
     // propagate to the last frame
-    head_ = (--active_kfs.end())->first;
-    ForwardPropagate(head_);
+    head = (--active_kfs.end())->first;
+    ForwardPropagate(head);
 }
 
 void Backend::ForwardPropagate(double time)

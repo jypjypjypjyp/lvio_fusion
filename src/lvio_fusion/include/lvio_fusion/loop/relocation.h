@@ -3,8 +3,8 @@
 
 #include "lvio_fusion/common.h"
 #include "lvio_fusion/frame.h"
-#include "lvio_fusion/lidar/lidar.hpp"
-#include "lvio_fusion/lidar/scan_registration.h"
+#include "lvio_fusion/lidar/mapping.h"
+#include "lvio_fusion/loop/loop_constraint.h"
 #include "lvio_fusion/map.h"
 #include "lvio_fusion/visual/camera.hpp"
 
@@ -62,11 +62,9 @@ public:
         camera_right_ = right;
     }
 
-    void SetLidar(Lidar::Ptr lidar) { lidar_ = lidar; }
-
-    void SetScanRegistration(ScanRegistration::Ptr scan_registration) { scan_registration_ = scan_registration; }
-
     void SetMap(Map::Ptr map) { map_ = map; }
+
+    void SetMapping(Mapping::Ptr mapping) { mapping_ = mapping; }
 
     void UpdateMap();
 
@@ -75,31 +73,26 @@ public:
     void Continue();
 
     RelocationStatus status = RelocationStatus::RUNNING;
-    double head;
 
 private:
     void RelocationLoop();
 
     void AddKeyFrameIntoVoc(Frame::Ptr frame);
 
-    bool DetectLoop(Frame::Ptr frame, Frame::Ptr &frame_old);
+    bool DetectLoop(Frame::Ptr frame, Frame::Ptr &old_frame);
 
-    void Associate(Frame::Ptr frame, Frame::Ptr &frame_old);
+    void CorrectLoop(double start_time, double end_time);
 
-    void SearchByBRIEFDes(Frame::Ptr frame, Frame::Ptr frame_old, std::vector<cv::Point3d> &points_3d, std::vector<cv::Point2d> &points_2d);
+    bool Associate(Frame::Ptr frame, Frame::Ptr &old_frame);
 
     bool SearchInAera(const BRIEF descriptor, const std::map<unsigned long, BRIEF> &descriptors_old, unsigned long &best_id);
 
     int Hamming(const BRIEF &a, const BRIEF &b);
 
-    bool UpdateFramePoseByPnP(Frame::Ptr frame, Frame::Ptr frame_old);
-
-    void UpdateFramePoseByLidar(Frame::Ptr frame, Frame::Ptr frame_old);
-
     DBoW3::Database db_;
     DBoW3::Vocabulary voc_;
-    ScanRegistration::Ptr scan_registration_;
     Map::Ptr map_;
+    Mapping::Ptr mapping_;
 
     std::thread thread_;
     std::mutex running_mutex_, pausing_mutex_;
@@ -111,7 +104,6 @@ private:
 
     Camera::Ptr camera_left_;
     Camera::Ptr camera_right_;
-    Lidar::Ptr lidar_;
 };
 
 } // namespace lvio_fusion
