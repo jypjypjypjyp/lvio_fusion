@@ -48,6 +48,8 @@ public:
     NavsatMap::Ptr navsat_map;
     PointRGBCloud simple_map;
 
+    double active_time = 0;
+
 private:
     std::mutex data_mutex_;
     visual::Landmarks landmarks_;

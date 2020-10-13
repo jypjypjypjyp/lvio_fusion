@@ -7,7 +7,7 @@
 #include "lvio_fusion/frontend.h"
 #include "lvio_fusion/imu/initializer.h"
 #include "lvio_fusion/lidar/scan_registration.h"
-#include "lvio_fusion/loop/mapping.h"
+#include "lvio_fusion/lidar/mapping.h"
 #include "lvio_fusion/loop/relocation.h"
 #include "lvio_fusion/semantic/detected_object.h"
 

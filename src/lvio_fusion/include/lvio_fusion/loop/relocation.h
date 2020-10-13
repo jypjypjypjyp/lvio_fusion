@@ -92,7 +92,7 @@ private:
 
     int Hamming(const BRIEF &a, const BRIEF &b);
 
-    bool UpdateFramePoseByPnP(Frame::Ptr frame, std::vector<cv::Point3d> points_3d, std::vector<cv::Point2d> points_2d);
+    bool UpdateFramePoseByPnP(Frame::Ptr frame, Frame::Ptr frame_old);
 
     void UpdateFramePoseByLidar(Frame::Ptr frame, Frame::Ptr frame_old);
 

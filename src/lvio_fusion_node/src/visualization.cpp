@@ -30,9 +30,9 @@ void pub_odometry(Estimator::Ptr estimator, double time)
             pose_stamped.pose.position.y = position.y();
             pose_stamped.pose.position.z = position.z();
             path.poses.push_back(pose_stamped);
-            if(frame.second->loop)
+            if(frame.second->loop_constraint)
             {
-                auto position = frame.second->loop->pose.inverse().translation();
+                auto position = frame.second->loop_constraint->frame_old->pose.inverse().translation();
                 geometry_msgs::PoseStamped pose_stamped_loop;
                 pose_stamped_loop.header.stamp = ros::Time(frame.first);
                 pose_stamped_loop.header.frame_id = "world";

@@ -40,10 +40,6 @@ void Backend::Continue()
     }
 }
 
-void Backend::NewLoop()
-{
-}
-
 void Backend::BackendLoop()
 {
     while (true)
@@ -70,28 +66,54 @@ void Backend::GlobalLoop()
     while (true)
     {
         std::this_thread::sleep_for(std::chrono::seconds(1));
-        double relocation_head = std::min(ActiveTime(), relocation_.lock()->head);
+        double relocation_head = relocation_.lock()->head;
         Frames frames = map_->GetKeyFrames(global_head, relocation_head);
-        double start_time = 0, end_time = relocation_head;
+        Frame::Ptr frame, frame_old;
         bool has_loop = false;
         for (auto kf_pair : frames)
         {
             if (kf_pair.second->loop_constraint)
             {
                 has_loop = true;
-                start_time = std::max(kf_pair.first, start_time);
-                end_time = std::min(kf_pair.second->time, end_time);
+                frame = kf_pair.second;
+                frame_old = frame->loop_constraint->frame_old;
+                break;
             }
         }
         global_head = relocation_head;
         if (has_loop)
         {
-            BackwardPropagate(start_time, end_time);
+            // Correct Loop
+            {
+                // forward
+                std::unique_lock<std::mutex> lock(running_mutex_);
+                std::unique_lock<std::mutex> lock(frontend_.lock()->last_frame_mutex);
+
+                Frame::Ptr last_frame = frontend_.lock()->last_frame;
+                Frames active_kfs = map_->GetKeyFrames(frame_old->time);
+                if (active_kfs.find(last_frame->time) == active_kfs.end())
+                {
+                    active_kfs.insert(std::make_pair(last_frame->time, last_frame));
+                }
+                SE3d transform_pose = frame->pose.inverse() * frame->loop_constraint->relative_pose * frame_old->pose;
+                for (auto kf_pair : active_kfs)
+                {
+                    kf_pair.second->pose = kf_pair.second->pose * transform_pose;
+                    // TODO: Repropagate
+                    // if(kf_pair.second->preintegration)
+                    // {
+                    //     kf_pair.second->preintegration->Repropagate();
+                    // }
+                }
+                frontend_.lock()->UpdateCache();
+            }
+            // backward
+            BackwardPropagate(frame_old->time, frame->time);
         }
     }
 }
 
-void Backend::BuildProblem(Frames &active_kfs, ceres::Problem &problem, ProblemType type)
+void Backend::BuildProblem(Frames &active_kfs, ceres::Problem &problem)
 {
     ceres::LossFunction *loss_function = new ceres::HuberLoss(1.0);
     ceres::LocalParameterization *local_parameterization = new ceres::ProductParameterization(
@@ -125,6 +147,16 @@ void Backend::BuildProblem(Frames &active_kfs, ceres::Problem &problem, ProblemT
         }
     }
 
+    // loop constraints
+    // if (type == ProblemType::BackwardPropagate)
+    // {
+    //     for (auto kf_pair : active_kfs)
+    //     {
+            
+    //     }
+    // }
+    
+
     // navsat constraints
     auto navsat_map = map_->navsat_map;
     if (map_->navsat_map != nullptr && navsat_map->initialized)
@@ -141,26 +173,6 @@ void Backend::BuildProblem(Frames &active_kfs, ceres::Problem &problem, ProblemT
             {
                 ceres::CostFunction *cost_function = NavsatError::Create(navsat_point.position);
                 problem.AddResidualBlock(cost_function, navsat_loss_function, para_kf);
-            }
-        }
-    }
-
-    // lidar constraints
-    if (lidar_ && type != ProblemType::ForwardPropagate)
-    {
-        ceres::LossFunction *lidar_loss_function = new ceres::HuberLoss(0.1);
-        Frame::Ptr last_frame;
-        Frame::Ptr current_frame;
-        for (auto kf_pair : active_kfs)
-        {
-            if (kf_pair.second->feature_lidar)
-            {
-                current_frame = kf_pair.second;
-                if (last_frame)
-                {
-                    scan_registration_->Associate(current_frame, last_frame, problem, lidar_loss_function);
-                }
-                last_frame = current_frame;
             }
         }
     }
@@ -204,12 +216,13 @@ void Backend::BuildProblem(Frames &active_kfs, ceres::Problem &problem, ProblemT
 
 void Backend::Optimize(bool full)
 {
-    Frames active_kfs = map_->GetKeyFrames(full ? 0 : ActiveTime());
+    map_->active_time = head_ - range_;
+    Frames active_kfs = map_->GetKeyFrames(full ? 0 : map_->active_time);
 
     // imu init
     if (imu_ && !initializer_->initialized)
     {
-        Frames frames_init = map_->GetKeyFrames(0, ActiveTime(), initializer_->num_frames);
+        Frames frames_init = map_->GetKeyFrames(0, map_->active_time, initializer_->num_frames);
         if (frames_init.size() == initializer_->num_frames)
         {
             initializer_->Initialize(frames_init);
@@ -227,7 +240,7 @@ void Backend::Optimize(bool full)
     }
 
     ceres::Problem problem;
-    BuildProblem(active_kfs, problem, ProblemType::Optimize);
+    BuildProblem(active_kfs, problem);
 
     ceres::Solver::Options options;
     options.linear_solver_type = ceres::DENSE_SCHUR;
@@ -287,7 +300,7 @@ void Backend::ForwardPropagate(double time)
     }
 
     ceres::Problem problem;
-    BuildProblem(active_kfs, problem, ProblemType::ForwardPropagate);
+    BuildProblem(active_kfs, problem);
 
     ceres::Solver::Options options;
     options.linear_solver_type = ceres::DENSE_SCHUR;
@@ -301,7 +314,18 @@ void Backend::ForwardPropagate(double time)
 
 void Backend::BackwardPropagate(double start_time, double end_time)
 {
-    
+    Frames active_kfs = map_->GetKeyFrames(start_time, end_time);
+
+    ceres::Problem problem;
+    BuildProblem(active_kfs, problem);
+
+    ceres::Solver::Options options;
+    options.linear_solver_type = ceres::DENSE_SCHUR;
+    options.function_tolerance = 1e-9;
+    options.max_solver_time_in_seconds = 20;
+    options.num_threads = 4;
+    ceres::Solver::Summary summary;
+    ceres::Solve(options, &problem, &summary);
 }
 
 } // namespace lvio_fusion

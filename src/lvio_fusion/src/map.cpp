@@ -19,10 +19,10 @@ void Map::InsertLandmark(visual::Landmark::Ptr landmark)
     landmarks_.insert(make_pair(landmark->id, landmark));
 }
 
-// 1: start
-// 2: start -> end
-// 2: start -> num
-// 3: num -> end
+// 1: (start]
+// 2: (start -> end]
+// 2: (start -> num]
+// 3: (num -> end]
 Frames Map::GetKeyFrames(double start, double end, int num)
 {
     std::unique_lock<std::mutex> lock(data_mutex_);

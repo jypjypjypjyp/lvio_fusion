@@ -46,8 +46,6 @@ public:
 
     void SetFrontend(std::shared_ptr<Frontend> frontend) { frontend_ = frontend; }
 
-    void SetScanRegistration(ScanRegistration::Ptr scan_registration) { scan_registration_ = scan_registration; }
-
     void SetInitializer(Initializer::Ptr initializer) { initializer_ = initializer; }
 
     void UpdateMap();
@@ -56,23 +54,9 @@ public:
 
     void Continue();
 
-    void NewLoop();
-
-    double ActiveTime()
-    {
-        return head_ - range_;
-    }
-
     BackendStatus status = BackendStatus::RUNNING;
 
 private:
-    enum class ProblemType
-    {
-        Optimize,
-        ForwardPropagate,
-        BackwardPropagate
-    };
-
     void BackendLoop();
 
     void GlobalLoop();
@@ -83,12 +67,11 @@ private:
 
     void BackwardPropagate(double start_time, double end_time);
 
-    void BuildProblem(Frames &active_kfs, ceres::Problem &problem, ProblemType type);
+    void BuildProblem(Frames &active_kfs, ceres::Problem &problem);
 
     Map::Ptr map_;
     std::weak_ptr<Frontend> frontend_;
     std::weak_ptr<Relocation> relocation_;
-    ScanRegistration::Ptr scan_registration_;
     Initializer::Ptr initializer_;
 
     std::thread thread_;

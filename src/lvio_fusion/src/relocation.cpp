@@ -117,16 +117,13 @@ bool Relocation::DetectLoop(Frame::Ptr frame, Frame::Ptr &frame_old)
 
 void Relocation::Associate(Frame::Ptr frame, Frame::Ptr &frame_old)
 {
-    std::vector<cv::Point3d> points_3d;
-    std::vector<cv::Point2d> points_2d;
-    SearchByBRIEFDes(frame, frame_old, points_3d, points_2d);
-    if (UpdateFramePoseByPnP(frame, points_3d, points_2d))
+    loop::LoopConstraint::Ptr loop_constraint = loop::LoopConstraint::Ptr(new loop::LoopConstraint());
+    if (UpdateFramePoseByPnP(frame, frame_old))
     {
         if (lidar_)
         {
             UpdateFramePoseByLidar(frame, frame_old);
         }
-        loop::LoopConstraint::Ptr loop_constraint = loop::LoopConstraint::Ptr(new loop::LoopConstraint());
         loop_constraint->relative_pose = frame->pose * frame_old->pose.inverse();
         loop_constraint->frame_old = frame_old;
         frame->loop_constraint = loop_constraint;
@@ -171,8 +168,12 @@ int Relocation::Hamming(const BRIEF &a, const BRIEF &b)
     return dis;
 }
 
-bool Relocation::UpdateFramePoseByPnP(Frame::Ptr frame, std::vector<cv::Point3d> points_3d, std::vector<cv::Point2d> points_2d)
+bool Relocation::UpdateFramePoseByPnP(Frame::Ptr frame, Frame::Ptr frame_old)
 {
+    std::vector<cv::Point3d> points_3d;
+    std::vector<cv::Point2d> points_2d;
+    SearchByBRIEFDes(frame, frame_old, points_3d, points_2d);
+
     cv::Mat K;
     cv::eigen2cv(camera_left_->K(), K);
     cv::Mat rvec, tvec, inliers, D, cv_R;
@@ -181,8 +182,8 @@ bool Relocation::UpdateFramePoseByPnP(Frame::Ptr frame, std::vector<cv::Point3d>
         cv::Rodrigues(rvec, cv_R);
         Matrix3d R;
         cv::cv2eigen(cv_R, R);
-        frame->pose = camera_left_->extrinsic.inverse() *
-                      SE3d(SO3d(R), Vector3d(tvec.at<double>(0, 0), tvec.at<double>(1, 0), tvec.at<double>(2, 0)));
+        SE3d relative_pose = camera_left_->extrinsic.inverse() * SE3d(SO3d(R), Vector3d(tvec.at<double>(0, 0), tvec.at<double>(1, 0), tvec.at<double>(2, 0)));
+        frame->pose = relative_pose * frame_old->pose;
         return true;
     }
     return false;

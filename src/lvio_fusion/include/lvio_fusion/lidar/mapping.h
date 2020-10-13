@@ -1,9 +1,9 @@
 #ifndef lvio_fusion_MAPPING_H
 #define lvio_fusion_MAPPING_H
 
-#include "lvio_fusion/backend.h"
 #include "lvio_fusion/common.h"
 #include "lvio_fusion/lidar/lidar.hpp"
+#include "lvio_fusion/lidar/scan_registration.h"
 #include "lvio_fusion/map.h"
 #include "lvio_fusion/visual/camera.hpp"
 
@@ -32,11 +32,6 @@ public:
         map_ = map;
     }
 
-    void SetBackend(Backend::Ptr backend)
-    {
-        backend_ = backend;
-    }
-
 private:
     void MappingLoop();
 
@@ -46,10 +41,10 @@ private:
 
     std::thread thread_;
     Map::Ptr map_;
-    Backend::Ptr backend_;
+    ScanRegistration::Ptr scan_registration_;
+    double head_ = 0;
     Lidar::Ptr lidar_;
     Camera::Ptr camera_;
-    double head_ = 0;
 };
 
 } // namespace lvio_fusion

@@ -57,7 +57,7 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
                                    SE3d(q_base_to_cam1, t_base_to_cam1)));
     LOG(INFO) << "Camera 2"
               << " extrinsics: " << t_base_to_cam1.transpose();
-    
+
     // create components and links
     frontend = Frontend::Ptr(new Frontend(
         Config::Get<int>("num_features"),
@@ -79,17 +79,11 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
     backend->SetCameras(camera1, camera2);
     backend->SetFrontend(frontend);
 
-    mapping = Mapping::Ptr(new Mapping());
-    mapping->SetCamera(camera1);
-    mapping->SetMap(map);
-    mapping->SetBackend(backend);
-
     if (use_loop)
     {
         relocation = Relocation::Ptr(new Relocation(Config::Get<std::string>("voc_path")));
         relocation->SetCameras(camera1, camera2);
         relocation->SetMap(map);
-        relocation->SetBackend(backend);
         frontend->SetRelocation(relocation);
     }
     if (use_navsat)
@@ -132,11 +126,14 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
         scan_registration->SetLidar(lidar);
         scan_registration->SetMap(map);
 
+        mapping = Mapping::Ptr(new Mapping());
+        mapping->SetCamera(camera1);
+        mapping->SetMap(map);
         mapping->SetLidar(lidar);
 
         backend->SetLidar(lidar);
         backend->SetScanRegistration(scan_registration);
-        if(relocation)
+        if (relocation)
         {
             relocation->SetLidar(lidar);
             relocation->SetScanRegistration(scan_registration);

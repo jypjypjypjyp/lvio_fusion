@@ -1,4 +1,4 @@
-#include "lvio_fusion/loop/mapping.h"
+#include "lvio_fusion/lidar/mapping.h"
 #include "lvio_fusion/utility.h"
 #include <lvio_fusion/ceres/base.hpp>
 #include <pcl/filters/voxel_grid.h>
@@ -52,24 +52,16 @@ void Mapping::MappingLoop()
     {
         std::this_thread::sleep_for(std::chrono::seconds(3));
         Frames &all_kfs = map_->GetAllKeyFrames();
-        double active_time = backend_->ActiveTime();
+        double active_time = map_->active_time;
         for (auto iter = all_kfs.upper_bound(head_); iter->first < active_time; iter++)
         {
             Frame::Ptr frame = iter->second;
             PointRGBCloud &map = map_->simple_map;
-            if (lidar_)
-            {
-                AddToWorld(frame->feature_lidar->points_sharp, frame, map);
-                AddToWorld(frame->feature_lidar->points_less_sharp, frame, map);
-                AddToWorld(frame->feature_lidar->points_flat, frame, map);
-                AddToWorld(frame->feature_lidar->points_less_flat, frame, map);
-                frame->feature_lidar.reset();
-            }
-            else
-            {
-                //TODO: visual mapping
-                // visual map points
-            }
+            AddToWorld(frame->feature_lidar->points_sharp, frame, map);
+            AddToWorld(frame->feature_lidar->points_less_sharp, frame, map);
+            AddToWorld(frame->feature_lidar->points_flat, frame, map);
+            AddToWorld(frame->feature_lidar->points_less_flat, frame, map);
+            frame->feature_lidar.reset();
             head_ = iter->first;
         }
         if (map_->simple_map.size() > 0)
@@ -81,6 +73,23 @@ void Mapping::MappingLoop()
 
 void Mapping::Optimize()
 {
+    // lidar constraints
+    ceres::LossFunction *lidar_loss_function = new ceres::HuberLoss(0.1);
+    Frame::Ptr last_frame;
+    Frame::Ptr current_frame;
+    for (auto kf_pair : active_kfs)
+    {
+        if (kf_pair.second->feature_lidar)
+        {
+            current_frame = kf_pair.second;
+            if (last_frame)
+            {
+                scan_registration_->Associate(current_frame, last_frame, problem, lidar_loss_function);
+            }
+            last_frame = current_frame;
+        }
+    }
+
     static pcl::VoxelGrid<PointRGB> downSizeFilter;
     PointRGBCloud::Ptr mapDS(new PointRGBCloud());
     pcl::copyPointCloud(map_->simple_map, *mapDS);
