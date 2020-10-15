@@ -57,22 +57,14 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
                                    SE3d(q_base_to_cam1, t_base_to_cam1)));
     LOG(INFO) << "Camera 2"
               << " extrinsics: " << t_base_to_cam1.transpose();
-    double acc_n,gyr_n,acc_w,gyr_w,g_norm;
-    cv::Mat Tbc;
-    acc_n=Config::Get<double>("acc_n");
-    gyr_n=Config::Get<double>("gyr_n");
-    acc_w=Config::Get<double>("acc_w");
-    gyr_w=Config::Get<double>("gyr_w");
-   Tbc=Config::Get<cv::Mat>("Tbc");
-mpImuCalib = new IMU::Calib(Tbc,gyr_n*sf,Na*sf,Ngw/sf,Naw/sf);
+
     // create components and links
     frontend = Frontend::Ptr(new Frontend(
         Config::Get<int>("num_features"),
         Config::Get<int>("num_features_init"),
         Config::Get<int>("num_features_tracking"),
         Config::Get<int>("num_features_tracking_bad"),
-        Config::Get<int>("num_features_needed_for_keyframe"),
-
+        Config::Get<int>("num_features_needed_for_keyframe")
         ));
 
 

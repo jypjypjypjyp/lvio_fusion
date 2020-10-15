@@ -41,7 +41,7 @@ void  Initializer::InitializeIMU(float priorG, float priorA, bool bFIBA)
                 continue;
             // 预积分中delta_V 用来表示:Rwb_i.transpose()*(V2 - V1 - g*dt),故此处获得 -(V_i - V_0 - (i-0)*(mRwg*gI)*dt)
             // 应该使用将速度偏差在此处忽略或当做噪声，因为后面会优化mRwg
-            dirG -= (*(itKF-1))->GetImuRotation()*(*itKF)->mpImuPreintegrated->GetUpdatedDeltaVelocity();
+            dirG -= (*(itKF-1))->GetImuRotation()*(*itKF)->Preintegrated->GetUpdatedDeltaVelocity();
             cv::Mat _vel = ((*itKF)->GetImuPosition() - (*itKF)->mPrevKF->GetImuPosition())/(*itKF)->mpImuPreintegrated->dT;
             (*itKF)->SetVelocity(_vel);
             (*itKF)->mPrevKF->SetVelocity(_vel);
