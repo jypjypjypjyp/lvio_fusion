@@ -115,7 +115,7 @@ void Backend::BuildProblem(Frames &active_kfs, ceres::Problem &problem)
     }
 
     // imu constraints
-    if (imu_ && initializer_->initialized)
+    if (imu_ && imu_->initialized)
     {
         Frame::Ptr last_frame;
         Frame::Ptr current_frame;
@@ -165,7 +165,7 @@ void Backend::Optimize(bool full)
         Frames frames_init = map_->GetKeyFrames(0, map_->time_local_map, initializer_->num_frames);
         if (frames_init.size() == initializer_->num_frames)
         {
-            initializer_->Initialize(frames_init);
+            imu_->initialized = initializer_->Initialize(frames_init);
             frontend_.lock()->status = FrontendStatus::TRACKING_GOOD;
         }
     }
@@ -186,7 +186,7 @@ void Backend::Optimize(bool full)
     ceres::Solver::Options options;
     options.linear_solver_type = ceres::DENSE_SCHUR;
     options.function_tolerance = 1e-9;
-    options.max_solver_time_in_seconds = range_ * 0.6;
+    options.max_solver_time_in_seconds = range_ * 0.8;
     options.num_threads = 4;
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);

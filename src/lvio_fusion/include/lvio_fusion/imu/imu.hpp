@@ -16,6 +16,7 @@ public:
 
     double ACC_N, ACC_W;
     double GYR_N, GYR_W;
+    bool initialized =false;
 };
 
 } // namespace lvio_fusion

@@ -10,6 +10,25 @@ Mapping::Mapping()
     thread_ = std::thread(std::bind(&Mapping::MappingLoop, this));
 }
 
+void Mapping::Pause()
+{
+    if (status == MappingStatus::RUNNING)
+    {
+        std::unique_lock<std::mutex> lock(pausing_mutex_);
+        status = MappingStatus::TO_PAUSE;
+        pausing_.wait(lock);
+    }
+}
+
+void Mapping::Continue()
+{
+    if (status == MappingStatus::PAUSING)
+    {
+        status = MappingStatus::RUNNING;
+        running_.notify_one();
+    }
+}
+
 inline void Mapping::AddToWorld(const PointICloud &in, Frame::Ptr frame, PointRGBCloud &out)
 {
     double lti[7], lei[7], ltiei[7], cet[7];
@@ -51,6 +70,14 @@ void Mapping::MappingLoop()
     while (true)
     {
         std::this_thread::sleep_for(std::chrono::seconds(1));
+        std::unique_lock<std::mutex> lock(running_mutex_);
+        if (status == MappingStatus::TO_PAUSE)
+        {
+            status = MappingStatus::PAUSING;
+            pausing_.notify_one();
+            running_.wait(lock);
+        }
+        started_.wait(lock);
         auto t1 = std::chrono::steady_clock::now();
         Optimize();
         auto t2 = std::chrono::steady_clock::now();
@@ -59,18 +86,14 @@ void Mapping::MappingLoop()
     }
 }
 
-void Mapping::Optimize()
+void Mapping::Optimize(double loop_start_time = 0)
 {
     static double head = 0;
-    Frames active_kfs = map_->GetKeyFrames(head, map_->time_local_map);
-    // check loop
-    for(auto pair_kf : active_kfs)
+    if (loop_start_time != 0)
     {
-        if(pair_kf.second->loop_constraint)
-        {
-            
-        }
+        head = loop_start_time;
     }
+    Frames active_kfs = map_->GetKeyFrames(head, map_->time_local_map);
     Frames base_kfs = map_->GetKeyFrames(0, head, 2);
 
     ceres::Problem problem;
@@ -119,7 +142,7 @@ void Mapping::Optimize()
     ceres::Solver::Options options;
     options.linear_solver_type = ceres::DENSE_SCHUR;
     options.function_tolerance = 1e-9;
-    options.max_solver_time_in_seconds = 5;
+    options.max_num_iterations = 5;
     options.num_threads = 4;
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
@@ -128,7 +151,7 @@ void Mapping::Optimize()
     BuildGlobalMap(active_kfs);
 }
 
-void Mapping::BuildGlobalMap(Frames& active_kfs)
+void Mapping::BuildGlobalMap(Frames &active_kfs)
 {
     for (auto pair_kf : active_kfs)
     {

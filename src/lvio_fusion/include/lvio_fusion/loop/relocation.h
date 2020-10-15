@@ -73,20 +73,24 @@ public:
 
     void SetBackend(Backend::Ptr backend) { backend_ = backend; }
 
+    void SetMapping(Mapping::Ptr mapping) { mapping_ = mapping; }
+
 private:
     void RelocationLoop();
 
     void AddKeyFrameIntoVoc(Frame::Ptr frame);
 
-    bool DetectLoop(Frame::Ptr frame, Frame::Ptr &old_frame);
+    bool DetectLoop(Frame::Ptr frame, Frame::Ptr &frame_old);
 
-    void CorrectLoop(double start_time, double end_time);
-
-    bool Associate(Frame::Ptr frame, Frame::Ptr &old_frame);
+    bool Associate(Frame::Ptr frame, Frame::Ptr &frame_old);
 
     bool SearchInAera(const BRIEF descriptor, const std::map<unsigned long, BRIEF> &descriptors_old, unsigned long &best_id);
 
     int Hamming(const BRIEF &a, const BRIEF &b);
+
+    void BuildProblem(Frames &active_kfs, ceres::Problem &problem);
+
+    void CorrectLoop(double start_time, double end_time);
 
     DBoW3::Database db_;
     DBoW3::Vocabulary voc_;
@@ -101,6 +105,7 @@ private:
 
     Camera::Ptr camera_left_;
     Camera::Ptr camera_right_;
+    Imu::Ptr imu_;
 };
 
 } // namespace lvio_fusion
