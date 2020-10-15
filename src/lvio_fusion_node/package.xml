@@ -1,0 +1,27 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>lvio_fusion_node</name>
+  <version>0.0.0</version>
+  <description>The lvio_fusion_node package</description>
+
+  <maintainer email="jypjypjypjyp@hotmail.com">jyp</maintainer>
+
+  <license>MIT</license>
+
+  <buildtool_depend>catkin</buildtool_depend>
+  <depend>roscpp</depend>
+  <depend>std_msgs</depend>
+  <depend>geometry_msgs</depend>
+  <depend>nav_msgs</depend>
+  <depend>tf</depend>
+  <depend>cv_bridge</depend>
+  <depend>lvio_fusion</depend>
+  <depend>object_detector</depend>
+  <depend>image_transport</depend>
+  <depend>pcl_conversions</depend>
+  <depend>pcl_ros</depend>
+
+  <export>
+
+  </export>
+</package>

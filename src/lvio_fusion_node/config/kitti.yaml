@@ -1,0 +1,87 @@
+%YAML:1.0
+
+# flags
+use_imu: 0
+use_lidar: 0
+use_navsat: 0
+use_loop: 1
+num_of_cam: 2
+is_semantic: 0
+
+# ros parameters
+imu_topic: '/kitti/oxts/imu'
+lidar_topic: '/kitti/velo/pointcloud'
+navsat_topic: '/kitti/oxts/gps/fix'
+image0_topic: '/kitti/camera_gray_left/image_raw'
+image1_topic: '/kitti/camera_gray_right/image_raw'
+color_topic: '/kitti/camera_color_left/image_raw'
+result_path: '/home/jyp/Projects/lvio-fusion/result/result.csv'
+
+# camera1 intrinsics
+camera1.fx: 7.188560000000e+02
+camera1.fy: 7.188560000000e+02
+camera1.cx: 6.071928000000e+02
+camera1.cy: 1.852157000000e+02
+
+# camera2 intrinsics
+camera2.fx: 7.188560000000e+02
+camera2.fy: 7.188560000000e+02
+camera2.cx: 6.071928000000e+02
+camera2.cy: 1.852157000000e+02
+
+# lidar parameters
+num_scans: 64           # only for 16, 32, 64
+cycle_time: 0.1036
+min_range: 5
+max_range: 30
+deskew: 0
+
+#imu parameters
+acc_n: 0.08             # accelerometer measurement noise standard deviation. #0.2   0.04
+gyr_n: 0.004            # gyroscope measurement noise standard deviation.     #0.05  0.004
+acc_w: 0.00004          # accelerometer bias random work noise standard deviation.  #0.02
+gyr_w: 2.0e-6           # gyroscope bias random work noise standard deviation.     #4.0e-5
+g_norm: 9.81007         # gravity magnitude
+
+# body to camera0
+base_to_cam0: !!opencv-matrix
+   rows: 4
+   cols: 4
+   dt: d
+   data: [00.00875116, -0.999864, 0.0139601, -0.33909,
+         -0.00479607, -0.0140025, -0.99989, 0.746803,
+         00000.99995, 00.00868325, -0.00491796, -1.09575,
+         0,                0,             0,             1]
+
+# body to camera1
+base_to_cam1: !!opencv-matrix
+   rows: 4
+   cols: 4
+   dt: d
+   data: [0.00875116, -0.999864, 0.0139601, -0.876255,
+         -0.00479607, -0.0140025, -0.99989, 0.746803,
+         0.99995, 0.00868325, -0.00491796, -1.09575,
+         0,                0,             0 ,            1]
+
+# body to lidar
+base_to_lidar: !!opencv-matrix
+   rows: 4
+   cols: 4
+   dt: d
+   data: [9.999976e-01,    7.553071e-04,  -2.035826e-03, -8.086759e-01,
+         -7.854027e-04,    9.998898e-01,  -1.482298e-02, 3.195559e-01,
+         2.024406e-03,     1.482454e-02,  9.998881e-01,  -7.997231e-01,
+         0,                0,             0,             1]
+
+# number of features
+num_features: 200
+num_features_init: 80
+num_features_tracking: 120
+num_features_tracking_bad: 8
+num_features_needed_for_keyframe: 120
+
+# backend
+range: 7
+
+# loop
+voc_path: '/home/jyp/Projects/lvio-fusion/misc/orbvoc.dbow3'

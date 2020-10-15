@@ -1,0 +1,70 @@
+%YAML:1.0
+
+# flags
+use_imu: 0
+use_lidar: 0
+use_gnss: 0
+use_rtk: 0
+num_of_cam: 2
+is_semantic: 1
+
+# ros parameters
+imu_topic: "/kitti/oxts/imu"
+lidar_topic: “kitti/velodye_pointcloud”
+image0_topic: "/kitti/camera_gray_left/image_raw"
+image1_topic: "/kitti/camera_gray_right/image_raw"
+
+# camera1 intrinsics
+camera1.fx: 7.188560000000e+02
+camera1.fy: 7.188560000000e+02
+camera1.cx: 6.071928000000e+02
+camera1.cy: 1.852157000000e+02
+
+# camera2 intrinsics
+camera2.fx: 7.188560000000e+02
+camera2.fy: 7.188560000000e+02
+camera2.cx: 6.071928000000e+02
+camera2.cy: 1.852157000000e+02
+
+# # body to camera1
+# body_T_cam0: !!opencv-matrix
+#    rows: 4
+#    cols: 4
+#    dt: d
+#    data: [0.00592965, -0.9999811,  -0.0015959,  -0.82190124,
+#          -0.01759946,  0.00149132, -0.99984396,  0.26847788,
+#          0.99982755,  0.00595681, -0.01759028, -1.09239883,
+#          0.        ,  0.       ,   0.       ,   1.        ]
+
+# # body to camera2
+# body_T_cam1: !!opencv-matrix
+#    rows: 4
+#    cols: 4
+#    dt: d
+#    data: [0.0243016,  -0.99968159,  0.00679417, -0.83102928,
+#          -0.04878854, -0.00797404, -0.99877726,  0.29068153,
+#          0.99851348,  0.02394042, -0.04896678, -1.62904649,
+#          0.       ,   0.        ,  0.        ,  1.        ]
+
+# camera to camera
+body_T_cam0: !!opencv-matrix
+   rows: 4
+   cols: 4
+   dt: d
+   data: [1, 0, 0, 0,
+          0, 1, 0, 0,
+          0, 0, 1, 0,
+          0, 0, 0, 1]
+# camera to camera
+body_T_cam1: !!opencv-matrix
+   rows: 4
+   cols: 4
+   dt: d
+   data: [1, 0, 0, -0.537165718864418,
+          0, 1, 0, 0,
+          0, 0, 1, 0,
+          0, 0, 0, 1]
+
+num_features: 150
+num_features_init: 50
+num_features_tracking: 50
