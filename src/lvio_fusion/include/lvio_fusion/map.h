@@ -18,13 +18,13 @@ public:
 
     visual::Landmarks &GetAllLandmarks()
     {
-        std::unique_lock<std::mutex> lock(data_mutex_);
+        std::unique_lock<std::mutex> lock(mutex_data_);
         return landmarks_;
     }
 
     Frames &GetAllKeyFrames()
     {
-        std::unique_lock<std::mutex> lock(data_mutex_);
+        std::unique_lock<std::mutex> lock(mutex_data_);
         return keyframes_;
     }
 
@@ -44,14 +44,13 @@ public:
         keyframes_.clear();
     }
 
-    Frame::Ptr current_frame;
     NavsatMap::Ptr navsat_map;
     PointRGBCloud simple_map;
-
-    double active_time = 0;
+    double time_local_map = 0;
+    double time_mapping = 0;
 
 private:
-    std::mutex data_mutex_;
+    std::mutex mutex_data_;
     visual::Landmarks landmarks_;
     Frames keyframes_;
 };

@@ -5,11 +5,8 @@
 #include "lvio_fusion/frame.h"
 #include "lvio_fusion/imu/imu.hpp"
 #include "lvio_fusion/imu/initializer.h"
-#include "lvio_fusion/lidar/lidar.hpp"
-#include "lvio_fusion/lidar/scan_registration.h"
 #include "lvio_fusion/map.h"
 #include "lvio_fusion/visual/camera.hpp"
-#include "lvio_fusion/loop/relocation.h"
 
 #include <ceres/ceres.h>
 
@@ -29,6 +26,7 @@ class Backend
 {
 public:
     typedef std::shared_ptr<Backend> Ptr;
+    typedef std::weak_ptr<Backend> WeakPtr;
 
     Backend(double range);
 
@@ -53,6 +51,7 @@ public:
     void Continue();
 
     BackendStatus status = BackendStatus::RUNNING;
+    std::mutex mutex;
 
 private:
     void BackendLoop();
@@ -68,8 +67,7 @@ private:
     void BuildProblem(Frames &active_kfs, ceres::Problem &problem);
 
     Map::Ptr map_;
-    std::weak_ptr<Frontend> frontend_;
-    std::weak_ptr<Relocation> relocation_;
+    Frontend::WeakPtr frontend_;
     Initializer::Ptr initializer_;
 
     std::thread thread_;

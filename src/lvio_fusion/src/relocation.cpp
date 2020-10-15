@@ -15,30 +15,6 @@ Relocation::Relocation(std::string voc_path)
     db_ = DBoW3::Database(voc_, false, 0);
 }
 
-void Relocation::UpdateMap()
-{
-    map_update_.notify_one();
-}
-
-void Relocation::Pause()
-{
-    if (status == RelocationStatus::RUNNING)
-    {
-        std::unique_lock<std::mutex> lock(pausing_mutex_);
-        status = RelocationStatus::TO_PAUSE;
-        pausing_.wait(lock);
-    }
-}
-
-void Relocation::Continue()
-{
-    if (status == RelocationStatus::PAUSING)
-    {
-        status = RelocationStatus::RUNNING;
-        running_.notify_one();
-    }
-}
-
 void Relocation::RelocationLoop()
 {
     static bool is_last_loop = false;
@@ -47,18 +23,15 @@ void Relocation::RelocationLoop()
     static double head = 0;
     while (true)
     {
-        std::unique_lock<std::mutex> lock(running_mutex_);
-        if (status == RelocationStatus::TO_PAUSE)
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+        auto new_kfs = map_->GetKeyFrames(head, map_->time_local_map);
+        if (new_kfs.empty())
         {
-            status = RelocationStatus::PAUSING;
-            pausing_.notify_one();
-            running_.wait(lock);
+            continue;
         }
-        map_update_.wait(lock);
-        auto new_kfs = map_->GetKeyFrames(head);
-        for (auto kf_pair : new_kfs)
+        for (auto pair_kf : new_kfs)
         {
-            Frame::Ptr frame = kf_pair.second, old_frame;
+            Frame::Ptr frame = pair_kf.second, old_frame;
             AddKeyFrameIntoVoc(frame);
             bool is_loop = DetectLoop(frame, old_frame) && Associate(frame, old_frame);
             if (is_loop)
@@ -75,8 +48,6 @@ void Relocation::RelocationLoop()
             is_last_loop = is_loop;
         }
         head = (--new_kfs.end())->first;
-        std::chrono::milliseconds dura(100);
-        std::this_thread::sleep_for(dura);
     }
 }
 
@@ -91,7 +62,7 @@ void Relocation::AddKeyFrameIntoVoc(Frame::Ptr frame)
     detector_->compute(frame->image_left, keypoints, frame->descriptors);
     LOG(INFO) << frame->descriptors;
     DBoW3::EntryId id = db_.add(frame->descriptors);
-    map_db_to_frames_.insert(std::make_pair(id, frame->time));
+    map_dbow_to_frames_.insert(std::make_pair(id, frame->time));
 }
 
 bool Relocation::DetectLoop(Frame::Ptr frame, Frame::Ptr &old_frame)
@@ -120,7 +91,7 @@ bool Relocation::DetectLoop(Frame::Ptr frame, Frame::Ptr &old_frame)
             if (min_index == -1 || (ret[i].Id < min_index && ret[i].Score > 0.015))
                 min_index = ret[i].Id;
         }
-        old_frame = map_->GetAllKeyFrames()[map_db_to_frames_[min_index]];
+        old_frame = map_->GetAllKeyFrames()[map_dbow_to_frames_[min_index]];
         return true;
     }
     return false;
@@ -191,16 +162,14 @@ int Relocation::Hamming(const BRIEF &a, const BRIEF &b)
 // TODO
 void Relocation::CorrectLoop(double start_time, double end_time)
 {
-    double relocation_head = relocation_.lock()->head;
-    Frames frames = map_->GetKeyFrames(global_head, relocation_head);
-    Frame::Ptr frame, old_frame;
+    Frames active_kfs = map_->GetKeyFrames(start_time, end_time);
     bool has_loop = false;
-    for (auto kf_pair : frames)
+    for (auto pair_kf : active_kfs)
     {
-        if (kf_pair.second->loop_constraint)
+        if (pair_kf.second->loop_constraint)
         {
             has_loop = true;
-            frame = kf_pair.second;
+            frame = pair_kf.second;
             old_frame = frame->loop_constraint->frame_old;
             break;
         }
@@ -209,29 +178,32 @@ void Relocation::CorrectLoop(double start_time, double end_time)
     if (has_loop)
     {
         // Correct Loop
-        {
-            // forward
-            std::unique_lock<std::mutex> lock(running_mutex_);
-            std::unique_lock<std::mutex> lock(frontend_.lock()->last_frame_mutex);
+    }
 
-            Frame::Ptr last_frame = frontend_.lock()->last_frame;
-            Frames active_kfs = map_->GetKeyFrames(old_frame->time);
-            if (active_kfs.find(last_frame->time) == active_kfs.end())
-            {
-                active_kfs.insert(std::make_pair(last_frame->time, last_frame));
-            }
-            SE3d transform_pose = frame->pose.inverse() * frame->loop_constraint->relative_pose * old_frame->pose;
-            for (auto kf_pair : active_kfs)
-            {
-                kf_pair.second->pose = kf_pair.second->pose * transform_pose;
-                // TODO: Repropagate
-                // if(kf_pair.second->preintegration)
-                // {
-                //     kf_pair.second->preintegration->Repropagate();
-                // }
-            }
-            frontend_.lock()->UpdateCache();
+    // forward propogate
+    {
+        std::unique_lock<std::mutex> lock(frontend_.lock()->mutex);
+        std::unique_lock<std::mutex> lock(backend_.lock()->mutex);
+
+        Frame::Ptr last_frame = frontend_.lock()->last_frame;
+        Frames active_kfs = map_->GetKeyFrames(end_time);
+        if (active_kfs.find(last_frame->time) == active_kfs.end())
+        {
+            active_kfs.insert(std::make_pair(last_frame->time, last_frame));
         }
+        SE3d transform_pose = frame->pose.inverse() * frame->loop_constraint->relative_pose * old_frame->pose;
+        for (auto pair_kf : active_kfs)
+        {
+            pair_kf.second->pose = pair_kf.second->pose * transform_pose;
+            // TODO: Repropagate
+            // if(pair_kf.second->preintegration)
+            // {
+            //     pair_kf.second->preintegration->Repropagate();
+            // }
+        }
+        frontend_.lock()->UpdateCache();
     }
 }
+
+void ForwardPropogate
 } // namespace lvio_fusion

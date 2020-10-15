@@ -14,6 +14,7 @@ class Mapping
 {
 public:
     typedef std::shared_ptr<Mapping> Ptr;
+    typedef std::weak_ptr<Mapping> WeakPtr;
 
     Mapping();
 

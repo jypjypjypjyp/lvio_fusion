@@ -62,7 +62,15 @@ void Mapping::MappingLoop()
 void Mapping::Optimize()
 {
     static double head = 0;
-    Frames active_kfs = map_->GetKeyFrames(head, map_->active_time);
+    Frames active_kfs = map_->GetKeyFrames(head, map_->time_local_map);
+    // check loop
+    for(auto pair_kf : active_kfs)
+    {
+        if(pair_kf.second->loop_constraint)
+        {
+            
+        }
+    }
     Frames base_kfs = map_->GetKeyFrames(0, head, 2);
 
     ceres::Problem problem;
@@ -73,24 +81,24 @@ void Mapping::Optimize()
 
     Frame::Ptr last_frame;
     Frame::Ptr last_frame2;
-    for (auto kf_pair : base_kfs)
+    for (auto pair_kf : base_kfs)
     {
-        double *para_kf_base = kf_pair.second->pose.data();
+        double *para_kf_base = pair_kf.second->pose.data();
         problem.AddParameterBlock(para_kf_base, SE3d::num_parameters, local_parameterization);
         problem.SetParameterBlockConstant(para_kf_base);
         if (!last_frame)
         {
-            last_frame = kf_pair.second;
+            last_frame = pair_kf.second;
         }
         else
         {
-            last_frame2 = kf_pair.second;
+            last_frame2 = pair_kf.second;
         }
     }
     Frame::Ptr current_frame;
-    for (auto kf_pair : active_kfs)
+    for (auto pair_kf : active_kfs)
     {
-        current_frame = kf_pair.second;
+        current_frame = pair_kf.second;
         double *para_kf = current_frame->pose.data();
         problem.AddParameterBlock(para_kf, SE3d::num_parameters, local_parameterization);
         if (current_frame->feature_lidar)
@@ -122,9 +130,9 @@ void Mapping::Optimize()
 
 void Mapping::BuildGlobalMap(Frames& active_kfs)
 {
-    for (auto kf_pair : active_kfs)
+    for (auto pair_kf : active_kfs)
     {
-        Frame::Ptr frame = kf_pair.second;
+        Frame::Ptr frame = pair_kf.second;
         PointRGBCloud &map = map_->simple_map;
         AddToWorld(frame->feature_lidar->points_sharp, frame, map);
         AddToWorld(frame->feature_lidar->points_less_sharp, frame, map);

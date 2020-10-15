@@ -5,7 +5,6 @@
 #include "lvio_fusion/frame.h"
 #include "lvio_fusion/imu/imu.hpp"
 #include "lvio_fusion/imu/initializer.h"
-#include "lvio_fusion/loop/relocation.h"
 #include "lvio_fusion/map.h"
 #include "lvio_fusion/visual/camera.hpp"
 
@@ -40,6 +39,7 @@ class Frontend
 {
 public:
     typedef std::shared_ptr<Frontend> Ptr;
+    typedef std::weak_ptr<Frontend> WeakPtr;
 
     Frontend(int num_features, int init, int tracking, int tracking_bad, int need_for_keyframe);
 
@@ -50,8 +50,6 @@ public:
     void SetMap(Map::Ptr map) { map_ = map; }
 
     void SetBackend(std::shared_ptr<Backend> backend) { backend_ = backend; }
-
-    void SetRelocation(std::shared_ptr<Relocation> relocation) { relocation_ = relocation; }
 
     void SetCameras(Camera::Ptr left, Camera::Ptr right)
     {
@@ -66,15 +64,13 @@ public:
 
     void UpdateCache();
 
-    std::unordered_map<unsigned long, Vector3d> GetPositionCache();
-
     int flags = Flag::None;
     FrontendStatus status = FrontendStatus::BUILDING;
     Frame::Ptr current_frame;
     Frame::Ptr last_frame;
     Frame::Ptr current_key_frame;
     SE3d relative_pose;
-    std::mutex last_frame_mutex;
+    std::mutex mutex;
 
 private:
     bool Track();
@@ -95,8 +91,7 @@ private:
 
     // data
     Map::Ptr map_;
-    std::weak_ptr<Backend> backend_;
-    std::weak_ptr<Relocation> relocation_;
+    Backend::WeakPtr backend_;
     std::unordered_map<unsigned long, Vector3d> position_cache_;
     SE3d last_frame_pose_cache_;
 

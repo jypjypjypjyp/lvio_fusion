@@ -69,14 +69,14 @@ void Backend::BuildProblem(Frames &active_kfs, ceres::Problem &problem)
 
     double start_time = active_kfs.begin()->first;
 
-    for (auto kf_pair : active_kfs)
+    for (auto pair_kf : active_kfs)
     {
-        auto frame = kf_pair.second;
+        auto frame = pair_kf.second;
         double *para_kf = frame->pose.data();
         problem.AddParameterBlock(para_kf, SE3d::num_parameters, local_parameterization);
-        for (auto feature_pair : frame->features_left)
+        for (auto pair_feature : frame->features_left)
         {
-            auto feature = feature_pair.second;
+            auto feature = pair_feature.second;
             auto landmark = feature->landmark.lock();
             auto first_frame = landmark->FirstFrame();
             ceres::CostFunction *cost_function;
@@ -99,11 +99,11 @@ void Backend::BuildProblem(Frames &active_kfs, ceres::Problem &problem)
     if (map_->navsat_map != nullptr && navsat_map->initialized)
     {
         ceres::LossFunction *navsat_loss_function = new ceres::TrivialLoss();
-        for (auto kf_pair : active_kfs)
+        for (auto pair_kf : active_kfs)
         {
-            auto frame = kf_pair.second;
+            auto frame = pair_kf.second;
             auto para_kf = frame->pose.data();
-            auto np_iter = navsat_map->navsat_points.lower_bound(kf_pair.first);
+            auto np_iter = navsat_map->navsat_points.lower_bound(pair_kf.first);
             auto navsat_point = np_iter->second;
             navsat_map->Transfrom(navsat_point);
             if (std::fabs(navsat_point.time - frame->time) < 1e-2)
@@ -119,9 +119,9 @@ void Backend::BuildProblem(Frames &active_kfs, ceres::Problem &problem)
     {
         Frame::Ptr last_frame;
         Frame::Ptr current_frame;
-        for (auto kf_pair : active_kfs)
+        for (auto pair_kf : active_kfs)
         {
-            current_frame = kf_pair.second;
+            current_frame = pair_kf.second;
             if (!current_frame->preintegration)
                 continue;
             auto para_kf = current_frame->pose.data();
@@ -153,14 +153,16 @@ void Backend::BuildProblem(Frames &active_kfs, ceres::Problem &problem)
 
 void Backend::Optimize(bool full)
 {
+    std::unique_lock<std::mutex> lock(mutex);
+
     static double head = 0;
-    map_->active_time = std::max(0.0, head - range_);
-    Frames active_kfs = map_->GetKeyFrames(full ? 0 : map_->active_time);
+    map_->time_local_map = std::max(0.0, head - range_);
+    Frames active_kfs = map_->GetKeyFrames(full ? 0 : map_->time_local_map);
 
     // imu init
     if (imu_ && !initializer_->initialized)
     {
-        Frames frames_init = map_->GetKeyFrames(0, map_->active_time, initializer_->num_frames);
+        Frames frames_init = map_->GetKeyFrames(0, map_->time_local_map, initializer_->num_frames);
         if (frames_init.size() == initializer_->num_frames)
         {
             initializer_->Initialize(frames_init);
@@ -190,14 +192,14 @@ void Backend::Optimize(bool full)
     ceres::Solve(options, &problem, &summary);
 
     // reject outliers and clean the map
-    for (auto kf_pair : active_kfs)
+    for (auto pair_kf : active_kfs)
     {
-        auto frame = kf_pair.second;
+        auto frame = pair_kf.second;
         double *para_kf = frame->pose.data();
         auto left_features = frame->features_left;
-        for (auto feature_pair : left_features)
+        for (auto pair_feature : left_features)
         {
-            auto feature = feature_pair.second;
+            auto feature = pair_feature.second;
             auto landmark = feature->landmark.lock();
             auto first_frame = landmark->FirstFrame();
             Vector2d error(0, 0);
@@ -215,7 +217,7 @@ void Backend::Optimize(bool full)
                 landmark->RemoveObservation(feature);
                 frame->RemoveFeature(feature);
             }
-            if (landmark->observations.size() == 1 && frame != map_->current_frame)
+            if (landmark->observations.size() == 1 && frame->id != Frame::current_frame_id)
             {
                 map_->RemoveLandmark(landmark);
             }
@@ -229,7 +231,7 @@ void Backend::Optimize(bool full)
 
 void Backend::ForwardPropagate(double time)
 {
-    std::unique_lock<std::mutex> lock(frontend_.lock()->last_frame_mutex);
+    std::unique_lock<std::mutex> lock(frontend_.lock()->mutex);
 
     Frame::Ptr last_frame = frontend_.lock()->last_frame;
     Frames active_kfs = map_->GetKeyFrames(time);

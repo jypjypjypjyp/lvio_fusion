@@ -1,8 +1,10 @@
 #ifndef lvio_fusion_RELOCATION_H
 #define lvio_fusion_RELOCATION_H
 
+#include "lvio_fusion/backend.h"
 #include "lvio_fusion/common.h"
 #include "lvio_fusion/frame.h"
+#include "lvio_fusion/frontend.h"
 #include "lvio_fusion/lidar/mapping.h"
 #include "lvio_fusion/loop/loop_constraint.h"
 #include "lvio_fusion/map.h"
@@ -53,6 +55,7 @@ class Relocation
 {
 public:
     typedef std::shared_ptr<Relocation> Ptr;
+    typedef std::weak_ptr<Relocation> WeakPtr;
 
     Relocation(std::string voc_path);
 
@@ -66,13 +69,9 @@ public:
 
     void SetMapping(Mapping::Ptr mapping) { mapping_ = mapping; }
 
-    void UpdateMap();
+    void SetFrontend(Frontend::Ptr frontend) { frontend_ = frontend; }
 
-    void Pause();
-
-    void Continue();
-
-    RelocationStatus status = RelocationStatus::RUNNING;
+    void SetBackend(Backend::Ptr backend) { backend_ = backend; }
 
 private:
     void RelocationLoop();
@@ -93,14 +92,12 @@ private:
     DBoW3::Vocabulary voc_;
     Map::Ptr map_;
     Mapping::Ptr mapping_;
+    Frontend::WeakPtr frontend_;
+    Backend::WeakPtr backend_;
 
     std::thread thread_;
-    std::mutex running_mutex_, pausing_mutex_;
-    std::condition_variable running_;
-    std::condition_variable pausing_;
-    std::condition_variable map_update_;
     cv::Ptr<cv::Feature2D> detector_;
-    std::map<DBoW3::EntryId, double> map_db_to_frames_;
+    std::map<DBoW3::EntryId, double> map_dbow_to_frames_;
 
     Camera::Ptr camera_left_;
     Camera::Ptr camera_right_;

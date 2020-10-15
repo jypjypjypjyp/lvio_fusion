@@ -6,15 +6,14 @@ namespace lvio_fusion
 
 void Map::InsertKeyFrame(Frame::Ptr frame)
 {
-    std::unique_lock<std::mutex> lock(data_mutex_);
+    std::unique_lock<std::mutex> lock(mutex_data_);
     Frame::current_frame_id++;
-    current_frame = frame;
     keyframes_.insert(make_pair(frame->time, frame));
 }
 
 void Map::InsertLandmark(visual::Landmark::Ptr landmark)
 {
-    std::unique_lock<std::mutex> lock(data_mutex_);
+    std::unique_lock<std::mutex> lock(mutex_data_);
     visual::Landmark::current_landmark_id++;
     landmarks_.insert(make_pair(landmark->id, landmark));
 }
@@ -25,7 +24,7 @@ void Map::InsertLandmark(visual::Landmark::Ptr landmark)
 // 3: (num -> end]
 Frames Map::GetKeyFrames(double start, double end, int num)
 {
-    std::unique_lock<std::mutex> lock(data_mutex_);
+    std::unique_lock<std::mutex> lock(mutex_data_);
     if (end == 0 && num == 0)
     {
         return Frames(keyframes_.upper_bound(start), keyframes_.end());
@@ -61,7 +60,7 @@ Frames Map::GetKeyFrames(double start, double end, int num)
 
 void Map::RemoveLandmark(visual::Landmark::Ptr landmark)
 {
-    std::unique_lock<std::mutex> lock(data_mutex_);
+    std::unique_lock<std::mutex> lock(mutex_data_);
     landmark->Clear();
     landmarks_.erase(landmark->id);
 }

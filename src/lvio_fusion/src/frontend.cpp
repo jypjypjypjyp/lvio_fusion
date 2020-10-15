@@ -19,7 +19,7 @@ Frontend::Frontend(int num_features, int init, int tracking, int tracking_bad, i
 
 bool Frontend::AddFrame(lvio_fusion::Frame::Ptr frame)
 {
-    std::unique_lock<std::mutex> lock(last_frame_mutex);
+    std::unique_lock<std::mutex> lock(mutex);
     current_frame = frame;
 
     switch (status)
@@ -145,9 +145,9 @@ bool Frontend::Track()
 void Frontend::CreateKeyframe(bool need_new_features)
 {
     // first, add new observations of old points
-    for (auto feature_pair : current_frame->features_left)
+    for (auto pair_feature : current_frame->features_left)
     {
-        auto feature = feature_pair.second;
+        auto feature = pair_feature.second;
         auto mp = feature->landmark.lock();
         mp->AddObservation(feature);
     }
@@ -162,16 +162,15 @@ void Frontend::CreateKeyframe(bool need_new_features)
     LOG(INFO) << "Add a keyframe " << current_frame->id;
     // update backend because we have a new keyframe
     backend_.lock()->UpdateMap();
-    relocation_.lock()->UpdateMap();
 }
 
 bool Frontend::InitFramePoseByPnP()
 {
     std::vector<cv::Point3d> points_3d;
     std::vector<cv::Point2d> points_2d;
-    for (auto feature_pair : current_frame->features_left)
+    for (auto pair_feature : current_frame->features_left)
     {
-        auto feature = feature_pair.second;
+        auto feature = pair_feature.second;
         auto camera_point = feature->landmark.lock();
         points_2d.push_back(feature->keypoint);
         Vector3d p = position_cache_[camera_point->id];
@@ -197,10 +196,10 @@ int Frontend::TrackLastFrame()
     // use LK flow to estimate points in the last image
     std::vector<cv::Point2d> kps_last, kps_current;
     std::vector<visual::Landmark::Ptr> landmarks;
-    for (auto feature_pair : last_frame->features_left)
+    for (auto pair_feature : last_frame->features_left)
     {
         // use project point
-        auto feature = feature_pair.second;
+        auto feature = pair_feature.second;
         auto camera_point = feature->landmark.lock();
         auto px = camera_left_->World2Pixel(position_cache_[camera_point->id], current_frame->pose);
         landmarks.push_back(camera_point);
@@ -261,16 +260,15 @@ bool Frontend::InitMap()
 
     // update backend and loop because we have a new keyframe
     backend_.lock()->UpdateMap();
-    relocation_.lock()->UpdateMap();
     return true;
 }
 
 int Frontend::DetectNewFeatures()
 {
     cv::Mat mask(current_frame->image_left.size(), CV_8UC1, 255);
-    for (auto feature_pair : current_frame->features_left)
+    for (auto pair_feature : current_frame->features_left)
     {
-        auto feature = feature_pair.second;
+        auto feature = pair_feature.second;
         cv::rectangle(mask, feature->keypoint - cv::Point2d(10, 10), feature->keypoint + cv::Point2d(10, 10), 0, cv::FILLED);
     }
 
@@ -328,10 +326,8 @@ int Frontend::DetectNewFeatures()
 bool Frontend::Reset()
 {
     backend_.lock()->Pause();
-    relocation_.lock()->Pause();
     map_->Reset();
     backend_.lock()->Continue();
-    relocation_.lock()->Continue();
     status = FrontendStatus::BUILDING;
     LOG(INFO) << "Reset Succeed";
     return true;
@@ -340,19 +336,13 @@ bool Frontend::Reset()
 void Frontend::UpdateCache()
 {
     position_cache_.clear();
-    for (auto feature_pair : last_frame->features_left)
+    for (auto pair_feature : last_frame->features_left)
     {
-        auto feature = feature_pair.second;
+        auto feature = pair_feature.second;
         auto camera_point = feature->landmark.lock();
         position_cache_.insert(std::make_pair(camera_point->id, camera_point->ToWorld()));
     }
     last_frame_pose_cache_ = last_frame->pose;
-}
-
-std::unordered_map<unsigned long, Vector3d> Frontend::GetPositionCache()
-{
-    std::unique_lock<std::mutex> lock(last_frame_mutex);
-    return position_cache_;
 }
 
 } // namespace lvio_fusion

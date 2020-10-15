@@ -55,9 +55,9 @@ void pub_navsat(Estimator::Ptr estimator, double time)
     {
         if (navsat_path.poses.size() == 0)
         {
-            for (auto mp_pair : estimator->map->navsat_map->navsat_points)
+            for (auto pair_mp : estimator->map->navsat_map->navsat_points)
             {
-                NavsatPoint point = mp_pair.second;
+                NavsatPoint point = pair_mp.second;
                 geometry_msgs::PoseStamped pose_stamped;
                 pose_stamped.header.stamp = ros::Time(point.time);
                 pose_stamped.header.frame_id = "navsat";

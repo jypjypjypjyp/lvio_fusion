@@ -7,16 +7,16 @@ bool Initializer::Initialize(Frames kfs)
 {
     // be perpare for initialization
     std::vector<Initializer::Frame> frames;
-    for (auto kf_pair : kfs)
+    for (auto pair_kf : kfs)
     {
-        if (!kf_pair.second->preintegration)
+        if (!pair_kf.second->preintegration)
             return false;
         Initializer::Frame frame;
-        frame.preintegration = kf_pair.second->preintegration;
-        frame.R = kf_pair.second->pose.inverse().rotationMatrix();
-        frame.T = kf_pair.second->pose.inverse().translation();
-        frame.Ba = kf_pair.second->preintegration->linearized_ba;
-        frame.Bg = kf_pair.second->preintegration->linearized_bg;
+        frame.preintegration = pair_kf.second->preintegration;
+        frame.R = pair_kf.second->pose.inverse().rotationMatrix();
+        frame.T = pair_kf.second->pose.inverse().translation();
+        frame.Ba = pair_kf.second->preintegration->linearized_ba;
+        frame.Bg = pair_kf.second->preintegration->linearized_bg;
         frames.push_back(frame);
     }
 

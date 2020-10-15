@@ -49,10 +49,10 @@ LabelType Frame::GetLabelType(int x, int y)
 
 void Frame::UpdateLabel()
 {
-    for (auto feature_pair : features_left)
+    for (auto pair_feature : features_left)
     {
-        auto camera_point = feature_pair.second->landmark.lock();
-        camera_point->label = GetLabelType(feature_pair.second->keypoint.x, feature_pair.second->keypoint.y);
+        auto camera_point = pair_feature.second->landmark.lock();
+        camera_point->label = GetLabelType(pair_feature.second->keypoint.x, pair_feature.second->keypoint.y);
     }
 }
 

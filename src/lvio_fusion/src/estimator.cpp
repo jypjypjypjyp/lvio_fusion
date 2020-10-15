@@ -83,8 +83,9 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
     {
         relocation = Relocation::Ptr(new Relocation(Config::Get<std::string>("voc_path")));
         relocation->SetCameras(camera1, camera2);
+        relocation->SetFrontend(frontend);
+        relocation->SetBackend(backend);
         relocation->SetMap(map);
-        frontend->SetRelocation(relocation);
     }
 
     if (use_navsat)
