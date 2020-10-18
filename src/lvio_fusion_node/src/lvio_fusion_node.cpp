@@ -300,7 +300,7 @@ int main(int argc, char **argv)
 
     register_pub(n);
     ros::Timer tf_timer = n.createTimer(ros::Duration(0.0001), tf_timer_callback);
-    ros::Timer pc_timer = n.createTimer(ros::Duration(1), pc_timer_callback);
+    ros::Timer pc_timer = n.createTimer(ros::Duration(5), pc_timer_callback);
 
     if (use_imu)
     {

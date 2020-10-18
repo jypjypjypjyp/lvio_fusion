@@ -26,7 +26,6 @@ class Backend
 {
 public:
     typedef std::shared_ptr<Backend> Ptr;
-    typedef std::weak_ptr<Backend> WeakPtr;
 
     Backend(double range);
 
@@ -67,7 +66,7 @@ private:
     void BuildProblem(Frames &active_kfs, ceres::Problem &problem);
 
     Map::Ptr map_;
-    Frontend::WeakPtr frontend_;
+    std::weak_ptr<Frontend> frontend_;
     Initializer::Ptr initializer_;
 
     std::thread thread_;

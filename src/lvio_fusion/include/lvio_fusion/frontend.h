@@ -39,7 +39,6 @@ class Frontend
 {
 public:
     typedef std::shared_ptr<Frontend> Ptr;
-    typedef std::weak_ptr<Frontend> WeakPtr;
 
     Frontend(int num_features, int init, int tracking, int tracking_bad, int need_for_keyframe);
 
@@ -91,7 +90,7 @@ private:
 
     // data
     Map::Ptr map_;
-    Backend::WeakPtr backend_;
+    std::weak_ptr<Backend> backend_;
     std::unordered_map<unsigned long, Vector3d> position_cache_;
     SE3d last_frame_pose_cache_;
 

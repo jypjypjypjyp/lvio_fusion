@@ -86,7 +86,7 @@ void Mapping::MappingLoop()
     }
 }
 
-void Mapping::Optimize(double loop_start_time = 0)
+void Mapping::Optimize(double loop_start_time)
 {
     static double head = 0;
     if (loop_start_time != 0)
@@ -156,22 +156,32 @@ void Mapping::BuildGlobalMap(Frames &active_kfs)
     for (auto pair_kf : active_kfs)
     {
         Frame::Ptr frame = pair_kf.second;
-        PointRGBCloud &map = map_->simple_map;
-        AddToWorld(frame->feature_lidar->points_sharp, frame, map);
-        AddToWorld(frame->feature_lidar->points_less_sharp, frame, map);
-        AddToWorld(frame->feature_lidar->points_flat, frame, map);
-        AddToWorld(frame->feature_lidar->points_less_flat, frame, map);
+        PointRGBCloud pointcloud;
+        AddToWorld(frame->feature_lidar->points_less_sharp, frame, pointcloud);
+        AddToWorld(frame->feature_lidar->points_less_flat, frame, pointcloud);
         frame->feature_lidar.reset();
+        pointclouds_[frame->time] = pointcloud;
     }
+}
+
+PointRGBCloud Mapping::GetGlobalMap()
+{
     static pcl::VoxelGrid<PointRGB> downSizeFilter;
-    if (map_->simple_map.size() > 0)
+    PointRGBCloud global_map;
+    for(auto pair_pc : pointclouds_)
+    {
+        auto& pointcloud = pair_pc.second;
+        global_map.insert(global_map.end(), pointcloud.begin(), pointcloud.end());
+    }
+    if (global_map.size() > 0)
     {
         PointRGBCloud::Ptr mapDS(new PointRGBCloud());
-        pcl::copyPointCloud(map_->simple_map, *mapDS);
+        pcl::copyPointCloud(global_map, *mapDS);
         downSizeFilter.setInputCloud(mapDS);
         downSizeFilter.setLeafSize(0.1, 0.1, 0.1);
-        downSizeFilter.filter(map_->simple_map);
+        downSizeFilter.filter(global_map);
     }
+    return global_map;
 }
 
 } // namespace lvio_fusion

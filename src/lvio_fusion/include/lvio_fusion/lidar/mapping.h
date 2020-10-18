@@ -21,7 +21,6 @@ class Mapping
 {
 public:
     typedef std::shared_ptr<Mapping> Ptr;
-    typedef std::weak_ptr<Mapping> WeakPtr;
 
     Mapping();
 
@@ -39,6 +38,8 @@ public:
 
     void Continue();
 
+    PointRGBCloud GetGlobalMap();
+
     MappingStatus status = MappingStatus::RUNNING;
 
 private:
@@ -48,13 +49,16 @@ private:
 
     void BuildGlobalMap(Frames &active_kfs);
 
+    Map::Ptr map_;
+    ScanRegistration::Ptr scan_registration_;
+
     std::thread thread_;
     std::mutex running_mutex_, pausing_mutex_;
     std::condition_variable running_;
     std::condition_variable pausing_;
     std::condition_variable started_;
-    Map::Ptr map_;
-    ScanRegistration::Ptr scan_registration_;
+    std::map<double, PointRGBCloud> pointclouds_;
+
     Lidar::Ptr lidar_;
     Camera::Ptr camera_;
 };

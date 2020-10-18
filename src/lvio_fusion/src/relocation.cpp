@@ -61,9 +61,9 @@ void Relocation::AddKeyFrameIntoVoc(Frame::Ptr frame)
 {
     // compute descriptors
     std::vector<cv::KeyPoint> keypoints;
-    for (auto pair : frame->features_left)
+    for (auto pair_feature : frame->features_left)
     {
-        keypoints.push_back(cv::KeyPoint(pair.second->keypoint, 1));
+        keypoints.push_back(cv::KeyPoint(pair_feature.second->keypoint, 1));
     }
     detector_->compute(frame->image_left, keypoints, frame->descriptors);
     LOG(INFO) << frame->descriptors;
@@ -111,10 +111,10 @@ bool Relocation::Associate(Frame::Ptr frame, Frame::Ptr &frame_old)
     // search by BRIEFDes
     auto descriptors = mat2briefs(frame);
     auto descriptors_old = mat2briefs(frame_old);
-    for (auto pair : descriptors)
+    for (auto pair_desciptor : descriptors)
     {
         unsigned long best_id = 0;
-        if (SearchInAera(pair.second, descriptors_old, best_id))
+        if (SearchInAera(pair_desciptor.second, descriptors_old, best_id))
         {
             cv::Point2d point_2d = frame_old->features_left[best_id]->keypoint;
             visual::Landmark::Ptr landmark = frame_old->features_left[best_id]->landmark.lock();
@@ -146,13 +146,13 @@ bool Relocation::SearchInAera(const BRIEF descriptor, const std::map<unsigned lo
 {
     cv::Point2d best_pt;
     int best_distance = 256;
-    for (auto pair : descriptors_old)
+    for (auto pair_desciptor : descriptors_old)
     {
-        int distance = Hamming(descriptor, pair.second);
+        int distance = Hamming(descriptor, pair_desciptor.second);
         if (distance < best_distance)
         {
             best_distance = distance;
-            best_id = pair.first;
+            best_id = pair_desciptor.first;
         }
     }
     return best_distance < 160;
@@ -249,10 +249,41 @@ void Relocation::BuildProblem(Frames &active_kfs, ceres::Problem &problem)
         }
     }
 
-    if (active_kfs.begin()->first == map_->GetAllKeyFrames().begin()->first)
+    // loop constraints
+    problem.SetParameterBlockConstant(active_kfs.begin()->second->pose.data());
+    for (auto pair_kf : active_kfs)
     {
-        auto &pose = active_kfs.begin()->second->pose;
-        problem.SetParameterBlockConstant(pose.data());
+        auto frame = pair_kf.second;
+        double *para_kf = frame->pose.data();
+        if (frame->loop_constraint)
+        {
+            auto frame_old = frame->loop_constraint->frame_old;
+            if (frame_old->time <= start_time)
+            {
+                problem.SetParameterBlockConstant(para_kf);
+            }
+            else
+            {
+                for (auto pair_feature : frame->loop_constraint->features_loop)
+                {
+                    auto feature = pair_feature.second;
+                    auto landmark = feature->landmark.lock();
+                    auto first_frame = landmark->FirstFrame();
+                    ceres::CostFunction *cost_function;
+                    if (first_frame.lock()->time < start_time)
+                    {
+                        cost_function = PoseOnlyReprojectionError::Create(cv2eigen(feature->keypoint), landmark->ToWorld(), camera_left_, 5);
+                        problem.AddResidualBlock(cost_function, loss_function, para_kf);
+                    }
+                    else if (first_frame.lock() != frame)
+                    {
+                        double *para_fist_kf = first_frame.lock()->pose.data();
+                        cost_function = TwoFrameReprojectionError::Create(landmark->position, cv2eigen(feature->keypoint), camera_left_, 5);
+                        problem.AddResidualBlock(cost_function, loss_function, para_fist_kf, para_kf);
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -268,7 +299,6 @@ void Relocation::CorrectLoop(double start_time, double end_time)
 
     ceres::Solver::Options options;
     options.linear_solver_type = ceres::DENSE_SCHUR;
-    options.function_tolerance = 1e-9;
     options.max_num_iterations = 5;
     options.num_threads = 4;
     ceres::Solver::Summary summary;
@@ -312,8 +342,8 @@ void Relocation::CorrectLoop(double start_time, double end_time)
 
     // forward propogate
     {
-        std::unique_lock<std::mutex> lock(frontend_.lock()->mutex);
-        std::unique_lock<std::mutex> lock(backend_.lock()->mutex);
+        std::unique_lock<std::mutex> lock1(frontend_.lock()->mutex);
+        std::unique_lock<std::mutex> lock2(backend_.lock()->mutex);
 
         Frame::Ptr last_frame = frontend_.lock()->last_frame;
         Frames active_kfs = map_->GetKeyFrames(end_time);

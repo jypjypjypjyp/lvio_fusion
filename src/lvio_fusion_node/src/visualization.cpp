@@ -115,7 +115,7 @@ void pub_tf(Estimator::Ptr estimator, double time)
 void pub_point_cloud(Estimator::Ptr estimator, double time)
 {
     sensor_msgs::PointCloud2 ros_cloud;
-    pcl::toROSMsg(estimator->map->simple_map, ros_cloud);
+    pcl::toROSMsg(estimator->mapping->GetGlobalMap(), ros_cloud);
     ros_cloud.header.stamp = ros::Time(time);
     ros_cloud.header.frame_id = "world";
     points_cloud_pub.publish(ros_cloud);

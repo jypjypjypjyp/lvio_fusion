@@ -143,7 +143,8 @@ void Backend::BuildProblem(Frames &active_kfs, ceres::Problem &problem)
             last_frame = current_frame;
         }
     }
-
+    
+    // initial point
     if (active_kfs.begin()->first == map_->GetAllKeyFrames().begin()->first)
     {
         auto &pose = active_kfs.begin()->second->pose;
@@ -185,7 +186,6 @@ void Backend::Optimize(bool full)
 
     ceres::Solver::Options options;
     options.linear_solver_type = ceres::DENSE_SCHUR;
-    options.function_tolerance = 1e-9;
     options.max_solver_time_in_seconds = range_ * 0.8;
     options.num_threads = 4;
     ceres::Solver::Summary summary;

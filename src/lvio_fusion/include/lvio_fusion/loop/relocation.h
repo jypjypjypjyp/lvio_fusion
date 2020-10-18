@@ -36,9 +36,9 @@ inline std::map<unsigned long, BRIEF> mat2briefs(Frame::Ptr frame)
 {
     std::map<unsigned long, BRIEF> briefs;
     int i = 0;
-    for (auto pair : frame->features_left)
+    for (auto pair_feature : frame->features_left)
     {
-        briefs.insert(std::make_pair(pair.first, mat2brief(frame->descriptors.row(i))));
+        briefs.insert(std::make_pair(pair_feature.first, mat2brief(frame->descriptors.row(i))));
         i++;
     }
     return briefs;
@@ -55,7 +55,6 @@ class Relocation
 {
 public:
     typedef std::shared_ptr<Relocation> Ptr;
-    typedef std::weak_ptr<Relocation> WeakPtr;
 
     Relocation(std::string voc_path);
 
@@ -72,8 +71,6 @@ public:
     void SetFrontend(Frontend::Ptr frontend) { frontend_ = frontend; }
 
     void SetBackend(Backend::Ptr backend) { backend_ = backend; }
-
-    void SetMapping(Mapping::Ptr mapping) { mapping_ = mapping; }
 
 private:
     void RelocationLoop();
@@ -96,8 +93,8 @@ private:
     DBoW3::Vocabulary voc_;
     Map::Ptr map_;
     Mapping::Ptr mapping_;
-    Frontend::WeakPtr frontend_;
-    Backend::WeakPtr backend_;
+    std::weak_ptr<Frontend> frontend_;
+    std::weak_ptr<Backend> backend_;
 
     std::thread thread_;
     cv::Ptr<cv::Feature2D> detector_;

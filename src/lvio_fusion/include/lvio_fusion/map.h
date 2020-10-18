@@ -45,7 +45,6 @@ public:
     }
 
     NavsatMap::Ptr navsat_map;
-    PointRGBCloud simple_map;
     double time_local_map = 0;
     double time_mapping = 0;
 
