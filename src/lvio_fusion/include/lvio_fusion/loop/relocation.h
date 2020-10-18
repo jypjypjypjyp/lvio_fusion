@@ -77,9 +77,11 @@ private:
 
     void AddKeyFrameIntoVoc(Frame::Ptr frame);
 
-    bool DetectLoop(Frame::Ptr frame, Frame::Ptr &frame_old);
+    bool DetectLoop(Frame::Ptr frame, Frame::Ptr frame_old);
 
-    bool Associate(Frame::Ptr frame, Frame::Ptr &frame_old);
+    bool Associate(Frame::Ptr frame, Frame::Ptr frame_old);
+
+    bool RefineAssociation(Frame::Ptr frame, Frame::Ptr frame_old, loop::LoopConstraint::Ptr loop_constraint);
 
     bool SearchInAera(const BRIEF descriptor, const std::map<unsigned long, BRIEF> &descriptors_old, unsigned long &best_id);
 
