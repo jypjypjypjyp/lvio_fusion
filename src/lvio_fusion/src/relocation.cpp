@@ -44,6 +44,7 @@ void Relocation::RelocationLoop()
             {
                 start_time = frame->time;
                 end_time = std::min(end_time, frame_old->time);
+                RefineAssociation(frame, frame_old);
             }
             else if (is_last_loop)
             {
@@ -103,7 +104,7 @@ bool Relocation::DetectLoop(Frame::Ptr frame, Frame::Ptr &frame_old)
     return false;
 }
 
-bool Relocation::Associate(Frame::Ptr frame, Frame::Ptr &frame_old)
+bool Relocation::Associate(Frame::Ptr frame, Frame::Ptr frame_old)
 {
     loop::LoopConstraint::Ptr loop_constraint = loop::LoopConstraint::Ptr(new loop::LoopConstraint());
     std::vector<cv::Point3d> points_3d;
@@ -135,11 +136,38 @@ bool Relocation::Associate(Frame::Ptr frame, Frame::Ptr &frame_old)
         cv::cv2eigen(cv_R, R);
         loop_constraint->relative_pose = camera_left_->extrinsic.inverse() * SE3d(SO3d(R), Vector3d(tvec.at<double>(0, 0), tvec.at<double>(1, 0), tvec.at<double>(2, 0)));
         loop_constraint->frame_old = frame_old;
-        frame->pose = loop_constraint->relative_pose * frame_old->pose;
-        frame->loop_constraint = loop_constraint;
-        return true;
+        // TODO
+        if (RefineAssociation(frame, frame_old, loop_constraint))
+        {
+            frame->loop_constraint = loop_constraint;
+            return true;
+        }
     }
     return false;
+}
+
+bool Relocation::RefineAssociation(Frame::Ptr frame, Frame::Ptr frame_old, loop::LoopConstraint::Ptr loop_constraint)
+{
+    ceres::Problem problem;
+    ceres::LossFunction *lidar_loss_function = new ceres::HuberLoss(0.1);
+    ceres::LocalParameterization *local_parameterization = new ceres::ProductParameterization(
+        new ceres::EigenQuaternionParameterization(),
+        new ceres::IdentityParameterization(3));
+
+    double *para_kf = frame->pose.data();
+    problem.AddParameterBlock(para_kf, SE3d::num_parameters, local_parameterization);
+    double *para_kf_old = frame_old->pose.data();
+    problem.AddParameterBlock(para_kf_old, SE3d::num_parameters, local_parameterization);
+    problem.SetParameterBlockConstant(para_kf_old);
+
+    scan_registration_->Associate(frame, frame_old, problem, lidar_loss_function);
+
+    ceres::Solver::Options options;
+    options.linear_solver_type = ceres::DENSE_NORMAL_CHOLESKY;
+    options.function_tolerance = 1e-9;
+    options.num_threads = 4;
+    ceres::Solver::Summary summary;
+    ceres::Solve(options, &problem, &summary);
 }
 
 bool Relocation::SearchInAera(const BRIEF descriptor, const std::map<unsigned long, BRIEF> &descriptors_old, unsigned long &best_id)
@@ -293,6 +321,7 @@ void Relocation::CorrectLoop(double start_time, double end_time)
     Frames active_kfs = map_->GetKeyFrames(start_time, end_time);
     // stop mapping
     mapping_->Pause();
+
     // optimize pose graph
     ceres::Problem problem;
     BuildProblem(active_kfs, problem);
