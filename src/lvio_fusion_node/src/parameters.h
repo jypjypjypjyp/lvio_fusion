@@ -23,7 +23,7 @@ extern double gyr_n;
 extern double acc_w;
 extern double gyr_w;
 extern double g_norm;
-extern cv::Mat Tbc；
+extern cv::Mat TBC；
 //NEWADDEND
 void read_parameters(std::string config_file);
 

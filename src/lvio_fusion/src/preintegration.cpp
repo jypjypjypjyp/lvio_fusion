@@ -113,7 +113,8 @@ cv::Mat Wacc = (cv::Mat_<float>(3,3) << 0, -acc.at<float>(2), acc.at<float>(1),
     JVa = JVa - dR*dt;
     JVg = JVg - dR*dt*Wacc*JRg;
 // Update delta rotation
-    IntegratedRotation dRi(angVel,b,dt);
+    cv::Point3f angVel_= cv::Point3f(angVel[0],angVel[1],angVel[2]);
+    IntegratedRotation dRi( angVel_,b,dt);
     dR = NormalizeRotation(dR*dRi.deltaR);
 
     // Compute rotation parts of matrices A and B
@@ -133,7 +134,30 @@ cv::Mat Wacc = (cv::Mat_<float>(3,3) << 0, -acc.at<float>(2), acc.at<float>(1),
     // Total integrated time
     dT += dt;
 }
-
+void Preintegration::Initialize(const Bias &b_)
+{
+    // R,V,P delta状态
+    dR = cv::Mat::eye(3,3,CV_32F);
+    dV = cv::Mat::zeros(3,1,CV_32F);
+    dP = cv::Mat::zeros(3,1,CV_32F);
+    // R,V,P 分别对角速度，线加速度的雅克比
+    JRg = cv::Mat::zeros(3,3,CV_32F);
+    JVg = cv::Mat::zeros(3,3,CV_32F);
+    JVa = cv::Mat::zeros(3,3,CV_32F);
+    JPg = cv::Mat::zeros(3,3,CV_32F);
+    JPa = cv::Mat::zeros(3,3,CV_32F);
+    // R V P ba bg
+    C = cv::Mat::zeros(15,15,CV_32F);
+    Info=cv::Mat();
+    // ba bg
+    db = cv::Mat::zeros(6,1,CV_32F);
+    b=b_;
+    bu=b_;
+    avgA = cv::Mat::zeros(3,1,CV_32F);
+    avgW = cv::Mat::zeros(3,1,CV_32F);
+    dT=0.0f;
+    mvMeasurements.clear();
+}
 /*
 void Preintegration::Repropagate(const Vector3d &_linearized_ba, const Vector3d &_linearized_bg)
 {

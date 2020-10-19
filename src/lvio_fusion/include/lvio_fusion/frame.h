@@ -28,6 +28,8 @@ public:
 
     static Frame::Ptr Create();
 
+
+
     static unsigned long current_frame_id;
     unsigned long id;
     double time;
@@ -42,13 +44,20 @@ public:
     SE3d pose;
     Vector3d velocity;                          // velocity
 
+
+
+//NEWADD
+//IMU
+
+   cv::Mat   GetImuRotation();
+//NEWADDEND
+
+
 private:
     //NOTE: semantic map
     LabelType GetLabelType(int x, int y);
 
-//NEWADD
-   cv::Mat   GetImuRotation();
-//NEWADDEND
+
 
 };
 

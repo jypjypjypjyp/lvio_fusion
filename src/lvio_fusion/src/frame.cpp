@@ -2,7 +2,6 @@
 #include "lvio_fusion/visual/feature.h"
 #include "lvio_fusion/map.h"
 #include "lvio_fusion/visual/landmark.h"
-
 namespace lvio_fusion
 {
 
@@ -58,10 +57,13 @@ void Frame::UpdateLabel()
 
 //NEWADD
 cv::Mat   Frame::GetImuRotation(){
-    Tcb = cv::Mat::eye(4,4,CV_32F);
-    Tcb.rowRange(0,3).colRange(0,3) = tbc.rowRange(0,3).colRange(0,3).t();
-    Tcb.rowRange(0,3).col(3) = -Tbc.rowRange(0,3).colRange(0,3).t()*Tbc.rowRange(0,3).col(3);
-     return pose.rotationMatrix()*tcb.rowRange(0,3).colRange(0,3);
+    cv::Mat TBC,TCB;
+    TCB = cv::Mat::eye(4,4,CV_32F);
+    TCB.rowRange(0,3).colRange(0,3) = TBC.rowRange(0,3).colRange(0,3).t();
+    TCB.rowRange(0,3).col(3) = -TBC.rowRange(0,3).colRange(0,3).t()*TBC.rowRange(0,3).col(3);
+     cv::Mat Rwc;
+     cv::eigen2cv(pose.rotationMatrix(),Rwc);
+     return Rwc*TCB;
 
 }
 //NEWADDEND

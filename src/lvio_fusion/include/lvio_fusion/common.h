@@ -28,7 +28,7 @@ typedef Sophus::SO3d SO3d;
 
 // opencv
 #include <opencv2/opencv.hpp>
-
+#include <opencv2/core/eigen.hpp>
 // PCL
 #include <pcl/common/common_headers.h>
 

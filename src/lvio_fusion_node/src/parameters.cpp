@@ -9,7 +9,7 @@ int use_imu, use_lidar, num_of_cam, use_navsat, use_loop, is_semantic;
 //NEWADD
 //imu parameters
 double acc_n,gyr_n,acc_w,gyr_w,g_norm;
- cv::Mat Tbc；
+ cv::Mat TBC；
 //NEWADDEND
 void read_parameters(string config_file)
 {
@@ -36,7 +36,7 @@ void read_parameters(string config_file)
     fsSettings["is_semantic"] >> is_semantic;
     fsSettings["result_path"] >> result_path;
 //NEWADD
-    fsSettings["base_to_cam0"]>>Tbc;//base to cam0 
+    fsSettings["base_to_cam0"]>>TBC;//base to cam0 
 //NEWADDEND
     if (num_of_cam == 2)
     {

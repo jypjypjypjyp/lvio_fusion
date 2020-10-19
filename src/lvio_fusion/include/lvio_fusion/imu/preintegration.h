@@ -26,13 +26,6 @@ public:
         return new_preintegration;
     }
 
-/*    void Append(double dt, const Vector3d &acc, const Vector3d &gyr)
-    {
-        dt_buf.push_back(dt);
-        acc_buf.push_back(acc);
-        gyr_buf.push_back(gyr);
-        Propagate(dt, acc, gyr);
-    }*/
     void Appendimu(imuPoint imuMeasure)
     {
         imuData_buf.push_back(imuMeasure);
@@ -40,23 +33,9 @@ public:
 
     void PreintegrateIMU(double last_frame_time,double current_frame_time);
    void IntegrateNewMeasurement(const Vector3d &acceleration, const Vector3d  &angVel, const float &dt);
+    void Initialize(const Bias &b_);
 
 
-  /*  void Repropagate(const Vector3d &_linearized_ba, const Vector3d &_linearized_bg);
-
-    void MidPointIntegration(double _dt,
-                             const Vector3d &_acc_0, const Vector3d &_gyr_0,
-                             const Vector3d &_acc_1, const Vector3d &_gyr_1,
-                             const Vector3d &delta_p, const Quaterniond &delta_q, const Vector3d &delta_v,
-                             const Vector3d &linearized_ba, const Vector3d &linearized_bg,
-                             Vector3d &result_delta_p, Quaterniond &result_delta_q, Vector3d &result_delta_v,
-                             Vector3d &result_linearized_ba, Vector3d &result_linearized_bg, bool update_jacobian);
-
-    void Propagate(double _dt, const Vector3d &_acc_1, const Vector3d &_gyr_1);
-
-    Matrix<double, 15, 1> Evaluate(const Vector3d &Pi, const Quaterniond &Qi, const Vector3d &Vi, const Vector3d &Bai, const Vector3d &Bgi,
-                                   const Vector3d &Pj, const Quaterniond &Qj, const Vector3d &Vj, const Vector3d &Baj, const Vector3d &Bgj);
-*/
     double dt;
     Vector3d acc0, gyr0;
     Vector3d acc1, gyr1;
@@ -95,6 +74,7 @@ private:
         noise.block<3, 3>(9, 9) = (imu->GYR_N * imu->GYR_N) * Matrix3d::Identity();
         noise.block<3, 3>(12, 12) = (imu->ACC_W * imu->ACC_W) * Matrix3d::Identity();
         noise.block<3, 3>(15, 15) = (imu->GYR_W * imu->GYR_W) * Matrix3d::Identity();
+        Initialize(Bias());
     }
 
     struct integrable
@@ -119,7 +99,13 @@ private:
     cv::Mat JRg, JVg, JVa, JPg, JPa; 
     cv::Mat avgA;
     cv::Mat avgW;
-
+    
+   // Updated bias
+    Bias bu;
+    // Dif between original and updated bias
+    // This is used to compute the updated values of the preintegration
+    cv::Mat db;
+   
 
 };
 
