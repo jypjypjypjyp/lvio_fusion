@@ -107,7 +107,7 @@ private:
     Imu::Ptr imu_;
     //NEWADD
     Initializer::Ptr initializer_;
-    Calib ImuCalib_;
+   // Calib ImuCalib_;
     //NEWADDEND
 
     // params

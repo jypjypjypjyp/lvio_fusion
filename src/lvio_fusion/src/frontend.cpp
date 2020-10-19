@@ -61,33 +61,18 @@ void Frontend::AddImu(double time, Vector3d acc, Vector3d gyr)
     //修改了
     imuPoint imuMeas(acc,gyr,time);
       static bool first = true;
-    static Vector3d acc0(0, 0, 0), gyr0(0, 0, 0), R(0, 0, 0), T(0, 0, 0), V(0, 0, 0);
      if (current_frame)
     {
-        if (first)
-        {
-            first = false;
-            acc0 = acc;
-            gyr0 = gyr;
-        }
         if (!current_frame->preintegration)
         {
-            Vector3d ba = Vector3d::Zero(), bg = Vector3d::Zero(), v0 = Vector3d::Zero();
-            if (last_frame && last_frame->preintegration)
-            {
-                ba = last_frame->preintegration->linearized_ba;
-                bg = last_frame->preintegration->linearized_bg;
-                v0 = last_frame->preintegration->v0 + last_frame->preintegration->delta_v;
-            }
-            current_frame->preintegration = imu::Preintegration::Create(acc0, gyr0, v0, ba, bg, imu_);
+            current_frame->preintegration = imu::Preintegration::Create(Bias(), imu_);
         }
         current_frame->preintegration->Appendimu(imuMeas);
         if (current_key_frame && current_key_frame->preintegration && current_key_frame != current_frame)
         {
             current_key_frame->preintegration->Appendimu(imuMeas);
         }
-        acc0 = acc;
-        gyr0 = acc;
+
     }
     //NEWADDEND
 }

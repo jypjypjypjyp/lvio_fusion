@@ -1,6 +1,7 @@
 #ifndef lvio_fusion_PARAMETERS_H
 #define lvio_fusion_PARAMETERS_H
 
+#include "common.h"
 #include <ros/ros.h>
 #include <fstream>
 #include <opencv2/opencv.hpp>
@@ -23,7 +24,8 @@ extern double gyr_n;
 extern double acc_w;
 extern double gyr_w;
 extern double g_norm;
-extern cv::Mat TBC；
+extern cv::Mat TBC;
+extern float  freq;;
 //NEWADDEND
 void read_parameters(std::string config_file);
 

@@ -9,7 +9,8 @@ int use_imu, use_lidar, num_of_cam, use_navsat, use_loop, is_semantic;
 //NEWADD
 //imu parameters
 double acc_n,gyr_n,acc_w,gyr_w,g_norm;
- cv::Mat TBC；
+float  freq;
+ cv::Mat TBC;
 //NEWADDEND
 void read_parameters(string config_file)
 {
@@ -52,6 +53,7 @@ void read_parameters(string config_file)
         fsSettings["acc_w"]>>acc_w;
         fsSettings["gyr_w"]>>gyr_w;
         fsSettings["g_norm"]>>g_norm;
+        fsSettings["frequency"]>>freq;
         //NEWADDEND        
     }
     if (use_lidar)

@@ -158,6 +158,23 @@ void Preintegration::Initialize(const Bias &b_)
     dT=0.0f;
     mvMeasurements.clear();
 }
+
+cv::Mat Preintegration::GetUpdatedDeltaVelocity()//TODO:db更新未写，用SetNewBias(const Bias &bu_)更新
+{
+    return dV + JVg*db.rowRange(0,3) + JVa*db.rowRange(3,6);
+} 
+
+void Preintegration::SetNewBias(const Bias &bu_)
+{
+    bu = bu_;
+
+    db.at<float>(0) = bu_.bwx-b.bwx;
+    db.at<float>(1) = bu_.bwy-b.bwy;
+    db.at<float>(2) = bu_.bwz-b.bwz;
+    db.at<float>(3) = bu_.bax-b.bax;
+    db.at<float>(4) = bu_.bay-b.bay;
+    db.at<float>(5) = bu_.baz-b.baz;
+}
 /*
 void Preintegration::Repropagate(const Vector3d &_linearized_ba, const Vector3d &_linearized_bg)
 {

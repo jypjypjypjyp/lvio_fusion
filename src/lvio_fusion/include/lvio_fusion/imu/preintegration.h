@@ -20,9 +20,9 @@ class Preintegration
 public:
     typedef std::shared_ptr<Preintegration> Ptr;
 
-    static Preintegration::Ptr Create(const Vector3d &_acc_0, const Vector3d &_gyr_0, const Vector3d &_v0, const Vector3d &_linearized_ba, const Vector3d &_linearized_bg, const Imu::Ptr imu)
+    static Preintegration::Ptr Create(Bias bias, const Imu::Ptr imu)
     {
-        Preintegration::Ptr new_preintegration(new Preintegration(_acc_0, _gyr_0, _v0, _linearized_ba, _linearized_bg, imu));
+        Preintegration::Ptr new_preintegration(new Preintegration(bias, imu));
         return new_preintegration;
     }
 
@@ -34,9 +34,10 @@ public:
     void PreintegrateIMU(double last_frame_time,double current_frame_time);
    void IntegrateNewMeasurement(const Vector3d &acceleration, const Vector3d  &angVel, const float &dt);
     void Initialize(const Bias &b_);
+    cv::Mat GetUpdatedDeltaVelocity();
+    void Preintegration::SetNewBias(const Bias &bu_);
 
-
-    double dt;
+  /*  double dt;
     Vector3d acc0, gyr0;
     Vector3d acc1, gyr1;
     Vector3d linearized_acc, linearized_gyr;
@@ -50,7 +51,7 @@ public:
     Quaterniond delta_q;
     Vector3d delta_v;
     Vector3d v0;
-
+*/
    std::vector<imuPoint> imuData_buf;
 
     std::vector<double> dt_buf;
@@ -60,22 +61,17 @@ public:
 private:
     Preintegration() = default;
 
-    Preintegration(const Vector3d &_acc_0, const Vector3d &_gyr_0, const Vector3d &_v0,
-                   const Vector3d &_linearized_ba, const Vector3d &_linearized_bg, const Imu::Ptr imu)
-        : acc0{_acc_0}, gyr0{_gyr_0}, v0(_v0), linearized_acc{_acc_0}, linearized_gyr{_gyr_0},
-          linearized_ba{_linearized_ba}, linearized_bg{_linearized_bg},
-          jacobian{Matrix<double, 15, 15>::Identity()}, covariance{Matrix<double, 15, 15>::Zero()},
-          sum_dt{0.0}, delta_p{Vector3d::Zero()}, delta_q{Quaterniond::Identity()}, delta_v{Vector3d::Zero()}
-    {
-        noise = Matrix<double, 18, 18>::Zero();
-        noise.block<3, 3>(0, 0) = (imu->ACC_N * imu->ACC_N) * Matrix3d::Identity();
-        noise.block<3, 3>(3, 3) = (imu->GYR_N * imu->GYR_N) * Matrix3d::Identity();
-        noise.block<3, 3>(6, 6) = (imu->ACC_N * imu->ACC_N) * Matrix3d::Identity();
-        noise.block<3, 3>(9, 9) = (imu->GYR_N * imu->GYR_N) * Matrix3d::Identity();
-        noise.block<3, 3>(12, 12) = (imu->ACC_W * imu->ACC_W) * Matrix3d::Identity();
-        noise.block<3, 3>(15, 15) = (imu->GYR_W * imu->GYR_W) * Matrix3d::Identity();
-        Initialize(Bias());
-    }
+    Preintegration(const Bias &b_,const Imu::Ptr imu)//TODO:Imu::Ptr imu暂未使用 如果全局参数的方法不可行 可以将其作为Calib使用
+{
+    double acc_n,gyr_n,acc_w,gyr_w,g_norm;
+    float  freq;
+    cv::Mat TBC;
+    const float sf = sqrt(freq);
+    Calib calib=Calib(TBC,gyr_n*sf, acc_n*sf,gyr_w/sf,acc_w/sf);
+    Nga = calib.Cov.clone();
+    NgaWalk = calib.CovWalk.clone();
+    Initialize(b_);
+}
 
     struct integrable
     {
