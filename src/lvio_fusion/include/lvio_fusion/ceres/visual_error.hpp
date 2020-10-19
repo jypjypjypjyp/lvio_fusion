@@ -96,6 +96,13 @@ private:
     double weight_;
 };
 
+double compute_reprojection_error(Vector2d ob, Vector3d pw, SE3d pose, Camera::Ptr camera)
+{
+    Vector2d error(0, 0);
+    PoseOnlyReprojectionError(ob, pw, camera)(pose.data(), error.data());
+    return error.norm();
+}
+
 } // namespace lvio_fusion
 
 #endif // lvio_fusion_VISUAL_ERROR_H

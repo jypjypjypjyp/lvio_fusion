@@ -308,24 +308,13 @@ void Relocation::CorrectLoop(double start_time, double end_time)
     for (auto pair_kf : active_kfs)
     {
         auto frame = pair_kf.second;
-        double *para_kf = frame->pose.data();
         auto left_features = frame->features_left;
         for (auto pair_feature : left_features)
         {
             auto feature = pair_feature.second;
             auto landmark = feature->landmark.lock();
             auto first_frame = landmark->FirstFrame();
-            Vector2d error(0, 0);
-            if (first_frame.lock()->time < active_kfs.begin()->first)
-            {
-                PoseOnlyReprojectionError(cv2eigen(feature->keypoint), landmark->ToWorld(), camera_left_)(para_kf, error.data());
-            }
-            else if (first_frame.lock() != frame)
-            {
-                double *para_fist_kf = first_frame.lock()->pose.data();
-                TwoFrameReprojectionError(landmark->position, cv2eigen(feature->keypoint), camera_left_)(para_fist_kf, para_kf, error.data());
-            }
-            if (error.norm() > 3)
+            if (compute_reprojection_error(cv2eigen(feature->keypoint), landmark->ToWorld(), frame->pose, camera_left_) > 3)
             {
                 landmark->RemoveObservation(feature);
                 frame->RemoveFeature(feature);
