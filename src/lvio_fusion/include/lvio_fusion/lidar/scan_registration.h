@@ -30,7 +30,7 @@ public:
 
     void AddScan(double time, Point3Cloud::Ptr new_scan);
 
-    void Associate(Frame::Ptr current_frame, Frame::Ptr last_frame, ceres::Problem &problem, ceres::LossFunction *loss_function);
+    void Associate(Frame::Ptr current_frame, Frame::Ptr last_frame, ceres::Problem &problem, ceres::LossFunction *loss_function, Frame::Ptr old_frame = nullptr);
 
 private:
     void UndistortPoint(PointI &point, Frame::Ptr frame);

@@ -323,6 +323,7 @@ int Frontend::DetectNewFeatures()
     return num_triangulated_pts;
 }
 
+// TODO
 bool Frontend::Reset()
 {
     backend_.lock()->Pause();
@@ -340,7 +341,7 @@ void Frontend::UpdateCache()
     {
         auto feature = pair_feature.second;
         auto camera_point = feature->landmark.lock();
-        position_cache_.insert(std::make_pair(camera_point->id, camera_point->ToWorld()));
+        position_cache_[camera_point->id] = camera_point->ToWorld();
     }
     last_frame_pose_cache_ = last_frame->pose;
 }

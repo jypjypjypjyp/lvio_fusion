@@ -78,16 +78,16 @@ void Backend::BuildProblem(Frames &active_kfs, ceres::Problem &problem)
         {
             auto feature = pair_feature.second;
             auto landmark = feature->landmark.lock();
-            auto first_frame = landmark->FirstFrame();
+            auto first_frame = landmark->FirstFrame().lock();
             ceres::CostFunction *cost_function;
-            if (first_frame.lock()->time < start_time)
+            if (first_frame->time < start_time)
             {
                 cost_function = PoseOnlyReprojectionError::Create(cv2eigen(feature->keypoint), landmark->ToWorld(), camera_left_);
                 problem.AddResidualBlock(cost_function, loss_function, para_kf);
             }
-            else if (first_frame.lock() != frame)
+            else if (first_frame != frame)
             {
-                double *para_fist_kf = first_frame.lock()->pose.data();
+                double *para_fist_kf = first_frame->pose.data();
                 cost_function = TwoFrameReprojectionError::Create(landmark->position, cv2eigen(feature->keypoint), camera_left_);
                 problem.AddResidualBlock(cost_function, loss_function, para_fist_kf, para_kf);
             }
@@ -114,35 +114,36 @@ void Backend::BuildProblem(Frames &active_kfs, ceres::Problem &problem)
         }
     }
 
+    // TODO
     // imu constraints
-    if (imu_ && imu_->initialized)
-    {
-        Frame::Ptr last_frame;
-        Frame::Ptr current_frame;
-        for (auto pair_kf : active_kfs)
-        {
-            current_frame = pair_kf.second;
-            if (!current_frame->preintegration)
-                continue;
-            auto para_kf = current_frame->pose.data();
-            auto para_v = current_frame->preintegration->v0.data();
-            auto para_ba = current_frame->preintegration->linearized_ba.data();
-            auto para_bg = current_frame->preintegration->linearized_bg.data();
-            problem.AddParameterBlock(para_v, 3);
-            problem.AddParameterBlock(para_ba, 3);
-            problem.AddParameterBlock(para_bg, 3);
-            if (last_frame && last_frame->preintegration)
-            {
-                auto para_kf_last = last_frame->pose.data();
-                auto para_v_last = last_frame->preintegration->v0.data();
-                auto para_ba_last = last_frame->preintegration->linearized_ba.data();
-                auto para_bg_last = last_frame->preintegration->linearized_bg.data();
-                ceres::CostFunction *cost_function = ImuError::Create(last_frame->preintegration);
-                problem.AddResidualBlock(cost_function, NULL, para_kf_last, para_v_last, para_ba_last, para_bg_last, para_kf, para_v, para_ba, para_bg);
-            }
-            last_frame = current_frame;
-        }
-    }
+    // if (imu_ && imu_->initialized)
+    // {
+    //     Frame::Ptr last_frame;
+    //     Frame::Ptr current_frame;
+    //     for (auto pair_kf : active_kfs)
+    //     {
+    //         current_frame = pair_kf.second;
+    //         if (!current_frame->preintegration)
+    //             continue;
+    //         auto para_kf = current_frame->pose.data();
+    //         auto para_v = current_frame->preintegration->v0.data();
+    //         auto para_ba = current_frame->preintegration->linearized_ba.data();
+    //         auto para_bg = current_frame->preintegration->linearized_bg.data();
+    //         problem.AddParameterBlock(para_v, 3);
+    //         problem.AddParameterBlock(para_ba, 3);
+    //         problem.AddParameterBlock(para_bg, 3);
+    //         if (last_frame && last_frame->preintegration)
+    //         {
+    //             auto para_kf_last = last_frame->pose.data();
+    //             auto para_v_last = last_frame->preintegration->v0.data();
+    //             auto para_ba_last = last_frame->preintegration->linearized_ba.data();
+    //             auto para_bg_last = last_frame->preintegration->linearized_bg.data();
+    //             ceres::CostFunction *cost_function = ImuError::Create(last_frame->preintegration);
+    //             problem.AddResidualBlock(cost_function, NULL, para_kf_last, para_v_last, para_ba_last, para_bg_last, para_kf, para_v, para_ba, para_bg);
+    //         }
+    //         last_frame = current_frame;
+    //     }
+    // }
     
     // initial point
     if (active_kfs.begin()->first == map_->GetAllKeyFrames().begin()->first)
@@ -157,13 +158,13 @@ void Backend::Optimize(bool full)
     std::unique_lock<std::mutex> lock(mutex);
 
     static double head = 0;
-    map_->time_local_map = std::max(0.0, head - range_);
-    Frames active_kfs = map_->GetKeyFrames(full ? 0 : map_->time_local_map);
+    map_->local_map_head = std::max(0.0, head - range_);
+    Frames active_kfs = map_->GetKeyFrames(full ? 0 : map_->local_map_head);
 
     // imu init
     if (imu_ && !initializer_->initialized)
     {
-        Frames frames_init = map_->GetKeyFrames(0, map_->time_local_map, initializer_->num_frames);
+        Frames frames_init = map_->GetKeyFrames(0, map_->local_map_head, initializer_->num_frames);
         if (frames_init.size() == initializer_->num_frames)
         {
             imu_->initialized = initializer_->Initialize(frames_init);
@@ -226,7 +227,7 @@ void Backend::ForwardPropagate(double time)
     Frames active_kfs = map_->GetKeyFrames(time);
     if (active_kfs.find(last_frame->time) == active_kfs.end())
     {
-        active_kfs.insert(std::make_pair(last_frame->time, last_frame));
+        active_kfs[last_frame->time] = last_frame;
     }
 
     ceres::Problem problem;

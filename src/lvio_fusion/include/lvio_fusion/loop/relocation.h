@@ -6,9 +6,11 @@
 #include "lvio_fusion/frame.h"
 #include "lvio_fusion/frontend.h"
 #include "lvio_fusion/lidar/mapping.h"
+#include "lvio_fusion/lidar/scan_registration.h"
 #include "lvio_fusion/loop/loop_constraint.h"
 #include "lvio_fusion/map.h"
 #include "lvio_fusion/visual/camera.hpp"
+#include "lvio_fusion/loop/atlas.h"
 
 #include <DBoW3/DBoW3.h>
 #include <DBoW3/Database.h>
@@ -38,7 +40,7 @@ inline std::map<unsigned long, BRIEF> mat2briefs(Frame::Ptr frame)
     int i = 0;
     for (auto pair_feature : frame->features_left)
     {
-        briefs.insert(std::make_pair(pair_feature.first, mat2brief(frame->descriptors.row(i))));
+        briefs[pair_feature.first] = mat2brief(frame->descriptors.row(i));
         i++;
     }
     return briefs;
@@ -64,6 +66,8 @@ public:
         camera_right_ = right;
     }
 
+    void SetLidar(Lidar::Ptr lidar) { lidar_ = lidar; }
+
     void SetMap(Map::Ptr map) { map_ = map; }
 
     void SetMapping(Mapping::Ptr mapping) { mapping_ = mapping; }
@@ -77,19 +81,19 @@ private:
 
     void AddKeyFrameIntoVoc(Frame::Ptr frame);
 
-    bool DetectLoop(Frame::Ptr frame, Frame::Ptr frame_old);
+    bool DetectLoop(Frame::Ptr frame, Frame::Ptr &old_frame);
 
-    bool Associate(Frame::Ptr frame, Frame::Ptr frame_old);
+    bool Associate(Frame::Ptr frame, Frame::Ptr old_frame);
 
-    bool RefineAssociation(Frame::Ptr frame, Frame::Ptr frame_old, loop::LoopConstraint::Ptr loop_constraint);
+    bool RefineAssociation(Frame::Ptr frame, Frame::Ptr old_frame, loop::LoopConstraint::Ptr loop_constraint);
 
     bool SearchInAera(const BRIEF descriptor, const std::map<unsigned long, BRIEF> &descriptors_old, unsigned long &best_id);
 
     int Hamming(const BRIEF &a, const BRIEF &b);
 
-    void BuildProblem(Frames &active_kfs, ceres::Problem &problem);
+    void BuildProblem(Frames &active_kfs, std::map<double, SE3d>& inner_old_frame, ceres::Problem &problem);
 
-    void CorrectLoop(double start_time, double end_time);
+    void CorrectLoop(double old_time, double start_time, double end_time);
 
     DBoW3::Database db_;
     DBoW3::Vocabulary voc_;
@@ -97,6 +101,8 @@ private:
     Mapping::Ptr mapping_;
     std::weak_ptr<Frontend> frontend_;
     std::weak_ptr<Backend> backend_;
+    ScanRegistration::Ptr scan_registration_;
+    loop::Atlas atlas_;
 
     std::thread thread_;
     cv::Ptr<cv::Feature2D> detector_;
@@ -105,6 +111,7 @@ private:
     Camera::Ptr camera_left_;
     Camera::Ptr camera_right_;
     Imu::Ptr imu_;
+    Lidar::Ptr lidar_;
 };
 
 } // namespace lvio_fusion

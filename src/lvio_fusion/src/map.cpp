@@ -8,14 +8,14 @@ void Map::InsertKeyFrame(Frame::Ptr frame)
 {
     std::unique_lock<std::mutex> lock(mutex_data_);
     Frame::current_frame_id++;
-    keyframes_.insert(make_pair(frame->time, frame));
+    keyframes_[frame->time] = frame;
 }
 
 void Map::InsertLandmark(visual::Landmark::Ptr landmark)
 {
     std::unique_lock<std::mutex> lock(mutex_data_);
     visual::Landmark::current_landmark_id++;
-    landmarks_.insert(make_pair(landmark->id, landmark));
+    landmarks_[landmark->id] = landmark;
 }
 
 // 1: (start]

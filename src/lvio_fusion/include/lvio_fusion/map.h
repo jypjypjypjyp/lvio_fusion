@@ -45,8 +45,8 @@ public:
     }
 
     NavsatMap::Ptr navsat_map;
-    double time_local_map = 0;
-    double time_mapping = 0;
+    double local_map_head = 0;
+    double mapping_head = 0;
 
 private:
     std::mutex mutex_data_;

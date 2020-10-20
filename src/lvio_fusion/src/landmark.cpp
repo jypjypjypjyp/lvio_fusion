@@ -51,7 +51,7 @@ void Landmark::AddObservation(visual::Feature::Ptr feature)
     assert(feature->landmark.lock()->id == id);
     if (feature->is_on_left_image)
     {
-        observations.insert(std::make_pair(feature->frame.lock()->id, feature));
+        observations[feature->frame.lock()->id] = feature;
     }
     else
     {

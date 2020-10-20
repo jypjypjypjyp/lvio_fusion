@@ -20,11 +20,11 @@ void Frame::AddFeature(visual::Feature::Ptr feature)
     assert(feature->frame.lock()->id == id);
     if (feature->is_on_left_image)
     {
-        features_left.insert(std::make_pair(feature->landmark.lock()->id, feature));
+        features_left[feature->landmark.lock()->id] = feature;
     }
     else
     {
-        features_right.insert(std::make_pair(feature->landmark.lock()->id, feature));
+        features_right[feature->landmark.lock()->id] = feature;
     }
 }
 

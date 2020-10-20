@@ -24,7 +24,8 @@ inline void Reprojection(const T *pw, const T *Tcw, Camera::Ptr camera, T *resul
 class PoseOnlyReprojectionError
 {
 public:
-    PoseOnlyReprojectionError(Vector2d ob, Vector3d pw, Camera::Ptr camera, double weight = 1.0)
+    PoseOnlyReprojectionError() = default;
+    PoseOnlyReprojectionError(Vector2d ob, Vector3d pw, Camera::Ptr camera)
         : ob_(ob), pw_(pw), camera_(camera) {}
 
     template <typename T>
@@ -39,10 +40,10 @@ public:
         return true;
     }
 
-    static ceres::CostFunction *Create(Vector2d ob, Vector3d pw, Camera::Ptr camera, double weight = 1.0)
+    static ceres::CostFunction *Create(Vector2d ob, Vector3d pw, Camera::Ptr camera)
     {
         return (new ceres::AutoDiffCostFunction<PoseOnlyReprojectionError, 2, 7>(
-            new PoseOnlyReprojectionError(ob, pw, camera, weight)));
+            new PoseOnlyReprojectionError(ob, pw, camera)));
     }
 
     static Matrix2d sqrt_info;
@@ -51,7 +52,6 @@ private:
     Vector2d ob_;
     Vector3d pw_;
     Camera::Ptr camera_;
-    double weight_;
 };
 
 template <typename T>
@@ -65,7 +65,8 @@ inline void Projection(const T *pc, const T *Tcw, T *result)
 class TwoFrameReprojectionError
 {
 public:
-    TwoFrameReprojectionError(Vector3d pr, Vector2d ob, Camera::Ptr camera, double weight = 1.0)
+    TwoFrameReprojectionError() = default;
+    TwoFrameReprojectionError(Vector3d pr, Vector2d ob, Camera::Ptr camera)
         : pr_(pr), ob_(ob), camera_(camera) {}
 
     template <typename T>
@@ -81,10 +82,10 @@ public:
         return true;
     }
 
-    static ceres::CostFunction *Create(Vector3d pr, Vector2d ob, Camera::Ptr camera, double weight = 1.0)
+    static ceres::CostFunction *Create(Vector3d pr, Vector2d ob, Camera::Ptr camera)
     {
         return (new ceres::AutoDiffCostFunction<TwoFrameReprojectionError, 2, 7, 7>(
-            new TwoFrameReprojectionError(pr, ob, camera, weight)));
+            new TwoFrameReprojectionError(pr, ob, camera)));
     }
 
     static Matrix2d sqrt_info;
@@ -93,7 +94,6 @@ private:
     Vector3d pr_;
     Vector2d ob_;
     Camera::Ptr camera_;
-    double weight_;
 };
 
 double compute_reprojection_error(Vector2d ob, Vector3d pw, SE3d pose, Camera::Ptr camera)

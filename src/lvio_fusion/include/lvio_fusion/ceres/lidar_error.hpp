@@ -12,6 +12,7 @@ namespace lvio_fusion
 class LidarEdgeError
 {
 public:
+    LidarEdgeError() = default;
     LidarEdgeError(Vector3d p, Vector3d pa, Vector3d pb, Lidar::Ptr lidar)
         : p_(p), pa_(pa), pb_(pb), lidar_(lidar) {}
 
@@ -57,6 +58,7 @@ private:
 class LidarPlaneError
 {
 public:
+    LidarPlaneError() = default;
     LidarPlaneError(Vector3d p, Vector3d pa, Vector3d pb, Vector3d pc, Lidar::Ptr lidar)
         : p_(p), pa_(pa), pb_(pb), pc_(pc), lidar_(lidar)
     {

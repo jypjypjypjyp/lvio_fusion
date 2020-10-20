@@ -29,7 +29,7 @@ public:
 
     void AddPoint(NavsatPoint point)
     {
-        navsat_points.insert(std::make_pair(point.time, point));
+        navsat_points[point.time] = point;
     }
 
     void Transfrom(NavsatPoint &point)

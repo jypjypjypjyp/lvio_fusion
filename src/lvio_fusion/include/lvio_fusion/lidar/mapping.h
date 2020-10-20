@@ -32,7 +32,7 @@ public:
 
     void SetScanRegistration(ScanRegistration::Ptr scan_registration) { scan_registration_ = scan_registration; }
 
-    void Optimize(double loop_start_time = 0);
+    void Optimize(Frames& active_kfs);
 
     void Pause();
 
@@ -44,6 +44,10 @@ public:
 
 private:
     void MappingLoop();
+
+    void BuildProblem(Frames &active_kfs, ceres::Problem &problem);
+
+    void Optimize();
 
     void AddToWorld(const PointICloud &in, Frame::Ptr frame, PointRGBCloud &out);
 
