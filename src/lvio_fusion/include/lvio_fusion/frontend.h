@@ -54,6 +54,9 @@ public:
     void SetRelocation(std::shared_ptr<Relocation> relocation) { relocation_ = relocation; }
 //NEWADD
     void SetInitializer(Initializer::Ptr initializer) { initializer_ = initializer; }
+
+    void UpdateFrameIMU(const float s, const Bias &b, Frame::Ptr pCurrentKeyFrame);
+
 //NEWADDEND
     void SetCameras(Camera::Ptr left, Camera::Ptr right)
     {

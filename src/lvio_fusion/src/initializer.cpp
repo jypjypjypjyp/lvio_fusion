@@ -79,7 +79,7 @@ void  Initializer::InitializeIMU(float priorG, float priorA, bool bFIBA)
     // Step 3:进行惯性优化
     std::chrono::steady_clock::time_point t0 = std::chrono::steady_clock::now();
     // 使用camera初始地图frame的pose与预积分的差值优化
-    Optimizer::InertialOptimization(mpAtlas->GetCurrentMap(), mRwg, mScale, mbg, mba, false, Eigen::MatrixXd::Zero(9,9), false, false, priorG, priorA);
+    Optimizer::InertialOptimization(map_, mRwg, mScale, mbg, mba, false, Eigen::MatrixXd::Zero(9,9), false, false, priorG, priorA);
     std::chrono::steady_clock::time_point t1 = std::chrono::steady_clock::now();
 
     /*cout << "scale after inertial-only optimization: " << mScale << endl;
@@ -104,8 +104,8 @@ void  Initializer::InitializeIMU(float priorG, float priorA, bool bFIBA)
     std::chrono::steady_clock::time_point t2 = std::chrono::steady_clock::now();
     // Step 4:更新地图
 
-    map_->ApplyScaledRotation(Converter::toCvMat(mRwg).t(),mScale,true);
-    mpTracker->UpdateFrameIMU(mScale,vpKF[0]->GetImuBias(),mpCurrentKeyFrame);
+    map_->ApplyScaledRotation(toCvMat(mRwg).t(),mScale,true);
+    frontend_->UpdateFrameIMU(mScale,vpKF[0]->GetImuBias(),frontend_->current_key_frame);
 
     std::chrono::steady_clock::time_point t3 = std::chrono::steady_clock::now();
 
@@ -136,15 +136,14 @@ void  Initializer::InitializeIMU(float priorG, float priorA, bool bFIBA)
 
     // Step 6: 设置当前map imu 已经初始化 
     // If initialization is OK
-    mpTracker->UpdateFrameIMU(1.0,vpKF[0]->GetImuBias(),mpCurrentKeyFrame);
+   frontend_->UpdateFrameIMU(1.0,vpKF[0]->GetImuBias(),frontend_->current_key_frame);
     if (!mpAtlas->isImuInitialized())
     {
       //  cout << "IMU in Map " << mpAtlas->GetCurrentMap()->GetId() << " is initialized" << endl;
         mpAtlas->SetImuInitialized();
         mpTracker->t0IMU = mpTracker->mCurrentFrame.mTimeStamp;  // 设置imu初始化时间
-        mpCurrentKeyFrame->bImu = true;
+       frontend_->current_key_frame->bImu = true;//TODO
     }
-
     //更新记录初始化状态的变量
     mbNewInit=true;
     mnKFs=vpKF.size();
@@ -176,7 +175,19 @@ void  Initializer::InitializeIMU(float priorG, float priorA, bool bFIBA)
 
 }
 
-
+cv::Mat ExpSO3(const float &x, const float &y, const float &z)
+{
+    cv::Mat I = cv::Mat::eye(3,3,CV_32F);
+    const float d2 = x*x+y*y+z*z;
+    const float d = sqrt(d2);
+    cv::Mat W = (cv::Mat_<float>(3,3) << 0, -z, y,
+                 z, 0, -x,
+                 -y,  x, 0);
+    if(d<eps)
+        return (I + W + 0.5f*W*W);
+    else
+        return (I + W*sin(d)/d + W*W*(1.0f-cos(d))/d2);
+}
 
 cv::Mat ExpSO3(const cv::Mat &v)
 {
@@ -201,7 +212,14 @@ Eigen::Matrix<double,3,1> toVector3d(const cv::Mat &cvVector)
 
     return v;
 }
+cv::Mat toCvMat(const Eigen::Matrix<double,3,1> &m)
+{
+    cv::Mat cvMat(3,1,CV_32F);
+    for(int i=0;i<3;i++)
+            cvMat.at<float>(i)=m(i);
 
+    return cvMat.clone();
+}
 /*bool Initializer::Initialize(Frames kfs)
 {
     // be perpare for initialization

@@ -61,6 +61,7 @@ cv::Mat GetAccBias();
    cv::Mat   GetImuRotation();
    cv::Mat   GetImuPosition();
    void SetVelocity(const cv::Mat &Vw);
+   Bias GetImuBias();
 //NEWADDEND
 
 

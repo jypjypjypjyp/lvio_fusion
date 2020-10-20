@@ -100,6 +100,10 @@ cv::Mat Frame::GetAccBias()
     
       return (cv::Mat_<float>(3,1) << mImuBias.bax, mImuBias.bay, mImuBias.baz);
 }
+Bias Frame::GetImuBias()
+{
+    return mImuBias;
+}
 
 //NEWADDEND
 
