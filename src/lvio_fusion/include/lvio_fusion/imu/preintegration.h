@@ -58,6 +58,26 @@ public:
     std::vector<Vector3d> acc_buf;
     std::vector<Vector3d> gyr_buf;
 
+    std::vector<integrable> mvMeasurements;
+
+    float dT;
+    cv::Mat C;   //cov
+    cv::Mat Info;
+    cv::Mat Nga, NgaWalk;
+
+    // Values for the original bias (when integration was computed)
+    Bias b;
+    cv::Mat dR, dV, dP;
+    cv::Mat JRg, JVg, JVa, JPg, JPa; 
+    cv::Mat avgA;
+    cv::Mat avgW;
+    
+   // Updated bias
+    Bias bu;
+    // Dif between original and updated bias
+    // This is used to compute the updated values of the preintegration
+    cv::Mat db;
+   
 private:
     Preintegration() = default;
 
@@ -81,27 +101,7 @@ private:
         float t;
     };
 
-    std::vector<integrable> mvMeasurements;
 
-
-    float dT;
-    cv::Mat C;   //cov
-    cv::Mat Info;
-    cv::Mat Nga, NgaWalk;
-
-    // Values for the original bias (when integration was computed)
-    Bias b;
-    cv::Mat dR, dV, dP;
-    cv::Mat JRg, JVg, JVa, JPg, JPa; 
-    cv::Mat avgA;
-    cv::Mat avgW;
-    
-   // Updated bias
-    Bias bu;
-    // Dif between original and updated bias
-    // This is used to compute the updated values of the preintegration
-    cv::Mat db;
-   
 
 };
 

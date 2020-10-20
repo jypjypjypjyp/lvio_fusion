@@ -108,6 +108,8 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
         initializer = Initializer::Ptr(new Initializer);
         //NEWADD
         initializer->SetMap(map);
+        initializer->SetFrontend(frontend);
+       
         //NEWADDEND
         backend->SetImu(imu);
         backend->SetInitializer(initializer);

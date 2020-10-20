@@ -42,9 +42,9 @@ void  Initializer::InitializeIMU(float priorG, float priorA, bool bFIBA)
             // 预积分中delta_V 用来表示:Rwb_i.transpose()*(V2 - V1 - g*dt),故此处获得 -(V_i - V_0 - (i-0)*(mRwg*gI)*dt)
             // 应该使用将速度偏差在此处忽略或当做噪声，因为后面会优化mRwg
             dirG -= (*(itKF-1))->GetImuRotation()*(*itKF)->preintegration->GetUpdatedDeltaVelocity();
-            cv::Mat _vel = ((*itKF)->GetImuPosition() - (*itKF)->mPrevKF->GetImuPosition())/(*itKF)->mpImuPreintegrated->dT;
+            cv::Mat _vel = ((*itKF)->GetImuPosition() - (*(itKF-1))->GetImuPosition())/(*itKF)->preintegration->dT;
             (*itKF)->SetVelocity(_vel);
-            (*itKF)->mPrevKF->SetVelocity(_vel);
+            (*(itKF-1))->SetVelocity(_vel);
         }
 
         // Step 2.1:计算重力方向(与z轴偏差)，用轴角方式表示偏差
@@ -60,20 +60,21 @@ void  Initializer::InitializeIMU(float priorG, float priorA, bool bFIBA)
         const float ang = acos(cosg);
         // 计算mRwg，与-Z旋转偏差
         cv::Mat vzg = v*ang/nv;
-        cvRwg = IMU::ExpSO3(vzg);
-        mRwg = Converter::toMatrix3d(cvRwg);
-        mTinit = mpCurrentKeyFrame->mTimeStamp-mFirstTs;
+        cvRwg = ExpSO3(vzg);
+        mRwg = toMatrix3d(cvRwg);
+        mTinit = map_->current_frame->time-mFirstTs;
     }
     else
     {
         mRwg = Eigen::Matrix3d::Identity();
-        mbg = Converter::toVector3d(mpCurrentKeyFrame->GetGyroBias());
-        mba = Converter::toVector3d(mpCurrentKeyFrame->GetAccBias());
+        mbg = toVector3d(map_->current_frame->GetGyroBias());
+        mba = toVector3d(map_->current_frame->GetAccBias());
     }
  
     mScale=1.0;
 
-    mInitTime = mpTracker->mLastFrame.mTimeStamp-vpKF.front()->mTimeStamp;
+    
+    mInitTime = frontend_->last_frame->time-vpKF.front()->time;
     
     // Step 3:进行惯性优化
     std::chrono::steady_clock::time_point t0 = std::chrono::steady_clock::now();
@@ -88,7 +89,7 @@ void  Initializer::InitializeIMU(float priorG, float priorA, bool bFIBA)
     // 如果求解的scale过小，跳过，下次在优化
     if (mScale<1e-1)
     {
-        cout << "scale too small" << endl;
+    //    cout << "scale too small" << endl;
         bInitializing=false;
         return;
     }
@@ -99,14 +100,13 @@ void  Initializer::InitializeIMU(float priorG, float priorA, bool bFIBA)
     // Before this line we are not changing the map
     // 上面的程序没有改变地图，下面会对地图进行修改
 
-    unique_lock<mutex> lock(mpAtlas->GetCurrentMap()->mMutexMapUpdate);
+ //   unique_lock<mutex> lock(mpAtlas->GetCurrentMap()->mMutexMapUpdate);
     std::chrono::steady_clock::time_point t2 = std::chrono::steady_clock::now();
-    // Step 4:在非双目，且scale有变化时，更新地图
-    if ((fabs(mScale-1.f)>0.00001)||!mbMonocular)
-    {
-        mpAtlas->GetCurrentMap()->ApplyScaledRotation(Converter::toCvMat(mRwg).t(),mScale,true);
-        mpTracker->UpdateFrameIMU(mScale,vpKF[0]->GetImuBias(),mpCurrentKeyFrame);
-    }
+    // Step 4:更新地图
+
+    map_->ApplyScaledRotation(Converter::toCvMat(mRwg).t(),mScale,true);
+    mpTracker->UpdateFrameIMU(mScale,vpKF[0]->GetImuBias(),mpCurrentKeyFrame);
+
     std::chrono::steady_clock::time_point t3 = std::chrono::steady_clock::now();
 
     // Check if initialization OK
@@ -114,7 +114,7 @@ void  Initializer::InitializeIMU(float priorG, float priorA, bool bFIBA)
     if (!mpAtlas->isImuInitialized())
         for(int i=0;i<N;i++)
         {
-            KeyFrame* pKF2 = vpKF[i];
+            Frame::Ptr pKF2 = vpKF[i];
             pKF2->bImu = true;
         }
 
@@ -139,7 +139,7 @@ void  Initializer::InitializeIMU(float priorG, float priorA, bool bFIBA)
     mpTracker->UpdateFrameIMU(1.0,vpKF[0]->GetImuBias(),mpCurrentKeyFrame);
     if (!mpAtlas->isImuInitialized())
     {
-        cout << "IMU in Map " << mpAtlas->GetCurrentMap()->GetId() << " is initialized" << endl;
+      //  cout << "IMU in Map " << mpAtlas->GetCurrentMap()->GetId() << " is initialized" << endl;
         mpAtlas->SetImuInitialized();
         mpTracker->t0IMU = mpTracker->mCurrentFrame.mTimeStamp;  // 设置imu初始化时间
         mpCurrentKeyFrame->bImu = true;
@@ -151,14 +151,14 @@ void  Initializer::InitializeIMU(float priorG, float priorA, bool bFIBA)
     mIdxInit++;
 
     // Step 7: 清除KF待处理列表中剩余的KF
-    for(list<KeyFrame*>::iterator lit = mlNewKeyFrames.begin(), lend=mlNewKeyFrames.end(); lit!=lend; lit++)
+  /*  for(list<KeyFrame*>::iterator lit = mlNewKeyFrames.begin(), lend=mlNewKeyFrames.end(); lit!=lend; lit++)
     {
         (*lit)->SetBadFlag();
         delete *lit;
     }
     mlNewKeyFrames.clear();
-
-    mpTracker->mState=Tracking::OK;
+*/
+    //mpTracker->mState=Tracking::OK;
     bInitializing = false;
 
 
@@ -170,7 +170,7 @@ void  Initializer::InitializeIMU(float priorG, float priorA, bool bFIBA)
     double t_viba = std::chrono::duration_cast<std::chrono::duration<double> >(t5 - t4).count();
     cout << t_inertial_only << ", " << t_update << ", " << t_viba << endl;*/
 
-    mpCurrentKeyFrame->GetMap()->IncreaseChangeIndex();
+ //   mpCurrentKeyFrame->GetMap()->IncreaseChangeIndex();
 
     return;
 
@@ -178,9 +178,29 @@ void  Initializer::InitializeIMU(float priorG, float priorA, bool bFIBA)
 
 
 
+cv::Mat ExpSO3(const cv::Mat &v)
+{
+    return ExpSO3(v.at<float>(0),v.at<float>(1),v.at<float>(2));
+}
 
+Eigen::Matrix<double,3,3>  toMatrix3d(const cv::Mat &cvMat3)
+{
+    Eigen::Matrix<double,3,3> M;
 
+    M << cvMat3.at<float>(0,0), cvMat3.at<float>(0,1), cvMat3.at<float>(0,2),
+         cvMat3.at<float>(1,0), cvMat3.at<float>(1,1), cvMat3.at<float>(1,2),
+         cvMat3.at<float>(2,0), cvMat3.at<float>(2,1), cvMat3.at<float>(2,2);
 
+    return M;
+}
+
+Eigen::Matrix<double,3,1> toVector3d(const cv::Mat &cvVector)
+{
+    Eigen::Matrix<double,3,1> v;
+    v << cvVector.at<float>(0), cvVector.at<float>(1), cvVector.at<float>(2);
+
+    return v;
+}
 
 /*bool Initializer::Initialize(Frames kfs)
 {

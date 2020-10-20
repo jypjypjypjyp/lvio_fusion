@@ -49,7 +49,18 @@ public:
 //NEWADD
 //IMU
 
+    Bias mImuBias;
+
+    // IMU position
+    cv::Mat Owb;
+
+    // Velocity (Only used for inertial SLAM)
+    cv::Mat Vw;
+cv::Mat GetGyroBias();
+cv::Mat GetAccBias();
    cv::Mat   GetImuRotation();
+   cv::Mat   GetImuPosition();
+   void SetVelocity(const cv::Mat &Vw);
 //NEWADDEND
 
 

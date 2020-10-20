@@ -66,6 +66,41 @@ cv::Mat   Frame::GetImuRotation(){
      return Rwc*TCB;
 
 }
+
+cv::Mat Frame::GetImuPosition()
+{
+    cv::Mat Tcw_;
+    cv::eigen2cv(pose.matrix(),Tcw_);  
+cv::Mat Rcw = Tcw_.rowRange(0,3).colRange(0,3);
+    cv::Mat tcw = Tcw_.rowRange(0,3).col(3);
+    cv::Mat Rwc = Rcw.t();
+    cv::Mat Ow=Rwc*tcw;
+cv::Mat TBC,TCB;
+    TCB = cv::Mat::eye(4,4,CV_32F);
+    TCB.rowRange(0,3).colRange(0,3) = TBC.rowRange(0,3).colRange(0,3).t();
+    TCB.rowRange(0,3).col(3) = -TBC.rowRange(0,3).colRange(0,3).t()*TBC.rowRange(0,3).col(3);
+     if (!TCB.empty())
+        Owb = Rwc*TCB.rowRange(0,3).col(3)+Ow; //imu position
+    return  Owb.clone();
+}
+
+void Frame::SetVelocity(const cv::Mat &Vw_)
+{
+    Vw_.copyTo(Vw);
+}
+
+cv::Mat Frame::GetGyroBias()
+{
+
+    return (cv::Mat_<float>(3,1) << mImuBias.bwx, mImuBias.bwy, mImuBias.bwz);
+}
+
+cv::Mat Frame::GetAccBias()
+{
+    
+      return (cv::Mat_<float>(3,1) << mImuBias.bax, mImuBias.bay, mImuBias.baz);
+}
+
 //NEWADDEND
 
 } // namespace lvio_fusion
