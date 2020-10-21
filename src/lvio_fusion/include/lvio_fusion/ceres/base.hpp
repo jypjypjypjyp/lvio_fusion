@@ -83,7 +83,7 @@ inline void Norm(const T A[3], T *norm)
 }
 
 template <typename T>
-inline void Cast(double *raw, int size, T *result)
+inline void Cast(const double *raw, int size, T *result)
 {
     for (int i = 0; i < size; i++)
     {

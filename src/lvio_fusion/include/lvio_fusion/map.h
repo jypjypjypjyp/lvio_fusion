@@ -46,7 +46,6 @@ public:
 
     NavsatMap::Ptr navsat_map;
     double local_map_head = 0;
-    double mapping_head = 0;
 
 private:
     std::mutex mutex_data_;

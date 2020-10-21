@@ -59,16 +59,17 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
               << " extrinsics: " << t_base_to_cam1.transpose();
 
     // create components and links
+    map = Map::Ptr(new Map());
+
     frontend = Frontend::Ptr(new Frontend(
         Config::Get<int>("num_features"),
         Config::Get<int>("num_features_init"),
         Config::Get<int>("num_features_tracking"),
         Config::Get<int>("num_features_tracking_bad"),
         Config::Get<int>("num_features_needed_for_keyframe")));
+
     backend = Backend::Ptr(new Backend(
         Config::Get<double>("range")));
-
-    map = Map::Ptr(new Map());
 
     frontend->SetBackend(backend);
     frontend->SetMap(map);
@@ -136,6 +137,7 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
 
         if(relocation)
         {
+            relocation->SetLidar(lidar);
             relocation->SetMapping(mapping);
         }
 

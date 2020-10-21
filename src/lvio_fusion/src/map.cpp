@@ -20,8 +20,8 @@ void Map::InsertLandmark(visual::Landmark::Ptr landmark)
 
 // 1: (start]
 // 2: (start -> end]
-// 2: (start -> num]
-// 3: (num -> end]
+// 3: (start -> num)
+// 4: (num -> end)
 Frames Map::GetKeyFrames(double start, double end, int num)
 {
     std::unique_lock<std::mutex> lock(mutex_data_);
@@ -31,16 +31,15 @@ Frames Map::GetKeyFrames(double start, double end, int num)
     }
     else if (num == 0)
     {
-        return Frames(keyframes_.upper_bound(start), keyframes_.lower_bound(end));
+        return Frames(keyframes_.upper_bound(start), --keyframes_.upper_bound(end));
     }
     else if (end == 0)
     {
         auto iter = keyframes_.upper_bound(start);
         Frames frames;
-        for (size_t i = 0; i < num; i++)
+        for (size_t i = 0; i < num && iter != keyframes_.end(); i++)
         {
-            frames.insert(*iter);
-            iter++;
+            frames.insert(*(iter++));
         }
         return frames;
     }
@@ -50,8 +49,7 @@ Frames Map::GetKeyFrames(double start, double end, int num)
         Frames frames;
         for (size_t i = 0; i < num && iter != --keyframes_.begin(); i++)
         {
-            frames.insert(*iter);
-            iter--;
+            frames.insert(*(--iter));
         }
         return frames;
     }

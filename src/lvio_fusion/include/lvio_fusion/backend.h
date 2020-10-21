@@ -61,8 +61,6 @@ private:
 
     void ForwardPropagate(double time);
 
-    void BackwardPropagate(double start_time, double end_time);
-
     void BuildProblem(Frames &active_kfs, ceres::Problem &problem);
 
     Map::Ptr map_;

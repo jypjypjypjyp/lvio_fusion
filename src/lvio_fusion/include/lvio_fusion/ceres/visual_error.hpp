@@ -35,8 +35,8 @@ public:
         T pw[3] = {T(pw_.x()), T(pw_.y()), T(pw_.z())};
         T ob[2] = {T(ob_.x()), T(ob_.y())};
         Reprojection(pw, Tcw, camera_, p_p);
-        residuals[0] = T(weight_) * T(sqrt_info(0, 0)) * (p_p[0] - ob[0]);
-        residuals[1] = T(weight_) * T(sqrt_info(1, 1)) * (p_p[1] - ob[1]);
+        residuals[0] = T(sqrt_info(0, 0)) * (p_p[0] - ob[0]);
+        residuals[1] = T(sqrt_info(1, 1)) * (p_p[1] - ob[1]);
         return true;
     }
 
@@ -77,8 +77,8 @@ public:
         T ob2[2] = {T(ob_.x()), T(ob_.y())};
         Projection(pr, Tcw1, pw);
         Reprojection(pw, Tcw2, camera_, p_p);
-        residuals[0] = T(weight_) * T(sqrt_info(0, 0)) * (p_p[0] - ob2[0]);
-        residuals[1] = T(weight_) * T(sqrt_info(1, 1)) * (p_p[1] - ob2[1]);
+        residuals[0] = T(sqrt_info(0, 0)) * (p_p[0] - ob2[0]);
+        residuals[1] = T(sqrt_info(1, 1)) * (p_p[1] - ob2[1]);
         return true;
     }
 
@@ -95,13 +95,6 @@ private:
     Vector2d ob_;
     Camera::Ptr camera_;
 };
-
-double compute_reprojection_error(Vector2d ob, Vector3d pw, SE3d pose, Camera::Ptr camera)
-{
-    Vector2d error(0, 0);
-    PoseOnlyReprojectionError(ob, pw, camera)(pose.data(), error.data());
-    return error.norm();
-}
 
 } // namespace lvio_fusion
 

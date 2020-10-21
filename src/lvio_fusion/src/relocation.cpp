@@ -25,7 +25,6 @@ void Relocation::RelocationLoop()
 {
     static bool is_last_loop = false;
     static double old_time = DBL_MAX;
-    static double end_time = 0;
     static double start_time = 0;
     static double last_time = 0;
     static double head = 0;
@@ -47,17 +46,15 @@ void Relocation::RelocationLoop()
             {
                 if (!is_last_loop)
                 {
-                    // get all new loop frames (start_time, end_time]
+                    // get all new loop frames (start_time, end_time)
                     start_time = last_time;
                 }
-                end_time = frame->time;
-                old_time = std::min(end_time, old_frame->time);
+                old_time = std::min(frame->time, old_frame->time);
             }
             else if (is_last_loop)
             {
-                CorrectLoop(old_time, start_time, end_time);
                 old_time = DBL_MAX;
-                end_time = 0;
+                CorrectLoop(old_time, start_time, last_time);
             }
             is_last_loop = is_loop;
             last_time = pair_kf.first;
@@ -309,10 +306,12 @@ void Relocation::BuildProblem(Frames &active_kfs, std::map<double, SE3d> &inner_
     for (auto pair_kf : active_kfs)
     {
         auto frame = pair_kf.second;
-        if(frame->loop_constraint)
+        if (frame->loop_constraint)
         {
             double *para_kf = frame->pose.data();
+            double *para_old_kf = frame->loop_constraint->frame_old->pose.data();
             problem.SetParameterBlockConstant(para_kf);
+            problem.SetParameterBlockConstant(para_old_kf);
         }
     }
 }
@@ -320,7 +319,8 @@ void Relocation::BuildProblem(Frames &active_kfs, std::map<double, SE3d> &inner_
 void Relocation::CorrectLoop(double old_time, double start_time, double end_time)
 {
     // stop mapping
-    mapping_->Pause();
+    if (lidar_)
+        mapping_->Pause();
 
     // update pose of new submap
     Frames new_submap_kfs = map_->GetKeyFrames(start_time, end_time);
@@ -350,45 +350,40 @@ void Relocation::CorrectLoop(double old_time, double start_time, double end_time
     ceres::Solve(options, &problem, &summary);
 
     // mapping
-    mapping_->Optimize(active_kfs);
+    if (lidar_)
+        mapping_->Optimize(active_kfs);
 
     // update pose of inner submaps
-    active_kfs = map_->GetKeyFrames(old_time, start_time);
-    for (auto iter = active_kfs.begin(); iter != active_kfs.end();)
+    Frames all_kfs = map_->GetKeyFrames(old_time, end_time);
+    for (auto pair_old_frame : inner_old_frames)
     {
-        if (iter->first > start_time)
-            break;
-        Frame::Ptr frame = iter->second;
-        if (frame->loop_constraint)
+        auto old_frame = active_kfs[pair_old_frame.first];
+        // T2_new = T2 * T1.inverse() * T1_new
+        SE3d transform = pair_old_frame.second.inverse() * old_frame->pose;
+        for (auto iter = ++all_kfs.find(pair_old_frame.first); active_kfs.find(iter->first) == active_kfs.end(); iter++)
         {
-            Frame::Ptr old_frame = frame->loop_constraint->frame_old;
-            if (old_frame->time > old_time)
-            {
-                auto iter_old_frame = active_kfs.find(old_frame->time);
-                iter = active_kfs.erase(++iter_old_frame, iter);
-                continue;
-            }
+            auto frame = iter->second;
+            frame->pose = frame->pose * transform;
         }
-        iter++;
     }
 
     // forward propogate
     {
-        std::unique_lock<std::mutex> lock1(frontend_.lock()->mutex);
-        std::unique_lock<std::mutex> lock2(backend_.lock()->mutex);
+        std::unique_lock<std::mutex> lock1(backend_.lock()->mutex);
+        std::unique_lock<std::mutex> lock2(frontend_.lock()->mutex);
 
         Frame::Ptr last_frame = frontend_.lock()->last_frame;
-        Frames active_kfs = map_->GetKeyFrames(end_time);
-        if (active_kfs.find(last_frame->time) == active_kfs.end())
+        Frames forward_kfs = map_->GetKeyFrames(end_time);
+        if (forward_kfs.find(last_frame->time) == forward_kfs.end())
         {
-            active_kfs[last_frame->time] = last_frame;
+            forward_kfs[last_frame->time] = last_frame;
         }
-        Frame::Ptr frame = (--active_kfs.end())->second;
+        Frame::Ptr frame = (--forward_kfs.end())->second;
         Frame::Ptr old_frame = frame->loop_constraint->frame_old;
-        SE3d transform_pose = frame->pose.inverse() * frame->loop_constraint->relative_pose * old_frame->pose;
-        for (auto pair_kf : active_kfs)
+        SE3d transform = frame->pose.inverse() * frame->loop_constraint->relative_pose * old_frame->pose;
+        for (auto pair_kf : forward_kfs)
         {
-            pair_kf.second->pose = pair_kf.second->pose * transform_pose;
+            pair_kf.second->pose = pair_kf.second->pose * transform;
             // TODO: Repropagate
             // if(pair_kf.second->preintegration)
             // {
@@ -399,7 +394,8 @@ void Relocation::CorrectLoop(double old_time, double start_time, double end_time
     }
 
     // mapping start
-    mapping_->Continue();
+    if (lidar_)
+        mapping_->Continue();
 }
 
 } // namespace lvio_fusion

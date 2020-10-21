@@ -17,15 +17,15 @@ void Atlas::AddSubMap(double old_time, double start_time, double end_time)
 /**
  * build active submaps and inner submaps
  * @param active_kfs
- * @param old_time
- * @param start_time
- * @param end_time
- * @return old frame of inner submaps
+ * @param old_time      time of before the first frame
+ * @param start_time    time of before the first loop frame
+ * @param end_time      the last frame
+ * @return old frame of inner submaps; key is the first frame's time; value is the pose of the first frame
  */
 std::map<double, SE3d> Atlas::GetActiveSubMaps(Frames& active_kfs, double& old_time, double start_time, double end_time)
 {
     
-    auto start_submaps = submaps_.lower_bound(old_time);
+    auto start_submaps = submaps_.upper_bound(old_time);
     auto end_submaps = submaps_.upper_bound(end_time);
     if (start_submaps != submaps_.end())
     {
@@ -34,13 +34,13 @@ std::map<double, SE3d> Atlas::GetActiveSubMaps(Frames& active_kfs, double& old_t
             if (iter->second.old_time < old_time)
             {
                 // remove outer submap
-                active_kfs.erase(active_kfs.begin(), ++active_kfs.find(iter->second.end_time));
-                old_time = std::max(old_time, iter->second.end_time);
+                old_time = iter->first;
+                active_kfs.erase(active_kfs.begin(), ++active_kfs.find(iter->first));
             }
             else
             {
                 // remove inner submap
-                active_kfs.erase(++active_kfs.find(iter->second.old_time), ++active_kfs.find(iter->second.end_time));
+                active_kfs.erase(++++active_kfs.find(iter->second.old_time), ++active_kfs.find(iter->first));
             }
         }
     }

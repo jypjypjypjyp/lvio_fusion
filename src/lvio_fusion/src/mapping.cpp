@@ -86,7 +86,6 @@ void Mapping::MappingLoop()
     }
 }
 
-// TODO
 void Mapping::BuildProblem(Frames &active_kfs, ceres::Problem &problem)
 {
     double start_time = active_kfs.begin()->first;
@@ -156,10 +155,12 @@ void Mapping::BuildProblem(Frames &active_kfs, ceres::Problem &problem)
     for (auto pair_kf : active_kfs)
     {
         auto frame = pair_kf.second;
-        if (frame->loop_constraint)
+        if(frame->loop_constraint)
         {
             double *para_kf = frame->pose.data();
+            double *para_old_kf = frame->loop_constraint->frame_old->pose.data();
             problem.SetParameterBlockConstant(para_kf);
+            problem.SetParameterBlockConstant(para_old_kf);
         }
     }
 }

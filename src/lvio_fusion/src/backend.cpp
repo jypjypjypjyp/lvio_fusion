@@ -153,6 +153,13 @@ void Backend::BuildProblem(Frames &active_kfs, ceres::Problem &problem)
     }
 }
 
+double compute_reprojection_error(Vector2d ob, Vector3d pw, SE3d pose, Camera::Ptr camera)
+{
+    Vector2d error(0, 0);
+    PoseOnlyReprojectionError(ob, pw, camera)(pose.data(), error.data());
+    return error.norm();
+}
+
 void Backend::Optimize(bool full)
 {
     std::unique_lock<std::mutex> lock(mutex);
@@ -161,16 +168,17 @@ void Backend::Optimize(bool full)
     map_->local_map_head = std::max(0.0, head - range_);
     Frames active_kfs = map_->GetKeyFrames(full ? 0 : map_->local_map_head);
 
+    // TODO: IMU
     // imu init
-    if (imu_ && !initializer_->initialized)
-    {
-        Frames frames_init = map_->GetKeyFrames(0, map_->local_map_head, initializer_->num_frames);
-        if (frames_init.size() == initializer_->num_frames)
-        {
-            imu_->initialized = initializer_->Initialize(frames_init);
-            frontend_.lock()->status = FrontendStatus::TRACKING_GOOD;
-        }
-    }
+    // if (imu_ && !initializer_->initialized)
+    // {
+    //     Frames frames_init = map_->GetKeyFrames(0, map_->local_map_head, initializer_->num_frames);
+    //     if (frames_init.size() == initializer_->num_frames)
+    //     {
+    //         imu_->initialized = initializer_->Initialize(frames_init);
+    //         frontend_.lock()->status = FrontendStatus::TRACKING_GOOD;
+    //     }
+    // }
 
     // navsat init
     auto navsat_map = map_->navsat_map;
@@ -241,22 +249,6 @@ void Backend::ForwardPropagate(double time)
     ceres::Solve(options, &problem, &summary);
 
     frontend_.lock()->UpdateCache();
-}
-
-void Backend::BackwardPropagate(double start_time, double end_time)
-{
-    Frames active_kfs = map_->GetKeyFrames(start_time, end_time);
-
-    ceres::Problem problem;
-    BuildProblem(active_kfs, problem);
-
-    ceres::Solver::Options options;
-    options.linear_solver_type = ceres::DENSE_SCHUR;
-    options.function_tolerance = 1e-9;
-    options.max_solver_time_in_seconds = 20;
-    options.num_threads = 4;
-    ceres::Solver::Summary summary;
-    ceres::Solve(options, &problem, &summary);
 }
 
 } // namespace lvio_fusion
