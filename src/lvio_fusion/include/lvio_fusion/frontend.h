@@ -54,7 +54,7 @@ public:
     void SetRelocation(std::shared_ptr<Relocation> relocation) { relocation_ = relocation; }
 //NEWADD
     void SetInitializer(Initializer::Ptr initializer) { initializer_ = initializer; }
-
+    void SetCalib(Calib calib){ImuCalib_=calib;}
     void UpdateFrameIMU(const float s, const Bias &b, Frame::Ptr pCurrentKeyFrame);
 
 //NEWADDEND
@@ -110,7 +110,7 @@ private:
     Imu::Ptr imu_;
     //NEWADD
     Initializer::Ptr initializer_;
-   // Calib ImuCalib_;
+    Calib ImuCalib_;
     //NEWADDEND
 
     // params

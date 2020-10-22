@@ -111,7 +111,6 @@ void  Initializer::InitializeIMU(float priorG, float priorA, bool bFIBA)
 
     // Check if initialization OK
     // Step 4:更新关键帧中imu状态
-    if (!mpAtlas->isImuInitialized())
         for(int i=0;i<N;i++)
         {
             Frame::Ptr pKF2 = vpKF[i];
@@ -127,9 +126,9 @@ void  Initializer::InitializeIMU(float priorG, float priorA, bool bFIBA)
     if (bFIBA)
     {
         if (priorA!=0.f)
-            Optimizer::FullInertialBA(mpAtlas->GetCurrentMap(), 100, false, 0, NULL, true, priorG, priorA);
+            Optimizer::FullInertialBA(map_, 100, false, 0, NULL, true, priorG, priorA);
         else
-            Optimizer::FullInertialBA(mpAtlas->GetCurrentMap(), 100, false, 0, NULL, false);
+            Optimizer::FullInertialBA(map_, 100, false, 0, NULL, false);
     }
 
     std::chrono::steady_clock::time_point t5 = std::chrono::steady_clock::now();
@@ -137,13 +136,13 @@ void  Initializer::InitializeIMU(float priorG, float priorA, bool bFIBA)
     // Step 6: 设置当前map imu 已经初始化 
     // If initialization is OK
    frontend_->UpdateFrameIMU(1.0,vpKF[0]->GetImuBias(),frontend_->current_key_frame);
-    if (!mpAtlas->isImuInitialized())
-    {
+   // if (!mpAtlas->isImuInitialized())
+  //  {
       //  cout << "IMU in Map " << mpAtlas->GetCurrentMap()->GetId() << " is initialized" << endl;
-        mpAtlas->SetImuInitialized();
-        mpTracker->t0IMU = mpTracker->mCurrentFrame.mTimeStamp;  // 设置imu初始化时间
-       frontend_->current_key_frame->bImu = true;//TODO
-    }
+ //       mpAtlas->SetImuInitialized();
+     //   mpTracker->t0IMU = mpTracker->mCurrentFrame.mTimeStamp;  // 设置imu初始化时间
+       frontend_->current_key_frame->bImu = true;
+   // }
     //更新记录初始化状态的变量
     mbNewInit=true;
     mnKFs=vpKF.size();

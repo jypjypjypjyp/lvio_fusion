@@ -50,7 +50,7 @@ public:
 //IMU
 
     Bias mImuBias;
-
+    bool bImu;  //是否经过imu尺度优化
     // IMU position
     cv::Mat Owb;
 
@@ -62,6 +62,7 @@ cv::Mat GetAccBias();
    cv::Mat   GetImuPosition();
    void SetVelocity(const cv::Mat &Vw);
    Bias GetImuBias();
+   void SetNewBias(const Bias &b);
 //NEWADDEND
 
 

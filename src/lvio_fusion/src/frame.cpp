@@ -11,6 +11,7 @@ Frame::Ptr Frame::Create()
 {
     Frame::Ptr new_frame(new Frame);
     new_frame->id = current_frame_id + 1;
+    new_frame->bImu=false;
     return new_frame;
 }
 
@@ -57,13 +58,10 @@ void Frame::UpdateLabel()
 
 //NEWADD
 cv::Mat   Frame::GetImuRotation(){
-    cv::Mat TBC,TCB;
-    TCB = cv::Mat::eye(4,4,CV_32F);
-    TCB.rowRange(0,3).colRange(0,3) = TBC.rowRange(0,3).colRange(0,3).t();
-    TCB.rowRange(0,3).col(3) = -TBC.rowRange(0,3).colRange(0,3).t()*TBC.rowRange(0,3).col(3);
+
      cv::Mat Rwc;
      cv::eigen2cv(pose.rotationMatrix(),Rwc);
-     return Rwc*TCB;
+     return Rwc*preintegration->calib.Tcb;
 
 }
 
@@ -75,10 +73,7 @@ cv::Mat Rcw = Tcw_.rowRange(0,3).colRange(0,3);
     cv::Mat tcw = Tcw_.rowRange(0,3).col(3);
     cv::Mat Rwc = Rcw.t();
     cv::Mat Ow=Rwc*tcw;
-cv::Mat TBC,TCB;
-    TCB = cv::Mat::eye(4,4,CV_32F);
-    TCB.rowRange(0,3).colRange(0,3) = TBC.rowRange(0,3).colRange(0,3).t();
-    TCB.rowRange(0,3).col(3) = -TBC.rowRange(0,3).colRange(0,3).t()*TBC.rowRange(0,3).col(3);
+cv::Mat TCB=preintegration->calib.Tcb;
      if (!TCB.empty())
         Owb = Rwc*TCB.rowRange(0,3).col(3)+Ow; //imu position
     return  Owb.clone();
@@ -104,7 +99,12 @@ Bias Frame::GetImuBias()
 {
     return mImuBias;
 }
-
+void Frame::SetNewBias(const Bias &b)
+{
+    mImuBias = b;
+    if(preintegration)
+        preintegration->SetNewBias(b);
+}
 //NEWADDEND
 
 } // namespace lvio_fusion

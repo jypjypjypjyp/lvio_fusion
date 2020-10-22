@@ -98,9 +98,9 @@ void Map::ApplyScaledRotation(const cv::Mat &R, const float s, const bool bScale
     cv::Mat tyw = Tyw.rowRange(0,3).col(3);
 
     // Step 2: 变换KF的位姿到s，gravity矫正的坐标系下
-    for(set<KeyFrame*>::iterator sit=mspKeyFrames.begin(); sit!=mspKeyFrames.end(); sit++)
+    for(std::map<double, Frame::Ptr>::iterator sit=keyframes_.begin(); sit!=keyframes_.end(); sit++)
     {
-        KeyFrame* pKF = *sit;
+       Frame::Ptr pKF = (*sit).second;
         cv::Mat Twc = pKF->GetPoseInverse();
         //对位姿的translation进行尺度放缩
         Twc.rowRange(0,3).col(3)*=s;

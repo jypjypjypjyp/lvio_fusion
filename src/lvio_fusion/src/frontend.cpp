@@ -65,7 +65,7 @@ void Frontend::AddImu(double time, Vector3d acc, Vector3d gyr)
     {
         if (!current_frame->preintegration)
         {
-            current_frame->preintegration = imu::Preintegration::Create(Bias(), imu_);//TODO 改成输入上一帧的BIAS和calib
+            current_frame->preintegration = imu::Preintegration::Create(current_frame->GetImuBias(), ImuCalib_,imu_);
         }
         current_frame->preintegration->Appendimu(imuMeas);
         if (current_key_frame && current_key_frame->preintegration && current_key_frame != current_frame)
@@ -83,10 +83,11 @@ bool Frontend::Track()
 
     //NEWADD
     //如果有imu  预积分上一帧到当前帧的imu 
-    if(imu_){
+    if(imu_&&last_frame){
         last_frame->preintegration->PreintegrateIMU(last_frame->time, current_frame->time);
+        current_frame->SetNewBias(last_frame->GetImuBias());
     }
-//NEWADDEND
+    //NEWADDEND
 
     TrackLastFrame();
     InitFramePoseByPnP();

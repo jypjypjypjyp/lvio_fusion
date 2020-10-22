@@ -20,9 +20,9 @@ class Preintegration
 public:
     typedef std::shared_ptr<Preintegration> Ptr;
 
-    static Preintegration::Ptr Create(Bias bias, const Imu::Ptr imu)
+    static Preintegration::Ptr Create(Bias bias, Calib ImuCalib_,const Imu::Ptr imu)
     {
-        Preintegration::Ptr new_preintegration(new Preintegration(bias, imu));
+        Preintegration::Ptr new_preintegration(new Preintegration(bias, ImuCalib_,imu));
         return new_preintegration;
     }
 
@@ -58,7 +58,7 @@ public:
     std::vector<Vector3d> acc_buf;
     std::vector<Vector3d> gyr_buf;
 
-    std::vector<integrable> mvMeasurements;
+
 
     float dT;
     cv::Mat C;   //cov
@@ -77,19 +77,15 @@ public:
     // Dif between original and updated bias
     // This is used to compute the updated values of the preintegration
     cv::Mat db;
-   
+   Calib calib;
 private:
     Preintegration() = default;
 
-    Preintegration(const Bias &b_,const Imu::Ptr imu)//TODO:Imu::Ptr imu暂未使用 如果全局参数的方法不可行 可以将其作为Calib使用
+    Preintegration(const Bias &b_,Calib ImuCalib_,const Imu::Ptr imu)//TODO:Imu::Ptr imu暂未使用 如果全局参数的方法不可行 可以将其作为Calib使用
 {
-    double acc_n,gyr_n,acc_w,gyr_w,g_norm;
-    float  freq;
-    cv::Mat TBC;
-    const float sf = sqrt(freq);
-    Calib calib=Calib(TBC,gyr_n*sf, acc_n*sf,gyr_w/sf,acc_w/sf);
-    Nga = calib.Cov.clone();
-    NgaWalk = calib.CovWalk.clone();
+    calib=ImuCalib_;
+    Nga =ImuCalib_.Cov.clone();
+    NgaWalk = ImuCalib_.CovWalk.clone();
     Initialize(b_);
 }
 
@@ -100,7 +96,7 @@ private:
         Vector3d w;
         float t;
     };
-
+    std::vector<integrable> mvMeasurements;
 
 
 };

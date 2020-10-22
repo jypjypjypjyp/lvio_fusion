@@ -29,7 +29,7 @@ public:
 
     void InputIMU(double time, Vector3d acc, Vector3d gyr);
 
-    bool Init(int use_imu, int use_lidar, int use_navsat, int use_loop, int is_semantic);
+    bool Init(int use_imu, int use_lidar, int use_navsat, int use_loop, int is_semantic, Calib calib);//NEWADD  参数加了一个, Calib calib
 
     Map::Ptr map;
     Frontend::Ptr frontend;

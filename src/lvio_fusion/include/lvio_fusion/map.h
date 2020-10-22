@@ -29,7 +29,7 @@ public:
     }
     //NEWADD
     int GetAllKeyFramesSize(){return keyframes_.size();}
-    void ApplyScaledRotation(const cv::Mat &R, const float s, const bool bScaledVel, const cv::Mat t);
+    void ApplyScaledRotation(const cv::Mat &R, const float s, const bool bScaledVel, const cv::Mat t=cv::Mat::zeros(cv::Size(1,3),CV_32F));
 //NEWADDEND 
 
     Frames GetKeyFrames(double start, double end = 0, int num = 0);

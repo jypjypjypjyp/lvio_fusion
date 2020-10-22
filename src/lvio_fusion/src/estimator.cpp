@@ -19,7 +19,7 @@ Matrix3d NavsatError::sqrt_info = 10 * Matrix3d::Identity();
 Estimator::Estimator(std::string &config_path)
     : config_file_path_(config_path) {}
 
-bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, int is_semantic)
+bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, int is_semantic, Calib calib)//NEWADD  参数加了一个, Calib calib
 {
     // read from config file
     if (!Config::SetParameterFile(config_file_path_))
@@ -116,6 +116,8 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
 
         frontend->SetImu(imu);
         //NEWADD
+         //TODO 加Calib
+        frontend->SetCalib(calib);
         frontend->SetInitializer(initializer);
         //NEWADDEND
         frontend->flags += Flag::IMU;
