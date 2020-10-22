@@ -78,8 +78,20 @@ public:
     Frame::Ptr current_frame;
     Frame::Ptr last_frame;
     Frame::Ptr current_key_frame;
+    Frame::Ptr last_key_frame;
+    
     SE3d relative_motion;
     std::mutex last_frame_mutex;
+//NEWADD
+    // Lists used to recover the full camera trajectory at the end of the execution.
+    // Basically we store the reference keyframe for each frame and its relative transformation
+    std::list<cv::Mat> mlRelativeFramePoses;  // frame 与 referenceKF 的相对变换
+    std::list<Frame::Ptr> mlpReferences;       // 相对变换的 referenceKF
+   // list<double> mlFrameTimes;           // 每一相对变换的frame的time_stamp
+    std::list<bool> mlbLost;                  // 是否丢失
+
+//NEWADDEND
+
 
 private:
     bool Track();

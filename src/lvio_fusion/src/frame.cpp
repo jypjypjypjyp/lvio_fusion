@@ -57,6 +57,34 @@ void Frame::UpdateLabel()
 }
 
 //NEWADD
+
+void Frame::SetVelocity(const cv::Mat &Vw_)
+{
+    Vw_.copyTo(Vw);
+}
+
+void Frame::SetNewBias(const Bias &b)
+{
+    mImuBias = b;
+    if(preintegration)
+        preintegration->SetNewBias(b);
+}
+
+void Frame::SetPose(const cv::Mat &Tcw_)
+{
+     cv::Mat Rcw = Tcw_.rowRange(0,3).colRange(0,3);
+    cv::Mat tcw = Tcw_.rowRange(0,3).col(3);
+    Eigen::Matrix3d R ;
+    cv::cv2eigen(Rcw,R);
+    Eigen::Vector3d t(tcw.at<double>(0,0),tcw.at<double>(1,0),tcw.at<double>(2,0));  
+    pose=SE3d(R,t);
+}
+
+cv::Mat Frame::GetVelocity()
+{
+    return Vw.clone();
+}
+
 cv::Mat   Frame::GetImuRotation(){
 
      cv::Mat Rwc;
@@ -79,14 +107,8 @@ cv::Mat TCB=preintegration->calib.Tcb;
     return  Owb.clone();
 }
 
-void Frame::SetVelocity(const cv::Mat &Vw_)
-{
-    Vw_.copyTo(Vw);
-}
-
 cv::Mat Frame::GetGyroBias()
 {
-
     return (cv::Mat_<float>(3,1) << mImuBias.bwx, mImuBias.bwy, mImuBias.bwz);
 }
 
@@ -99,11 +121,39 @@ Bias Frame::GetImuBias()
 {
     return mImuBias;
 }
-void Frame::SetNewBias(const Bias &b)
+cv::Mat Frame::GetPoseInverse()
 {
-    mImuBias = b;
-    if(preintegration)
-        preintegration->SetNewBias(b);
+     cv::Mat Tcw_;
+    cv::eigen2cv(pose.matrix(),Tcw_);  
+    cv::Mat Rcw = Tcw_.rowRange(0,3).colRange(0,3);
+    cv::Mat tcw = Tcw_.rowRange(0,3).col(3);
+    cv::Mat Rwc = Rcw.t();
+    cv::Mat Ow=Rwc*tcw;
+
+
+    cv::Mat Twc = cv::Mat::eye(4,4,Tcw_.type());
+   Rwc.copyTo(Twc.rowRange(0,3).colRange(0,3));
+    Ow.copyTo(Twc.rowRange(0,3).col(3));
+    return Twc.clone();
+}
+
+void Frame::SetImuPoseVelocity(const cv::Mat &Rwb, const cv::Mat &twb, const cv::Mat &Vwb)
+{
+    mVw = Vwb.clone();
+    cv::Mat Rbw = Rwb.t();
+    cv::Mat tbw = -Rbw*twb;
+    cv::Mat Tbw = cv::Mat::eye(4,4,CV_32F);
+    Rbw.copyTo(Tbw.rowRange(0,3).colRange(0,3));
+    tbw.copyTo(Tbw.rowRange(0,3).col(3));
+    mTcw = preintegration->calib.Tcb*Tbw;
+    UpdatePoseMatrices();
+}
+void Frame::UpdatePoseMatrices()
+{
+    mRcw = mTcw.rowRange(0,3).colRange(0,3);
+    mRwc = mRcw.t();
+    mtcw = mTcw.rowRange(0,3).col(3);
+    mOw = -mRcw.t()*mtcw;
 }
 //NEWADDEND
 

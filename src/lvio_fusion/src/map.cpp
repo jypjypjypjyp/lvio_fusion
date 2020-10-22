@@ -120,13 +120,15 @@ void Map::ApplyScaledRotation(const cv::Mat &R, const float s, const bool bScale
     // Step 2: 对MapPoints进行相似变换
     // | sR t |
     // |  0 1 | x MapPoints
-    for(set<MapPoint*>::iterator sit=mspMapPoints.begin(); sit!=mspMapPoints.end(); sit++)
+    for(visual::Landmarks::iterator sit=landmarks_.begin(); sit!=landmarks_.end(); sit++)
     {
-        MapPoint* pMP = *sit;
-        pMP->SetWorldPos(s*Ryw*pMP->GetWorldPos()+tyw);
-        pMP->UpdateNormalAndDepth();
+       visual::Landmark::Ptr pMP = (*sit).second;
+       cv::Mat pos;
+       cv::eigen2cv(pMP->position,pos);
+        cv::cv2eigen( s*Ryw*pos+tyw,pMP->position);
+   //     pMP->UpdateNormalAndDepth();
     }
-    mnMapChange++;
+  //  mnMapChange++;
 }
 //NEWADDEND
 

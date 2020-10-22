@@ -48,6 +48,17 @@ public:
 
 //NEWADD
 //IMU
+    // Rotation, translation and camera center
+    cv::Mat mRcw;
+    cv::Mat mtcw;
+    cv::Mat mRwc;
+    cv::Mat mOw;
+
+    // IMU linear velocity
+    cv::Mat mVw;
+
+    // Camera pose.
+    cv::Mat mTcw;  //? world to camera 
 
     Bias mImuBias;
     bool bImu;  //是否经过imu尺度优化
@@ -62,7 +73,12 @@ cv::Mat GetAccBias();
    cv::Mat   GetImuPosition();
    void SetVelocity(const cv::Mat &Vw);
    Bias GetImuBias();
+   cv::Mat GetPoseInverse();
+   cv::Mat GetVelocity();
+   void SetPose(const cv::Mat &Tcw_);
    void SetNewBias(const Bias &b);
+   void SetImuPoseVelocity(const cv::Mat &Rwb, const cv::Mat &twb, const cv::Mat &Vwb);
+   void UpdatePoseMatrices();
 //NEWADDEND
 
 

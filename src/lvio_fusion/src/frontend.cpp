@@ -84,8 +84,9 @@ bool Frontend::Track()
     //NEWADD
     //如果有imu  预积分上一帧到当前帧的imu 
     if(imu_&&last_frame){
-        last_frame->preintegration->PreintegrateIMU(last_frame->time, current_frame->time);
-        current_frame->SetNewBias(last_frame->GetImuBias());
+        last_frame->preintegration->PreintegrateIMU(last_frame->time, current_frame->time);//TODO 这个结果应该存在current_frame
+        current_frame->SetNewBias(last_key_frame->GetImuBias());
+        
     }
     //NEWADDEND
 
@@ -135,6 +136,31 @@ bool Frontend::Track()
         CreateKeyframe(false);
     }
     relative_motion = current_frame->pose * last_frame_pose_cache_.inverse();
+
+//NEWADD
+    if(status == FrontendStatus::TRACKING_GOOD||status == FrontendStatus::LOST||status == FrontendStatus::TRACKING_TRY)
+    {
+        // Store frame pose information to retrieve the complete camera trajectory afterwards.
+        if(!current_frame->mTcw.empty())
+        {
+            cv::Mat Tcr = current_frame->mTcw*current_frame.mpReferenceKF->GetPoseInverse();
+            mlRelativeFramePoses.push_back(Tcr);
+            mlpReferences.push_back(current_frame.mpReferenceKF);
+           // mlFrameTimes.push_back(mCurrentFrame.mTimeStamp);
+            mlbLost.push_back(status == FrontendStatus::LOST||status == FrontendStatus::TRACKING_TRY);
+        }
+        else
+        {
+            // This can happen if tracking is lost
+            mlRelativeFramePoses.push_back(mlRelativeFramePoses.back());
+            mlpReferences.push_back(mlpReferences.back());
+          //  mlFrameTimes.push_back(mlFrameTimes.back());
+            mlbLost.push_back(status == FrontendStatus::LOST||status == FrontendStatus::TRACKING_TRY);
+        }
+    }
+//NEWADDEND
+
+
     return true;
 }
 
@@ -146,7 +172,7 @@ void Frontend::CreateKeyframe(bool need_new_features)
         {
             return;
         }
-        current_key_frame->preintegration->PreintegrateIMU(last_frame->time, current_frame->time);
+        current_key_frame->preintegration->PreintegrateIMU(last_frame->time, current_frame->time);//TODO 这个结果应该存在下一个KF  LAST_KEY_FRAME
     }
 //NEWADDEND
     // first, add new observations of old points
@@ -363,36 +389,37 @@ std::unordered_map<unsigned long, Vector3d> Frontend::GetPositionCache()
 //NEWADD  TODO
 void Frontend::UpdateFrameIMU(const float s, const Bias &b, Frame::Ptr pCurrentKeyFrame)
 {
-    Map * pMap = pCurrentKeyFrame->GetMap();
-    unsigned int index = mnFirstFrameId;
-    list<ORB_SLAM3::KeyFrame*>::iterator lRit = mlpReferences.begin();
-    list<bool>::iterator lbL = mlbLost.begin();
+    Map::Ptr pMap =map_;
+    std::list<Frame::Ptr>::iterator lRit = mlpReferences.begin();
+    std::list<bool>::iterator lbL = mlbLost.begin();
     // Step 1:更新相对位姿集合的尺度信息
-    for(list<cv::Mat>::iterator lit=mlRelativeFramePoses.begin(),lend=mlRelativeFramePoses.end();lit!=lend;lit++, lRit++, lbL++)
+    for(std::list<cv::Mat>::iterator lit=mlRelativeFramePoses.begin(),lend=mlRelativeFramePoses.end();lit!=lend;lit++, lRit++, lbL++)
     {
+        
         if(*lbL)
             continue;
 
-        KeyFrame* pKF = *lRit;
+       Frame::Ptr pKF = *lRit;
 
-        while(pKF->isBad())
+      /*  while(pKF->isBad())
         {
             pKF = pKF->GetParent();
         }
+ */
 
-        if(pKF->GetMap() == pMap)
-        {
+  //      if(pKF->GetMap() == pMap)
+ ///       {
             (*lit).rowRange(0,3).col(3)=(*lit).rowRange(0,3).col(3)*s;
-        }
+   //     }
     }
 
     // Step 2:更新imu信息
-    mLastBias = b;
+    //mLastBias = b;
 
-    mpLastKeyFrame = pCurrentKeyFrame;
+    last_key_frame = pCurrentKeyFrame;
 
-    mLastFrame.SetNewBias(mLastBias);
-    mCurrentFrame.SetNewBias(mLastBias);
+    last_frame->SetNewBias(b);
+    current_frame->SetNewBias(b);
 
     cv::Mat Gz = (cv::Mat_<float>(3,1) << 0, 0, -IMU::GRAVITY_VALUE);
 
@@ -401,44 +428,44 @@ void Frontend::UpdateFrameIMU(const float s, const Bias &b, Frame::Ptr pCurrentK
     cv::Mat Vwb1;
     float t12;  // 时间间隔
 
-    while(!mCurrentFrame.imuIsPreintegrated())
+    while(!current_frame->imuIsPreintegrated())
     {
         usleep(500);
     }
 
     // Step 2:更新Frame的pose velocity
     // Step 2.1:更新lastFrame的pose velocity
-    if(mLastFrame.mnId == mLastFrame.mpLastKeyFrame->mnFrameId)
+    if(last_frame->id== last_frame->mpLastKeyFrame->id)
     {
-        mLastFrame.SetImuPoseVelocity(mLastFrame.mpLastKeyFrame->GetImuRotation(),
-                                      mLastFrame.mpLastKeyFrame->GetImuPosition(),
-                                      mLastFrame.mpLastKeyFrame->GetVelocity());
+        last_frame->SetImuPoseVelocity(last_frame->mpLastKeyFrame->GetImuRotation(),
+                                      last_frame->mpLastKeyFrame->GetImuPosition(),
+                                      last_frame->mpLastKeyFrame->GetVelocity());
     }
     else
     {
-        twb1 = mLastFrame.mpLastKeyFrame->GetImuPosition();
-        Rwb1 = mLastFrame.mpLastKeyFrame->GetImuRotation();
-        Vwb1 = mLastFrame.mpLastKeyFrame->GetVelocity();
-        t12 = mLastFrame.mpImuPreintegrated->dT;
+        twb1 = last_frame->mpLastKeyFrame->GetImuPosition();
+        Rwb1 = last_frame->mpLastKeyFrame->GetImuRotation();
+        Vwb1 = last_frame->mpLastKeyFrame->GetVelocity();
+        t12 = last_frame->preintegration->dT;
 
-        mLastFrame.SetImuPoseVelocity(Rwb1*mLastFrame.mpImuPreintegrated->GetUpdatedDeltaRotation(),
-                                      twb1 + Vwb1*t12 + 0.5f*t12*t12*Gz+ Rwb1*mLastFrame.mpImuPreintegrated->GetUpdatedDeltaPosition(),
-                                      Vwb1 + Gz*t12 + Rwb1*mLastFrame.mpImuPreintegrated->GetUpdatedDeltaVelocity());
+        last_frame->SetImuPoseVelocity(Rwb1*last_frame->preintegration->GetUpdatedDeltaRotation(),
+                                      twb1 + Vwb1*t12 + 0.5f*t12*t12*Gz+ Rwb1*last_frame->preintegration->GetUpdatedDeltaPosition(),
+                                      Vwb1 + Gz*t12 + Rwb1*last_frame->preintegration->GetUpdatedDeltaVelocity());
     }
     // Step 2.2:更新currentFrame的pose velocity
-    if (mCurrentFrame.mpImuPreintegrated)
+    if (current_frame->preintegration)
     {
-        twb1 = mCurrentFrame.mpLastKeyFrame->GetImuPosition();
-        Rwb1 = mCurrentFrame.mpLastKeyFrame->GetImuRotation();
-        Vwb1 = mCurrentFrame.mpLastKeyFrame->GetVelocity();
-        t12 = mCurrentFrame.mpImuPreintegrated->dT;
+        twb1 = current_frame->mpLastKeyFrame->GetImuPosition();
+        Rwb1 = current_frame->mpLastKeyFrame->GetImuRotation();
+        Vwb1 = current_frame->mpLastKeyFrame->GetVelocity();
+        t12 = current_frame->preintegration->dT;
 
-        mCurrentFrame.SetImuPoseVelocity(Rwb1*mCurrentFrame.mpImuPreintegrated->GetUpdatedDeltaRotation(),
-                                      twb1 + Vwb1*t12 + 0.5f*t12*t12*Gz+ Rwb1*mCurrentFrame.mpImuPreintegrated->GetUpdatedDeltaPosition(),
-                                      Vwb1 + Gz*t12 + Rwb1*mCurrentFrame.mpImuPreintegrated->GetUpdatedDeltaVelocity());
+        current_frame->SetImuPoseVelocity(Rwb1*current_frame->preintegration->GetUpdatedDeltaRotation(),
+                                      twb1 + Vwb1*t12 + 0.5f*t12*t12*Gz+ Rwb1*current_frame->preintegration->GetUpdatedDeltaPosition(),
+                                      Vwb1 + Gz*t12 + Rwb1*current_frame->preintegration->GetUpdatedDeltaVelocity());
     }
 
-    mnFirstImuFrameId = mCurrentFrame.mnId;
+ //  mnFirstImuFrameId = mCurrentFrame.mnId;
 }
 
 //NEWADDEND
