@@ -18,46 +18,46 @@ cv::Mat NormalizeRotation(const cv::Mat &R)
     return U*Vt;
 }
 
-void Preintegration::PreintegrateIMU(double last_frame_time,double current_frame_time)
+void Preintegration::PreintegrateIMU(std::vector<imuPoint> measureFromLastFrame,double last_frame_time,double current_frame_time)
 {
-    const int n = imuData_buf.size()-1;
+    const int n = measureFromLastFrame.size()-1;
      //IMU::Preintegrated* pImuPreintegratedFromLastFrame = new IMU::Preintegrated(mLastFrame.mImuBias,mCurrentFrame.mImuCalib);
 
     for(int i=0; i<n; i++)
     {
         float tstep;
         Vector3d acc, angVel;
-        // prev -> imuData_buf 的平均 acc，angVel
+        // prev -> measureFromLastFrame 的平均 acc，angVel
         if((i==0) && (i<(n-1)))
         {
-            float tab = imuData_buf[i+1].t-imuData_buf[i].t;
-            float tini = imuData_buf[i].t- last_frame_time;
-            acc = (imuData_buf[i].a+imuData_buf[i+1].a-
-                    (imuData_buf[i+1].a-imuData_buf[i].a)*(tini/tab))*0.5f;
-            angVel = (imuData_buf[i].w+imuData_buf[i+1].w-
-                    (imuData_buf[i+1].w-imuData_buf[i].w)*(tini/tab))*0.5f;
-            tstep = imuData_buf[i+1].t- last_frame_time;
+            float tab = measureFromLastFrame[i+1].t-measureFromLastFrame[i].t;
+            float tini = measureFromLastFrame[i].t- last_frame_time;
+            acc = (measureFromLastFrame[i].a+measureFromLastFrame[i+1].a-
+                    (measureFromLastFrame[i+1].a-measureFromLastFrame[i].a)*(tini/tab))*0.5f;
+            angVel = (measureFromLastFrame[i].w+measureFromLastFrame[i+1].w-
+                    (measureFromLastFrame[i+1].w-measureFromLastFrame[i].w)*(tini/tab))*0.5f;
+            tstep = measureFromLastFrame[i+1].t- last_frame_time;
         }
         else if(i<(n-1))
         {
-            acc = (imuData_buf[i].a+imuData_buf[i+1].a)*0.5f;
-            angVel = (imuData_buf[i].w+imuData_buf[i+1].w)*0.5f;
-            tstep = imuData_buf[i+1].t-imuData_buf[i].t;
+            acc = (measureFromLastFrame[i].a+measureFromLastFrame[i+1].a)*0.5f;
+            angVel = (measureFromLastFrame[i].w+measureFromLastFrame[i+1].w)*0.5f;
+            tstep = measureFromLastFrame[i+1].t-measureFromLastFrame[i].t;
         }
         else if((i>0) && (i==(n-1)))
         {
-            float tab = imuData_buf[i+1].t-imuData_buf[i].t;
-            float tend = imuData_buf[i+1].t-current_frame_time;
-            acc = (imuData_buf[i].a+imuData_buf[i+1].a-
-                    (imuData_buf[i+1].a-imuData_buf[i].a)*(tend/tab))*0.5f;
-            angVel = (imuData_buf[i].w+imuData_buf[i+1].w-
-                    (imuData_buf[i+1].w-imuData_buf[i].w)*(tend/tab))*0.5f;
-            tstep = current_frame_time-imuData_buf[i].t;
+            float tab = measureFromLastFrame[i+1].t-measureFromLastFrame[i].t;
+            float tend = measureFromLastFrame[i+1].t-current_frame_time;
+            acc = (measureFromLastFrame[i].a+measureFromLastFrame[i+1].a-
+                    (measureFromLastFrame[i+1].a-measureFromLastFrame[i].a)*(tend/tab))*0.5f;
+            angVel = (measureFromLastFrame[i].w+measureFromLastFrame[i+1].w-
+                    (measureFromLastFrame[i+1].w-measureFromLastFrame[i].w)*(tend/tab))*0.5f;
+            tstep = current_frame_time-measureFromLastFrame[i].t;
         }
         else if((i==0) && (i==(n-1)))
         {
-            acc = imuData_buf[i].a;
-            angVel = imuData_buf[i].w;
+            acc = measureFromLastFrame[i].a;
+            angVel = measureFromLastFrame[i].w;
             tstep = current_frame_time-last_frame_time;
         }
         IntegrateNewMeasurement(acc,angVel,tstep);
@@ -65,6 +65,7 @@ void Preintegration::PreintegrateIMU(double last_frame_time,double current_frame
      //   mpImuPreintegratedFromLastKF->IntegrateNewMeasurement(acc,angVel,tstep);
       //  pImuPreintegratedFromLastFrame->IntegrateNewMeasurement(acc,angVel,tstep);
     }
+     isPreintegrated=true;
     // 3.更新预积分状态
     //mCurrentFrame.mpImuPreintegratedFrame = pImuPreintegratedFromLastFrame;
     // mCurrentFrame.mpImuPreintegrated = mpImuPreintegratedFromLastKF;
@@ -175,6 +176,36 @@ void Preintegration::SetNewBias(const Bias &bu_)
     db.at<float>(4) = bu_.bay-b.bay;
     db.at<float>(5) = bu_.baz-b.baz;
 }
+
+cv::Mat Preintegration::GetUpdatedDeltaRotation()
+{
+    
+    return NormalizeRotation(dR*ExpSO3(JRg*db.rowRange(0,3)));
+}
+cv::Mat Preintegration::GetUpdatedDeltaPosition()
+{
+    return dP + JPg*db.rowRange(0,3) + JPa*db.rowRange(3,6);
+}
+
+cv::Mat ExpSO3(const float &x, const float &y, const float &z)
+{
+    cv::Mat I = cv::Mat::eye(3,3,CV_32F);
+    const float d2 = x*x+y*y+z*z;
+    const float d = sqrt(d2);
+    cv::Mat W = (cv::Mat_<float>(3,3) << 0, -z, y,
+                 z, 0, -x,
+                 -y,  x, 0);
+    if(d<eps)
+        return (I + W + 0.5f*W*W);
+    else
+        return (I + W*sin(d)/d + W*W*(1.0f-cos(d))/d2);
+}
+
+cv::Mat ExpSO3(const cv::Mat &v)
+{
+    return ExpSO3(v.at<float>(0),v.at<float>(1),v.at<float>(2));
+}
+
 /*
 void Preintegration::Repropagate(const Vector3d &_linearized_ba, const Vector3d &_linearized_bg)
 {

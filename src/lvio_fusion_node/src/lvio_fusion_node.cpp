@@ -295,7 +295,7 @@ int main(int argc, char **argv)
     
     estimator = Estimator::Ptr(new Estimator(config_file));
     const float sf = sqrt(freq);
-    Calib c=Calib(TBC,gyr_n*sf, acc_n*sf,gyr_w/sf,acc_w/sf);
+    Calib c=Calib(TBC,gyr_n*sf, acc_n*sf,gyr_w/sf,acc_w/sf,g_norm);
     assert(estimator->Init(use_imu, use_lidar, use_navsat, use_loop, is_semantic,c) == true);
     estimator->frontend->flags = get_flags();
 

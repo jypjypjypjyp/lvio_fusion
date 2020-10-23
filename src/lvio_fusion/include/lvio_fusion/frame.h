@@ -47,6 +47,9 @@ public:
 
 
 //NEWADD
+    Frame::Ptr mpReferenceKF;
+    Frame::Ptr mpLastKeyFrame;
+
 //IMU
     // Rotation, translation and camera center
     cv::Mat mRcw;

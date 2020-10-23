@@ -84,7 +84,9 @@ bool Frontend::Track()
     //NEWADD
     //如果有imu  预积分上一帧到当前帧的imu 
     if(imu_&&last_frame){
-        last_frame->preintegration->PreintegrateIMU(last_frame->time, current_frame->time);//TODO 这个结果应该存在current_frame
+        //last_frame->preintegration->PreintegrateIMU(last_frame->time, current_frame->time);
+        current_frame->preintegration->PreintegrateIMU( last_frame->preintegration->imuData_buf,last_frame->time, current_frame->time);//TODO 这个结果应该存在current_frame
+       current_frame->mpLastKeyFrame = last_key_frame;
         current_frame->SetNewBias(last_key_frame->GetImuBias());
         
     }
@@ -138,14 +140,17 @@ bool Frontend::Track()
     relative_motion = current_frame->pose * last_frame_pose_cache_.inverse();
 
 //NEWADD
+        if(!current_frame->mpReferenceKF)
+           current_frame->mpReferenceKF = reference_key_frame;
+
     if(status == FrontendStatus::TRACKING_GOOD||status == FrontendStatus::LOST||status == FrontendStatus::TRACKING_TRY)
     {
         // Store frame pose information to retrieve the complete camera trajectory afterwards.
         if(!current_frame->mTcw.empty())
         {
-            cv::Mat Tcr = current_frame->mTcw*current_frame.mpReferenceKF->GetPoseInverse();
+            cv::Mat Tcr = current_frame->mTcw*current_frame->mpReferenceKF->GetPoseInverse();
             mlRelativeFramePoses.push_back(Tcr);
-            mlpReferences.push_back(current_frame.mpReferenceKF);
+            mlpReferences.push_back(current_frame->mpReferenceKF);
            // mlFrameTimes.push_back(mCurrentFrame.mTimeStamp);
             mlbLost.push_back(status == FrontendStatus::LOST||status == FrontendStatus::TRACKING_TRY);
         }
@@ -172,7 +177,8 @@ void Frontend::CreateKeyframe(bool need_new_features)
         {
             return;
         }
-        current_key_frame->preintegration->PreintegrateIMU(last_frame->time, current_frame->time);//TODO 这个结果应该存在下一个KF  LAST_KEY_FRAME
+        last_key_frame=current_key_frame;
+       // current_key_frame->preintegration->PreintegrateIMU(last_frame->time, current_frame->time);
     }
 //NEWADDEND
     // first, add new observations of old points
@@ -190,6 +196,17 @@ void Frontend::CreateKeyframe(bool need_new_features)
     // insert!
     map_->InsertKeyFrame(current_frame);
     current_key_frame = current_frame;
+    //NEWADD
+    if(imu_){  
+         if (!current_key_frame->preintegration)
+        {
+            current_key_frame->preintegration = imu::Preintegration::Create(current_key_frame->GetImuBias(), ImuCalib_,imu_);
+        }
+        current_key_frame->preintegration->PreintegrateIMU(last_key_frame->preintegration->imuData_buf,last_key_frame->time, current_key_frame->time);;
+    }
+    reference_key_frame=current_key_frame;
+    current_frame->mpReferenceKF=current_key_frame;
+    //NEWADDEND
     LOG(INFO) << "Add a keyframe " << current_frame->id;
     // update backend because we have a new keyframe
     backend_.lock()->UpdateMap();
@@ -365,6 +382,15 @@ bool Frontend::Reset()
     backend_.lock()->Continue();
     relocation_->Continue();
     status = FrontendStatus::BUILDING;
+    //NEWADD
+    current_frame=Frame::Create();
+    last_frame=Frame::Create();
+    last_key_frame=static_cast<Frame::Ptr>(NULL);
+    current_key_frame=static_cast<Frame::Ptr>(NULL);
+    mlRelativeFramePoses.clear();   
+    mlpReferences.clear();
+    mlbLost.clear();
+//NEWADDEND
     LOG(INFO) << "Reset Succeed";
     return true;
 }
@@ -421,14 +447,14 @@ void Frontend::UpdateFrameIMU(const float s, const Bias &b, Frame::Ptr pCurrentK
     last_frame->SetNewBias(b);
     current_frame->SetNewBias(b);
 
-    cv::Mat Gz = (cv::Mat_<float>(3,1) << 0, 0, -IMU::GRAVITY_VALUE);
+    cv::Mat Gz = (cv::Mat_<float>(3,1) << 0, 0, -ImuCalib_.G_norm);
 
     cv::Mat twb1;
     cv::Mat Rwb1;
     cv::Mat Vwb1;
     float t12;  // 时间间隔
 
-    while(!current_frame->imuIsPreintegrated())
+    while(!current_frame->preintegration->isPreintegrated)
     {
         usleep(500);
     }

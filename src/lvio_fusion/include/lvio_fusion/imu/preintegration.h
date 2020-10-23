@@ -31,12 +31,13 @@ public:
         imuData_buf.push_back(imuMeasure);
     }
 
-    void PreintegrateIMU(double last_frame_time,double current_frame_time);
+    void PreintegrateIMU(std::vector<imuPoint> measureFromLastFrame,double last_frame_time,double current_frame_time);
    void IntegrateNewMeasurement(const Vector3d &acceleration, const Vector3d  &angVel, const float &dt);
     void Initialize(const Bias &b_);
     cv::Mat GetUpdatedDeltaVelocity();
-    void Preintegration::SetNewBias(const Bias &bu_);
-
+    void SetNewBias(const Bias &bu_);
+cv::Mat GetUpdatedDeltaRotation();
+cv::Mat GetUpdatedDeltaPosition();
   /*  double dt;
     Vector3d acc0, gyr0;
     Vector3d acc1, gyr1;
@@ -78,6 +79,8 @@ public:
     // This is used to compute the updated values of the preintegration
     cv::Mat db;
    Calib calib;
+
+   bool isPreintegrated;
 private:
     Preintegration() = default;
 
@@ -87,6 +90,7 @@ private:
     Nga =ImuCalib_.Cov.clone();
     NgaWalk = ImuCalib_.CovWalk.clone();
     Initialize(b_);
+    isPreintegrated=false;
 }
 
     struct integrable

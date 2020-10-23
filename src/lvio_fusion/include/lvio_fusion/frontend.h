@@ -78,8 +78,10 @@ public:
     Frame::Ptr current_frame;
     Frame::Ptr last_frame;
     Frame::Ptr current_key_frame;
+    //NEWADD
     Frame::Ptr last_key_frame;
-    
+    Frame::Ptr reference_key_frame;
+//NEWADDEND
     SE3d relative_motion;
     std::mutex last_frame_mutex;
 //NEWADD

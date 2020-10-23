@@ -168,8 +168,9 @@ class Calib
     }
 
 public:
-    Calib(const cv::Mat &Tbc_, const float &ng, const float &na, const float &ngw, const float &naw)
+    Calib(const cv::Mat &Tbc_, const float &ng, const float &na, const float &ngw, const float &naw,const float g_norm_)
     {
+       G_norm=g_norm_;
         Set(Tbc_,ng,na,ngw,naw);
     }
     Calib(const Calib &calib)
@@ -178,6 +179,7 @@ public:
     Tcb = calib.Tcb.clone();
     Cov = calib.Cov.clone();
     CovWalk = calib.CovWalk.clone();
+    G_norm=calib.G_norm;
     }
     Calib(){}
 
@@ -211,6 +213,7 @@ public:
     cv::Mat Tcb;  //b to camera
     cv::Mat Tbc;
     cv::Mat Cov, CovWalk; // imu协方差， 随机游走协方差
+    float G_norm;
 };
 
 //Integration of 1 gyro measurement
