@@ -1,9 +1,3 @@
-#include <condition_variable>
-#include <map>
-#include <mutex>
-#include <queue>
-#include <thread>
-
 #include <GeographicLib/LocalCartesian.hpp>
 #include <cv_bridge/cv_bridge.h>
 #include <opencv2/opencv.hpp>
@@ -13,6 +7,7 @@
 #include <sensor_msgs/NavSatFix.h>
 #include <sensor_msgs/PointCloud2.h>
 
+#include "lvio_fusion/common.h"
 #include "lvio_fusion/estimator.h"
 #include "object_detector/BoundingBoxes.h"
 #include "parameters.h"
@@ -182,8 +177,7 @@ void sync_process()
                 m_img_buf.unlock();
                 estimator->InputImage(time, image0, image1);
             }
-            write_result(estimator, time);
-            pub_odometry(estimator, time);
+            publish_car_model(estimator, time);
         }
 
         chrono::milliseconds dura(2);
@@ -231,17 +225,22 @@ void navsat_callback(const sensor_msgs::NavSatFixConstPtr &navsat_msg)
     }
     geo_converter.Forward(latitude, longitude, altitude, xyz[0], xyz[1], xyz[2]);
     estimator->InputNavSat(t, xyz[0], xyz[1], xyz[2], pos_accuracy);
-    pub_navsat(estimator, t);
+    publish_navsat(estimator, t);
 }
 
 void tf_timer_callback(const ros::TimerEvent &timer_event)
 {
-    pub_tf(estimator, timer_event.current_real.toSec() - delta_time);
+    publish_tf(estimator, timer_event.current_real.toSec() - delta_time);
 }
 
 void pc_timer_callback(const ros::TimerEvent &timer_event)
 {
-    pub_point_cloud(estimator, timer_event.current_real.toSec() - delta_time);
+    publish_point_cloud(estimator, timer_event.current_real.toSec() - delta_time);
+}
+
+void od_timer_callback(const ros::TimerEvent &timer_event)
+{
+    publish_odometry(estimator, timer_event.current_real.toSec() - delta_time);
 }
 
 int get_flags()
@@ -296,10 +295,11 @@ int main(int argc, char **argv)
     assert(estimator->Init(use_imu, use_lidar, use_navsat, use_loop, is_semantic) == true);
     estimator->frontend->flags = get_flags();
 
-    ROS_WARN("waiting for image and imu...");
+    ROS_WARN("waiting for images...");
 
     register_pub(n);
     ros::Timer tf_timer = n.createTimer(ros::Duration(0.0001), tf_timer_callback);
+    ros::Timer od_timer = n.createTimer(ros::Duration(1), od_timer_callback);
     ros::Timer pc_timer = n.createTimer(ros::Duration(5), pc_timer_callback);
 
     if (use_imu)

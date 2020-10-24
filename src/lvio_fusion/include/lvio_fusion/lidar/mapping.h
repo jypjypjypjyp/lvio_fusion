@@ -47,8 +47,6 @@ private:
 
     void BuildProblem(Frames &active_kfs, ceres::Problem &problem);
 
-    void Optimize();
-
     void AddToWorld(const PointICloud &in, Frame::Ptr frame, PointRGBCloud &out);
 
     void BuildGlobalMap(Frames &active_kfs);
@@ -62,6 +60,7 @@ private:
     std::condition_variable pausing_;
     std::condition_variable started_;
     std::map<double, PointRGBCloud> pointclouds_;
+    double head_ = 0;
 
     Lidar::Ptr lidar_;
     Camera::Ptr camera_;

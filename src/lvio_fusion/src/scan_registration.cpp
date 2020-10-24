@@ -14,14 +14,14 @@ void ScanRegistration::AddScan(double time, Point3Cloud::Ptr new_scan)
 {
     raw_point_clouds_[time] = new_scan;
 
-    Frames &all_kfs = map_->GetAllKeyFrames();
-    for (auto iter = all_kfs.upper_bound(head_); iter != all_kfs.end() && iter->first < time; iter++)
+    Frames new_kfs = map_->GetKeyFrames(head_, time);
+    for(auto pair_kf : new_kfs)
     {
         PointICloud point_cloud;
-        if (TimeAlign(iter->first, point_cloud))
+        if (TimeAlign(pair_kf.first, point_cloud))
         {
-            Preprocess(point_cloud, iter->second);
-            head_ = iter->first;
+            Preprocess(point_cloud, pair_kf.second);
+            head_ = pair_kf.first;
         }
     }
 }
@@ -227,13 +227,13 @@ void ScanRegistration::Preprocess(PointICloud &points, Frame::Ptr frame)
                 if (is_feature[si] == 0 && curvatures[si] > 0.1)
                 {
                     num_largest_curvature++;
-                    if (num_largest_curvature <= 2) // NOTE: change the number of sharpest points
+                    if (num_largest_curvature <= 4) // NOTE: change the number of sharpest points
                     {
                         label[si] = 2;
                         points_sharp.push_back(points.points[si]);
                         points_less_sharp.push_back(points.points[si]);
                     }
-                    else if (num_largest_curvature <= 20) // NOTE: change the number of planar points
+                    else if (num_largest_curvature <= 40) // NOTE: change the number of less sharp points
                     {
                         label[si] = 1;
                         points_less_sharp.push_back(points.points[si]);
@@ -285,7 +285,7 @@ void ScanRegistration::Preprocess(PointICloud &points, Frame::Ptr frame)
                     points_flat.push_back(points.points[si]);
 
                     num_smallest_corvature++;
-                    if (num_smallest_corvature >= 4)
+                    if (num_smallest_corvature >= 8)
                     {
                         break;
                     }
@@ -364,7 +364,7 @@ void ScanRegistration::Associate(Frame::Ptr current_frame, Frame::Ptr last_frame
     std::vector<int> points_index;
     std::vector<float> points_distance;
 
-    static const double distance_threshold = 0.5;
+    static const double distance_threshold = 25;
     static const double nearby_scan = 2.5;
     int num_points_sharp = points_sharp.points.size();
     int num_points_flat = points_flat.points.size();

@@ -5,3 +5,4 @@ notes
 .vscode
 *.weights
 result
+src/adaptive_fusion

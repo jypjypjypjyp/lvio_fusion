@@ -16,15 +16,13 @@ public:
 
     Map() {}
 
-    visual::Landmarks &GetAllLandmarks()
+    int size()
     {
-        std::unique_lock<std::mutex> lock(mutex_data_);
-        return landmarks_;
+        return keyframes_.size();
     }
 
     Frames &GetAllKeyFrames()
     {
-        std::unique_lock<std::mutex> lock(mutex_data_);
         return keyframes_;
     }
 
@@ -46,9 +44,10 @@ public:
 
     NavsatMap::Ptr navsat_map;
     double local_map_head = 0;
+    std::mutex mutex_all_kfs;
+    std::mutex mutex_local_kfs;
 
 private:
-    std::mutex mutex_data_;
     visual::Landmarks landmarks_;
     Frames keyframes_;
 };

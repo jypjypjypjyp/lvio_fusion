@@ -69,7 +69,6 @@ void Mapping::MappingLoop()
 {
     while (true)
     {
-        std::this_thread::sleep_for(std::chrono::seconds(1));
         std::unique_lock<std::mutex> lock(running_mutex_);
         if (status == MappingStatus::TO_PAUSE)
         {
@@ -77,9 +76,17 @@ void Mapping::MappingLoop()
             pausing_.notify_one();
             running_.wait(lock);
         }
-        started_.wait(lock);
+        std::this_thread::sleep_for(std::chrono::seconds(5));
         auto t1 = std::chrono::steady_clock::now();
-        Optimize();
+        {
+            std::unique_lock<std::mutex> lock(map_->mutex_all_kfs);
+            Frames active_kfs = map_->GetKeyFrames(head_, map_->local_map_head);
+            if (active_kfs.empty())
+            {
+                continue;
+            }
+            Optimize(active_kfs);
+        }
         auto t2 = std::chrono::steady_clock::now();
         auto time_used = std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);
         LOG(INFO) << "Mapping cost time: " << time_used.count() << " seconds.";
@@ -98,20 +105,22 @@ void Mapping::BuildProblem(Frames &active_kfs, ceres::Problem &problem)
 
     Frame::Ptr last_frame;
     Frame::Ptr last_frame2;
+    unsigned int start_id = active_kfs.begin()->second->id;
     for (auto pair_kf : base_kfs)
     {
         double *para_kf_base = pair_kf.second->pose.data();
         problem.AddParameterBlock(para_kf_base, SE3d::num_parameters, local_parameterization);
         problem.SetParameterBlockConstant(para_kf_base);
-        if (!last_frame)
+        if (pair_kf.second->id + 1 == start_id)
         {
             last_frame = pair_kf.second;
         }
-        else
+        else if (pair_kf.second->id + 2 == start_id)
         {
             last_frame2 = pair_kf.second;
         }
     }
+
     Frame::Ptr current_frame;
     for (auto pair_kf : active_kfs)
     {
@@ -120,32 +129,33 @@ void Mapping::BuildProblem(Frames &active_kfs, ceres::Problem &problem)
         problem.AddParameterBlock(para_kf, SE3d::num_parameters, local_parameterization);
         if (current_frame->feature_lidar)
         {
-            if (last_frame->feature_lidar)
+            if (last_frame && last_frame->feature_lidar)
             {
                 if (last_frame->id + 1 != current_frame->id)
                 {
                     // last_frame is in a inner submap
                     auto real_last_frame = (--map_->GetAllKeyFrames().find(current_frame->time))->second;
                     scan_registration_->Associate(current_frame, real_last_frame, problem, lidar_loss_function, last_frame);
+                    continue;
                 }
                 else
                 {
                     scan_registration_->Associate(current_frame, last_frame, problem, lidar_loss_function);
                 }
             }
-            if (last_frame2->feature_lidar)
-            {
-                if (last_frame2->id + 2 != current_frame->id)
-                {
-                    // last_frame2 is in a inner submap
-                    auto real_last_frame2 = (----map_->GetAllKeyFrames().find(current_frame->time))->second;
-                    scan_registration_->Associate(current_frame, real_last_frame2, problem, lidar_loss_function, last_frame2);
-                }
-                else
-                {
-                    scan_registration_->Associate(current_frame, last_frame2, problem, lidar_loss_function);
-                }
-            }
+            // if (last_frame2 && last_frame2->feature_lidar)
+            // {
+            //     if (last_frame2->id + 2 != current_frame->id)
+            //     {
+            //         // last_frame2 is in a inner submap
+            //         auto real_last_frame2 = (----map_->GetAllKeyFrames().find(current_frame->time))->second;
+            //         scan_registration_->Associate(current_frame, real_last_frame2, problem, lidar_loss_function, last_frame2);
+            //     }
+            //     else
+            //     {
+            //         scan_registration_->Associate(current_frame, last_frame2, problem, lidar_loss_function);
+            //     }
+            // }
         }
         last_frame2 = last_frame;
         last_frame = current_frame;
@@ -155,13 +165,20 @@ void Mapping::BuildProblem(Frames &active_kfs, ceres::Problem &problem)
     for (auto pair_kf : active_kfs)
     {
         auto frame = pair_kf.second;
-        if(frame->loop_constraint)
+        if (frame->loop_constraint)
         {
             double *para_kf = frame->pose.data();
             double *para_old_kf = frame->loop_constraint->frame_old->pose.data();
             problem.SetParameterBlockConstant(para_kf);
             problem.SetParameterBlockConstant(para_old_kf);
         }
+    }
+
+    // initial point
+    if (active_kfs.begin()->second->id == 1)
+    {
+        auto &pose = active_kfs.begin()->second->pose;
+        problem.SetParameterBlockConstant(pose.data());
     }
 }
 
@@ -178,16 +195,11 @@ void Mapping::Optimize(Frames &active_kfs)
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
 
+    LOG(INFO) << summary.FullReport();
+
     // Build global map
     BuildGlobalMap(active_kfs);
-}
-
-void Mapping::Optimize()
-{
-    static double head = 0;
-    Frames active_kfs = map_->GetKeyFrames(head, map_->local_map_head);
-    Optimize(active_kfs);
-    head = (--active_kfs.end())->first;
+    head_ = (--active_kfs.end())->first;
 }
 
 void Mapping::BuildGlobalMap(Frames &active_kfs)
@@ -195,11 +207,13 @@ void Mapping::BuildGlobalMap(Frames &active_kfs)
     for (auto pair_kf : active_kfs)
     {
         Frame::Ptr frame = pair_kf.second;
-        PointRGBCloud pointcloud;
-        AddToWorld(frame->feature_lidar->points_less_sharp, frame, pointcloud);
-        AddToWorld(frame->feature_lidar->points_less_flat, frame, pointcloud);
-        frame->feature_lidar.reset();
-        pointclouds_[frame->time] = pointcloud;
+        if (frame->feature_lidar)
+        {
+            PointRGBCloud pointcloud;
+            AddToWorld(frame->feature_lidar->points_less_sharp, frame, pointcloud);
+            AddToWorld(frame->feature_lidar->points_less_flat, frame, pointcloud);
+            pointclouds_[frame->time] = pointcloud;
+        }
     }
 }
 

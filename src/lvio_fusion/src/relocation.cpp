@@ -318,6 +318,8 @@ void Relocation::BuildProblem(Frames &active_kfs, std::map<double, SE3d> &inner_
 
 void Relocation::CorrectLoop(double old_time, double start_time, double end_time)
 {
+    std::unique_lock<std::mutex> lock(map_->mutex_all_kfs);
+    
     // stop mapping
     if (lidar_)
         mapping_->Pause();

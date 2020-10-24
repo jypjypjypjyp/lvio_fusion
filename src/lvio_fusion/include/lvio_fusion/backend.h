@@ -68,7 +68,6 @@ private:
     Initializer::Ptr initializer_;
 
     std::thread thread_;
-    std::thread thread_global_;
     std::mutex running_mutex_, pausing_mutex_;
     std::condition_variable running_;
     std::condition_variable pausing_;

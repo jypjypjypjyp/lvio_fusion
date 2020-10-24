@@ -13,7 +13,6 @@ namespace lvio_fusion
 Backend::Backend(double range) : range_(range)
 {
     thread_ = std::thread(std::bind(&Backend::BackendLoop, this));
-    thread_global_ = std::thread(std::bind(&Backend::BackendLoop, this));
 }
 
 void Backend::UpdateMap()
@@ -146,7 +145,7 @@ void Backend::BuildProblem(Frames &active_kfs, ceres::Problem &problem)
     // }
     
     // initial point
-    if (active_kfs.begin()->first == map_->GetAllKeyFrames().begin()->first)
+    if (active_kfs.begin()->second->id == 1)
     {
         auto &pose = active_kfs.begin()->second->pose;
         problem.SetParameterBlockConstant(pose.data());
@@ -182,7 +181,7 @@ void Backend::Optimize(bool full)
 
     // navsat init
     auto navsat_map = map_->navsat_map;
-    if (!full && map_->navsat_map && !navsat_map->initialized && map_->GetAllKeyFrames().size() >= navsat_map->num_frames_init)
+    if (!full && map_->navsat_map && !navsat_map->initialized && map_->size() >= navsat_map->num_frames_init)
     {
         navsat_map->Initialize();
         // TODO: full optimize

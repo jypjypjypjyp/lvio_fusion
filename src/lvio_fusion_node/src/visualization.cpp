@@ -3,23 +3,26 @@
 
 using namespace Eigen;
 
-ros::Publisher path_pub;
-ros::Publisher navsat_pub;
-ros::Publisher points_cloud_pub;
+ros::Publisher pub_path;
+ros::Publisher pub_navsat;
+ros::Publisher pub_points_cloud;
+ros::Publisher pub_car_model;
 nav_msgs::Path path, navsat_path;
 
 void register_pub(ros::NodeHandle &n)
 {
-    path_pub = n.advertise<nav_msgs::Path>("path", 1000);
-    navsat_pub = n.advertise<nav_msgs::Path>("navsat_path", 1000);
-    points_cloud_pub = n.advertise<sensor_msgs::PointCloud2>("point_cloud", 1000);
+    pub_path = n.advertise<nav_msgs::Path>("path", 1000);
+    pub_navsat = n.advertise<nav_msgs::Path>("navsat_path", 1000);
+    pub_points_cloud = n.advertise<sensor_msgs::PointCloud2>("point_cloud", 1000);
+    pub_car_model = n.advertise<visualization_msgs::Marker>("car_model", 1000);
 }
 
-void pub_odometry(Estimator::Ptr estimator, double time)
+void publish_odometry(Estimator::Ptr estimator, double time)
 {
     if (estimator->frontend->status == FrontendStatus::TRACKING_GOOD)
     {
         path.poses.clear();
+        std::unique_lock<std::mutex> lock(estimator->map->mutex_all_kfs);
         for (auto frame : estimator->map->GetAllKeyFrames())
         {
             auto position = frame.second->pose.inverse().translation();
@@ -30,7 +33,7 @@ void pub_odometry(Estimator::Ptr estimator, double time)
             pose_stamped.pose.position.y = position.y();
             pose_stamped.pose.position.z = position.z();
             path.poses.push_back(pose_stamped);
-            if(frame.second->loop_constraint)
+            if (frame.second->loop_constraint)
             {
                 auto position = frame.second->loop_constraint->frame_old->pose.inverse().translation();
                 geometry_msgs::PoseStamped pose_stamped_loop;
@@ -45,11 +48,11 @@ void pub_odometry(Estimator::Ptr estimator, double time)
         }
         path.header.stamp = ros::Time(time);
         path.header.frame_id = "world";
-        path_pub.publish(path);
+        pub_path.publish(path);
     }
 }
 
-void pub_navsat(Estimator::Ptr estimator, double time)
+void publish_navsat(Estimator::Ptr estimator, double time)
 {
     if (estimator->map->navsat_map->initialized)
     {
@@ -78,11 +81,11 @@ void pub_navsat(Estimator::Ptr estimator, double time)
         }
         navsat_path.header.stamp = ros::Time(time);
         navsat_path.header.frame_id = "navsat";
-        navsat_pub.publish(navsat_path);
+        pub_navsat.publish(navsat_path);
     }
 }
 
-void pub_tf(Estimator::Ptr estimator, double time)
+void publish_tf(Estimator::Ptr estimator, double time)
 {
     static tf::TransformBroadcaster br;
     tf::Transform transform;
@@ -112,11 +115,49 @@ void pub_tf(Estimator::Ptr estimator, double time)
     }
 }
 
-void pub_point_cloud(Estimator::Ptr estimator, double time)
+void publish_point_cloud(Estimator::Ptr estimator, double time)
 {
     sensor_msgs::PointCloud2 ros_cloud;
     pcl::toROSMsg(estimator->mapping->GetGlobalMap(), ros_cloud);
     ros_cloud.header.stamp = ros::Time(time);
     ros_cloud.header.frame_id = "world";
-    points_cloud_pub.publish(ros_cloud);
+    pub_points_cloud.publish(ros_cloud);
+}
+
+void publish_car_model(Estimator::Ptr estimator, double time)
+{
+    visualization_msgs::Marker car_mesh;
+    car_mesh.header.stamp = ros::Time(time);
+    car_mesh.header.frame_id = "world";
+    car_mesh.type = visualization_msgs::Marker::MESH_RESOURCE;
+    car_mesh.action = visualization_msgs::Marker::ADD;
+    // car_mesh.mesh_resource = "package://lvio_fusion_node/models/car.dae";
+    car_mesh.mesh_resource = "file:///home/jyp/Projects/lvio_fusion/src/lvio_fusion_node/models/car.dae";
+    car_mesh.id = 0;
+
+    SE3d Twc = estimator->frontend->current_frame->pose.inverse();
+    Matrix3d rotate;
+    rotate << -1, 0, 0, 0, 0, 1, 0, 1, 0;
+    Quaterniond Q;
+    Q = Twc.unit_quaternion() * rotate;
+    Vector3d t = Twc.translation();
+    car_mesh.pose.position.x = t.x();
+    car_mesh.pose.position.y = t.y();
+    car_mesh.pose.position.z = t.z();
+    car_mesh.pose.orientation.w = Q.w();
+    car_mesh.pose.orientation.x = Q.x();
+    car_mesh.pose.orientation.y = Q.y();
+    car_mesh.pose.orientation.z = Q.z();
+
+    car_mesh.color.a = 1.0;
+    car_mesh.color.r = 1.0;
+    car_mesh.color.g = 0.0;
+    car_mesh.color.b = 0.0;
+
+    float major_scale = 2.0;
+    car_mesh.scale.x = major_scale;
+    car_mesh.scale.y = major_scale;
+    car_mesh.scale.z = major_scale;
+
+    pub_car_model.publish(car_mesh);
 }

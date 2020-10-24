@@ -8,7 +8,6 @@
 namespace lvio_fusion
 {
 
-// 点到线的残差距离计算
 class LidarEdgeError
 {
 public:
@@ -36,9 +35,9 @@ public:
         ceres::CrossProduct(lp_lpa, lp_lpb, nu);
         ceres::Minus(lpa, lpb, de);
         ceres::Norm(de, &de_norm);
-        residual[0] = T(sqrt_info(0, 0)) * nu[0] / de_norm;
-        residual[1] = T(sqrt_info(1, 1)) * nu[1] / de_norm;
-        residual[2] = T(sqrt_info(2, 2)) * nu[2] / de_norm;
+        residual[0] = nu[0] / de_norm;
+        residual[1] = nu[1] / de_norm;
+        residual[2] = nu[2] / de_norm;
         return true;
     }
 
@@ -47,14 +46,11 @@ public:
         return (new ceres::AutoDiffCostFunction<LidarEdgeError, 3, 7, 7>(new LidarEdgeError(p, pa, pb, lidar)));
     }
 
-    static Matrix3d sqrt_info;
-
 private:
     Vector3d p_, pa_, pb_;
     Lidar::Ptr lidar_;
 };
 
-// 计算Odometry线程中点到面的残差距离
 class LidarPlaneError
 {
 public:
@@ -82,7 +78,7 @@ public:
         ceres::SE3Product(se3_, extrinsic_inverse, se3);
         ceres::SE3TransformPoint(se3, cp, lp);
         ceres::Minus(lp, lpj, lp_lpj);
-        residual[0] = T(sqrt_info) * ceres::DotProduct(lp_lpj, ljm);
+        residual[0] = ceres::DotProduct(lp_lpj, ljm);
         return true;
     }
 
@@ -91,8 +87,6 @@ public:
         return (new ceres::AutoDiffCostFunction<LidarPlaneError, 1, 7, 7>(
             new LidarPlaneError(p, pa, pb, pc, lidar)));
     }
-
-    static double sqrt_info;
 
 private:
     Vector3d p_, pa_, pb_, pc_;
