@@ -76,16 +76,41 @@ void Mapping::MappingLoop()
             pausing_.notify_one();
             running_.wait(lock);
         }
-        std::this_thread::sleep_for(std::chrono::seconds(5));
+        std::this_thread::sleep_for(std::chrono::seconds(1));
         auto t1 = std::chrono::steady_clock::now();
         {
-            std::unique_lock<std::mutex> lock(map_->mutex_all_kfs);
             Frames active_kfs = map_->GetKeyFrames(head_, map_->local_map_head);
             if (active_kfs.empty())
             {
                 continue;
             }
+            SE3d old_pose = (--active_kfs.end())->second->pose;
             Optimize(active_kfs);
+            SE3d new_pose = (--active_kfs.end())->second->pose;
+
+            // forward propogate
+            {
+                std::unique_lock<std::mutex> lock1(backend_->mutex);
+                std::unique_lock<std::mutex> lock2(frontend_->mutex);
+
+                Frame::Ptr last_frame = frontend_->last_frame;
+                Frames forward_kfs = map_->GetKeyFrames(map_->local_map_head);
+                if (forward_kfs.find(last_frame->time) == forward_kfs.end())
+                {
+                    forward_kfs[last_frame->time] = last_frame;
+                }
+                SE3d transform = old_pose.inverse() * new_pose;
+                for (auto pair_kf : forward_kfs)
+                {
+                    pair_kf.second->pose = pair_kf.second->pose * transform;
+                    // TODO: Repropagate
+                    // if(pair_kf.second->preintegration)
+                    // {
+                    //     pair_kf.second->preintegration->Repropagate();
+                    // }
+                }
+                frontend_->UpdateCache();
+            }
         }
         auto t2 = std::chrono::steady_clock::now();
         auto time_used = std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);
@@ -143,19 +168,19 @@ void Mapping::BuildProblem(Frames &active_kfs, ceres::Problem &problem)
                     scan_registration_->Associate(current_frame, last_frame, problem, lidar_loss_function);
                 }
             }
-            // if (last_frame2 && last_frame2->feature_lidar)
-            // {
-            //     if (last_frame2->id + 2 != current_frame->id)
-            //     {
-            //         // last_frame2 is in a inner submap
-            //         auto real_last_frame2 = (----map_->GetAllKeyFrames().find(current_frame->time))->second;
-            //         scan_registration_->Associate(current_frame, real_last_frame2, problem, lidar_loss_function, last_frame2);
-            //     }
-            //     else
-            //     {
-            //         scan_registration_->Associate(current_frame, last_frame2, problem, lidar_loss_function);
-            //     }
-            // }
+            if (last_frame2 && last_frame2->feature_lidar)
+            {
+                if (last_frame2->id + 2 != current_frame->id)
+                {
+                    // last_frame2 is in a inner submap
+                    auto real_last_frame2 = (----map_->GetAllKeyFrames().find(current_frame->time))->second;
+                    scan_registration_->Associate(current_frame, real_last_frame2, problem, lidar_loss_function, last_frame2);
+                }
+                else
+                {
+                    scan_registration_->Associate(current_frame, last_frame2, problem, lidar_loss_function);
+                }
+            }
         }
         last_frame2 = last_frame;
         last_frame = current_frame;
@@ -190,7 +215,7 @@ void Mapping::Optimize(Frames &active_kfs)
     ceres::Solver::Options options;
     options.linear_solver_type = ceres::DENSE_SCHUR;
     options.function_tolerance = 1e-9;
-    options.max_num_iterations = 5;
+    options.max_num_iterations = 3;
     options.num_threads = 4;
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
@@ -231,7 +256,7 @@ PointRGBCloud Mapping::GetGlobalMap()
         PointRGBCloud::Ptr mapDS(new PointRGBCloud());
         pcl::copyPointCloud(global_map, *mapDS);
         downSizeFilter.setInputCloud(mapDS);
-        downSizeFilter.setLeafSize(0.1, 0.1, 0.1);
+        downSizeFilter.setLeafSize(0.2, 0.2, 0.2);
         downSizeFilter.filter(global_map);
     }
     return global_map;

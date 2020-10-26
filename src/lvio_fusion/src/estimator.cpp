@@ -132,6 +132,8 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
         mapping->SetMap(map);
         mapping->SetLidar(lidar);
         mapping->SetScanRegistration(scan_registration);
+        mapping->SetFrontend(frontend);
+        mapping->SetBackend(backend);
 
         if(relocation)
         {

@@ -318,11 +318,11 @@ void Relocation::BuildProblem(Frames &active_kfs, std::map<double, SE3d> &inner_
 
 void Relocation::CorrectLoop(double old_time, double start_time, double end_time)
 {
-    std::unique_lock<std::mutex> lock(map_->mutex_all_kfs);
-    
     // stop mapping
     if (lidar_)
+    {
         mapping_->Pause();
+    }
 
     // update pose of new submap
     Frames new_submap_kfs = map_->GetKeyFrames(start_time, end_time);
@@ -353,28 +353,16 @@ void Relocation::CorrectLoop(double old_time, double start_time, double end_time
 
     // mapping
     if (lidar_)
-        mapping_->Optimize(active_kfs);
-
-    // update pose of inner submaps
-    Frames all_kfs = map_->GetKeyFrames(old_time, end_time);
-    for (auto pair_old_frame : inner_old_frames)
     {
-        auto old_frame = active_kfs[pair_old_frame.first];
-        // T2_new = T2 * T1.inverse() * T1_new
-        SE3d transform = pair_old_frame.second.inverse() * old_frame->pose;
-        for (auto iter = ++all_kfs.find(pair_old_frame.first); active_kfs.find(iter->first) == active_kfs.end(); iter++)
-        {
-            auto frame = iter->second;
-            frame->pose = frame->pose * transform;
-        }
+        mapping_->Optimize(active_kfs);
     }
 
     // forward propogate
     {
-        std::unique_lock<std::mutex> lock1(backend_.lock()->mutex);
-        std::unique_lock<std::mutex> lock2(frontend_.lock()->mutex);
+        std::unique_lock<std::mutex> lock1(backend_->mutex);
+        std::unique_lock<std::mutex> lock2(frontend_->mutex);
 
-        Frame::Ptr last_frame = frontend_.lock()->last_frame;
+        Frame::Ptr last_frame = frontend_->last_frame;
         Frames forward_kfs = map_->GetKeyFrames(end_time);
         if (forward_kfs.find(last_frame->time) == forward_kfs.end())
         {
@@ -392,12 +380,28 @@ void Relocation::CorrectLoop(double old_time, double start_time, double end_time
             //     pair_kf.second->preintegration->Repropagate();
             // }
         }
-        frontend_.lock()->UpdateCache();
+        frontend_->UpdateCache();
+    }
+
+    // update pose of inner submaps
+    Frames all_kfs = map_->GetKeyFrames(old_time, end_time);
+    for (auto pair_old_frame : inner_old_frames)
+    {
+        auto old_frame = active_kfs[pair_old_frame.first];
+        // T2_new = T2 * T1.inverse() * T1_new
+        SE3d transform = pair_old_frame.second.inverse() * old_frame->pose;
+        for (auto iter = ++all_kfs.find(pair_old_frame.first); active_kfs.find(iter->first) == active_kfs.end(); iter++)
+        {
+            auto frame = iter->second;
+            frame->pose = frame->pose * transform;
+        }
     }
 
     // mapping start
     if (lidar_)
+    {
         mapping_->Continue();
+    }
 }
 
 } // namespace lvio_fusion

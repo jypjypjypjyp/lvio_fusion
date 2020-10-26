@@ -7,10 +7,10 @@
 #include "lvio_fusion/frontend.h"
 #include "lvio_fusion/lidar/mapping.h"
 #include "lvio_fusion/lidar/scan_registration.h"
+#include "lvio_fusion/loop/atlas.h"
 #include "lvio_fusion/loop/loop_constraint.h"
 #include "lvio_fusion/map.h"
 #include "lvio_fusion/visual/camera.hpp"
-#include "lvio_fusion/loop/atlas.h"
 
 #include <DBoW3/DBoW3.h>
 #include <DBoW3/Database.h>
@@ -91,7 +91,7 @@ private:
 
     int Hamming(const BRIEF &a, const BRIEF &b);
 
-    void BuildProblem(Frames &active_kfs, std::map<double, SE3d>& inner_old_frame, ceres::Problem &problem);
+    void BuildProblem(Frames &active_kfs, std::map<double, SE3d> &inner_old_frame, ceres::Problem &problem);
 
     void CorrectLoop(double old_time, double start_time, double end_time);
 
@@ -99,8 +99,8 @@ private:
     DBoW3::Vocabulary voc_;
     Map::Ptr map_;
     Mapping::Ptr mapping_;
-    std::weak_ptr<Frontend> frontend_;
-    std::weak_ptr<Backend> backend_;
+    Frontend::Ptr frontend_;
+    Backend::Ptr backend_;
     ScanRegistration::Ptr scan_registration_;
     loop::Atlas atlas_;
 

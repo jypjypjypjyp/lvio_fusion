@@ -227,13 +227,13 @@ void ScanRegistration::Preprocess(PointICloud &points, Frame::Ptr frame)
                 if (is_feature[si] == 0 && curvatures[si] > 0.1)
                 {
                     num_largest_curvature++;
-                    if (num_largest_curvature <= 4) // NOTE: change the number of sharpest points
+                    if (num_largest_curvature <= 1) // NOTE: change the number of sharpest points
                     {
                         label[si] = 2;
                         points_sharp.push_back(points.points[si]);
                         points_less_sharp.push_back(points.points[si]);
                     }
-                    else if (num_largest_curvature <= 40) // NOTE: change the number of less sharp points
+                    else if (num_largest_curvature <= 20) // NOTE: change the number of less sharp points
                     {
                         label[si] = 1;
                         points_less_sharp.push_back(points.points[si]);
@@ -285,7 +285,7 @@ void ScanRegistration::Preprocess(PointICloud &points, Frame::Ptr frame)
                     points_flat.push_back(points.points[si]);
 
                     num_smallest_corvature++;
-                    if (num_smallest_corvature >= 8)
+                    if (num_smallest_corvature >= 2)    // NOTE: change the number of flat points
                     {
                         break;
                     }
@@ -364,11 +364,13 @@ void ScanRegistration::Associate(Frame::Ptr current_frame, Frame::Ptr last_frame
     std::vector<int> points_index;
     std::vector<float> points_distance;
 
-    static const double distance_threshold = 25;
+    static const double distance_threshold = 25;    // squared
     static const double nearby_scan = 2.5;
     int num_points_sharp = points_sharp.points.size();
     int num_points_flat = points_flat.points.size();
-    float *tf = lidar_->TransformMatrix(current_frame->pose, last_frame->pose).cast<float>().data();
+    Sophus::SE3f tf_se3 = lidar_->TransformMatrix(current_frame->pose, last_frame->pose).cast<float>();
+    float *tf = tf_se3.data();
+
     // find correspondence for corner features
     for (int i = 0; i < num_points_sharp; ++i)
     {
@@ -383,7 +385,7 @@ void ScanRegistration::Associate(Frame::Ptr current_frame, Frame::Ptr last_frame
         {
             closest_index = points_index[0];
             int scan_id = int(points_less_sharp_last.points[closest_index].intensity);
-            double distance_threshold = distance_threshold;
+            double min_distance = distance_threshold;
             // point b in the direction of increasing scan line
             for (int j = closest_index + 1; j < (int)points_less_sharp_last.points.size(); ++j)
             {
@@ -402,10 +404,10 @@ void ScanRegistration::Associate(Frame::Ptr current_frame, Frame::Ptr last_frame
                                         (points_less_sharp_last.points[j].z - point.z) *
                                             (points_less_sharp_last.points[j].z - point.z);
 
-                if (point_distance < distance_threshold)
+                if (point_distance < min_distance)
                 {
                     // find nearer point
-                    distance_threshold = point_distance;
+                    min_distance = point_distance;
                     closest_index2 = j;
                 }
             }
@@ -428,10 +430,10 @@ void ScanRegistration::Associate(Frame::Ptr current_frame, Frame::Ptr last_frame
                                         (points_less_sharp_last.points[j].z - point.z) *
                                             (points_less_sharp_last.points[j].z - point.z);
 
-                if (point_distance < distance_threshold)
+                if (point_distance < min_distance)
                 {
                     // find nearer point
-                    distance_threshold = point_distance;
+                    min_distance = point_distance;
                     closest_index2 = j;
                 }
             }
@@ -475,7 +477,7 @@ void ScanRegistration::Associate(Frame::Ptr current_frame, Frame::Ptr last_frame
 
             // get closest point's scan ID
             int scan_id = int(points_less_flat_last.points[closest_index].intensity);
-            double distance_threshold2 = distance_threshold, distance_threshold3 = distance_threshold;
+            double min_distance2 = distance_threshold, min_distance3 = distance_threshold;
 
             // search in the direction of increasing scan line
             for (int j = closest_index + 1; j < (int)points_less_flat_last.points.size(); ++j)
@@ -492,15 +494,15 @@ void ScanRegistration::Associate(Frame::Ptr current_frame, Frame::Ptr last_frame
                                             (points_less_flat_last.points[j].z - point.z);
 
                 // if in the same or lower scan line
-                if (int(points_less_flat_last.points[j].intensity) <= scan_id && point_distance < distance_threshold2)
+                if (int(points_less_flat_last.points[j].intensity) <= scan_id && point_distance < min_distance2)
                 {
-                    distance_threshold2 = point_distance;
+                    min_distance2 = point_distance;
                     closest_index2 = j;
                 }
                 // if in the higher scan line
-                else if (int(points_less_flat_last.points[j].intensity) > scan_id && point_distance < distance_threshold3)
+                else if (int(points_less_flat_last.points[j].intensity) > scan_id && point_distance < min_distance3)
                 {
-                    distance_threshold3 = point_distance;
+                    min_distance3 = point_distance;
                     closest_index3 = j;
                 }
             }
@@ -520,15 +522,15 @@ void ScanRegistration::Associate(Frame::Ptr current_frame, Frame::Ptr last_frame
                                             (points_less_flat_last.points[j].z - point.z);
 
                 // if in the same or higher scan line
-                if (int(points_less_flat_last.points[j].intensity) >= scan_id && point_distance < distance_threshold2)
+                if (int(points_less_flat_last.points[j].intensity) >= scan_id && point_distance < min_distance2)
                 {
-                    distance_threshold2 = point_distance;
+                    min_distance2 = point_distance;
                     closest_index2 = j;
                 }
-                else if (int(points_less_flat_last.points[j].intensity) < scan_id && point_distance < distance_threshold3)
+                else if (int(points_less_flat_last.points[j].intensity) < scan_id && point_distance < min_distance3)
                 {
                     // find nearer point
-                    distance_threshold3 = point_distance;
+                    min_distance3 = point_distance;
                     closest_index3 = j;
                 }
             }

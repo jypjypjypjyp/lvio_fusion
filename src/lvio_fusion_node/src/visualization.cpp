@@ -22,7 +22,6 @@ void publish_odometry(Estimator::Ptr estimator, double time)
     if (estimator->frontend->status == FrontendStatus::TRACKING_GOOD)
     {
         path.poses.clear();
-        std::unique_lock<std::mutex> lock(estimator->map->mutex_all_kfs);
         for (auto frame : estimator->map->GetAllKeyFrames())
         {
             auto position = frame.second->pose.inverse().translation();

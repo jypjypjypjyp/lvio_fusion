@@ -1,7 +1,9 @@
 #ifndef lvio_fusion_MAPPING_H
 #define lvio_fusion_MAPPING_H
 
+#include "lvio_fusion/backend.h"
 #include "lvio_fusion/common.h"
+#include "lvio_fusion/frontend.h"
 #include "lvio_fusion/lidar/lidar.hpp"
 #include "lvio_fusion/lidar/scan_registration.h"
 #include "lvio_fusion/map.h"
@@ -32,7 +34,11 @@ public:
 
     void SetScanRegistration(ScanRegistration::Ptr scan_registration) { scan_registration_ = scan_registration; }
 
-    void Optimize(Frames& active_kfs);
+    void SetFrontend(Frontend::Ptr frontend) { frontend_ = frontend; }
+    
+    void SetBackend(Backend::Ptr backend) { backend_ = backend; }
+
+    void Optimize(Frames &active_kfs);
 
     void Pause();
 
@@ -53,6 +59,8 @@ private:
 
     Map::Ptr map_;
     ScanRegistration::Ptr scan_registration_;
+    Frontend::Ptr frontend_;
+    Backend::Ptr backend_;
 
     std::thread thread_;
     std::mutex running_mutex_, pausing_mutex_;
