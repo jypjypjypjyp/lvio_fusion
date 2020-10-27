@@ -200,6 +200,7 @@ void ScanRegistration::Preprocess(PointICloud &points, Frame::Ptr frame)
     }
 
     // extract features
+    static int num_zones = 3;
     static pcl::VoxelGrid<PointI> down_sampling;
     down_sampling.setLeafSize(0.2, 0.2, 0.2);
     for (int i = 0; i < num_scans_; i++)
@@ -208,10 +209,10 @@ void ScanRegistration::Preprocess(PointICloud &points, Frame::Ptr frame)
             continue;
         PointICloud::Ptr scan_less_flat(new PointICloud());
         // divide one scan into six segments
-        for (int j = 0; j < 6; j++)
+        for (int j = 0; j < num_zones; j++)
         {
-            int sp = start_index[i] + (end_index[i] - start_index[i]) * j / 6;
-            int ep = start_index[i] + (end_index[i] - start_index[i]) * (j + 1) / 6 - 1;
+            int sp = start_index[i] + (end_index[i] - start_index[i]) * j / num_zones;
+            int ep = start_index[i] + (end_index[i] - start_index[i]) * (j + 1) / num_zones - 1;
 
             std::sort(sort_index + sp, sort_index + ep + 1,
                       [](int i, int j) {

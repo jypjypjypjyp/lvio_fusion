@@ -51,6 +51,7 @@ public:
 
     BackendStatus status = BackendStatus::RUNNING;
     std::mutex mutex;
+    double head = 0;
 
 private:
     void BackendLoop();
@@ -72,7 +73,7 @@ private:
     std::condition_variable running_;
     std::condition_variable pausing_;
     std::condition_variable map_update_;
-    const double range_;
+    const double delay_;
 
     Camera::Ptr camera_left_;
     Camera::Ptr camera_right_;

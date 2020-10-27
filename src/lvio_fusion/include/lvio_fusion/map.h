@@ -43,8 +43,8 @@ public:
     }
 
     NavsatMap::Ptr navsat_map;
-    double local_map_head = 0;
     std::mutex mutex_local_kfs;
+    
 
 private:
     visual::Landmarks landmarks_;

@@ -76,10 +76,11 @@ void Mapping::MappingLoop()
             pausing_.notify_one();
             running_.wait(lock);
         }
-        std::this_thread::sleep_for(std::chrono::seconds(1));
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
         auto t1 = std::chrono::steady_clock::now();
         {
-            Frames active_kfs = map_->GetKeyFrames(head_, map_->local_map_head);
+            double backend_head = backend_->head;
+            Frames active_kfs = map_->GetKeyFrames(head, backend_head);
             if (active_kfs.empty())
             {
                 continue;
@@ -94,7 +95,7 @@ void Mapping::MappingLoop()
                 std::unique_lock<std::mutex> lock2(frontend_->mutex);
 
                 Frame::Ptr last_frame = frontend_->last_frame;
-                Frames forward_kfs = map_->GetKeyFrames(map_->local_map_head);
+                Frames forward_kfs = map_->GetKeyFrames(backend_head);
                 if (forward_kfs.find(last_frame->time) == forward_kfs.end())
                 {
                     forward_kfs[last_frame->time] = last_frame;
@@ -121,28 +122,24 @@ void Mapping::MappingLoop()
 void Mapping::BuildProblem(Frames &active_kfs, ceres::Problem &problem)
 {
     double start_time = active_kfs.begin()->first;
-    Frames base_kfs = map_->GetKeyFrames(0, start_time, 2);
+    static int num_associations = 4;
+    Frames base_kfs = map_->GetKeyFrames(0, start_time, num_associations);
 
     ceres::LossFunction *lidar_loss_function = new ceres::HuberLoss(0.1);
     ceres::LocalParameterization *local_parameterization = new ceres::ProductParameterization(
         new ceres::EigenQuaternionParameterization(),
         new ceres::IdentityParameterization(3));
 
-    Frame::Ptr last_frame;
-    Frame::Ptr last_frame2;
+    Frame::Ptr last_frames[num_associations + 1];
     unsigned int start_id = active_kfs.begin()->second->id;
     for (auto pair_kf : base_kfs)
     {
         double *para_kf_base = pair_kf.second->pose.data();
         problem.AddParameterBlock(para_kf_base, SE3d::num_parameters, local_parameterization);
         problem.SetParameterBlockConstant(para_kf_base);
-        if (pair_kf.second->id + 1 == start_id)
+        if (start_id - pair_kf.second->id <= num_associations)
         {
-            last_frame = pair_kf.second;
-        }
-        else if (pair_kf.second->id + 2 == start_id)
-        {
-            last_frame2 = pair_kf.second;
+            last_frames[start_id - pair_kf.second->id] = pair_kf.second;
         }
     }
 
@@ -154,36 +151,34 @@ void Mapping::BuildProblem(Frames &active_kfs, ceres::Problem &problem)
         problem.AddParameterBlock(para_kf, SE3d::num_parameters, local_parameterization);
         if (current_frame->feature_lidar)
         {
-            if (last_frame && last_frame->feature_lidar)
+            for (int i = 1; i <= num_associations; i++)
             {
-                if (last_frame->id + 1 != current_frame->id)
+                Frame::Ptr old_frame;
+                if (last_frames[i] && last_frames[i]->feature_lidar)
                 {
-                    // last_frame is in a inner submap
-                    auto real_last_frame = (--map_->GetAllKeyFrames().find(current_frame->time))->second;
-                    scan_registration_->Associate(current_frame, real_last_frame, problem, lidar_loss_function, last_frame);
-                    continue;
-                }
-                else
-                {
-                    scan_registration_->Associate(current_frame, last_frame, problem, lidar_loss_function);
-                }
-            }
-            if (last_frame2 && last_frame2->feature_lidar)
-            {
-                if (last_frame2->id + 2 != current_frame->id)
-                {
-                    // last_frame2 is in a inner submap
-                    auto real_last_frame2 = (----map_->GetAllKeyFrames().find(current_frame->time))->second;
-                    scan_registration_->Associate(current_frame, real_last_frame2, problem, lidar_loss_function, last_frame2);
-                }
-                else
-                {
-                    scan_registration_->Associate(current_frame, last_frame2, problem, lidar_loss_function);
+                    if (last_frames[i]->id + i != current_frame->id)
+                    {
+                        // last_frame is in a inner submap
+                        if (!old_frame)
+                        {
+                            old_frame = last_frames[i];
+                        }
+                        auto real_last_frame = (--map_->GetAllKeyFrames().find(current_frame->time))->second;
+                        scan_registration_->Associate(current_frame, real_last_frame, problem, lidar_loss_function, old_frame);
+                        continue;
+                    }
+                    else
+                    {
+                        scan_registration_->Associate(current_frame, last_frames[i], problem, lidar_loss_function);
+                    }
                 }
             }
         }
-        last_frame2 = last_frame;
-        last_frame = current_frame;
+        for (int i = num_associations; i > 1; i--)
+        {
+            last_frames[i] = last_frames[i - 1];
+        }
+        last_frames[1] = current_frame;
     }
 
     // loop constraint
@@ -209,22 +204,23 @@ void Mapping::BuildProblem(Frames &active_kfs, ceres::Problem &problem)
 
 void Mapping::Optimize(Frames &active_kfs)
 {
-    ceres::Problem problem;
-    BuildProblem(active_kfs, problem);
+    for (int i = 0; i < 2; i++)
+    {
+        ceres::Problem problem;
+        BuildProblem(active_kfs, problem);
 
-    ceres::Solver::Options options;
-    options.linear_solver_type = ceres::DENSE_SCHUR;
-    options.function_tolerance = 1e-9;
-    options.max_num_iterations = 3;
-    options.num_threads = 4;
-    ceres::Solver::Summary summary;
-    ceres::Solve(options, &problem, &summary);
-
-    LOG(INFO) << summary.FullReport();
+        ceres::Solver::Options options;
+        options.linear_solver_type = ceres::DENSE_QR;
+        options.max_num_iterations = 1;
+        options.num_threads = 4;
+        ceres::Solver::Summary summary;
+        ceres::Solve(options, &problem, &summary);
+        LOG(INFO) << summary.FullReport();
+    }
 
     // Build global map
     BuildGlobalMap(active_kfs);
-    head_ = (--active_kfs.end())->first;
+    head = (--active_kfs.end())->first;
 }
 
 void Mapping::BuildGlobalMap(Frames &active_kfs)
@@ -256,7 +252,7 @@ PointRGBCloud Mapping::GetGlobalMap()
         PointRGBCloud::Ptr mapDS(new PointRGBCloud());
         pcl::copyPointCloud(global_map, *mapDS);
         downSizeFilter.setInputCloud(mapDS);
-        downSizeFilter.setLeafSize(0.2, 0.2, 0.2);
+        downSizeFilter.setLeafSize(0.4, 0.4, 0.4);
         downSizeFilter.filter(global_map);
     }
     return global_map;

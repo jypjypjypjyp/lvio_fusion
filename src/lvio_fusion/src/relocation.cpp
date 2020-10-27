@@ -15,10 +15,10 @@ namespace lvio_fusion
 
 Relocation::Relocation(std::string voc_path)
 {
-    thread_ = std::thread(std::bind(&Relocation::RelocationLoop, this));
     detector_ = cv::ORB::create();
     voc_ = DBoW3::Vocabulary(voc_path);
     db_ = DBoW3::Database(voc_, false, 0);
+    thread_ = std::thread(std::bind(&Relocation::RelocationLoop, this));
 }
 
 void Relocation::RelocationLoop()
@@ -27,11 +27,10 @@ void Relocation::RelocationLoop()
     static double old_time = DBL_MAX;
     static double start_time = 0;
     static double last_time = 0;
-    static double head = 0;
     while (true)
     {
-        std::this_thread::sleep_for(std::chrono::seconds(1));
-        auto new_kfs = map_->GetKeyFrames(head, map_->local_map_head);
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        auto new_kfs = map_->GetKeyFrames(head, backend_->head);
         if (new_kfs.empty())
         {
             continue;
@@ -54,6 +53,7 @@ void Relocation::RelocationLoop()
             else if (is_last_loop)
             {
                 old_time = DBL_MAX;
+                LOG(INFO) << "Detected new loop, and correct it now.";
                 CorrectLoop(old_time, start_time, last_time);
             }
             is_last_loop = is_loop;
@@ -72,7 +72,7 @@ void Relocation::AddKeyFrameIntoVoc(Frame::Ptr frame)
         keypoints.push_back(cv::KeyPoint(pair_feature.second->keypoint, 1));
     }
     detector_->compute(frame->image_left, keypoints, frame->descriptors);
-    LOG(INFO) << frame->descriptors;
+    assert(frame->descriptors.rows == keypoints.size());
     DBoW3::EntryId id = db_.add(frame->descriptors);
     map_dbow_to_frames_[id] = frame->time;
 }

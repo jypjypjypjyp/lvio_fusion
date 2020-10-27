@@ -76,6 +76,8 @@ public:
 
     void SetBackend(Backend::Ptr backend) { backend_ = backend; }
 
+    double head = 0;
+
 private:
     void RelocationLoop();
 

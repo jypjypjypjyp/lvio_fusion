@@ -10,7 +10,7 @@
 namespace lvio_fusion
 {
 
-Backend::Backend(double range) : range_(range)
+Backend::Backend(double delay) : delay_(delay)
 {
     thread_ = std::thread(std::bind(&Backend::BackendLoop, this));
 }
@@ -162,10 +162,7 @@ double compute_reprojection_error(Vector2d ob, Vector3d pw, SE3d pose, Camera::P
 void Backend::Optimize(bool full)
 {
     std::unique_lock<std::mutex> lock(mutex);
-
-    static double head = 0;
-    map_->local_map_head = std::max(0.0, head - range_);
-    Frames active_kfs = map_->GetKeyFrames(full ? 0 : map_->local_map_head);
+    Frames active_kfs = map_->GetKeyFrames(full ? 0 : head);
 
     // TODO: IMU
     // imu init
@@ -194,7 +191,7 @@ void Backend::Optimize(bool full)
 
     ceres::Solver::Options options;
     options.linear_solver_type = ceres::DENSE_SCHUR;
-    options.max_solver_time_in_seconds = range_ * 0.8;
+    options.max_solver_time_in_seconds = delay_ * 0.8;
     options.num_threads = 4;
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
@@ -222,8 +219,8 @@ void Backend::Optimize(bool full)
     }
 
     // propagate to the last frame
-    head = (--active_kfs.end())->first;
-    ForwardPropagate(head);
+    ForwardPropagate((--active_kfs.end())->first);
+    head = (--active_kfs.end())->first - delay_;
 }
 
 void Backend::ForwardPropagate(double time)
@@ -242,7 +239,7 @@ void Backend::ForwardPropagate(double time)
 
     ceres::Solver::Options options;
     options.linear_solver_type = ceres::DENSE_SCHUR;
-    options.max_num_iterations = 3;
+    options.max_num_iterations = 1;
     options.num_threads = 4;
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);

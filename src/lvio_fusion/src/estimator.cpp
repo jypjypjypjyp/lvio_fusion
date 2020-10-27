@@ -67,7 +67,7 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
         Config::Get<int>("num_features_needed_for_keyframe")));
 
     backend = Backend::Ptr(new Backend(
-        Config::Get<double>("range")));
+        Config::Get<double>("delay")));
 
     frontend->SetBackend(backend);
     frontend->SetMap(map);
@@ -81,10 +81,10 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
     if (use_loop)
     {
         relocation = Relocation::Ptr(new Relocation(Config::Get<std::string>("voc_path")));
+        relocation->SetMap(map);
         relocation->SetCameras(camera1, camera2);
         relocation->SetFrontend(frontend);
         relocation->SetBackend(backend);
-        relocation->SetMap(map);
     }
 
     if (use_navsat)
@@ -118,24 +118,25 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
         t_base_to_lidar << base_to_lidar(0, 3), base_to_lidar(1, 3), base_to_lidar(2, 3);
         Lidar::Ptr lidar(new Lidar(SE3d(q_base_to_lidar, t_base_to_lidar)));
 
-        scan_registration = ScanRegistration::Ptr(new ScanRegistration(
-            Config::Get<int>("num_scans"),
-            Config::Get<double>("cycle_time"),
-            Config::Get<double>("min_range"),
-            Config::Get<double>("max_range"),
-            Config::Get<int>("deskew")));
+        scan_registration = ScanRegistration::Ptr(
+            new ScanRegistration(
+                Config::Get<int>("num_scans"),
+                Config::Get<double>("cycle_time"),
+                Config::Get<double>("min_range"),
+                Config::Get<double>("max_range"),
+                Config::Get<int>("deskew")));
         scan_registration->SetLidar(lidar);
         scan_registration->SetMap(map);
 
         mapping = Mapping::Ptr(new Mapping());
-        mapping->SetCamera(camera1);
         mapping->SetMap(map);
+        mapping->SetCamera(camera1);
         mapping->SetLidar(lidar);
         mapping->SetScanRegistration(scan_registration);
         mapping->SetFrontend(frontend);
         mapping->SetBackend(backend);
 
-        if(relocation)
+        if (relocation)
         {
             relocation->SetLidar(lidar);
             relocation->SetMapping(mapping);
@@ -177,7 +178,7 @@ void Estimator::InputPointCloud(double time, Point3Cloud::Ptr point_cloud)
     auto time_used =
         std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);
     if (time_used.count() > 1e-2)
-        LOG(INFO) << "Scan Registration cost time: " << time_used.count() << " seconds.";
+        LOG(INFO) << "Lidar Preprocessing cost time: " << time_used.count() << " seconds.";
 }
 
 void Estimator::InputIMU(double time, Vector3d acc, Vector3d gyr)

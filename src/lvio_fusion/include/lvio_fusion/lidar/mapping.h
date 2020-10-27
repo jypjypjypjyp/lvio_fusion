@@ -35,7 +35,7 @@ public:
     void SetScanRegistration(ScanRegistration::Ptr scan_registration) { scan_registration_ = scan_registration; }
 
     void SetFrontend(Frontend::Ptr frontend) { frontend_ = frontend; }
-    
+
     void SetBackend(Backend::Ptr backend) { backend_ = backend; }
 
     void Optimize(Frames &active_kfs);
@@ -47,6 +47,7 @@ public:
     PointRGBCloud GetGlobalMap();
 
     MappingStatus status = MappingStatus::RUNNING;
+    double head = 0;
 
 private:
     void MappingLoop();
@@ -68,8 +69,7 @@ private:
     std::condition_variable pausing_;
     std::condition_variable started_;
     std::map<double, PointRGBCloud> pointclouds_;
-    double head_ = 0;
-
+    
     Lidar::Ptr lidar_;
     Camera::Ptr camera_;
 };
