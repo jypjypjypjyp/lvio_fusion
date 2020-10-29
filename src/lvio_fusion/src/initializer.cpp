@@ -1,6 +1,6 @@
 #include "lvio_fusion/imu/initializer.h"
 #include <lvio_fusion/utility.h>
-
+#include "lvio_fusion/optimizer.h"
 namespace lvio_fusion
 {
 void  Initializer::InitializeIMU(float priorG, float priorA, bool bFIBA)
@@ -79,7 +79,8 @@ void  Initializer::InitializeIMU(float priorG, float priorA, bool bFIBA)
     // Step 3:进行惯性优化
     std::chrono::steady_clock::time_point t0 = std::chrono::steady_clock::now();
     // 使用camera初始地图frame的pose与预积分的差值优化
-    Optimizer::InertialOptimization(map_, mRwg, mScale, mbg, mba, false, Eigen::MatrixXd::Zero(9,9), false, false, priorG, priorA);
+    Eigen::MatrixXd infoInertial=Eigen::MatrixXd::Zero(9,9);
+    optimizer::InertialOptimization(map_, mRwg, mScale, mbg, mba, false,infoInertial , false, false, priorG, priorA);
     std::chrono::steady_clock::time_point t1 = std::chrono::steady_clock::now();
 
     /*cout << "scale after inertial-only optimization: " << mScale << endl;
@@ -93,9 +94,6 @@ void  Initializer::InitializeIMU(float priorG, float priorA, bool bFIBA)
         bInitializing=false;
         return;
     }
-
-
-
 
     // Before this line we are not changing the map
     // 上面的程序没有改变地图，下面会对地图进行修改
@@ -126,9 +124,9 @@ void  Initializer::InitializeIMU(float priorG, float priorA, bool bFIBA)
     if (bFIBA)
     {
         if (priorA!=0.f)
-            Optimizer::FullInertialBA(map_, 100, false, 0, NULL, true, priorG, priorA);
+            optimizer::FullInertialBA(map_, 100, false, 0, NULL, true, priorG, priorA);
         else
-            Optimizer::FullInertialBA(map_, 100, false, 0, NULL, false);
+            optimizer::FullInertialBA(map_, 100, false, 0, NULL, false);
     }
 
     std::chrono::steady_clock::time_point t5 = std::chrono::steady_clock::now();
@@ -158,7 +156,7 @@ void  Initializer::InitializeIMU(float priorG, float priorA, bool bFIBA)
 */
     //mpTracker->mState=Tracking::OK;
     bInitializing = false;
-
+    bimu=true;
 
     /*cout << "After GIBA: " << endl;
     cout << "ba: " << mpCurrentKeyFrame->GetAccBias() << endl;
@@ -174,6 +172,7 @@ void  Initializer::InitializeIMU(float priorG, float priorA, bool bFIBA)
 
 }
 
+// Converter
 cv::Mat ExpSO3(const float &x, const float &y, const float &z)
 {
     cv::Mat I = cv::Mat::eye(3,3,CV_32F);

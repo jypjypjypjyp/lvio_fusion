@@ -58,7 +58,7 @@ public:
     cv::Mat mOw;
 
     // IMU linear velocity
-    cv::Mat mVw;
+    Vector3d mVw;
 
     // Camera pose.
     cv::Mat mTcw;  //? world to camera 
@@ -68,8 +68,6 @@ public:
     // IMU position
     cv::Mat Owb;
 
-    // Velocity (Only used for inertial SLAM)
-    cv::Mat Vw;
 cv::Mat GetGyroBias();
 cv::Mat GetAccBias();
    cv::Mat   GetImuRotation();

@@ -187,6 +187,7 @@ cv::Mat Preintegration::GetUpdatedDeltaPosition()
     return dP + JPg*db.rowRange(0,3) + JPa*db.rowRange(3,6);
 }
 
+// Converter
 cv::Mat ExpSO3(const float &x, const float &y, const float &z)
 {
     cv::Mat I = cv::Mat::eye(3,3,CV_32F);
@@ -204,6 +205,58 @@ cv::Mat ExpSO3(const float &x, const float &y, const float &z)
 cv::Mat ExpSO3(const cv::Mat &v)
 {
     return ExpSO3(v.at<float>(0),v.at<float>(1),v.at<float>(2));
+}
+
+// 过去更新bias后的delta_R
+cv::Mat Preintegration::GetDeltaRotation(const Bias &b_)
+{
+  
+    cv::Mat dbg = (cv::Mat_<float>(3,1) << b_.bwx-b.bwx,b_.bwy-b.bwy,b_.bwz-b.bwz);
+    return NormalizeRotation(dR*ExpSO3(JRg*dbg));
+}
+
+cv::Mat Preintegration::GetDeltaVelocity(const Bias &b_)
+{
+   
+    cv::Mat dbg = (cv::Mat_<float>(3,1) << b_.bwx-b.bwx,b_.bwy-b.bwy,b_.bwz-b.bwz);
+    cv::Mat dba = (cv::Mat_<float>(3,1) << b_.bax-b.bax,b_.bay-b.bay,b_.baz-b.baz);
+    return dV + JVg*dbg + JVa*dba;
+}
+
+cv::Mat Preintegration::GetDeltaPosition(const Bias &b_)
+{
+    cv::Mat dbg = (cv::Mat_<float>(3,1) << b_.bwx-b.bwx,b_.bwy-b.bwy,b_.bwz-b.bwz);
+    cv::Mat dba = (cv::Mat_<float>(3,1) << b_.bax-b.bax,b_.bay-b.bay,b_.baz-b.baz);
+    return dP + JPg*dbg + JPa*dba;
+}
+
+Bias Preintegration::GetDeltaBias(const Bias &b_)
+{
+    return Bias(b_.bax-b.bax,b_.bay-b.bay,b_.baz-b.baz,b_.bwx-b.bwx,b_.bwy-b.bwy,b_.bwz-b.bwz);
+}
+
+
+
+Matrix<double, 15, 1> Preintegration::Evaluate(const Vector3d &Pi, const Quaterniond &Qi, const Vector3d &Vi, const Vector3d &Bai, const Vector3d &Bgi,
+                                               const Vector3d &Pj, const Quaterniond &Qj, const Vector3d &Vj, const Vector3d &Baj, const Vector3d &Bgj)
+{
+    Matrix<double, 15, 1> residuals;
+    Matrix3d dp_dba = jacobian.block<3, 3>(O_T, O_BA);
+    Matrix3d dp_dbg = jacobian.block<3, 3>(O_T, O_BG);
+    Matrix3d dq_dbg = jacobian.block<3, 3>(O_R, O_BG);
+    Matrix3d dv_dba = jacobian.block<3, 3>(O_V, O_BA);
+    Matrix3d dv_dbg = jacobian.block<3, 3>(O_V, O_BG);
+    Vector3d dba = Bai - linearized_ba;
+    Vector3d dbg = Bgi - linearized_bg;
+    Quaterniond corrected_delta_q = delta_q * q_delta(dq_dbg * dbg);
+    Vector3d corrected_delta_v = delta_v + dv_dba * dba + dv_dbg * dbg;
+    Vector3d corrected_delta_p = delta_p + dp_dba * dba + dp_dbg * dbg;
+    residuals.block<3, 1>(O_T, 0) = Qi.inverse() * (0.5 * g * sum_dt * sum_dt + Pj - Pi - Vi * sum_dt) - corrected_delta_p;
+    residuals.block<3, 1>(O_R, 0) = 2 * (corrected_delta_q.inverse() * (Qi.inverse() * Qj)).vec();
+    residuals.block<3, 1>(O_V, 0) = Qi.inverse() * (g * sum_dt + Vj - Vi) - corrected_delta_v;
+    residuals.block<3, 1>(O_BA, 0) = Baj - Bai;
+    residuals.block<3, 1>(O_BG, 0) = Bgj - Bgi;
+    return residuals;
 }
 
 /*

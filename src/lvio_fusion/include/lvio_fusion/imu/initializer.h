@@ -20,7 +20,7 @@ public:
     void SetFrontend(Frontend::Ptr  frontend) { frontend_ = frontend; }
     Frontend::Ptr frontend_;
     bool initialized = false;
-    
+    bool bimu=false;//是否经过imu尺度优化
     bool bInitializing=false;
 
     Eigen::MatrixXd infoInertial;

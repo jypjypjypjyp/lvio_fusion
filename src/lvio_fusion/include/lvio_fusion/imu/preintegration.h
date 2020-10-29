@@ -25,6 +25,8 @@ public:
         Preintegration::Ptr new_preintegration(new Preintegration(bias, ImuCalib_,imu));
         return new_preintegration;
     }
+    Matrix<double, 15, 1> Evaluate(const Vector3d &Pi, const Quaterniond &Qi, const Vector3d &Vi, const Vector3d &Bai, const Vector3d &Bgi,
+                                   const Vector3d &Pj, const Quaterniond &Qj, const Vector3d &Vj, const Vector3d &Baj, const Vector3d &Bgj);
 
     void Appendimu(imuPoint imuMeasure)
     {
@@ -36,13 +38,18 @@ public:
     void Initialize(const Bias &b_);
     cv::Mat GetUpdatedDeltaVelocity();
     void SetNewBias(const Bias &bu_);
-cv::Mat GetUpdatedDeltaRotation();
-cv::Mat GetUpdatedDeltaPosition();
+    cv::Mat GetUpdatedDeltaRotation();
+    cv::Mat GetUpdatedDeltaPosition();
+    cv::Mat GetDeltaRotation(const Bias &b_);
+    cv::Mat GetDeltaVelocity(const Bias &b_);
+    cv::Mat GetDeltaPosition(const Bias &b_);
+    Bias GetDeltaBias(const Bias &b_);
+
   /*  double dt;
     Vector3d acc0, gyr0;
     Vector3d acc1, gyr1;
     Vector3d linearized_acc, linearized_gyr;
-    Vector3d linearized_ba, linearized_bg;
+
     Matrix<double, 15, 15> jacobian, covariance;
     Matrix<double, 15, 15> step_jacobian;
     Matrix<double, 15, 18> step_V;

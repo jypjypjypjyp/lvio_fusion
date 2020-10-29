@@ -60,7 +60,7 @@ void Frame::UpdateLabel()
 
 void Frame::SetVelocity(const cv::Mat &Vw_)
 {
-    Vw_.copyTo(Vw);
+    cv::cv2eigen(Vw_,mVw);
 }
 
 void Frame::SetNewBias(const Bias &b)
@@ -82,7 +82,9 @@ void Frame::SetPose(const cv::Mat &Tcw_)
 
 cv::Mat Frame::GetVelocity()
 {
-    return Vw.clone();
+    cv::Mat Vw_;
+    cv::eigen2cv(mVw,Vw_);
+    return Vw_;
 }
 
 cv::Mat   Frame::GetImuRotation(){
@@ -139,7 +141,7 @@ cv::Mat Frame::GetPoseInverse()
 
 void Frame::SetImuPoseVelocity(const cv::Mat &Rwb, const cv::Mat &twb, const cv::Mat &Vwb)
 {
-    mVw = Vwb.clone();
+    cv::cv2eigen(Vwb,mVw);
     cv::Mat Rbw = Rwb.t();
     cv::Mat tbw = -Rbw*twb;
     cv::Mat Tbw = cv::Mat::eye(4,4,CV_32F);

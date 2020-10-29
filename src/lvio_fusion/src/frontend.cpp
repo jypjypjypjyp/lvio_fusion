@@ -197,12 +197,17 @@ void Frontend::CreateKeyframe(bool need_new_features)
     map_->InsertKeyFrame(current_frame);
     current_key_frame = current_frame;
     //NEWADD
-    if(imu_){  
+    if(imu_)
+    {
+        if(initializer_->bimu)
+        {
+            current_key_frame->bImu=true;
+        }  
          if (!current_key_frame->preintegration)
         {
             current_key_frame->preintegration = imu::Preintegration::Create(current_key_frame->GetImuBias(), ImuCalib_,imu_);
         }
-        current_key_frame->preintegration->PreintegrateIMU(last_key_frame->preintegration->imuData_buf,last_key_frame->time, current_key_frame->time);;
+        current_key_frame->preintegration->PreintegrateIMU(last_key_frame->preintegration->imuData_buf,last_key_frame->time, current_key_frame->time);
     }
     reference_key_frame=current_key_frame;
     current_frame->mpReferenceKF=current_key_frame;
