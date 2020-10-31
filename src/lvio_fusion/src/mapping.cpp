@@ -1,6 +1,7 @@
 #include "lvio_fusion/lidar/mapping.h"
+#include "lvio_fusion/ceres/base.hpp"
 #include "lvio_fusion/utility.h"
-#include <lvio_fusion/ceres/base.hpp>
+
 #include <pcl/filters/voxel_grid.h>
 
 namespace lvio_fusion
@@ -122,22 +123,25 @@ void Mapping::MappingLoop()
 void Mapping::BuildProblem(Frames &active_kfs, ceres::Problem &problem)
 {
     double start_time = active_kfs.begin()->first;
-    static int num_associations = 4;
-    Frames base_kfs = map_->GetKeyFrames(0, start_time, num_associations);
+    static int num_associations = 3;
+    static int step = 2;
+    int num_last_frames = (num_associations - 1) * step + 1;
+    Frames base_kfs = map_->GetKeyFrames(0, start_time, num_last_frames);
 
     ceres::LossFunction *lidar_loss_function = new ceres::HuberLoss(0.1);
     ceres::LocalParameterization *local_parameterization = new ceres::ProductParameterization(
         new ceres::EigenQuaternionParameterization(),
         new ceres::IdentityParameterization(3));
 
-    Frame::Ptr last_frames[num_associations + 1];
+    Frame::Ptr last_frames[num_last_frames + 1];
     unsigned int start_id = active_kfs.begin()->second->id;
     for (auto pair_kf : base_kfs)
     {
         double *para_kf_base = pair_kf.second->pose.data();
         problem.AddParameterBlock(para_kf_base, SE3d::num_parameters, local_parameterization);
         problem.SetParameterBlockConstant(para_kf_base);
-        if (start_id - pair_kf.second->id <= num_associations)
+        int i = (start_id - pair_kf.second->id - 1) / step + 1;
+        if (start_id - pair_kf.second->id <= num_last_frames + 1)
         {
             last_frames[start_id - pair_kf.second->id] = pair_kf.second;
         }
@@ -151,7 +155,7 @@ void Mapping::BuildProblem(Frames &active_kfs, ceres::Problem &problem)
         problem.AddParameterBlock(para_kf, SE3d::num_parameters, local_parameterization);
         if (current_frame->feature_lidar)
         {
-            for (int i = 1; i <= num_associations; i++)
+            for (int i = 1; i <= num_last_frames; i += step)
             {
                 Frame::Ptr old_frame;
                 if (last_frames[i] && last_frames[i]->feature_lidar)
@@ -174,7 +178,7 @@ void Mapping::BuildProblem(Frames &active_kfs, ceres::Problem &problem)
                 }
             }
         }
-        for (int i = num_associations; i > 1; i--)
+        for (int i = num_last_frames; i > 1; i--)
         {
             last_frames[i] = last_frames[i - 1];
         }
@@ -185,7 +189,7 @@ void Mapping::BuildProblem(Frames &active_kfs, ceres::Problem &problem)
     for (auto pair_kf : active_kfs)
     {
         auto frame = pair_kf.second;
-        if (frame->loop_constraint)
+        if (frame->loop_constraint && frame->loop_constraint->frame_old->time >= start_time)
         {
             double *para_kf = frame->pose.data();
             double *para_old_kf = frame->loop_constraint->frame_old->pose.data();
@@ -204,18 +208,21 @@ void Mapping::BuildProblem(Frames &active_kfs, ceres::Problem &problem)
 
 void Mapping::Optimize(Frames &active_kfs)
 {
-    for (int i = 0; i < 2; i++)
+    for (int i = 0; i < 4; i++)
     {
         ceres::Problem problem;
         BuildProblem(active_kfs, problem);
 
         ceres::Solver::Options options;
-        options.linear_solver_type = ceres::DENSE_QR;
+        options.linear_solver_type = ceres::DENSE_SCHUR;
         options.max_num_iterations = 1;
         options.num_threads = 4;
         ceres::Solver::Summary summary;
         ceres::Solve(options, &problem, &summary);
-        LOG(INFO) << summary.FullReport();
+        if(summary.final_cost / summary.initial_cost > 0.99)
+        {
+            break;
+        }
     }
 
     // Build global map
@@ -240,7 +247,7 @@ void Mapping::BuildGlobalMap(Frames &active_kfs)
 
 PointRGBCloud Mapping::GetGlobalMap()
 {
-    static pcl::VoxelGrid<PointRGB> downSizeFilter;
+    pcl::VoxelGrid<PointRGB> voxel_filter;
     PointRGBCloud global_map;
     for (auto pair_pc : pointclouds_)
     {
@@ -251,9 +258,9 @@ PointRGBCloud Mapping::GetGlobalMap()
     {
         PointRGBCloud::Ptr mapDS(new PointRGBCloud());
         pcl::copyPointCloud(global_map, *mapDS);
-        downSizeFilter.setInputCloud(mapDS);
-        downSizeFilter.setLeafSize(0.4, 0.4, 0.4);
-        downSizeFilter.filter(global_map);
+        voxel_filter.setInputCloud(mapDS);
+        voxel_filter.setLeafSize(0.4, 0.4, 0.4);
+        voxel_filter.filter(global_map);
     }
     return global_map;
 }

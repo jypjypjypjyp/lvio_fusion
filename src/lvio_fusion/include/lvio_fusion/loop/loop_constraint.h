@@ -18,7 +18,6 @@ public:
     typedef std::shared_ptr<LoopConstraint> Ptr;
 
     std::shared_ptr<Frame> frame_old;
-    visual::Features features_loop;
     SE3d relative_pose;
 };
 

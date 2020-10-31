@@ -58,7 +58,7 @@ class Relocation
 public:
     typedef std::shared_ptr<Relocation> Ptr;
 
-    Relocation(std::string voc_path);
+    Relocation(std::string voc_path, double min_distance);
 
     void SetCameras(Camera::Ptr left, Camera::Ptr right)
     {
@@ -69,6 +69,8 @@ public:
     void SetLidar(Lidar::Ptr lidar) { lidar_ = lidar; }
 
     void SetMap(Map::Ptr map) { map_ = map; }
+
+    void SetScanRegistration(ScanRegistration::Ptr scan_registration) { scan_registration_ = scan_registration; }
 
     void SetMapping(Mapping::Ptr mapping) { mapping_ = mapping; }
 
@@ -85,9 +87,11 @@ private:
 
     bool DetectLoop(Frame::Ptr frame, Frame::Ptr &old_frame);
 
-    bool Associate(Frame::Ptr frame, Frame::Ptr old_frame);
+    bool Relocate(Frame::Ptr frame, Frame::Ptr old_frame);
 
-    bool RefineAssociation(Frame::Ptr frame, Frame::Ptr old_frame, loop::LoopConstraint::Ptr loop_constraint);
+    bool RelocateByImage(Frame::Ptr frame, Frame::Ptr old_frame, loop::LoopConstraint::Ptr loop_constraint);
+
+    bool RelocateByPoints(Frame::Ptr frame, Frame::Ptr old_frame, loop::LoopConstraint::Ptr loop_constraint);
 
     bool SearchInAera(const BRIEF descriptor, const std::map<unsigned long, BRIEF> &descriptors_old, unsigned long &best_id);
 
@@ -109,6 +113,7 @@ private:
     std::thread thread_;
     cv::Ptr<cv::Feature2D> detector_;
     std::map<DBoW3::EntryId, double> map_dbow_to_frames_;
+    double min_distance_;
 
     Camera::Ptr camera_left_;
     Camera::Ptr camera_right_;

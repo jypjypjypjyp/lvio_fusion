@@ -201,8 +201,8 @@ void ScanRegistration::Preprocess(PointICloud &points, Frame::Ptr frame)
 
     // extract features
     static int num_zones = 3;
-    static pcl::VoxelGrid<PointI> down_sampling;
-    down_sampling.setLeafSize(0.2, 0.2, 0.2);
+    static pcl::VoxelGrid<PointI> voxel_filter;
+    voxel_filter.setLeafSize(0.2, 0.2, 0.2);
     for (int i = 0; i < num_scans_; i++)
     {
         if (end_index[i] - start_index[i] < 6) // too few
@@ -329,8 +329,8 @@ void ScanRegistration::Preprocess(PointICloud &points, Frame::Ptr frame)
             }
         }
         PointICloud scan_less_flat_ds;
-        down_sampling.setInputCloud(scan_less_flat);
-        down_sampling.filter(scan_less_flat_ds);
+        voxel_filter.setInputCloud(scan_less_flat);
+        voxel_filter.filter(scan_less_flat_ds);
         point_less_flat += scan_less_flat_ds;
     }
     lidar::Feature::Ptr feature = lidar::Feature::Create(points_sharp, points_less_sharp, points_flat, point_less_flat);
@@ -346,8 +346,8 @@ void ScanRegistration::Associate(Frame::Ptr current_frame, Frame::Ptr last_frame
     PointICloud &points_less_sharp_last = last_frame->feature_lidar->points_less_sharp;
     PointICloud &points_less_flat_last = last_frame->feature_lidar->points_less_flat;
 
-    static pcl::KdTreeFLANN<PointI> kdtree_sharp_last;
-    static pcl::KdTreeFLANN<PointI> kdtree_flat_last;
+    pcl::KdTreeFLANN<PointI> kdtree_sharp_last;
+    pcl::KdTreeFLANN<PointI> kdtree_flat_last;
     kdtree_sharp_last.setInputCloud(boost::make_shared<PointICloud>(points_less_sharp_last));
     kdtree_flat_last.setInputCloud(boost::make_shared<PointICloud>(points_less_flat_last));
 
@@ -469,7 +469,15 @@ void ScanRegistration::Associate(Frame::Ptr current_frame, Frame::Ptr last_frame
         // lidar_->Transform(points_flat.points[i], current_frame->pose, last_frame->pose, point);
         ceres::SE3TransformPoint(tf, points_flat.points[i].data, point.data);
         point.intensity = points_flat.points[i].intensity;
-        kdtree_flat_last.nearestKSearch(point, 1, points_index, points_distance);
+        try
+        {
+            kdtree_flat_last.nearestKSearch(point, 1, points_index, points_distance);
+        }
+        catch(const std::exception& e)
+        {
+            continue;
+        }
+        
 
         int closest_index = -1, closest_index2 = -1, closest_index3 = -1;
         if (points_distance[0] < distance_threshold && points_index[0] < points_less_flat_last.size())

@@ -166,8 +166,8 @@ void Frontend::CreateKeyframe(bool need_new_features)
 
 bool Frontend::InitFramePoseByPnP()
 {
-    std::vector<cv::Point3d> points_3d;
-    std::vector<cv::Point2d> points_2d;
+    std::vector<cv::Point3f> points_3d;
+    std::vector<cv::Point2f> points_2d;
     for (auto pair_feature : current_frame->features_left)
     {
         auto feature = pair_feature.second;
@@ -204,7 +204,7 @@ int Frontend::TrackLastFrame()
         auto px = camera_left_->World2Pixel(position_cache_[camera_point->id], current_frame->pose);
         landmarks.push_back(camera_point);
         kps_last.push_back(feature->keypoint);
-        kps_current.push_back(cv::Point2d(px[0], px[1]));
+        kps_current.push_back(cv::Point2f(px[0], px[1]));
     }
 
     std::vector<uchar> status;
@@ -269,7 +269,7 @@ int Frontend::DetectNewFeatures()
     for (auto pair_feature : current_frame->features_left)
     {
         auto feature = pair_feature.second;
-        cv::rectangle(mask, feature->keypoint - cv::Point2d(10, 10), feature->keypoint + cv::Point2d(10, 10), 0, cv::FILLED);
+        cv::rectangle(mask, feature->keypoint - cv::Point2f(10, 10), feature->keypoint + cv::Point2f(10, 10), 0, cv::FILLED);
     }
 
     std::vector<cv::Point2f> kps_left, kps_right;   // must be point2f
