@@ -202,16 +202,16 @@ bool Relocation::RelocateByPoints(Frame::Ptr frame, Frame::Ptr old_frame, loop::
     }
 
     // init relative pose
-    SE3d relative_pose = frame->pose * old_frame->pose.inverse();
-    relative_pose.translation().z() = 0;
+    SE3d init_transform = old_frame->pose * frame->pose.inverse();
+    init_transform.translation().z() = 0;
 
     // build two pointclouds
     PointICloud::Ptr pc = PointICloud::Ptr(new PointICloud);
-    *pc = frame->feature_lidar->points_less_flat + frame->feature_lidar->points_less_sharp;
+    *pc = frame->feature_lidar->points_less_sharp;
     PointICloud::Ptr pc_old = PointICloud::Ptr(new PointICloud);
-    *pc_old = old_frame->feature_lidar->points_less_flat + old_frame->feature_lidar->points_less_sharp;
+    *pc_old = old_frame->feature_lidar->points_less_sharp;
     PointICloud::Ptr pc_tranformed = PointICloud::Ptr(new PointICloud);
-    pcl::transformPointCloud(*pc, *pc_tranformed, relative_pose.matrix().cast<float>());
+    pcl::transformPointCloud(*pc, *pc_tranformed, init_transform.matrix().cast<float>());
 
     // downsample two pointclouds
     PointICloud::Ptr pc_filtered(new PointICloud);
@@ -247,7 +247,7 @@ bool Relocation::RelocateByPoints(Frame::Ptr frame, Frame::Ptr old_frame, loop::
     Vector3d t(0, 0, 0);
     t << transform_matrix(0, 3), transform_matrix(1, 3), transform_matrix(2, 3);
     SE3d transform(q, t);
-    relative_pose = transform * relative_pose;
+    relative_pose = transform.inverse() * init_transform.inverse();
 
     Frame::Ptr frame_copy = Frame::Ptr(new Frame);
     *frame_copy = *frame;
