@@ -11,25 +11,6 @@ Mapping::Mapping()
     thread_ = std::thread(std::bind(&Mapping::MappingLoop, this));
 }
 
-void Mapping::Pause()
-{
-    if (status == MappingStatus::RUNNING)
-    {
-        std::unique_lock<std::mutex> lock(pausing_mutex_);
-        status = MappingStatus::TO_PAUSE;
-        pausing_.wait(lock);
-    }
-}
-
-void Mapping::Continue()
-{
-    if (status == MappingStatus::PAUSING)
-    {
-        status = MappingStatus::RUNNING;
-        running_.notify_one();
-    }
-}
-
 inline void Mapping::AddToWorld(const PointICloud &in, Frame::Ptr frame, PointRGBCloud &out)
 {
     double lti[7], lei[7], ltiei[7], cet[7];
@@ -70,13 +51,6 @@ void Mapping::MappingLoop()
 {
     while (true)
     {
-        std::unique_lock<std::mutex> lock(running_mutex_);
-        if (status == MappingStatus::TO_PAUSE)
-        {
-            status = MappingStatus::PAUSING;
-            pausing_.notify_one();
-            running_.wait(lock);
-        }
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
         auto t1 = std::chrono::steady_clock::now();
         {
@@ -123,8 +97,8 @@ void Mapping::MappingLoop()
 void Mapping::BuildProblem(Frames &active_kfs, ceres::Problem &problem)
 {
     double start_time = active_kfs.begin()->first;
-    static int num_associations = 3;
-    static int step = 2;
+    static int num_associations = 2;
+    static int step = 3;
     int num_last_frames = (num_associations - 1) * step + 1;
     Frames base_kfs = map_->GetKeyFrames(0, start_time, num_last_frames);
 
@@ -208,7 +182,9 @@ void Mapping::BuildProblem(Frames &active_kfs, ceres::Problem &problem)
 
 void Mapping::Optimize(Frames &active_kfs)
 {
-    for (int i = 0; i < 4; i++)
+    std::unique_lock<std::mutex> lock(mutex);
+    // NOTE: some place is good, don't need optimize too much.
+    for (int i = 0; i < 3; i++)
     {
         ceres::Problem problem;
         BuildProblem(active_kfs, problem);

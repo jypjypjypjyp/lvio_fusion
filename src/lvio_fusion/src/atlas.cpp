@@ -55,6 +55,7 @@ std::map<double, SE3d> Atlas::GetActiveSubMaps(Frames& active_kfs, double& old_t
         }
         last_frame = pair_kf.second;
     }
+    return inner_old_frames;
 }
 
 } // namespace loop

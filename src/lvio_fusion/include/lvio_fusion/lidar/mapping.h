@@ -12,13 +12,6 @@
 namespace lvio_fusion
 {
 
-enum class MappingStatus
-{
-    RUNNING,
-    TO_PAUSE,
-    PAUSING
-};
-
 class Mapping
 {
 public:
@@ -40,14 +33,10 @@ public:
 
     void Optimize(Frames &active_kfs);
 
-    void Pause();
-
-    void Continue();
-
     PointRGBCloud GetGlobalMap();
 
-    MappingStatus status = MappingStatus::RUNNING;
     double head = 0;
+    std::mutex mutex;
 
 private:
     void MappingLoop();
