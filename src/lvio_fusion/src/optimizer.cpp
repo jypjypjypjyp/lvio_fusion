@@ -1,5 +1,5 @@
 #include "lvio_fusion/optimizer.h"
-
+#include <ceres/ceres.h>
 
 namespace lvio_fusion
 {
@@ -13,7 +13,23 @@ cv::Mat toCvMat(const Eigen::Matrix<double,3,1> &m)
 
     return cvMat.clone();
 }
+cv::Mat toCvSE3(const Eigen::Matrix<double,3,3> &R, const Eigen::Matrix<double,3,1> &t)
+{
+    cv::Mat cvMat = cv::Mat::eye(4,4,CV_32F);
+    for(int i=0;i<3;i++)
+    {
+        for(int j=0;j<3;j++)
+        {
+            cvMat.at<float>(i,j)=R(i,j);
+        }
+    }
+    for(int i=0;i<3;i++)
+    {
+        cvMat.at<float>(i,3)=t(i);
+    }
 
+    return cvMat.clone();
+}
 
 void optimizer::InertialOptimization(Map::Ptr pMap, Eigen::Matrix3d &Rwg, double &scale, Eigen::Vector3d &bg, Eigen::Vector3d &ba, bool bMono, Eigen::MatrixXd  &covInertial, bool bFixedVel=false, bool bGauss=false, float priorG = 1e2, float priorA = 1e6)
 {
@@ -96,7 +112,7 @@ void optimizer::InertialOptimization(Map::Ptr pMap, Eigen::Matrix3d &Rwg, double
      Eigen::AngleAxisd yawAngle(AngleAxisd(rwg(0),Vector3d::UnitZ()));
      Rwg= yawAngle*pitchAngle*rollAngle;
 //for kfs  setNewBias 
-     Bias b(para_gyroBias[0],para_gyroBias[1],para_gyroBias[2],para_accBias[0],para_accBias[1],para_accBias[2]);
+     Bias b(para_accBias[0],para_accBias[1],para_accBias[2],para_gyroBias[0],para_gyroBias[1],para_gyroBias[2]);
      bg << para_gyroBias[0],para_gyroBias[1],para_gyroBias[2];
      ba <<para_accBias[0],para_accBias[1],para_accBias[2];
      cv::Mat cvbg = toCvMat(bg);
@@ -123,8 +139,12 @@ void optimizer::InertialOptimization(Map::Ptr pMap, Eigen::Matrix3d &Rwg, double
 void optimizer::FullInertialBA(Map::Ptr pMap, int its, const bool bFixLocal=false, const unsigned long nLoopKF=0, bool *pbStopFlag=NULL, bool bInit=false, float priorG = 1e2, float priorA=1e6, Eigen::VectorXd *vSingVal = NULL, bool *bHess=NULL)
 {
 auto KFs=pMap->GetAllKeyFrames();
-auto MPs=pMap->GetAllLandmarks();
+//auto MPs=pMap->GetAllLandmarks();
 ceres::Problem problem;
+ ceres::LocalParameterization *local_parameterization = new ceres::ProductParameterization(
+        new ceres::EigenQuaternionParameterization(),
+        new ceres::IdentityParameterization(3));
+
 
 std::vector<double *> para_kfs;
 std::vector<double *> para_vs;
@@ -142,11 +162,13 @@ for(Frames::iterator iter = KFs.begin(); iter != KFs.end(); iter++,i++)
 {
      Frame::Ptr KFi=iter->second;
      auto para_kf=KFi->pose.data();
+     problem.AddParameterBlock(para_kf, SE3d::num_parameters, local_parameterization);   
      para_kfs[i]=para_kf;
      pIncKF=KFi;
      if(KFi->bImu)
      {
           auto para_v = KFi->mVw.data();
+          problem.AddParameterBlock(para_v, 3);   
           para_vs[i]=para_v;
           if(!bInit)
           {
@@ -154,10 +176,12 @@ for(Frames::iterator iter = KFs.begin(); iter != KFs.end(); iter++,i++)
                cv::cv2eigen(KFi->GetGyroBias(),g);
                auto para_gyroBias=g.data();
                para_gbs[i]=para_gyroBias;
+               problem.AddParameterBlock(para_gyroBias, 3);   
                Vector3d a;
                cv::cv2eigen(KFi->GetAccBias(),a);
                auto para_accBias=a.data();
                para_abs[i]=para_accBias;
+               problem.AddParameterBlock(para_accBias, 3);   
           }
      }
 }
@@ -168,9 +192,11 @@ if(bInit)
      Vector3d g;
      cv::cv2eigen(pIncKF->GetGyroBias(),g);
      para_gyroBias=g.data();
+      problem.AddParameterBlock(para_accBias, 3);   
      Vector3d a;
      cv::cv2eigen(pIncKF->GetAccBias(),a);
      para_accBias=a.data();
+      problem.AddParameterBlock(para_accBias, 3);   
 }
 
 int ii=0;
@@ -187,27 +213,34 @@ for(Frames::iterator iter = KFs.begin(); iter != KFs.end(); iter++,ii++)
      if(current_frame->bImu && last_frame->bImu)
      {
           current_frame->preintegration->SetNewBias(last_frame->GetImuBias());
-          auto P1=para_kfs[i-1];
-          auto V1=para_vs[i-1];
+          auto P1=para_kfs[ii-1];
+          auto V1=para_vs[ii-1];
           double* g1,*g2,*a1,*a2;
           if(!bInit){
-               g1=para_gbs[i-1];
-               a1=para_abs[i-1];
-               g2=para_gbs[i];
-               a2=para_abs[i];
+               g1=para_gbs[ii-1];
+               a1=para_abs[ii-1];
+               g2=para_gbs[ii];
+               a2=para_abs[ii];
           }else
           {
                g1=para_gyroBias;
                a1=para_accBias;
           }
-          auto P2=para_kfs[i];
-          auto V2=para_vs[i];
+          auto P2=para_kfs[ii];
+          auto V2=para_vs[ii];
 
           //ei p1,v1,g1,a1,p2,v2
+           ceres::CostFunction *cost_function = InertialError::Create(current_frame->preintegration);
+           problem.AddResidualBlock(cost_function, NULL, P1,V1,g1,a1,P2,V2);//7,3,3,3,7,3
+
 
           if(!bInit){
                //egr g1 g2
+               ceres::CostFunction *cost_function = GyroRWError::Create();
+               problem.AddResidualBlock(cost_function, NULL, g1,g2);//3,3
                //ear a1 a2  
+               ceres::CostFunction *cost_function = AccRWError::Create();
+               problem.AddResidualBlock(cost_function, NULL, a1,a2);//3,3
           }
      }
      last_frame = current_frame;
@@ -216,12 +249,17 @@ for(Frames::iterator iter = KFs.begin(); iter != KFs.end(); iter++,ii++)
 //先验
 if(bInit){
      //epa  para_accBias
+     ceres::CostFunction *cost_function = PriorAccError::Create(cv::Mat::zeros(3,1,CV_32F));
+     problem.AddResidualBlock(cost_function, NULL, para_accBias);//3
      //epg para_gyroBias
+     ceres::CostFunction *cost_function = PriorGyroError::Create(cv::Mat::zeros(3,1,CV_32F));
+     problem.AddResidualBlock(cost_function, NULL, para_gyroBias);//3
 }
 
+/* 不优化地图点
 //mappoint
    // const float thHuberMono = sqrt(5.991);
-    const float thHuberStereo = sqrt(7.815);
+    const float thHuberStereo =、 sqrt(7.815);
      
 for(visual::Landmarks::iterator iter = MPs.begin(); iter != MPs.end(); iter++,ii++)
 {
@@ -232,18 +270,61 @@ for(visual::Landmarks::iterator iter = MPs.begin(); iter != MPs.end(); iter++,ii
      for(visual::Features::iterator iter=observations.begin();iter != observations.end(); iter++)
      {
           std::weak_ptr<Frame> KFi=iter->second->frame;
-          //vp=para_kfi
+
+
+
+
+
+          //vp=para_kf
+          auto para_kf=KFi.lock()->pose.data();
           //e para_point para_kf
+          ceres::CostFunction *cost_function = StereoError::Create();
+          problem.AddResidualBlock(cost_function, NULL,para_point, para_kf);//3,3
 
      }
      
 }
+*/
 
 //solve
-
+     ceres::Solver::Options options;
+    options.linear_solver_type = ceres::DENSE_SCHUR;
+    options.function_tolerance = 1e-9;
+    options.max_solver_time_in_seconds = 7 * 0.6;
+    options.num_threads = 4;
+    ceres::Solver::Summary summary;
+    ceres::Solve(options, &problem, &summary);
 //数据恢复
+int iii=0;
+Frame::Ptr current_frame;
+for(Frames::iterator iter = KFs.begin(); iter != KFs.end(); iter++,iii++)
+{
+     current_frame=iter->second;
+     auto para_kf=para_kfs[iii];
+     Quaterniond Qi(para_kf[3], para_kf[0], para_kf[1], para_kf[2]);
+     
+     Vector3d Pi(para_kf[4], para_kf[5], para_kf[6]);
+     cv::Mat Tcw = toCvSE3(Qi.toRotationMatrix(),Pi);
 
-
+     current_frame->SetPose(Tcw);
+     if(current_frame->bImu)
+     {
+          double* ab;
+          double* gb;
+          if(!bInit)
+          {
+               gb=para_gbs[iii];
+               ab=para_abs[iii];
+          }
+          else
+          {
+               gb=para_gyroBias;
+               ab=para_gyroBias;
+          }
+          Bias b(ab[0],ab[1],ab[2],gb[0],gb[1],gb[2]);
+          current_frame->SetNewBias(b);
+     }
+}
 }
 
 } // namespace lvio_fusion

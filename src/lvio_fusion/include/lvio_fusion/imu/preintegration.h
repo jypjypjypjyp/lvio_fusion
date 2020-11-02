@@ -44,7 +44,7 @@ public:
     cv::Mat GetDeltaVelocity(const Bias &b_);
     cv::Mat GetDeltaPosition(const Bias &b_);
     Bias GetDeltaBias(const Bias &b_);
-
+    void Reintegrate();
   /*  double dt;
     Vector3d acc0, gyr0;
     Vector3d acc1, gyr1;

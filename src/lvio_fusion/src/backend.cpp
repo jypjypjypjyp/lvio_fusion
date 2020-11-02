@@ -59,7 +59,7 @@ void Backend::BackendLoop()
     }
 }
 
-void Backend::BuildProblem(Frames &active_kfs, ceres::Problem &problem, ProblemType type)
+void Backend::BuildProblem(Frames &active_kfs, ceres::Problem &problem, ProblemType type,std::vector<double *> &para_gbs,std::vector<double *> &para_abs)
 {
     ceres::LossFunction *loss_function = new ceres::HuberLoss(1.0);
     ceres::LocalParameterization *local_parameterization = new ceres::ProductParameterization(
@@ -133,7 +133,8 @@ void Backend::BuildProblem(Frames &active_kfs, ceres::Problem &problem, ProblemT
         }
     }
 
-    // imu constraints
+    // imu constraints  NEWADD
+
     if (imu_ && initializer_->initialized)
     {
         Frame::Ptr last_frame;
@@ -144,30 +145,45 @@ void Backend::BuildProblem(Frames &active_kfs, ceres::Problem &problem, ProblemT
             if (!current_frame->preintegration)
                 continue;
             auto para_kf = current_frame->pose.data();
-            auto para_v = current_frame->preintegration->v0.data();
-            auto para_ba = current_frame->preintegration->linearized_ba.data();
-            auto para_bg = current_frame->preintegration->linearized_bg.data();
+            auto para_v = current_frame->mVw.data();
+            Vector3d g;
+            cv::cv2eigen(current_frame->GetGyroBias(),g);
+            auto para_bg = g.data();
+            para_gbs.push_back(para_bg);
+            Vector3d a;
+            cv::cv2eigen(current_frame->GetAccBias(),a);
+            auto para_ba = a.data();
+            para_abs.push_back(para_ba);
             problem.AddParameterBlock(para_v, 3);
             problem.AddParameterBlock(para_ba, 3);
             problem.AddParameterBlock(para_bg, 3);
             if (last_frame && last_frame->preintegration)
             {
                 auto para_kf_last = last_frame->pose.data();
-                auto para_v_last = last_frame->preintegration->v0.data();
-                auto para_ba_last = last_frame->preintegration->linearized_ba.data();
-                auto para_bg_last = last_frame->preintegration->linearized_bg.data();
+                auto para_v_last = last_frame->mVw.data();
+                Vector3d g2;
+                cv::cv2eigen(last_frame->GetGyroBias(),g2);
+                auto para_bg_last = g2.data();//恢复
+                Vector3d a2;
+                cv::cv2eigen(last_frame->GetAccBias(),a2);
+                auto para_ba_last = a2.data();//恢复
                 ceres::CostFunction *cost_function = ImuError::Create(last_frame->preintegration);
                 problem.AddResidualBlock(cost_function, NULL, para_kf_last, para_v_last, para_ba_last, para_bg_last, para_kf, para_v, para_ba, para_bg);
             }
             last_frame = current_frame;
         }
-    }
 
+    }
+//NEWADDEND
     if (active_kfs.begin()->first == map_->GetAllKeyFrames().begin()->first)
     {
         auto &pose = active_kfs.begin()->second->pose;
         problem.SetParameterBlockConstant(pose.data());
     }
+
+
+
+
 }
 
 void Backend::Optimize(bool full)
@@ -193,9 +209,10 @@ void Backend::Optimize(bool full)
         Optimize(true);
         return;
     }
-
+std::vector<double *> para_gbs;
+std::vector<double *> para_abs;
     ceres::Problem problem;
-    BuildProblem(active_kfs, problem, ProblemType::Optimize);
+    BuildProblem(active_kfs, problem, ProblemType::Optimize,para_gbs,para_abs);
 
     ceres::Solver::Options options;
     options.linear_solver_type = ceres::DENSE_SCHUR;
@@ -204,6 +221,19 @@ void Backend::Optimize(bool full)
     options.num_threads = 4;
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
+
+ //NEWADD
+    if(imu_)
+    {
+        int i=0;
+        for(auto kf_pair : active_kfs){
+            Bias b(para_abs[i][0],para_abs[i][1],para_abs[i][2],para_gbs[i][0],para_gbs[i][1],para_gbs[i][2]);
+            auto frame = kf_pair.second;
+            frame->SetNewBias(b);
+            i++;
+        }
+    }
+//NEWADDEND
 
     // reject outliers and clean the map
     for (auto kf_pair : active_kfs)
@@ -254,8 +284,10 @@ void Backend::ForwardPropagate(double time)
         active_kfs.insert(std::make_pair(last_frame->time, last_frame));
     }
 
+std::vector<double *> para_gbs;
+std::vector<double *> para_abs;
     ceres::Problem problem;
-    BuildProblem(active_kfs, problem, ProblemType::ForwardPropagate);
+    BuildProblem(active_kfs, problem, ProblemType::ForwardPropagate,para_gbs,para_abs);
 
     ceres::Solver::Options options;
     options.linear_solver_type = ceres::DENSE_SCHUR;
@@ -263,7 +295,19 @@ void Backend::ForwardPropagate(double time)
     options.num_threads = 4;
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
-
+   
+   //NEWADD
+    if(imu_)
+    {
+        int i=0;
+        for(auto kf_pair : active_kfs){
+            Bias b(para_abs[i][0],para_abs[i][1],para_abs[i][2],para_gbs[i][0],para_gbs[i][1],para_gbs[i][2]);
+            auto frame = kf_pair.second;
+            frame->SetNewBias(b);
+            i++;
+        }
+    }
+//NEWADDEND
     frontend_.lock()->UpdateCache();
 }
 

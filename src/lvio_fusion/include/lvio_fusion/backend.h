@@ -76,7 +76,7 @@ private:
 
     void ForwardPropagate(double time);
 
-    void BuildProblem(Frames &active_kfs, ceres::Problem &problem, ProblemType type);
+    void BuildProblem(Frames &active_kfs, ceres::Problem &problem, ProblemType type,std::vector<double *> &para_gbs,std::vector<double *> &para_abs);
 
     Map::Ptr map_;
     std::weak_ptr<Frontend> frontend_;
