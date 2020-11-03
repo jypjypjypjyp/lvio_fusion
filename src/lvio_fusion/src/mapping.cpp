@@ -55,7 +55,7 @@ void Mapping::MappingLoop()
         auto t1 = std::chrono::steady_clock::now();
         {
             double backend_head = backend_->head;
-            Frames active_kfs = map_->GetKeyFrames(head, backend_head);
+            Frames active_kfs = map_->GetKeyFrames(head - 3, backend_head);
             if (active_kfs.empty())
             {
                 continue;
@@ -64,29 +64,29 @@ void Mapping::MappingLoop()
             Optimize(active_kfs);
             SE3d new_pose = (--active_kfs.end())->second->pose;
 
-            // forward propogate
-            {
-                std::unique_lock<std::mutex> lock1(backend_->mutex);
-                std::unique_lock<std::mutex> lock2(frontend_->mutex);
+            // // forward propogate
+            // {
+            //     std::unique_lock<std::mutex> lock1(backend_->mutex);
+            //     std::unique_lock<std::mutex> lock2(frontend_->mutex);
 
-                Frame::Ptr last_frame = frontend_->last_frame;
-                Frames forward_kfs = map_->GetKeyFrames(backend_head);
-                if (forward_kfs.find(last_frame->time) == forward_kfs.end())
-                {
-                    forward_kfs[last_frame->time] = last_frame;
-                }
-                SE3d transform = old_pose.inverse() * new_pose;
-                for (auto pair_kf : forward_kfs)
-                {
-                    pair_kf.second->pose = pair_kf.second->pose * transform;
-                    // TODO: Repropagate
-                    // if(pair_kf.second->preintegration)
-                    // {
-                    //     pair_kf.second->preintegration->Repropagate();
-                    // }
-                }
-                frontend_->UpdateCache();
-            }
+            //     Frame::Ptr last_frame = frontend_->last_frame;
+            //     Frames forward_kfs = map_->GetKeyFrames(backend_head);
+            //     if (forward_kfs.find(last_frame->time) == forward_kfs.end())
+            //     {
+            //         forward_kfs[last_frame->time] = last_frame;
+            //     }
+            //     SE3d transform = old_pose.inverse() * new_pose;
+            //     for (auto pair_kf : forward_kfs)
+            //     {
+            //         pair_kf.second->pose = pair_kf.second->pose * transform;
+            //         // TODO: Repropagate
+            //         // if(pair_kf.second->preintegration)
+            //         // {
+            //         //     pair_kf.second->preintegration->Repropagate();
+            //         // }
+            //     }
+            //     frontend_->UpdateCache();
+            // }
         }
         auto t2 = std::chrono::steady_clock::now();
         auto time_used = std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);
@@ -97,8 +97,8 @@ void Mapping::MappingLoop()
 void Mapping::BuildProblem(Frames &active_kfs, ceres::Problem &problem)
 {
     double start_time = active_kfs.begin()->first;
-    static int num_associations = 2;
-    static int step = 3;
+    static int num_associations = 3;
+    static int step = 2;
     int num_last_frames = (num_associations - 1) * step + 1;
     Frames base_kfs = map_->GetKeyFrames(0, start_time, num_last_frames);
 
@@ -106,6 +106,7 @@ void Mapping::BuildProblem(Frames &active_kfs, ceres::Problem &problem)
     ceres::LocalParameterization *local_parameterization = new ceres::ProductParameterization(
         new ceres::EigenQuaternionParameterization(),
         new ceres::IdentityParameterization(3));
+    // ceres::LocalParameterization *local_parameterization = new ceres::EigenQuaternionParameterization();
 
     Frame::Ptr last_frames[num_last_frames + 1];
     unsigned int start_id = active_kfs.begin()->second->id;
@@ -171,20 +172,13 @@ void Mapping::BuildProblem(Frames &active_kfs, ceres::Problem &problem)
             problem.SetParameterBlockConstant(para_old_kf);
         }
     }
-
-    // initial point
-    if (active_kfs.begin()->second->id == 1)
-    {
-        auto &pose = active_kfs.begin()->second->pose;
-        problem.SetParameterBlockConstant(pose.data());
-    }
 }
 
 void Mapping::Optimize(Frames &active_kfs)
 {
     std::unique_lock<std::mutex> lock(mutex);
     // NOTE: some place is good, don't need optimize too much.
-    for (int i = 0; i < 3; i++)
+    for (int i = 0; i < 4; i++)
     {
         ceres::Problem problem;
         BuildProblem(active_kfs, problem);
@@ -195,6 +189,7 @@ void Mapping::Optimize(Frames &active_kfs)
         options.num_threads = 4;
         ceres::Solver::Summary summary;
         ceres::Solve(options, &problem, &summary);
+        LOG(INFO) << summary.FullReport();
         if(summary.final_cost / summary.initial_cost > 0.99)
         {
             break;
@@ -203,7 +198,7 @@ void Mapping::Optimize(Frames &active_kfs)
 
     // Build global map
     BuildGlobalMap(active_kfs);
-    head = (--active_kfs.end())->first;
+    head = (--active_kfs.end())->first + epsilon;
 }
 
 void Mapping::BuildGlobalMap(Frames &active_kfs)

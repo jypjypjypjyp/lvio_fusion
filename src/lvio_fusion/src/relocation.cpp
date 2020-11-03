@@ -33,7 +33,7 @@ void Relocation::RelocationLoop()
     while (true)
     {
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        auto new_kfs = map_->GetKeyFrames(head, mapping_->head);
+        auto new_kfs = map_->GetKeyFrames(head, lidar_ ? mapping_->head : backend_->head);
         if (new_kfs.empty())
         {
             continue;
@@ -48,22 +48,26 @@ void Relocation::RelocationLoop()
             {
                 if (!is_last_loop)
                 {
-                    // get all new loop frames (start_time, end_time)
-                    start_time = last_time;
+                    // get all new loop frames [start_time, end_time]
+                    start_time = pair_kf.first;
                 }
                 old_time = std::min(old_time, old_frame->time);
             }
             else if (is_last_loop)
             {
                 LOG(INFO) << "Detected new loop, and correct it now.";
-                old_time = (--map_->GetAllKeyFrames().lower_bound(old_time))->second->time;
+                auto t1 = std::chrono::steady_clock::now();
                 CorrectLoop(old_time, start_time, last_time);
+                auto t2 = std::chrono::steady_clock::now();
+                auto time_used = std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);
+                LOG(INFO) << "Correct Loop cost time: " << time_used.count() << " seconds.";
+
                 old_time = DBL_MAX;
             }
             is_last_loop = is_loop;
             last_time = pair_kf.first;
         }
-        head = (--new_kfs.end())->first;
+        head = (--new_kfs.end())->first + epsilon;
     }
 }
 
@@ -128,11 +132,13 @@ bool Relocation::DetectLoop(Frame::Ptr frame, Frame::Ptr &old_frame)
     //     }
     // }
     // return false;
-    Frames candidate_kfs = map_->GetKeyFrames(0, mapping_->head - 10);
+    Frames candidate_kfs = map_->GetKeyFrames(0, lidar_ ? mapping_->head : backend_->head);
     double min_distance = min_distance_;
     for (auto pair_kf : candidate_kfs)
     {
-        double distance = (pair_kf.second->pose.inverse().translation() - frame->pose.inverse().translation()).norm();
+        Vector3d vec = (pair_kf.second->pose.inverse().translation() - frame->pose.inverse().translation());
+        vec.z() = 0;
+        double distance = vec.norm();
         if (distance < min_distance)
         {
             min_distance = distance;
@@ -210,8 +216,7 @@ bool Relocation::RelocateByPoints(Frame::Ptr frame, Frame::Ptr old_frame, loop::
     *pc = frame->feature_lidar->points_less_sharp;
     PointICloud::Ptr pc_old = PointICloud::Ptr(new PointICloud);
     *pc_old = old_frame->feature_lidar->points_less_sharp;
-    PointICloud::Ptr pc_tranformed = PointICloud::Ptr(new PointICloud);
-    pcl::transformPointCloud(*pc, *pc_tranformed, init_transform.matrix().cast<float>());
+    pcl::transformPointCloud(*pc, *pc, init_transform.matrix().cast<float>());
 
     // downsample two pointclouds
     PointICloud::Ptr pc_filtered(new PointICloud);
@@ -235,7 +240,7 @@ bool Relocation::RelocateByPoints(Frame::Ptr frame, Frame::Ptr old_frame, loop::
     icp.setMaxCorrespondenceDistance(min_distance_);
     PointICloud::Ptr aligned(new PointICloud);
     icp.align(*aligned);
-    if (!icp.hasConverged() || icp.getFitnessScore() > 1)
+    if (!icp.hasConverged()) // || icp.getFitnessScore() > 1)
     {
         return false;
     }
@@ -247,7 +252,7 @@ bool Relocation::RelocateByPoints(Frame::Ptr frame, Frame::Ptr old_frame, loop::
     Vector3d t(0, 0, 0);
     t << transform_matrix(0, 3), transform_matrix(1, 3), transform_matrix(2, 3);
     SE3d transform(q, t);
-    SE3d relative_pose = transform.inverse() * init_transform.inverse();
+    SE3d relative_pose = (transform * init_transform).inverse();
 
     Frame::Ptr frame_copy = Frame::Ptr(new Frame);
     *frame_copy = *frame;
@@ -419,54 +424,74 @@ void Relocation::BuildProblem(Frames &active_kfs, std::map<double, SE3d> &inner_
 
 void Relocation::CorrectLoop(double old_time, double start_time, double end_time)
 {
-    // update pose of new submap
-    Frames new_submap_kfs = map_->GetKeyFrames(start_time, end_time);
-    for (auto pair_kf : new_submap_kfs)
-    {
-        Frame::Ptr frame = pair_kf.second;
-        if (frame->loop_constraint)
-        {
-            frame->pose = frame->loop_constraint->relative_pose * frame->loop_constraint->frame_old->pose;
-        }
-    }
-
     // // build the active submaps
     Frames active_kfs = map_->GetKeyFrames(old_time, end_time);
     // std::map<double, SE3d> inner_old_frames = atlas_.GetActiveSubMaps(active_kfs, old_time, start_time, end_time);
     // atlas_.AddSubMap(old_time, start_time, end_time);
 
-    // // optimize pose graph
-    // ceres::Problem problem;
-    // BuildProblem(active_kfs, inner_old_frames, problem);
+    SE3d old_pose = (--active_kfs.end())->second->pose;
+    {
+        // update pose of new submap
+        Frames new_submap_kfs = map_->GetKeyFrames(start_time, end_time);
+        for (auto pair_kf : new_submap_kfs)
+        {
+            Frame::Ptr frame = pair_kf.second;
+            if (frame->loop_constraint)
+            {
+                frame->pose = frame->loop_constraint->relative_pose * frame->loop_constraint->frame_old->pose;
+            }
+        }
 
-    // ceres::Solver::Options options;
-    // options.linear_solver_type = ceres::DENSE_SCHUR;
-    // options.max_num_iterations = 5;
-    // options.num_threads = 4;
-    // ceres::Solver::Summary summary;
-    // ceres::Solve(options, &problem, &summary);
+        // // optimize pose graph
+        // ceres::Problem problem;
+        // BuildProblem(active_kfs, inner_old_frames, problem);
 
-    // // mapping
-    // if (lidar_)
-    // {
-    //     mapping_->Optimize(active_kfs);
-    // }
+        // ceres::Solver::Options options;
+        // options.linear_solver_type = ceres::DENSE_SCHUR;
+        // options.max_num_iterations = 5;
+        // options.num_threads = 4;
+        // ceres::Solver::Summary summary;
+        // ceres::Solve(options, &problem, &summary);
+
+        // // mapping
+        // if (lidar_)
+        // {
+        //     mapping_->Optimize(active_kfs);
+        // }
+
+        // // update pose of inner submaps
+        // Frames all_kfs = map_->GetKeyFrames(old_time, end_time);
+        // for (auto pair_old_frame : inner_old_frames)
+        // {
+        //     auto old_frame = active_kfs[pair_old_frame.first];
+        //     // T2_new = T2 * T1.inverse() * T1_new
+        //     SE3d transform = pair_old_frame.second.inverse() * old_frame->pose;
+        //     for (auto iter = ++all_kfs.find(pair_old_frame.first); active_kfs.find(iter->first) == active_kfs.end(); iter++)
+        //     {
+        //         auto frame = iter->second;
+        //         frame->pose = frame->pose * transform;
+        //     }
+        // }
+    }
+    SE3d new_pose = (--active_kfs.end())->second->pose;
 
     // forward propogate
     {
-        std::unique_lock<std::mutex> lock1(mapping_->mutex);
+        std::unique_lock<std::mutex> lock1;
+        if (lidar_)
+        {
+            lock1 = std::unique_lock<std::mutex>(mapping_->mutex);
+        }
         std::unique_lock<std::mutex> lock2(backend_->mutex);
         std::unique_lock<std::mutex> lock3(frontend_->mutex);
 
         Frame::Ptr last_frame = frontend_->last_frame;
-        Frames forward_kfs = map_->GetKeyFrames(end_time);
+        Frames forward_kfs = map_->GetKeyFrames(end_time + epsilon);
         if (forward_kfs.find(last_frame->time) == forward_kfs.end())
         {
             forward_kfs[last_frame->time] = last_frame;
         }
-        Frame::Ptr frame = (--active_kfs.end())->second;
-        Frame::Ptr old_frame = frame->loop_constraint->frame_old;
-        SE3d transform = frame->pose.inverse() * frame->loop_constraint->relative_pose * old_frame->pose;
+        SE3d transform = old_pose.inverse() * new_pose;
         for (auto pair_kf : forward_kfs)
         {
             pair_kf.second->pose = pair_kf.second->pose * transform;
@@ -478,20 +503,6 @@ void Relocation::CorrectLoop(double old_time, double start_time, double end_time
         }
         frontend_->UpdateCache();
     }
-
-    // // update pose of inner submaps
-    // Frames all_kfs = map_->GetKeyFrames(old_time, end_time);
-    // for (auto pair_old_frame : inner_old_frames)
-    // {
-    //     auto old_frame = active_kfs[pair_old_frame.first];
-    //     // T2_new = T2 * T1.inverse() * T1_new
-    //     SE3d transform = pair_old_frame.second.inverse() * old_frame->pose;
-    //     for (auto iter = ++all_kfs.find(pair_old_frame.first); active_kfs.find(iter->first) == active_kfs.end(); iter++)
-    //     {
-    //         auto frame = iter->second;
-    //         frame->pose = frame->pose * transform;
-    //     }
-    // }
 }
 
 } // namespace lvio_fusion

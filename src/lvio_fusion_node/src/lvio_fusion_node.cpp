@@ -225,7 +225,6 @@ void navsat_callback(const sensor_msgs::NavSatFixConstPtr &navsat_msg)
     }
     geo_converter.Forward(latitude, longitude, altitude, xyz[0], xyz[1], xyz[2]);
     estimator->InputNavSat(t, xyz[0], xyz[1], xyz[2], pos_accuracy);
-    publish_navsat(estimator, t);
 }
 
 void tf_timer_callback(const ros::TimerEvent &timer_event)
@@ -241,6 +240,11 @@ void pc_timer_callback(const ros::TimerEvent &timer_event)
 void od_timer_callback(const ros::TimerEvent &timer_event)
 {
     publish_odometry(estimator, timer_event.current_real.toSec() - delta_time);
+}
+
+void navsat_timer_callback(const ros::TimerEvent &timer_event)
+{
+    publish_navsat(estimator, timer_event.current_real.toSec() - delta_time);
 }
 
 int get_flags()
@@ -300,7 +304,8 @@ int main(int argc, char **argv)
     register_pub(n);
     ros::Timer tf_timer = n.createTimer(ros::Duration(0.0001), tf_timer_callback);
     ros::Timer od_timer = n.createTimer(ros::Duration(1), od_timer_callback);
-    ros::Timer pc_timer = n.createTimer(ros::Duration(5), pc_timer_callback);
+    ros::Timer pc_timer;
+    ros::Timer navsat_timer;
 
     if (use_imu)
     {
@@ -311,11 +316,13 @@ int main(int argc, char **argv)
     {
         cout << "lidar:" << LIDAR_TOPIC << endl;
         sub_lidar = n.subscribe(LIDAR_TOPIC, 100, lidar_callback);
+        pc_timer = n.createTimer(ros::Duration(5), pc_timer_callback);
     }
     if (use_navsat)
     {
         cout << "navsat:" << NAVSAT_TOPIC << endl;
         sub_navsat = n.subscribe(NAVSAT_TOPIC, 100, navsat_callback);
+        navsat_timer = n.createTimer(ros::Duration(1), navsat_timer_callback);
     }
     cout << "image0:" << IMAGE0_TOPIC << endl;
     sub_img0 = n.subscribe(IMAGE0_TOPIC, 100, img0_callback);

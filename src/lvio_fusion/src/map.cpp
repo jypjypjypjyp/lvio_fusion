@@ -18,20 +18,20 @@ void Map::InsertLandmark(visual::Landmark::Ptr landmark)
     landmarks_[landmark->id] = landmark;
 }
 
-// 1: (start]
-// 2: (start -> end]
-// 3: (start -> num)
-// 4: (num -> end)
+// 1: [start]
+// 2: [start -> end]
+// 3: (start -> num]
+// 4: [num -> end)
 Frames Map::GetKeyFrames(double start, double end, int num)
 {
     if (end == 0 && num == 0)
     {
-        auto start_iter = keyframes_.upper_bound(start);
+        auto start_iter = keyframes_.lower_bound(start);
         return start_iter == keyframes_.end() ? Frames() : Frames(start_iter, keyframes_.end());
     }
     else if (num == 0)
     {
-        auto start_iter = keyframes_.upper_bound(start);
+        auto start_iter = keyframes_.lower_bound(start);
         auto end_iter = keyframes_.upper_bound(end);
         return start >= end ? Frames() : Frames(start_iter, end_iter);
     }

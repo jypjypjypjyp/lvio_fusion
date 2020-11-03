@@ -85,4 +85,4 @@ delay: 3
 
 # loop
 voc_path: '/home/jyp/Projects/lvio_fusion/misc/orbvoc.dbow3'
-min_distance: 10
+min_distance: 3

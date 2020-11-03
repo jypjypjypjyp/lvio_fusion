@@ -50,4 +50,6 @@ public:
     NotImplemented() : std::logic_error("Function not yet implemented"){};
 };
 
+extern double epsilon;
+
 #endif // lvio_fusion_COMMON_H

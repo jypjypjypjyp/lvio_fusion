@@ -143,13 +143,6 @@ void Backend::BuildProblem(Frames &active_kfs, ceres::Problem &problem)
     //         last_frame = current_frame;
     //     }
     // }
-    
-    // initial point
-    if (active_kfs.begin()->second->id == 1)
-    {
-        auto &pose = active_kfs.begin()->second->pose;
-        problem.SetParameterBlockConstant(pose.data());
-    }
 }
 
 double compute_reprojection_error(Vector2d ob, Vector3d pw, SE3d pose, Camera::Ptr camera)
@@ -161,7 +154,11 @@ double compute_reprojection_error(Vector2d ob, Vector3d pw, SE3d pose, Camera::P
 
 void Backend::Optimize(bool full)
 {
-    std::unique_lock<std::mutex> lock(mutex);
+    std::unique_lock<std::mutex> lock(mutex, std::defer_lock);
+    if (!full)
+    {
+        lock.lock();
+    }
     Frames active_kfs = map_->GetKeyFrames(full ? 0 : head);
 
     // TODO: IMU
@@ -219,8 +216,9 @@ void Backend::Optimize(bool full)
     }
 
     // propagate to the last frame
-    ForwardPropagate((--active_kfs.end())->first);
-    head = (--active_kfs.end())->first - delay_;
+    double temp_head = (--active_kfs.end())->first + epsilon;
+    ForwardPropagate(temp_head);
+    head = temp_head - delay_;
 }
 
 void Backend::ForwardPropagate(double time)
@@ -239,7 +237,7 @@ void Backend::ForwardPropagate(double time)
 
     ceres::Solver::Options options;
     options.linear_solver_type = ceres::DENSE_SCHUR;
-    options.max_num_iterations = 1;
+    options.max_num_iterations = 3;
     options.num_threads = 4;
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);

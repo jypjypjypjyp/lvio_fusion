@@ -7,12 +7,14 @@
 
 #include <opencv2/core/eigen.hpp>
 
+double epsilon = 1e-3;
+
 namespace lvio_fusion
 {
 
 Matrix2d TwoFrameReprojectionError::sqrt_info = Matrix2d::Identity();
 Matrix2d PoseOnlyReprojectionError::sqrt_info = Matrix2d::Identity();
-Matrix3d NavsatError::sqrt_info = 10 * Matrix3d::Identity();
+Matrix3d NavsatError::sqrt_info = 50 * Matrix3d::Identity();
 
 Estimator::Estimator(std::string &config_path)
     : config_file_path_(config_path) {}
