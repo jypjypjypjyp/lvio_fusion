@@ -103,17 +103,14 @@ void Mapping::BuildProblem(Frames &active_kfs, ceres::Problem &problem)
     Frames base_kfs = map_->GetKeyFrames(0, start_time, num_last_frames);
 
     ceres::LossFunction *lidar_loss_function = new ceres::HuberLoss(0.1);
-    ceres::LocalParameterization *local_parameterization = new ceres::ProductParameterization(
-        new ceres::EigenQuaternionParameterization(),
-        new ceres::IdentityParameterization(3));
-    // ceres::LocalParameterization *local_parameterization = new ceres::EigenQuaternionParameterization();
+    ceres::LocalParameterization *local_parameterization = new ceres::EigenQuaternionParameterization();
 
     Frame::Ptr last_frames[num_last_frames + 1];
     unsigned int start_id = active_kfs.begin()->second->id;
     for (auto pair_kf : base_kfs)
     {
         double *para_kf_base = pair_kf.second->pose.data();
-        problem.AddParameterBlock(para_kf_base, SE3d::num_parameters, local_parameterization);
+        problem.AddParameterBlock(para_kf_base, SO3d::num_parameters, local_parameterization);
         problem.SetParameterBlockConstant(para_kf_base);
         int i = (start_id - pair_kf.second->id - 1) / step + 1;
         if (start_id - pair_kf.second->id <= num_last_frames + 1)
@@ -127,7 +124,7 @@ void Mapping::BuildProblem(Frames &active_kfs, ceres::Problem &problem)
     {
         current_frame = pair_kf.second;
         double *para_kf = current_frame->pose.data();
-        problem.AddParameterBlock(para_kf, SE3d::num_parameters, local_parameterization);
+        problem.AddParameterBlock(para_kf, SO3d::num_parameters, local_parameterization);
         if (current_frame->feature_lidar)
         {
             for (int i = 1; i <= num_last_frames; i += step)

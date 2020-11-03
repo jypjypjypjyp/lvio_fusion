@@ -568,15 +568,17 @@ void ScanRegistration::Associate(Frame::Ptr current_frame, Frame::Ptr last_frame
                 Vector3d last_point_c(points_less_flat_last.points[closest_index3].x,
                                       points_less_flat_last.points[closest_index3].y,
                                       points_less_flat_last.points[closest_index3].z);
+                Vector3d last_kf_t(para_last_kf[4], para_last_kf[5], para_last_kf[6]);
+                Vector3d kf_t(para_kf[4], para_kf[5], para_kf[6]);
 
                 ceres::CostFunction *cost_function;
                 if (old_frame)
                 {
-                    cost_function = LidarPlaneErrorBasedLoop::Create(curr_point, last_point_a, last_point_b, last_point_c, lidar_, relative_pose);
+                    // cost_function = LidarPlaneErrorBasedLoop::Create(curr_point, last_point_a, last_point_b, last_point_c, lidar_, relative_pose);
                 }
                 else
                 {
-                    cost_function = LidarPlaneError::Create(curr_point, last_point_a, last_point_b, last_point_c, lidar_);
+                    cost_function = LidarPlaneError::Create(curr_point, last_point_a, last_point_b, last_point_c, last_kf_t, kf_t, lidar_);
                 }
                 problem.AddResidualBlock(cost_function, loss_function, para_last_kf, para_kf);
             }
