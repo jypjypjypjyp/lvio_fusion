@@ -216,20 +216,6 @@ public:
     float G_norm;
 };
 
-//Integration of 1 gyro measurement
-class IntegratedRotation
-{
-public:
-    IntegratedRotation(){}
-    IntegratedRotation(const cv::Point3f &angVel, const Bias &imuBias, const float &time);
-
-public:
-    float deltaT; //integration time
-    cv::Mat deltaR; //integrated rotation
-    cv::Mat rightJ; // right jacobian
-};
-
-
 
 } // namespace lvio_fusion
 #endif // lvio_fusion_IMU_H

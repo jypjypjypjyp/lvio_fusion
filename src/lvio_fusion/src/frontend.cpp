@@ -173,7 +173,7 @@ void Frontend::CreateKeyframe(bool need_new_features)
 {
     //NEWADD
     if(imu_){    //如果有imu  预积分上一关键帧到当前帧的imu 
-        if(initializer_->bInitializing)//初始化时不能创建关键帧
+        if(backend_.lock()->initializer_ ->bInitializing)//初始化时不能创建关键帧
         {
             return;
         }
@@ -199,7 +199,7 @@ void Frontend::CreateKeyframe(bool need_new_features)
     //NEWADD
     if(imu_)
     {
-        if(initializer_->bimu)
+        if(backend_.lock()->initializer_->bimu)
         {
             current_key_frame->bImu=true;
         }  

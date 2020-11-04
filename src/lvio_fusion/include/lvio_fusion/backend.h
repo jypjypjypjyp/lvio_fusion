@@ -61,7 +61,7 @@ public:
     }
 
     BackendStatus status = BackendStatus::RUNNING;
-
+    Initializer::Ptr initializer_;
 private:
     enum class ProblemType
     {
@@ -81,7 +81,7 @@ private:
     Map::Ptr map_;
     std::weak_ptr<Frontend> frontend_;
     ScanRegistration::Ptr scan_registration_;
-    Initializer::Ptr initializer_;
+   
 
     std::thread thread_;
     std::mutex running_mutex_, pausing_mutex_;

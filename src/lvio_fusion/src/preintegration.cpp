@@ -10,14 +10,6 @@ namespace imu
 int O_T = 0, O_R = 3, O_V = 6, O_BA = 9, O_BG = 12, O_PR = 0, O_PT = 4;
 Vector3d g(0, 0, 9.8);
 
-cv::Mat NormalizeRotation(const cv::Mat &R)
-{
-    cv::Mat U,w,Vt;
-    cv::SVDecomp(R,w,U,Vt,cv::SVD::FULL_UV);
-    // assert(cv::determinant(U*Vt)>0);
-    return U*Vt;
-}
-
 void Preintegration::PreintegrateIMU(std::vector<imuPoint> measureFromLastFrame,double last_frame_time,double current_frame_time)
 {
     const int n = measureFromLastFrame.size()-1;
@@ -115,7 +107,8 @@ cv::Mat Wacc = (cv::Mat_<float>(3,3) << 0, -acc.at<float>(2), acc.at<float>(1),
     JVg = JVg - dR*dt*Wacc*JRg;
 // Update delta rotation
     cv::Point3f angVel_= cv::Point3f(angVel[0],angVel[1],angVel[2]);
-    IntegratedRotation dRi( angVel_,b,dt);
+    Vector3d angV=angVel;
+    IntegratedRotation dRi( angV,b,dt);
     dR = NormalizeRotation(dR*dRi.deltaR);
 
     // Compute rotation parts of matrices A and B
@@ -187,25 +180,6 @@ cv::Mat Preintegration::GetUpdatedDeltaPosition()
     return dP + JPg*db.rowRange(0,3) + JPa*db.rowRange(3,6);
 }
 
-// Converter
-cv::Mat ExpSO3(const float &x, const float &y, const float &z)
-{
-    cv::Mat I = cv::Mat::eye(3,3,CV_32F);
-    const float d2 = x*x+y*y+z*z;
-    const float d = sqrt(d2);
-    cv::Mat W = (cv::Mat_<float>(3,3) << 0, -z, y,
-                 z, 0, -x,
-                 -y,  x, 0);
-    if(d<eps)
-        return (I + W + 0.5f*W*W);
-    else
-        return (I + W*sin(d)/d + W*W*(1.0f-cos(d))/d2);
-}
-
-cv::Mat ExpSO3(const cv::Mat &v)
-{
-    return ExpSO3(v.at<float>(0),v.at<float>(1),v.at<float>(2));
-}
 
 // 过去更新bias后的delta_R
 cv::Mat Preintegration::GetDeltaRotation(const Bias &b_)

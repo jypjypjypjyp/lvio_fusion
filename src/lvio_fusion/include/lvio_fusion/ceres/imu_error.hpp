@@ -9,6 +9,8 @@
 namespace lvio_fusion
 {
 
+const float GRAVITY_VALUE=9.81;
+
 class ImuError : public ceres::SizedCostFunction<15, 7, 3, 3, 3, 7, 3, 3, 3>
 {
 public:
@@ -59,7 +61,7 @@ public:
             delta_q=dr;
             Vector3d  linearized_bg(preintegration_->bu.bwx,preintegration_->bu.bwy,preintegration_->bu.bwz);
             
-
+///int O_T = 0, O_R = 3, O_V = 6, O_BA = 9, O_BG = 12, O_PR = 0, O_PT = 4;
             if (jacobians[0])
             {
                 Eigen::Map<Matrix<double, 15, 7, RowMajor>> jacobian_pose_i(jacobians[0]);
@@ -202,42 +204,41 @@ private:
 };
 
 
-class InertialGSError
+class InertialGSError:public ceres::SizedCostFunction<9, 7,3,7,3,3,3,3,1>
 {
 public:
-    InertialGSError(imu::Preintegration::Ptr preintegration) : mpInt(preintegration) 
+    InertialGSError(imu::Preintegration::Ptr preintegration) : mpInt(preintegration)
     {
-        gl<< 0, 0, -9.81;
+        gl<< 0, 0, -GRAVITY_VALUE;
     }
 
-    template <typename T>
-    bool operator()(const T *Pose1,const T *V1,const T *Pose2, const T* V2,const T *GB,const T *AB,const T* rwg,const T* const scale, T *residuals) const
+    virtual bool Evaluate(double const *const *parameters, double *residuals, double **jacobians) const
     {
-        Quaternion<T> Qi(Pose1[3], Pose1[0], Pose1[1], Pose1[2]);
-       Matrix<T, 3, 1> Pi(Pose1[4], Pose1[5], Pose1[6]);
-        Matrix<T, 3, 1> Vi(V1[0], V1[1], V1[2]);
-        Quaternion<T> Qj(Pose2[3], Pose2[0], Pose2[1], Pose2[2]);
-        Matrix<T, 3, 1> Pj(Pose2[4], Pose2[5], Pose2[6]);
-        Matrix<T, 3, 1> Vj(V2[0], V2[1], V2[2]);
-        Matrix<T, 3, 1> gyroBias(GB[0], GB[1], GB[2]);
-        Matrix<T, 3, 1> accBias(AB[0], AB[1], AB[2]);
-        Matrix<T, 3, 1> eulerAngle(rwg[0], rwg[1], rwg[2]);
-        T Scale=scale[0];
-        T dt=T(mpInt->dT);
-        Eigen::AngleAxis<T> rollAngle(AngleAxis<T>(eulerAngle(2),Matrix<T, 3, 1>::UnitX()));
-        Eigen::AngleAxis<T> pitchAngle(AngleAxis<T>(eulerAngle(1),Matrix<T, 3, 1>::UnitY()));
-        Eigen::AngleAxis<T> yawAngle(AngleAxis<T>(eulerAngle(0),Matrix<T, 3, 1>::UnitZ()));
-        Matrix<T, 3, 3> Rwg;
+        Quaterniond Qi(parameters[0][3], parameters[0][0], parameters[0][1], parameters[0][2]);
+        Vector3d Pi(parameters[0][4], parameters[0][5], parameters[0][6]);
+        Vector3d Vi(parameters[1][0], parameters[1][1], parameters[1][2]);
+        Quaterniond Qj(parameters[2][3], parameters[2][0], parameters[2][1], parameters[2][2]);
+        Vector3d Pj(parameters[2][4], parameters[2][5], parameters[2][6]);
+        Vector3d Vj(parameters[3][0], parameters[3][1], parameters[3][2]);
+        Vector3d gyroBias(parameters[4][0], parameters[4][1], parameters[4][2]);
+        Vector3d accBias(parameters[5][0], parameters[5][1], parameters[5][2]);
+        Vector3d eulerAngle(parameters[6][0], parameters[6][1], parameters[6][2]);
+        double Scale=parameters[7][0];
+        double dt=(mpInt->dT);
+        Eigen::AngleAxisd rollAngle(AngleAxisd(eulerAngle(2),Vector3d::UnitX()));
+        Eigen::AngleAxisd pitchAngle(AngleAxisd(eulerAngle(1),Vector3d::UnitY()));
+        Eigen::AngleAxisd yawAngle(AngleAxisd(eulerAngle(0),Vector3d::UnitZ()));
+        Matrix3d Rwg;
         Rwg= yawAngle*pitchAngle*rollAngle;
-        Matrix<T, 3, 1> g=Rwg*gl.cast<T>();
-        const Bias  b1(double(accBias[0]),double(accBias[1]),double(accBias[2]),double(gyroBias[0]),double(gyroBias[1]),double(gyroBias[2]));
-        const Matrix<T, 3, 3> dR = toMatrix3d(mpInt->GetDeltaRotation(b1)).cast<T>();
-        const Matrix<T, 3, 1> dV = toVector3d(mpInt->GetDeltaVelocity(b1)).cast<T>();
-        const Matrix<T, 3, 1> dP =toVector3d(mpInt->GetDeltaPosition(b1)).cast<T>();
+        Vector3d g=Rwg*gl;
+        const Bias  b1(accBias(0,0),accBias(1,0),accBias(2,0),gyroBias(0,0),gyroBias(1,0),gyroBias(2,0));
+        const Matrix3d dR = toMatrix3d(mpInt->GetDeltaRotation(b1));
+        const Vector3d dV = toVector3d(mpInt->GetDeltaVelocity(b1));
+        const Vector3d dP =toVector3d(mpInt->GetDeltaPosition(b1));
 
-        const Matrix<T, 3, 1> er = LogSO3(dR.transpose()*Qi.toRotationMatrix().transpose()*Qj.toRotationMatrix());
-        const Matrix<T, 3, 1> ev = Qi.transpose()*(Scale*(Vj - Vi) - g*dt) - dV;
-        const Matrix<T, 3, 1> ep = Qi.transpose()*(Scale*(Pj - Pj - Vi*dt) - g*dt*dt/2) - dP;
+        const Vector3d er = LogSO3(dR.transpose()*Qi.toRotationMatrix().transpose()*Qj.toRotationMatrix());
+        const Vector3d ev = Qi.toRotationMatrix().transpose()*(Scale*(Vj - Vi) - g*dt) - dV;
+        const Vector3d ep = Qi.toRotationMatrix().transpose()*(Scale*(Pj - Pj - Vi*dt) - g*dt*dt/2) - dP;
         residuals[0]=er[0];
         residuals[1]=er[1];
         residuals[2]=er[2];
@@ -247,11 +248,71 @@ public:
         residuals[6]=ep[0];
         residuals[7]=ep[1];
         residuals[8]=ep[2];
- return true;
+        if (jacobians)
+        {
+            Bias db=mpInt->GetDeltaBias(b1);
+            Vector3d dbg;
+            dbg << db.bwx, db.bwy, db.bwz;
+            const Matrix3d Rwb1 =Qi.toRotationMatrix();
+            const Matrix3d Rbw1 = Rwb1.transpose();
+            const Matrix3d Rwb2 = Qj.toRotationMatrix();
+            MatrixXd Gm = MatrixXd::Zero(3,2);
+            Gm(0,1) = -GRAVITY_VALUE;
+            Gm(1,0) = GRAVITY_VALUE;
+            const double s = Scale;
+            const Eigen::MatrixXd dGdTheta = Rwg*Gm;
+            const Eigen::Matrix3d dR = toMatrix3d(mpInt->GetDeltaRotation(b1));
+            const Eigen::Matrix3d eR = dR.transpose()*Rbw1*Rwb2;
+            const Eigen::Vector3d er = LogSO3(eR);
+            const Eigen::Matrix3d invJr = InverseRightJacobianSO3(er);
+            if(jacobians[0]){
+                Eigen::Map<Matrix<double, 9, 7, RowMajor>> jacobian_pose_i(jacobians[0]);
+                jacobian_pose_i.setZero();
+                
+            }
+            if(jacobians[1]){
+                Eigen::Map<Matrix<double, 9, 3, RowMajor>> jacobian_v_i(jacobians[1]);
+                jacobian_v_i.setZero();
+                
+            }
+            if(jacobians[2]){
+                Eigen::Map<Matrix<double, 9, 7, RowMajor>> jacobian_pose_j(jacobians[2]);
+                jacobian_pose_j.setZero();
+                
+            }
+            if(jacobians[3]){
+                Eigen::Map<Matrix<double, 9, 3, RowMajor>> jacobian_v_j(jacobians[3]);
+                jacobian_v_j.setZero();
+                
+            }
+            if(jacobians[4]){
+                Eigen::Map<Matrix<double, 9, 3, RowMajor>> jacobian_bg(jacobians[4]);
+                jacobian_bg.setZero();
+                
+            }
+            if(jacobians[5]){
+                Eigen::Map<Matrix<double, 9, 3, RowMajor>> jacobian_ba(jacobians[5]);
+                jacobian_ba.setZero();
+                
+            }
+            if(jacobians[6]){
+                Eigen::Map<Matrix<double, 9, 3, RowMajor>> jacobian_Rwg(jacobians[6]);
+                jacobian_Rwg.setZero();
+                
+            }
+            if(jacobians[7]){
+                Eigen::Map<Matrix<double, 9, 1, RowMajor>> jacobian_scale(jacobians[7]);
+                jacobian_scale.setZero();
+                
+            }
+
+
+        }
+        return true;
     }
     static ceres::CostFunction *Create(imu::Preintegration::Ptr preintegration)
     {
-        return (new ceres::AutoDiffCostFunction<InertialGSError,9, 7,3,7,3,3,3,3,1>(new InertialGSError(preintegration)));
+        return new InertialGSError(preintegration);
     }
 private:
     imu::Preintegration::Ptr mpInt;
@@ -259,37 +320,37 @@ private:
 };
 
 
-class InertialError
+class InertialError:public ceres::SizedCostFunction<9, 7,3,3,3,7,3>
 {
 public:
     InertialError(imu::Preintegration::Ptr preintegration) : mpInt(preintegration) {}
 //P1,V1,g1,a1,P2,V2//7,3,3,3,7,3
-    template <typename T>
-    bool operator()(const T *P1, const T *V1, const T *g1, const T* a1,  const T*P2, const T* V2, T *residuals) const
+
+    virtual bool Evaluate(double const *const *parameters, double *residuals, double **jacobians) const
     {
-        Quaternion<T> Qi(P1[3], P1[0], P1[1], P1[2]);
-        Matrix<T, 3, 1> Pi(P1[4], P1[5], P1[6]);
-        Matrix<T, 3, 1> Vi(V1[0], V1[1], V1[2]);
-
-        Matrix<T, 3, 1> gyroBias(g1[0], g1[1], g1[2]);
-        Matrix<T, 3, 1> accBias(a1[0], a1[1],a1[2]);
-
-        Quaternion<T> Qj(P2[3], P2[0], P2[1], P2[2]);
-        Matrix<T, 3, 1> Pj(P2[4], P2[5], P2[6]);
-        Matrix<T, 3, 1> Vj(V2[0], V2[1], V2[2]);
-        T dt=T(mpInt->dT);
-        Matrix<T, 3, 1> g;
-        g<< 0, 0, -9.81;
-        const Bias  b1(double(accBias[0]),double(accBias[1]),double(accBias[2]),double(gyroBias[0]),double(gyroBias[1]),double(gyroBias[2]));
-        const Matrix<T, 3, 3> dR = toMatrix3d(mpInt->GetDeltaRotation(b1)).cast<T>();
-        const Matrix<T, 3, 1> dV = toVector3d(mpInt->GetDeltaVelocity(b1)).cast<T>();
-        const Matrix<T, 3, 1> dP =toVector3d(mpInt->GetDeltaPosition(b1)).cast<T>();
-
-        const Matrix<T, 3, 1> er = LogSO3(dR.transpose()*Qi.toRotationMatrix().transpose()*Qj.toRotationMatrix());
-        const Matrix<T, 3, 1> ev = Qi.transpose()*((Vj - Vi) - g*dt) - dV;
-        const Matrix<T, 3, 1> ep = Qi.transpose()*((Pj - Pj - Vi*dt) - g*dt*dt/2) - dP;
+        Quaterniond Qi(parameters[0][3], parameters[0][0], parameters[0][1], parameters[0][2]);
+        Vector3d Pi(parameters[0][4], parameters[0][5], parameters[0][6]);
+        Vector3d Vi(parameters[1][0], parameters[1][1], parameters[1][2]);
         
-        residuals[0]=er[0]
+        Vector3d gyroBias(parameters[2][0], parameters[2][1], parameters[2][2]);
+        Vector3d accBias(parameters[3][0], parameters[3][1],parameters[3][2]);
+
+        Quaterniond Qj(parameters[4][3], parameters[4][0], parameters[4][1], parameters[4][2]);
+        Vector3d Pj(parameters[4][4], parameters[4][5], parameters[4][6]);
+        Vector3d Vj(parameters[5][0], parameters[5][1], parameters[5][2]);
+        double dt=(mpInt->dT);
+        Vector3d g;
+        g<< 0, 0, -GRAVITY_VALUE;
+        const Bias  b1(accBias(0,0),accBias(1,0),accBias(2,0),gyroBias(0,0),gyroBias(1,0),gyroBias(2,0));
+        const Matrix3d dR = toMatrix3d(mpInt->GetDeltaRotation(b1));
+        const Vector3d dV = toVector3d(mpInt->GetDeltaVelocity(b1));
+        const Vector3d dP =toVector3d(mpInt->GetDeltaPosition(b1));
+
+        const Vector3d er = LogSO3(dR.transpose()*Qi.toRotationMatrix().transpose()*Qj.toRotationMatrix());
+        const Vector3d ev = Qi.toRotationMatrix().transpose()*((Vj - Vi) - g*dt) - dV;
+        const Vector3d ep = Qi.toRotationMatrix().transpose()*((Pj - Pj - Vi*dt) - g*dt*dt/2) - dP;
+        
+        residuals[0]=er[0];
         residuals[1]=er[1];
         residuals[2]=er[2];
         residuals[3]=ev[0];
@@ -298,11 +359,15 @@ public:
         residuals[6]=ep[0];
         residuals[7]=ep[1];
         residuals[8]=ep[2];
+
+
+
+
          return true;
     }
     static ceres::CostFunction *Create(imu::Preintegration::Ptr preintegration)
     {
-        return (new ceres::AutoDiffCostFunction<InertialError,9, 7,3,3,3,7,3>(new InertialError(preintegration)));
+        return new InertialError(preintegration);
     }
 private:
     imu::Preintegration::Ptr mpInt;
@@ -324,7 +389,7 @@ public:
     }
     static ceres::CostFunction *Create()
     {
-        return (new ceres::AutoDiffCostFunction<GyroRWError,3, 3,3,>(new GyroRWError()));
+        return (new ceres::AutoDiffCostFunction<GyroRWError,3, 3,3>(new GyroRWError()));
     }
 };
 class AccRWError
@@ -342,7 +407,7 @@ public:
     }
     static ceres::CostFunction *Create()
     {
-        return (new ceres::AutoDiffCostFunction<AccRWError,3, 3,3,>(new AccRWError()));
+        return (new ceres::AutoDiffCostFunction<AccRWError,3, 3,3>(new AccRWError()));
     }
 };
 /*
@@ -366,40 +431,7 @@ public:
 
 
 
-// Converter
-Eigen::Vector3d LogSO3(const Eigen::Matrix3d &R)
-{
-    const double tr = R(0,0)+R(1,1)+R(2,2);
-    Eigen::Vector3d w;
-    w << (R(2,1)-R(1,2))/2, (R(0,2)-R(2,0))/2, (R(1,0)-R(0,1))/2;
-    const double costheta = (tr-1.0)*0.5f;
-    if(costheta>1 || costheta<-1)
-        return w;
-    const double theta = acos(costheta);
-    const double s = sin(theta);
-    if(fabs(s)<1e-5)
-        return w;
-    else
-        return theta*w/s;
-}
-Eigen::Matrix<double,3,3>  toMatrix3d(const cv::Mat &cvMat3)
-{
-    Eigen::Matrix<double,3,3> M;
 
-    M << cvMat3.at<float>(0,0), cvMat3.at<float>(0,1), cvMat3.at<float>(0,2),
-         cvMat3.at<float>(1,0), cvMat3.at<float>(1,1), cvMat3.at<float>(1,2),
-         cvMat3.at<float>(2,0), cvMat3.at<float>(2,1), cvMat3.at<float>(2,2);
-
-    return M;
-}
-
-Eigen::Matrix<double,3,1> toVector3d(const cv::Mat &cvVector)
-{
-    Eigen::Matrix<double,3,1> v;
-    v << cvVector.at<float>(0), cvVector.at<float>(1), cvVector.at<float>(2);
-
-    return v;
-}
 
 } // namespace lvio_fusion
 

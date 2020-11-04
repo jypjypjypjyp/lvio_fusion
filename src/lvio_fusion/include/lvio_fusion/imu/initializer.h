@@ -3,6 +3,7 @@
 
 #include "lvio_fusion/common.h"
 #include "lvio_fusion/imu/imu.hpp"
+#include "lvio_fusion/frontend.h"
 #include "lvio_fusion/map.h"
 
 namespace lvio_fusion
@@ -13,12 +14,12 @@ class Initializer
 {  
 public:
     typedef std::shared_ptr<Initializer> Ptr;
-
+    
    // bool Initialize(Frames kfs);
     void InitializeIMU(float priorG, float priorA, bool bFIBA);
     void SetMap(Map::Ptr map) { map_ = map; }
-    void SetFrontend(Frontend::Ptr  frontend) { frontend_ = frontend; }
-    Frontend::Ptr frontend_;
+    void SetFrontend(std::shared_ptr<Frontend>  frontend) { frontend_ = frontend; }
+    std::weak_ptr<Frontend> frontend_;
     bool initialized = false;
     bool bimu=false;//是否经过imu尺度优化
     bool bInitializing=false;
@@ -46,7 +47,6 @@ public:
     double mFirstTs;   /// 用于imu初始化第一个可用关键帧的时间
     int mnMatchesInliers;
     
-    double mFirstTs;   /// 用于imu初始化第一个可用关键帧的时间
 
    /* class Frame
     {

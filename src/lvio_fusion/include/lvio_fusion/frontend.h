@@ -53,7 +53,7 @@ public:
 
     void SetRelocation(std::shared_ptr<Relocation> relocation) { relocation_ = relocation; }
 //NEWADD
-    void SetInitializer(Initializer::Ptr initializer) { initializer_ = initializer; }
+ //   void SetInitializer(Initializer::Ptr initializer) { initializer_ = initializer; }
     void SetCalib(Calib calib){ImuCalib_=calib;}
     void UpdateFrameIMU(const float s, const Bias &b, Frame::Ptr pCurrentKeyFrame);
 
@@ -123,7 +123,7 @@ private:
     Camera::Ptr camera_right_;
     Imu::Ptr imu_;
     //NEWADD
-    Initializer::Ptr initializer_;
+   // Initializer::Ptr initializer_;
     Calib ImuCalib_;
     //NEWADDEND
 

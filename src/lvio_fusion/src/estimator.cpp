@@ -118,7 +118,7 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
         //NEWADD
          //TODO 加Calib
         frontend->SetCalib(calib);
-        frontend->SetInitializer(initializer);
+      //  frontend->SetInitializer(initializer);
         //NEWADDEND
         frontend->flags += Flag::IMU;
     }

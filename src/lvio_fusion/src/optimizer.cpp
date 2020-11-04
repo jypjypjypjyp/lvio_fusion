@@ -3,34 +3,6 @@
 
 namespace lvio_fusion
 {
-
-//Converter
-cv::Mat toCvMat(const Eigen::Matrix<double,3,1> &m)
-{
-    cv::Mat cvMat(3,1,CV_32F);
-    for(int i=0;i<3;i++)
-            cvMat.at<float>(i)=m(i);
-
-    return cvMat.clone();
-}
-cv::Mat toCvSE3(const Eigen::Matrix<double,3,3> &R, const Eigen::Matrix<double,3,1> &t)
-{
-    cv::Mat cvMat = cv::Mat::eye(4,4,CV_32F);
-    for(int i=0;i<3;i++)
-    {
-        for(int j=0;j<3;j++)
-        {
-            cvMat.at<float>(i,j)=R(i,j);
-        }
-    }
-    for(int i=0;i<3;i++)
-    {
-        cvMat.at<float>(i,3)=t(i);
-    }
-
-    return cvMat.clone();
-}
-
 void optimizer::InertialOptimization(Map::Ptr pMap, Eigen::Matrix3d &Rwg, double &scale, Eigen::Vector3d &bg, Eigen::Vector3d &ba, bool bMono, Eigen::MatrixXd  &covInertial, bool bFixedVel=false, bool bGauss=false, float priorG = 1e2, float priorA = 1e6)
 {
 

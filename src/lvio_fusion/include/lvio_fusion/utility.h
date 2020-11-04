@@ -256,6 +256,141 @@ inline T normalize_angle(const T &angle_degrees)
                two_pi * std::floor((-angle_degrees + T(180)) / two_pi);
 };
 
+// NEWADD
+Eigen::Vector3d LogSO3(const Eigen::Matrix3d &R)
+{
+    const double tr = R(0,0)+R(1,1)+R(2,2);
+    Eigen::Vector3d w;
+    w << (R(2,1)-R(1,2))/2, (R(0,2)-R(2,0))/2, (R(1,0)-R(0,1))/2;
+    const double costheta = (tr-1.0)*0.5f;
+    if(costheta>1 || costheta<-1)
+        return w;
+    const double theta = acos(costheta);
+    const double s = sin(theta);
+    if(fabs(s)<1e-5)
+        return w;
+    else
+        return theta*w/s;
+}
+Eigen::Matrix<double,3,3>  toMatrix3d(const cv::Mat &cvMat3)
+{
+    Eigen::Matrix<double,3,3> M;
+
+    M << cvMat3.at<float>(0,0), cvMat3.at<float>(0,1), cvMat3.at<float>(0,2),
+         cvMat3.at<float>(1,0), cvMat3.at<float>(1,1), cvMat3.at<float>(1,2),
+         cvMat3.at<float>(2,0), cvMat3.at<float>(2,1), cvMat3.at<float>(2,2);
+
+    return M;
+}
+
+Eigen::Matrix<double,3,1> toVector3d(const cv::Mat &cvVector)
+{
+    Eigen::Matrix<double,3,1> v;
+    v << cvVector.at<float>(0), cvVector.at<float>(1), cvVector.at<float>(2);
+
+    return v;
+}
+Eigen::Matrix3d InverseRightJacobianSO3(const Eigen::Vector3d &v)
+{
+    return InverseRightJacobianSO3(v[0],v[1],v[2]);
+}
+
+Eigen::Matrix3d InverseRightJacobianSO3(const double x, const double y, const double z)
+{
+    const double d2 = x*x+y*y+z*z;
+    const double d = sqrt(d2);
+
+    Eigen::Matrix3d W;
+    W << 0.0, -z, y,z, 0.0, -x,-y,  x, 0.0;
+    if(d<1e-5)
+        return Eigen::Matrix3d::Identity();
+    else
+        return Eigen::Matrix3d::Identity() + W/2 + W*W*(1.0/d2 - (1.0+cos(d))/(2.0*d*sin(d)));
+}
+
+cv::Mat ExpSO3(const float &x, const float &y, const float &z)
+{
+    cv::Mat I = cv::Mat::eye(3,3,CV_32F);
+    const float d2 = x*x+y*y+z*z;
+    const float d = sqrt(d2);
+    cv::Mat W = (cv::Mat_<float>(3,3) << 0, -z, y,
+                 z, 0, -x,
+                 -y,  x, 0);
+    if(d<eps)
+        return (I + W + 0.5f*W*W);
+    else
+        return (I + W*sin(d)/d + W*W*(1.0f-cos(d))/d2);
+}
+
+cv::Mat ExpSO3(const cv::Mat &v)
+{
+    return ExpSO3(v.at<float>(0),v.at<float>(1),v.at<float>(2));
+}
+
+
+cv::Mat toCvMat(const Eigen::Matrix3d &m)
+{
+    cv::Mat cvMat(3,3,CV_32F);
+    for(int i=0;i<3;i++)
+        for(int j=0; j<3; j++)
+            cvMat.at<float>(i,j)=m(i,j);
+
+    return cvMat.clone();
+}
+
+cv::Mat toCvMat(const Eigen::Matrix<double,3,1> &m)
+{
+    cv::Mat cvMat(3,1,CV_32F);
+    for(int i=0;i<3;i++)
+            cvMat.at<float>(i)=m(i);
+
+    return cvMat.clone();
+}
+cv::Mat toCvSE3(const Eigen::Matrix<double,3,3> &R, const Eigen::Matrix<double,3,1> &t)
+{
+    cv::Mat cvMat = cv::Mat::eye(4,4,CV_32F);
+    for(int i=0;i<3;i++)
+    {
+        for(int j=0;j<3;j++)
+        {
+            cvMat.at<float>(i,j)=R(i,j);
+        }
+    }
+    for(int i=0;i<3;i++)
+    {
+        cvMat.at<float>(i,3)=t(i);
+    }
+
+    return cvMat.clone();
+}
+cv::Mat ExpSO3(const float &x, const float &y, const float &z)
+{
+    cv::Mat I = cv::Mat::eye(3,3,CV_32F);
+    const float d2 = x*x+y*y+z*z;
+    const float d = sqrt(d2);
+    cv::Mat W = (cv::Mat_<float>(3,3) << 0, -z, y,
+                 z, 0, -x,
+                 -y,  x, 0);
+    if(d<eps)
+        return (I + W + 0.5f*W*W);
+    else
+        return (I + W*sin(d)/d + W*W*(1.0f-cos(d))/d2);
+}
+
+cv::Mat ExpSO3(const cv::Mat &v)
+{
+    return ExpSO3(v.at<float>(0),v.at<float>(1),v.at<float>(2));
+}
+
+cv::Mat NormalizeRotation(const cv::Mat &R)
+{
+    cv::Mat U,w,Vt;
+    cv::SVDecomp(R,w,U,Vt,cv::SVD::FULL_UV);
+    // assert(cv::determinant(U*Vt)>0);
+    return U*Vt;
+}
+
+//NEWADDEND
 } // namespace lvio_fusion
 
 #endif // lvio_fusion_UTILITY_H

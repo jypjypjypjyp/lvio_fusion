@@ -3,6 +3,7 @@
 #include "lvio_fusion/optimizer.h"
 namespace lvio_fusion
 {
+
 void  Initializer::InitializeIMU(float priorG, float priorA, bool bFIBA)
 {
     float minTime=1.0;  // 初始化需要的最小时间间隔
@@ -74,7 +75,7 @@ void  Initializer::InitializeIMU(float priorG, float priorA, bool bFIBA)
     mScale=1.0;
 
     
-    mInitTime = frontend_->last_frame->time-vpKF.front()->time;
+    mInitTime = frontend_.lock()->last_frame->time-vpKF.front()->time;
     
     // Step 3:进行惯性优化
     std::chrono::steady_clock::time_point t0 = std::chrono::steady_clock::now();
@@ -103,7 +104,7 @@ void  Initializer::InitializeIMU(float priorG, float priorA, bool bFIBA)
     // Step 4:更新地图
 
     map_->ApplyScaledRotation(toCvMat(mRwg).t(),mScale,true);
-    frontend_->UpdateFrameIMU(mScale,vpKF[0]->GetImuBias(),frontend_->current_key_frame);
+    frontend_.lock()->UpdateFrameIMU(mScale,vpKF[0]->GetImuBias(),frontend_.lock()->current_key_frame);
 
     std::chrono::steady_clock::time_point t3 = std::chrono::steady_clock::now();
 
@@ -133,13 +134,13 @@ void  Initializer::InitializeIMU(float priorG, float priorA, bool bFIBA)
 
     // Step 6: 设置当前map imu 已经初始化 
     // If initialization is OK
-   frontend_->UpdateFrameIMU(1.0,vpKF[0]->GetImuBias(),frontend_->current_key_frame);
+   frontend_.lock()->UpdateFrameIMU(1.0,vpKF[0]->GetImuBias(),frontend_.lock()->current_key_frame);
    // if (!mpAtlas->isImuInitialized())
   //  {
       //  cout << "IMU in Map " << mpAtlas->GetCurrentMap()->GetId() << " is initialized" << endl;
  //       mpAtlas->SetImuInitialized();
      //   mpTracker->t0IMU = mpTracker->mCurrentFrame.mTimeStamp;  // 设置imu初始化时间
-       frontend_->current_key_frame->bImu = true;
+       frontend_.lock()->current_key_frame->bImu = true;
    // }
     //更新记录初始化状态的变量
     mbNewInit=true;
@@ -172,52 +173,7 @@ void  Initializer::InitializeIMU(float priorG, float priorA, bool bFIBA)
 
 }
 
-// Converter
-cv::Mat ExpSO3(const float &x, const float &y, const float &z)
-{
-    cv::Mat I = cv::Mat::eye(3,3,CV_32F);
-    const float d2 = x*x+y*y+z*z;
-    const float d = sqrt(d2);
-    cv::Mat W = (cv::Mat_<float>(3,3) << 0, -z, y,
-                 z, 0, -x,
-                 -y,  x, 0);
-    if(d<eps)
-        return (I + W + 0.5f*W*W);
-    else
-        return (I + W*sin(d)/d + W*W*(1.0f-cos(d))/d2);
-}
 
-cv::Mat ExpSO3(const cv::Mat &v)
-{
-    return ExpSO3(v.at<float>(0),v.at<float>(1),v.at<float>(2));
-}
-
-Eigen::Matrix<double,3,3>  toMatrix3d(const cv::Mat &cvMat3)
-{
-    Eigen::Matrix<double,3,3> M;
-
-    M << cvMat3.at<float>(0,0), cvMat3.at<float>(0,1), cvMat3.at<float>(0,2),
-         cvMat3.at<float>(1,0), cvMat3.at<float>(1,1), cvMat3.at<float>(1,2),
-         cvMat3.at<float>(2,0), cvMat3.at<float>(2,1), cvMat3.at<float>(2,2);
-
-    return M;
-}
-
-Eigen::Matrix<double,3,1> toVector3d(const cv::Mat &cvVector)
-{
-    Eigen::Matrix<double,3,1> v;
-    v << cvVector.at<float>(0), cvVector.at<float>(1), cvVector.at<float>(2);
-
-    return v;
-}
-cv::Mat toCvMat(const Eigen::Matrix<double,3,1> &m)
-{
-    cv::Mat cvMat(3,1,CV_32F);
-    for(int i=0;i<3;i++)
-            cvMat.at<float>(i)=m(i);
-
-    return cvMat.clone();
-}
 /*bool Initializer::Initialize(Frames kfs)
 {
     // be perpare for initialization
