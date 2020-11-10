@@ -14,7 +14,7 @@ namespace lvio_fusion
 
 Matrix2d TwoFrameReprojectionError::sqrt_info = Matrix2d::Identity();
 Matrix2d PoseOnlyReprojectionError::sqrt_info = Matrix2d::Identity();
-Matrix3d NavsatError::sqrt_info = 50 * Matrix3d::Identity();
+Matrix3d NavsatError::sqrt_info = 10 * Matrix3d::Identity();
 
 Estimator::Estimator(std::string &config_path)
     : config_file_path_(config_path) {}
@@ -83,8 +83,7 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
     if (use_loop)
     {
         relocation = Relocation::Ptr(new Relocation(
-            Config::Get<std::string>("voc_path"),
-            Config::Get<double>("min_distance")));
+            Config::Get<std::string>("voc_path")));
         relocation->SetMap(map);
         relocation->SetCameras(camera1, camera2);
         relocation->SetFrontend(frontend);
@@ -120,15 +119,16 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
         Quaterniond q_base_to_lidar(R_base_to_lidar);
         Vector3d t_base_to_lidar(0, 0, 0);
         t_base_to_lidar << base_to_lidar(0, 3), base_to_lidar(1, 3), base_to_lidar(2, 3);
-        Lidar::Ptr lidar(new Lidar(SE3d(q_base_to_lidar, t_base_to_lidar)));
+        Lidar::Ptr lidar(new Lidar(
+            SE3d(q_base_to_lidar, t_base_to_lidar),
+            Config::Get<double>("resolution")));
 
-        scan_registration = ScanRegistration::Ptr(
-            new ScanRegistration(
-                Config::Get<int>("num_scans"),
-                Config::Get<double>("cycle_time"),
-                Config::Get<double>("min_range"),
-                Config::Get<double>("max_range"),
-                Config::Get<int>("deskew")));
+        scan_registration = ScanRegistration::Ptr(new ScanRegistration(
+            Config::Get<int>("num_scans"),
+            Config::Get<double>("cycle_time"),
+            Config::Get<double>("min_range"),
+            Config::Get<double>("max_range"),
+            Config::Get<int>("deskew")));
         scan_registration->SetLidar(lidar);
         scan_registration->SetMap(map);
 

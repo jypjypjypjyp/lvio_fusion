@@ -21,7 +21,9 @@ inline void Mapping::AddToWorld(const PointICloud &in, Frame::Ptr frame, PointRG
 
     for (int i = 0; i < in.size(); i++)
     {
-        if (in[i].x <= 0)
+        // if (in[i].x <= 0)
+        //     continue;
+        if (in[i].y >= 0)
             continue;
         //NOTE: Sophus is too slow
         // auto p_w = lidar_->Sensor2World(Vector3d(in[i].x, in[i].y, in[i].z), frame->pose);
@@ -55,7 +57,7 @@ void Mapping::MappingLoop()
         auto t1 = std::chrono::steady_clock::now();
         {
             double backend_head = backend_->head;
-            Frames active_kfs = map_->GetKeyFrames(head - 3, backend_head);
+            Frames active_kfs = map_->GetKeyFrames(head, backend_head);
             if (active_kfs.empty())
             {
                 continue;
@@ -64,29 +66,29 @@ void Mapping::MappingLoop()
             Optimize(active_kfs);
             SE3d new_pose = (--active_kfs.end())->second->pose;
 
-            // // forward propogate
-            // {
-            //     std::unique_lock<std::mutex> lock1(backend_->mutex);
-            //     std::unique_lock<std::mutex> lock2(frontend_->mutex);
+            // forward propogate
+            {
+                std::unique_lock<std::mutex> lock1(backend_->mutex);
+                std::unique_lock<std::mutex> lock2(frontend_->mutex);
 
-            //     Frame::Ptr last_frame = frontend_->last_frame;
-            //     Frames forward_kfs = map_->GetKeyFrames(backend_head);
-            //     if (forward_kfs.find(last_frame->time) == forward_kfs.end())
-            //     {
-            //         forward_kfs[last_frame->time] = last_frame;
-            //     }
-            //     SE3d transform = old_pose.inverse() * new_pose;
-            //     for (auto pair_kf : forward_kfs)
-            //     {
-            //         pair_kf.second->pose = pair_kf.second->pose * transform;
-            //         // TODO: Repropagate
-            //         // if(pair_kf.second->preintegration)
-            //         // {
-            //         //     pair_kf.second->preintegration->Repropagate();
-            //         // }
-            //     }
-            //     frontend_->UpdateCache();
-            // }
+                Frame::Ptr last_frame = frontend_->last_frame;
+                Frames forward_kfs = map_->GetKeyFrames(backend_head);
+                if (forward_kfs.find(last_frame->time) == forward_kfs.end())
+                {
+                    forward_kfs[last_frame->time] = last_frame;
+                }
+                SE3d transform = old_pose.inverse() * new_pose;
+                for (auto pair_kf : forward_kfs)
+                {
+                    pair_kf.second->pose = pair_kf.second->pose * transform;
+                    // TODO: Repropagate
+                    // if(pair_kf.second->preintegration)
+                    // {
+                    //     pair_kf.second->preintegration->Repropagate();
+                    // }
+                }
+                frontend_->UpdateCache();
+            }
         }
         auto t2 = std::chrono::steady_clock::now();
         auto time_used = std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);
@@ -103,14 +105,17 @@ void Mapping::BuildProblem(Frames &active_kfs, ceres::Problem &problem)
     Frames base_kfs = map_->GetKeyFrames(0, start_time, num_last_frames);
 
     ceres::LossFunction *lidar_loss_function = new ceres::HuberLoss(0.1);
-    ceres::LocalParameterization *local_parameterization = new ceres::EigenQuaternionParameterization();
+    // ceres::LocalParameterization *local_parameterization = new ceres::EigenQuaternionParameterization();
+    ceres::LocalParameterization *local_parameterization = new ceres::ProductParameterization(
+        new ceres::EigenQuaternionParameterization(),
+        new ceres::IdentityParameterization(3));
 
     Frame::Ptr last_frames[num_last_frames + 1];
     unsigned int start_id = active_kfs.begin()->second->id;
     for (auto pair_kf : base_kfs)
     {
         double *para_kf_base = pair_kf.second->pose.data();
-        problem.AddParameterBlock(para_kf_base, SO3d::num_parameters, local_parameterization);
+        problem.AddParameterBlock(para_kf_base, SE3d::num_parameters, local_parameterization);
         problem.SetParameterBlockConstant(para_kf_base);
         int i = (start_id - pair_kf.second->id - 1) / step + 1;
         if (start_id - pair_kf.second->id <= num_last_frames + 1)
@@ -124,7 +129,7 @@ void Mapping::BuildProblem(Frames &active_kfs, ceres::Problem &problem)
     {
         current_frame = pair_kf.second;
         double *para_kf = current_frame->pose.data();
-        problem.AddParameterBlock(para_kf, SO3d::num_parameters, local_parameterization);
+        problem.AddParameterBlock(para_kf, SE3d::num_parameters, local_parameterization);
         if (current_frame->feature_lidar)
         {
             for (int i = 1; i <= num_last_frames; i += step)
@@ -140,12 +145,12 @@ void Mapping::BuildProblem(Frames &active_kfs, ceres::Problem &problem)
                             old_frame = last_frames[i];
                         }
                         auto real_last_frame = (--map_->GetAllKeyFrames().find(current_frame->time))->second;
-                        scan_registration_->Associate(current_frame, real_last_frame, problem, lidar_loss_function, old_frame);
+                        scan_registration_->Associate(current_frame, real_last_frame, problem, lidar_loss_function, true, old_frame);
                         continue;
                     }
                     else
                     {
-                        scan_registration_->Associate(current_frame, last_frames[i], problem, lidar_loss_function);
+                        scan_registration_->Associate(current_frame, last_frames[i], problem, lidar_loss_function, true);
                     }
                 }
             }
@@ -174,22 +179,30 @@ void Mapping::BuildProblem(Frames &active_kfs, ceres::Problem &problem)
 void Mapping::Optimize(Frames &active_kfs)
 {
     std::unique_lock<std::mutex> lock(mutex);
-    // NOTE: some place is good, don't need optimize too much.
-    for (int i = 0; i < 4; i++)
+    Frames active_kfs_slice;
+    for (auto pair_kf : active_kfs)
     {
-        ceres::Problem problem;
-        BuildProblem(active_kfs, problem);
-
-        ceres::Solver::Options options;
-        options.linear_solver_type = ceres::DENSE_SCHUR;
-        options.max_num_iterations = 1;
-        options.num_threads = 4;
-        ceres::Solver::Summary summary;
-        ceres::Solve(options, &problem, &summary);
-        LOG(INFO) << summary.FullReport();
-        if(summary.final_cost / summary.initial_cost > 0.99)
+        active_kfs_slice.insert(pair_kf);
+        if (active_kfs_slice.size() >= 4)
         {
-            break;
+            // NOTE: some place is good, don't need optimize too much.
+            for (int i = 0; i < 4; i++)
+            {
+                ceres::Problem problem;
+                BuildProblem(active_kfs, problem);
+
+                ceres::Solver::Options options;
+                options.linear_solver_type = ceres::DENSE_SCHUR;
+                options.max_num_iterations = 1;
+                options.num_threads = 4;
+                ceres::Solver::Summary summary;
+                ceres::Solve(options, &problem, &summary);
+                if (summary.final_cost / summary.initial_cost > 0.99)
+                {
+                    break;
+                }
+            }
+            active_kfs_slice.clear();
         }
     }
 
@@ -227,7 +240,7 @@ PointRGBCloud Mapping::GetGlobalMap()
         PointRGBCloud::Ptr mapDS(new PointRGBCloud());
         pcl::copyPointCloud(global_map, *mapDS);
         voxel_filter.setInputCloud(mapDS);
-        voxel_filter.setLeafSize(0.4, 0.4, 0.4);
+        voxel_filter.setLeafSize(lidar_->resolution * 2, lidar_->resolution * 2, lidar_->resolution * 2);
         voxel_filter.filter(global_map);
     }
     return global_map;

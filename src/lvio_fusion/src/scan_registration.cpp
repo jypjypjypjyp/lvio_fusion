@@ -27,9 +27,24 @@ void ScanRegistration::AddScan(double time, Point3Cloud::Ptr new_scan)
     }
 }
 
+void ScanRegistration::MergeScan(const PointICloud &in, SE3d from_pose, SE3d to_pose, PointICloud &out)
+{
+    Sophus::SE3f tf_se3 = lidar_->TransformMatrix(from_pose, to_pose).cast<float>();
+    float *tf = tf_se3.data();
+    for (auto point_in : in)
+    {
+        PointI point_out;
+        ceres::SE3TransformPoint(tf, point_in.data, point_out.data);
+        point_out.intensity = point_in.intensity;
+        out.push_back(point_out);
+    }
+}
+
 bool ScanRegistration::TimeAlign(double time, PointICloud &out)
 {
     auto iter = raw_point_clouds_.upper_bound(time);
+    if (iter == raw_point_clouds_.begin())
+        return false;
     Point3Cloud &pc2 = *(iter->second);
     double end_time = iter->first + cycle_time_ / 2;
     Point3Cloud &pc1 = *((--iter)->second);
@@ -212,7 +227,7 @@ void ScanRegistration::Preprocess(PointICloud &points, Frame::Ptr frame)
     // extract features
     static int num_zones = 3;
     static pcl::VoxelGrid<PointI> voxel_filter;
-    voxel_filter.setLeafSize(0.2, 0.2, 0.2);
+    voxel_filter.setLeafSize(lidar_->resolution, lidar_->resolution, lidar_->resolution);
     for (int i = 0; i < num_scans_; i++)
     {
         if (end_index[i] - start_index[i] < 6) // too few
@@ -296,7 +311,7 @@ void ScanRegistration::Preprocess(PointICloud &points, Frame::Ptr frame)
                     points_flat.push_back(points.points[si]);
 
                     num_smallest_corvature++;
-                    if (num_smallest_corvature >= 2) // NOTE: change the number of flat points
+                    if (num_smallest_corvature >= 4) // NOTE: change the number of flat points
                     {
                         break;
                     }
@@ -347,7 +362,7 @@ void ScanRegistration::Preprocess(PointICloud &points, Frame::Ptr frame)
     frame->feature_lidar = feature;
 }
 
-void ScanRegistration::Associate(Frame::Ptr current_frame, Frame::Ptr last_frame, ceres::Problem &problem, ceres::LossFunction *loss_function, Frame::Ptr old_frame)
+void ScanRegistration::Associate(Frame::Ptr current_frame, Frame::Ptr last_frame, ceres::Problem &problem, ceres::LossFunction *loss_function, bool only_rotate, Frame::Ptr old_frame)
 {
     PointICloud &points_sharp = current_frame->feature_lidar->points_sharp;
     PointICloud &points_less_sharp = current_frame->feature_lidar->points_less_sharp;
@@ -375,13 +390,14 @@ void ScanRegistration::Associate(Frame::Ptr current_frame, Frame::Ptr last_frame
     std::vector<int> points_index;
     std::vector<float> points_distance;
 
-    static const double distance_threshold = 25; // squared
+    static const double distance_threshold = lidar_->resolution * lidar_->resolution * 100; // squared
     static const double nearby_scan = 2;
     int num_points_sharp = points_sharp.points.size();
     int num_points_flat = points_flat.points.size();
     Sophus::SE3f tf_se3 = lidar_->TransformMatrix(current_frame->pose, last_frame->pose).cast<float>();
     float *tf = tf_se3.data();
 
+    //TODO: bad
     // find correspondence for corner features
     // for (int i = 0; i < num_points_sharp; ++i)
     // {
@@ -390,7 +406,6 @@ void ScanRegistration::Associate(Frame::Ptr current_frame, Frame::Ptr last_frame
     //     ceres::SE3TransformPoint(tf, points_sharp.points[i].data, point.data);
     //     point.intensity = points_sharp.points[i].intensity;
     //     kdtree_sharp_last.nearestKSearch(point, 1, points_index, points_distance);
-
     //     int closest_index = -1, closest_index2 = -1;
     //     if (points_distance[0] < distance_threshold)
     //     {
@@ -403,18 +418,15 @@ void ScanRegistration::Associate(Frame::Ptr current_frame, Frame::Ptr last_frame
     //             // if in the same scan line, continue
     //             if (int(points_less_sharp_last.points[j].intensity) <= scan_id)
     //                 continue;
-
     //             // if not in nearby scans, end the loop
     //             if (int(points_less_sharp_last.points[j].intensity) > (scan_id + nearby_scan))
     //                 break;
-
     //             double point_distance = (points_less_sharp_last.points[j].x - point.x) *
     //                                         (points_less_sharp_last.points[j].x - point.x) +
     //                                     (points_less_sharp_last.points[j].y - point.y) *
     //                                         (points_less_sharp_last.points[j].y - point.y) +
     //                                     (points_less_sharp_last.points[j].z - point.z) *
     //                                         (points_less_sharp_last.points[j].z - point.z);
-
     //             if (point_distance < min_distance)
     //             {
     //                 // find nearer point
@@ -422,25 +434,21 @@ void ScanRegistration::Associate(Frame::Ptr current_frame, Frame::Ptr last_frame
     //                 closest_index2 = j;
     //             }
     //         }
-
     //         // point b in the direction of decreasing scan line
     //         for (int j = closest_index - 1; j >= 0; --j)
     //         {
     //             // if in the same scan line, continue
     //             if (int(points_less_sharp_last.points[j].intensity) >= scan_id)
     //                 continue;
-
     //             // if not in nearby scans, end the loop
     //             if (int(points_less_sharp_last.points[j].intensity) < (scan_id - nearby_scan))
     //                 break;
-
     //             double point_distance = (points_less_sharp_last.points[j].x - point.x) *
     //                                         (points_less_sharp_last.points[j].x - point.x) +
     //                                     (points_less_sharp_last.points[j].y - point.y) *
     //                                         (points_less_sharp_last.points[j].y - point.y) +
     //                                     (points_less_sharp_last.points[j].z - point.z) *
     //                                         (points_less_sharp_last.points[j].z - point.z);
-
     //             if (point_distance < min_distance)
     //             {
     //                 // find nearer point
@@ -472,6 +480,7 @@ void ScanRegistration::Associate(Frame::Ptr current_frame, Frame::Ptr last_frame
     //         problem.AddResidualBlock(cost_function, loss_function, para_last_kf, para_kf);
     //     }
     // }
+
     // find correspondence for plane features
     for (int i = 0; i < num_points_flat; ++i)
     {
@@ -574,11 +583,15 @@ void ScanRegistration::Associate(Frame::Ptr current_frame, Frame::Ptr last_frame
                 ceres::CostFunction *cost_function;
                 if (old_frame)
                 {
-                    // cost_function = LidarPlaneErrorBasedLoop::Create(curr_point, last_point_a, last_point_b, last_point_c, lidar_, relative_pose);
+                    cost_function = LidarPlaneErrorBasedLoop::Create(curr_point, last_point_a, last_point_b, last_point_c, lidar_, relative_pose);
+                }
+                else if (only_rotate)
+                {
+                    cost_function = LidarPlaneRError::Create(curr_point, last_point_a, last_point_b, last_point_c, last_kf_t, kf_t, lidar_);
                 }
                 else
                 {
-                    cost_function = LidarPlaneError::Create(curr_point, last_point_a, last_point_b, last_point_c, last_kf_t, kf_t, lidar_);
+                    cost_function = LidarPlaneError::Create(curr_point, last_point_a, last_point_b, last_point_c, lidar_);
                 }
                 problem.AddResidualBlock(cost_function, loss_function, para_last_kf, para_kf);
             }

@@ -16,7 +16,7 @@
 namespace lvio_fusion
 {
 
-Relocation::Relocation(std::string voc_path, double min_distance) : min_distance_(min_distance)
+Relocation::Relocation(std::string voc_path)
 {
     detector_ = cv::ORB::create();
     voc_ = DBoW3::Vocabulary(voc_path);
@@ -26,10 +26,10 @@ Relocation::Relocation(std::string voc_path, double min_distance) : min_distance
 
 void Relocation::RelocationLoop()
 {
-    static bool is_last_loop = false;
     static double old_time = DBL_MAX;
     static double start_time = 0;
-    static double last_time = 0;
+    static Frame::Ptr last_frame;
+    static Frame::Ptr last_old_frame;
     while (true)
     {
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
@@ -43,29 +43,35 @@ void Relocation::RelocationLoop()
             Frame::Ptr frame = pair_kf.second, old_frame;
             AddKeyFrameIntoVoc(frame);
             // if last is loop and this is not loop, then correct all new loops
-            bool is_loop = DetectLoop(frame, old_frame) && Relocate(frame, old_frame);
-            if (is_loop)
+            if (DetectLoop(frame, old_frame))
             {
-                if (!is_last_loop)
+                if (!last_old_frame && Relocate(frame, old_frame))
                 {
                     // get all new loop frames [start_time, end_time]
                     start_time = pair_kf.first;
+                    last_old_frame = old_frame;
                 }
-                old_time = std::min(old_time, old_frame->time);
+                if (last_old_frame)
+                {
+                    last_frame = frame;
+                    last_old_frame = old_frame;
+                    old_time = std::min(old_time, old_frame->time);
+                }
             }
-            else if (is_last_loop)
+            else if (last_old_frame)
             {
-                LOG(INFO) << "Detected new loop, and correct it now.";
-                auto t1 = std::chrono::steady_clock::now();
-                CorrectLoop(old_time, start_time, last_time);
-                auto t2 = std::chrono::steady_clock::now();
-                auto time_used = std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);
-                LOG(INFO) << "Correct Loop cost time: " << time_used.count() << " seconds.";
-
+                if (Relocate(last_frame, last_old_frame))
+                {
+                    LOG(INFO) << "Detected new loop, and correct it now. old_time:" << old_time << ";start_time:" << start_time << ";end_time:" << last_frame->time;
+                    auto t1 = std::chrono::steady_clock::now();
+                    CorrectLoop(old_time, start_time, last_frame->time);
+                    auto t2 = std::chrono::steady_clock::now();
+                    auto time_used = std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);
+                    LOG(INFO) << "Correct Loop cost time: " << time_used.count() << " seconds.";
+                }
                 old_time = DBL_MAX;
+                last_old_frame = last_frame = nullptr;
             }
-            is_last_loop = is_loop;
-            last_time = pair_kf.first;
         }
         head = (--new_kfs.end())->first + epsilon;
     }
@@ -132,8 +138,8 @@ bool Relocation::DetectLoop(Frame::Ptr frame, Frame::Ptr &old_frame)
     //     }
     // }
     // return false;
-    Frames candidate_kfs = map_->GetKeyFrames(0, lidar_ ? mapping_->head : backend_->head);
-    double min_distance = min_distance_;
+    Frames candidate_kfs = map_->GetKeyFrames(0, (lidar_ ? mapping_->head : backend_->head) - 10);
+    double min_distance = 10;
     for (auto pair_kf : candidate_kfs)
     {
         Vector3d vec = (pair_kf.second->pose.inverse().translation() - frame->pose.inverse().translation());
@@ -141,8 +147,19 @@ bool Relocation::DetectLoop(Frame::Ptr frame, Frame::Ptr &old_frame)
         double distance = vec.norm();
         if (distance < min_distance)
         {
-            min_distance = distance;
-            old_frame = pair_kf.second;
+            Frame::Ptr prev_frame = map_->GetKeyFrames(0, frame->time, 1).begin()->second;
+            Frame::Ptr subs_frame = map_->GetKeyFrames(frame->time, 0, 1).begin()->second;
+            Vector3d prev_vec = (pair_kf.second->pose.inverse().translation() - prev_frame->pose.inverse().translation());
+            Vector3d subs_vec = (pair_kf.second->pose.inverse().translation() - subs_frame->pose.inverse().translation());
+            prev_vec.z() = 0;
+            subs_vec.z() = 0;
+            double prev_distance = prev_vec.norm();
+            double subs_distance = subs_vec.norm();
+            if (prev_distance < min_distance && subs_distance < min_distance)
+            {
+                min_distance = distance;
+                old_frame = pair_kf.second;
+            }
         }
     }
     if (old_frame)
@@ -155,8 +172,8 @@ bool Relocation::DetectLoop(Frame::Ptr frame, Frame::Ptr &old_frame)
 bool Relocation::Relocate(Frame::Ptr frame, Frame::Ptr old_frame)
 {
     loop::LoopConstraint::Ptr loop_constraint = loop::LoopConstraint::Ptr(new loop::LoopConstraint());
-    // RelocateByImage(frame, old_frame, loop_constraint);
-    if (!(lidar_ && !RelocateByPoints(frame, old_frame, loop_constraint)))
+    // RelocateByImage(frames, old_frames, loop_constraint);
+    if (!lidar_ || RelocateByPoints(frame, old_frame, loop_constraint))
     {
         loop_constraint->frame_old = old_frame;
         frame->loop_constraint = loop_constraint;
@@ -213,18 +230,33 @@ bool Relocation::RelocateByPoints(Frame::Ptr frame, Frame::Ptr old_frame, loop::
 
     // build two pointclouds
     PointICloud::Ptr pc = PointICloud::Ptr(new PointICloud);
-    *pc = frame->feature_lidar->points_less_sharp;
+    *pc = frame->feature_lidar->points_less_sharp + frame->feature_lidar->points_less_flat;
     PointICloud::Ptr pc_old = PointICloud::Ptr(new PointICloud);
-    *pc_old = old_frame->feature_lidar->points_less_sharp;
+    *pc_old = old_frame->feature_lidar->points_less_sharp + old_frame->feature_lidar->points_less_flat;
+    Frame::Ptr old_frame_prev = map_->GetKeyFrames(0, old_frame->time, 1).begin()->second;
+    if (old_frame->feature_lidar)
+    {
+        PointICloud pc_old_prev_less_flat, pc_old_prev_less_sharp;
+        scan_registration_->MergeScan(old_frame_prev->feature_lidar->points_less_flat, old_frame_prev->pose, old_frame->pose, pc_old_prev_less_flat);
+        scan_registration_->MergeScan(old_frame_prev->feature_lidar->points_less_sharp, old_frame_prev->pose, old_frame->pose, pc_old_prev_less_sharp);
+        *pc_old += pc_old_prev_less_sharp;
+        *pc_old += pc_old_prev_less_flat;
+    }
+    Frame::Ptr old_frame_subs = map_->GetKeyFrames(old_frame->time, 0, 1).begin()->second;
+    if (old_frame->feature_lidar)
+    {
+        PointICloud pc_old_subs_less_flat, pc_old_subs_less_sharp;
+        scan_registration_->MergeScan(old_frame_subs->feature_lidar->points_less_flat, old_frame_subs->pose, old_frame->pose, pc_old_subs_less_flat);
+        scan_registration_->MergeScan(old_frame_subs->feature_lidar->points_less_sharp, old_frame_subs->pose, old_frame->pose, pc_old_subs_less_sharp);
+        *pc_old += pc_old_subs_less_sharp;
+        *pc_old += pc_old_subs_less_flat;
+    }
     pcl::transformPointCloud(*pc, *pc, init_transform.matrix().cast<float>());
 
-    // downsample two pointclouds
-    PointICloud::Ptr pc_filtered(new PointICloud);
+    // downsample old pointclouds
     PointICloud::Ptr pc_old_filtered(new PointICloud);
     pcl::VoxelGrid<PointI> voxel_filter;
-    voxel_filter.setLeafSize(0.8, 0.8, 0.8);
-    voxel_filter.setInputCloud(pc);
-    voxel_filter.filter(*pc_filtered);
+    voxel_filter.setLeafSize(0.4, 0.4, 0.4);
     voxel_filter.setInputCloud(pc_old);
     voxel_filter.filter(*pc_old_filtered);
 
@@ -235,9 +267,9 @@ bool Relocation::RelocateByPoints(Frame::Ptr frame, Frame::Ptr old_frame, loop::
     // icp
     pcl::IterativeClosestPoint<PointI, PointI> icp;
     icp.setInputSource(pc);
-    icp.setInputTarget(pc_old);
+    icp.setInputTarget(pc_old_filtered);
     icp.setMaximumIterations(100);
-    icp.setMaxCorrespondenceDistance(min_distance_);
+    icp.setMaxCorrespondenceDistance(1);
     PointICloud::Ptr aligned(new PointICloud);
     icp.align(*aligned);
     if (!icp.hasConverged()) // || icp.getFitnessScore() > 1)
@@ -272,7 +304,7 @@ bool Relocation::RelocateByPoints(Frame::Ptr frame, Frame::Ptr old_frame, loop::
         problem.AddParameterBlock(para_kf_old, SE3d::num_parameters, local_parameterization);
         problem.SetParameterBlockConstant(para_kf_old);
 
-        scan_registration_->Associate(frame_copy, old_frame, problem, lidar_loss_function);
+        scan_registration_->Associate(frame_copy, old_frame, problem, lidar_loss_function, false);
 
         ceres::Solver::Options options;
         options.linear_solver_type = ceres::DENSE_QR;
@@ -312,14 +344,30 @@ int Relocation::Hamming(const BRIEF &a, const BRIEF &b)
     return dis;
 }
 
-void Relocation::BuildProblem(Frames &active_kfs, std::map<double, SE3d> &inner_old_frame, ceres::Problem &problem)
+void Relocation::BuildProblem(Frames &active_kfs, ceres::Problem &problem)
 {
-    ceres::LossFunction *loss_function = new ceres::HuberLoss(1.0);
+    ceres::LossFunction *loss_function = new ceres::TrivialLoss();
     ceres::LocalParameterization *local_parameterization = new ceres::ProductParameterization(
         new ceres::EigenQuaternionParameterization(),
         new ceres::IdentityParameterization(3));
 
-    // double start_time = active_kfs.begin()->first;
+    double start_time = active_kfs.begin()->first;
+
+    Frame::Ptr last_frame;
+    for (auto pair_kf : active_kfs)
+    {
+        auto frame = pair_kf.second;
+        double *para_kf = frame->pose.data();
+        problem.AddParameterBlock(para_kf, SE3d::num_parameters, local_parameterization);
+        if (last_frame)
+        {
+            double *para_last_kf = last_frame->pose.data();
+            ceres::CostFunction *cost_function;
+            cost_function = PoseGraphError::Create(last_frame->pose, frame->pose);
+            problem.AddResidualBlock(cost_function, loss_function, para_last_kf, para_kf);
+        }
+        last_frame = frame;
+    }
 
     // for (auto pair_kf : active_kfs)
     // {
@@ -415,24 +463,33 @@ void Relocation::BuildProblem(Frames &active_kfs, std::map<double, SE3d> &inner_
         if (frame->loop_constraint)
         {
             double *para_kf = frame->pose.data();
-            double *para_old_kf = frame->loop_constraint->frame_old->pose.data();
             problem.SetParameterBlockConstant(para_kf);
-            problem.SetParameterBlockConstant(para_old_kf);
+
+            auto old_frame = frame->loop_constraint->frame_old;
+            if (old_frame->time >= start_time)
+            {
+                double *para_old_kf = old_frame->pose.data();
+                problem.SetParameterBlockConstant(para_old_kf);
+            }
         }
     }
 }
 
 void Relocation::CorrectLoop(double old_time, double start_time, double end_time)
 {
-    // // build the active submaps
-    Frames active_kfs = map_->GetKeyFrames(old_time, end_time);
-    // std::map<double, SE3d> inner_old_frames = atlas_.GetActiveSubMaps(active_kfs, old_time, start_time, end_time);
-    // atlas_.AddSubMap(old_time, start_time, end_time);
+    if (start_time == end_time)
+        return;
 
+    // build the active submaps
+    Frames active_kfs = map_->GetKeyFrames(old_time, end_time);
+    Frames new_submap_kfs = map_->GetKeyFrames(start_time, end_time);
     SE3d old_pose = (--active_kfs.end())->second->pose;
     {
+        // optimize new submap pose graph
+        ceres::Problem problem;
+        BuildProblem(new_submap_kfs, problem);
+
         // update pose of new submap
-        Frames new_submap_kfs = map_->GetKeyFrames(start_time, end_time);
         for (auto pair_kf : new_submap_kfs)
         {
             Frame::Ptr frame = pair_kf.second;
@@ -442,36 +499,13 @@ void Relocation::CorrectLoop(double old_time, double start_time, double end_time
             }
         }
 
-        // // optimize pose graph
-        // ceres::Problem problem;
-        // BuildProblem(active_kfs, inner_old_frames, problem);
-
-        // ceres::Solver::Options options;
-        // options.linear_solver_type = ceres::DENSE_SCHUR;
-        // options.max_num_iterations = 5;
-        // options.num_threads = 4;
-        // ceres::Solver::Summary summary;
-        // ceres::Solve(options, &problem, &summary);
-
-        // // mapping
-        // if (lidar_)
-        // {
-        //     mapping_->Optimize(active_kfs);
-        // }
-
-        // // update pose of inner submaps
-        // Frames all_kfs = map_->GetKeyFrames(old_time, end_time);
-        // for (auto pair_old_frame : inner_old_frames)
-        // {
-        //     auto old_frame = active_kfs[pair_old_frame.first];
-        //     // T2_new = T2 * T1.inverse() * T1_new
-        //     SE3d transform = pair_old_frame.second.inverse() * old_frame->pose;
-        //     for (auto iter = ++all_kfs.find(pair_old_frame.first); active_kfs.find(iter->first) == active_kfs.end(); iter++)
-        //     {
-        //         auto frame = iter->second;
-        //         frame->pose = frame->pose * transform;
-        //     }
-        // }
+        ceres::Solver::Options options;
+        options.linear_solver_type = ceres::DENSE_SCHUR;
+        options.max_num_iterations = 5;
+        options.num_threads = 4;
+        ceres::Solver::Summary summary;
+        ceres::Solve(options, &problem, &summary);
+        LOG(INFO) << summary.FullReport();
     }
     SE3d new_pose = (--active_kfs.end())->second->pose;
 
@@ -496,12 +530,43 @@ void Relocation::CorrectLoop(double old_time, double start_time, double end_time
         {
             pair_kf.second->pose = pair_kf.second->pose * transform;
             // TODO: Repropagate
-            // if(pair_kf.second->preintegration)
-            // {
-            //     pair_kf.second->preintegration->Repropagate();
-            // }
         }
         frontend_->UpdateCache();
+    }
+
+    // add submap
+    std::map<double, SE3d> inner_old_frames = atlas_.GetActiveSubMaps(active_kfs, old_time, start_time, end_time);
+    atlas_.AddSubMap(old_time, start_time, end_time);
+
+    // optimize pose graph
+    ceres::Problem problem;
+    BuildProblem(active_kfs, problem);
+
+    ceres::Solver::Options options;
+    options.linear_solver_type = ceres::DENSE_SCHUR;
+    options.max_num_iterations = 5;
+    options.num_threads = 4;
+    ceres::Solver::Summary summary;
+    ceres::Solve(options, &problem, &summary);
+
+    // update pose of inner submaps
+    Frames all_kfs = map_->GetKeyFrames(old_time, end_time);
+    for (auto pair_old_frame : inner_old_frames)
+    {
+        auto old_frame = active_kfs[pair_old_frame.first];
+        // T2_new = T2 * T1.inverse() * T1_new
+        SE3d transform = pair_old_frame.second.inverse() * old_frame->pose;
+        for (auto iter = ++all_kfs.find(pair_old_frame.first); active_kfs.find(iter->first) == active_kfs.end(); iter++)
+        {
+            auto frame = iter->second;
+            frame->pose = frame->pose * transform;
+        }
+    }
+
+    // mapping
+    if (lidar_)
+    {
+        mapping_->Optimize(active_kfs);
     }
 }
 

@@ -12,7 +12,7 @@ class Lidar : public Sensor
 public:
     typedef std::shared_ptr<Lidar> Ptr;
 
-    Lidar(const SE3d &extrinsic) : Sensor(extrinsic) {}
+    Lidar(const SE3d &extrinsic, double resolution) : Sensor(extrinsic), resolution(resolution) {}
 
     inline void Transform(const PointI &in, SE3d from_pose, SE3d to_pose, PointI &out)
     {
@@ -28,6 +28,8 @@ public:
     {
         return extrinsic * to_pose * from_pose.inverse() * extrinsic.inverse();
     }
+
+    double resolution;
 };
 
 } // namespace lvio_fusion

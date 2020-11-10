@@ -35,6 +35,7 @@ cycle_time: 0.1036
 min_range: 5
 max_range: 30
 deskew: 0
+resolution: 0.2
 
 #imu parameters
 acc_n: 0.08             # accelerometer measurement noise standard deviation. #0.2   0.04
@@ -81,8 +82,7 @@ num_features_tracking_bad: 8
 num_features_needed_for_keyframe: 120
 
 # backend
-delay: 3
+delay: 5
 
 # loop
 voc_path: '/home/jyp/Projects/lvio_fusion/misc/orbvoc.dbow3'
-min_distance: 3

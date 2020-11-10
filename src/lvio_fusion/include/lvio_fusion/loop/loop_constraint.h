@@ -17,6 +17,7 @@ class LoopConstraint
 public:
     typedef std::shared_ptr<LoopConstraint> Ptr;
 
+    bool is_relocated = false;
     std::shared_ptr<Frame> frame_old;
     SE3d relative_pose;
 };

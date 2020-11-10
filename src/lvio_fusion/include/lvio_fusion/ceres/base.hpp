@@ -91,6 +91,17 @@ inline void Cast(const double *raw, int size, T *result)
     }
 }
 
+template <typename T>
+T normalize_angle(const T &angle)
+{
+    if (angle > T(M_PI / 2))
+        return angle - T(M_PI);
+    else if (angle < T(-M_PI / 2))
+        return angle + T(M_PI);
+    else
+        return angle;
+};
+
 } // namespace ceres
 
 #endif // lvio_fusion_BASE_H

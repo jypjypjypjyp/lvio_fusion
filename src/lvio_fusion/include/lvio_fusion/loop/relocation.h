@@ -58,7 +58,7 @@ class Relocation
 public:
     typedef std::shared_ptr<Relocation> Ptr;
 
-    Relocation(std::string voc_path, double min_distance);
+    Relocation(std::string voc_path);
 
     void SetCameras(Camera::Ptr left, Camera::Ptr right)
     {
@@ -97,7 +97,7 @@ private:
 
     int Hamming(const BRIEF &a, const BRIEF &b);
 
-    void BuildProblem(Frames &active_kfs, std::map<double, SE3d> &inner_old_frame, ceres::Problem &problem);
+    void BuildProblem(Frames &active_kfs, ceres::Problem &problem);
 
     void CorrectLoop(double old_time, double start_time, double end_time);
 
@@ -113,7 +113,6 @@ private:
     std::thread thread_;
     cv::Ptr<cv::Feature2D> detector_;
     std::map<DBoW3::EntryId, double> map_dbow_to_frames_;
-    double min_distance_;
 
     Camera::Ptr camera_left_;
     Camera::Ptr camera_right_;
