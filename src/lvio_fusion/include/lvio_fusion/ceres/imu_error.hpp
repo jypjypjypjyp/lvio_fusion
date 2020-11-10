@@ -207,7 +207,9 @@ private:
 class InertialGSError:public ceres::SizedCostFunction<9, 7,3,7,3,3,3,3,1>
 {
 public:
-    InertialGSError(imu::Preintegration::Ptr preintegration) : mpInt(preintegration)
+    InertialGSError(imu::Preintegration::Ptr preintegration) : mpInt(preintegration),JRg( toMatrix3d( preintegration->JRg)),
+    JVg( toMatrix3d( preintegration->JVg)), JPg( toMatrix3d( preintegration->JPg)), JVa( toMatrix3d( preintegration->JVa)),
+    JPa( toMatrix3d( preintegration->JPa))
     {
         gl<< 0, 0, -GRAVITY_VALUE;
     }
@@ -268,45 +270,56 @@ public:
             if(jacobians[0]){
                 Eigen::Map<Matrix<double, 9, 7, RowMajor>> jacobian_pose_i(jacobians[0]);
                 jacobian_pose_i.setZero();
+                jacobian_pose_i.block<3, 3>(0,0)=  -invJr*Rwb2.transpose()*Rwb1;
+                jacobian_pose_i.block<3, 3>(3,0)= skew_symmetric(Rbw1*(s*(Vj - Vi)- g*dt));
+                jacobian_pose_i.block<3, 3>(6,0)=  skew_symmetric(Rbw1*(s*(Pj - Pi- Vi*dt)- 0.5*g*dt*dt));
+                jacobian_pose_i.block<3, 3>(6,4)=  -s*Matrix3d::Identity();
                 
             }
             if(jacobians[1]){
                 Eigen::Map<Matrix<double, 9, 3, RowMajor>> jacobian_v_i(jacobians[1]);
                 jacobian_v_i.setZero();
-                
+                jacobian_v_i.block<3, 3>(3,0)=-s*Rbw1;
+                jacobian_v_i.block<3, 3>(4,0)= -s*Rbw1*dt;
             }
             if(jacobians[2]){
                 Eigen::Map<Matrix<double, 9, 7, RowMajor>> jacobian_pose_j(jacobians[2]);
                 jacobian_pose_j.setZero();
+                jacobian_pose_j.block<3, 3>(0,0)=invJr;
+                jacobian_pose_j.block<3, 3>(6,3)=s*Rbw1*Rwb2;
                 
             }
             if(jacobians[3]){
                 Eigen::Map<Matrix<double, 9, 3, RowMajor>> jacobian_v_j(jacobians[3]);
                 jacobian_v_j.setZero();
-                
+                jacobian_v_j.block<3, 3>(3,0)= s*Rbw1;
             }
             if(jacobians[4]){
                 Eigen::Map<Matrix<double, 9, 3, RowMajor>> jacobian_bg(jacobians[4]);
                 jacobian_bg.setZero();
-                
+                jacobian_bg.block<3, 3>(0,0)= -invJr*eR.transpose()*RightJacobianSO3(JRg*dbg)*JRg;
+                jacobian_bg.block<3, 3>(3,0)=-JVg;
+                jacobian_bg.block<3, 3>(6,0)=-JPg;
             }
             if(jacobians[5]){
                 Eigen::Map<Matrix<double, 9, 3, RowMajor>> jacobian_ba(jacobians[5]);
                 jacobian_ba.setZero();
-                
+                jacobian_ba.block<3, 3>(3,0)=-JVa;
+                jacobian_ba.block<3, 3>(6,0)=-JPa;
             }
             if(jacobians[6]){
                 Eigen::Map<Matrix<double, 9, 3, RowMajor>> jacobian_Rwg(jacobians[6]);
                 jacobian_Rwg.setZero();
-                
+                jacobian_Rwg.block<3,2>(3,0) = -Rbw1*dGdTheta*dt;
+                jacobian_Rwg.block<3,2>(6,0) = -0.5*Rbw1*dGdTheta*dt*dt;
             }
             if(jacobians[7]){
-                Eigen::Map<Matrix<double, 9, 1, RowMajor>> jacobian_scale(jacobians[7]);
+                Eigen::Map<Matrix<double, 9, 1>> jacobian_scale(jacobians[7]);
                 jacobian_scale.setZero();
-                
+                jacobian_scale.block<3,1>(3,0) = Rbw1*(Vj-Vi);
+                jacobian_scale.block<3,1>(6,0) = Rbw1*(Pj-Pi-Vi*dt);
+
             }
-
-
         }
         return true;
     }
@@ -317,13 +330,17 @@ public:
 private:
     imu::Preintegration::Ptr mpInt;
     Vector3d gl;
+    const Matrix3d JRg, JVg, JPg;
+    const Matrix3d JVa, JPa;
 };
 
 
 class InertialError:public ceres::SizedCostFunction<9, 7,3,3,3,7,3>
 {
 public:
-    InertialError(imu::Preintegration::Ptr preintegration) : mpInt(preintegration) {}
+    InertialError(imu::Preintegration::Ptr preintegration) : mpInt(preintegration),JRg( toMatrix3d( preintegration->JRg)),
+    JVg( toMatrix3d( preintegration->JVg)), JPg( toMatrix3d( preintegration->JPg)), JVa( toMatrix3d( preintegration->JVa)),
+    JPa( toMatrix3d( preintegration->JPa)) {}
 //P1,V1,g1,a1,P2,V2//7,3,3,3,7,3
 
     virtual bool Evaluate(double const *const *parameters, double *residuals, double **jacobians) const
@@ -360,7 +377,60 @@ public:
         residuals[7]=ep[1];
         residuals[8]=ep[2];
 
+ if (jacobians)
+        {
+            Bias db=mpInt->GetDeltaBias(b1);
+            Vector3d dbg;
+            dbg << db.bwx, db.bwy, db.bwz;
+            const Matrix3d Rwb1 =Qi.toRotationMatrix();
+            const Matrix3d Rbw1 = Rwb1.transpose();
+            const Matrix3d Rwb2 = Qj.toRotationMatrix();
 
+            const Eigen::Matrix3d dR = toMatrix3d(mpInt->GetDeltaRotation(b1));
+            const Eigen::Matrix3d eR = dR.transpose()*Rbw1*Rwb2;
+            const Eigen::Vector3d er = LogSO3(eR);
+            const Eigen::Matrix3d invJr = InverseRightJacobianSO3(er);
+            if(jacobians[0]){
+                Eigen::Map<Matrix<double, 9, 7, RowMajor>> jacobian_pose_i(jacobians[0]);
+                jacobian_pose_i.setZero();
+                jacobian_pose_i.block<3, 3>(0,0)=  -invJr*Rwb2.transpose()*Rwb1;
+                jacobian_pose_i.block<3, 3>(3,0)= skew_symmetric(Rbw1*((Vj - Vi)- g*dt));
+                jacobian_pose_i.block<3, 3>(6,0)=  skew_symmetric(Rbw1*((Pj - Pi- Vi*dt)- 0.5*g*dt*dt));
+                jacobian_pose_i.block<3, 3>(6,4)=  -Matrix3d::Identity();
+                
+            }
+            if(jacobians[1]){
+                Eigen::Map<Matrix<double, 9, 3, RowMajor>> jacobian_v_i(jacobians[1]);
+                jacobian_v_i.setZero();
+                jacobian_v_i.block<3, 3>(3,0)=-Rbw1;
+                jacobian_v_i.block<3, 3>(4,0)= -Rbw1*dt;
+            }
+            if(jacobians[2]){
+                Eigen::Map<Matrix<double, 9, 3, RowMajor>> jacobian_bg(jacobians[2]);
+                jacobian_bg.setZero();
+                jacobian_bg.block<3, 3>(0,0)= -invJr*eR.transpose()*RightJacobianSO3(JRg*dbg)*JRg;
+                jacobian_bg.block<3, 3>(3,0)=-JVg;
+                jacobian_bg.block<3, 3>(6,0)=-JPg;
+            }
+            if(jacobians[3]){
+                Eigen::Map<Matrix<double, 9, 3, RowMajor>> jacobian_ba(jacobians[3]);
+                jacobian_ba.setZero();
+                jacobian_ba.block<3, 3>(3,0)=-JVa;
+                jacobian_ba.block<3, 3>(6,0)=-JPa;
+            }
+            if(jacobians[4]){
+                Eigen::Map<Matrix<double, 9, 7, RowMajor>> jacobian_pose_j(jacobians[4]);
+                jacobian_pose_j.setZero();
+                jacobian_pose_j.block<3, 3>(0,0)=invJr;
+                jacobian_pose_j.block<3, 3>(6,3)=Rbw1*Rwb2;
+                
+            }
+            if(jacobians[5]){
+                Eigen::Map<Matrix<double, 9, 3, RowMajor>> jacobian_v_j(jacobians[5]);
+                jacobian_v_j.setZero();
+                jacobian_v_j.block<3, 3>(3,0)= Rbw1;
+            }
+        }
 
 
          return true;
@@ -372,6 +442,8 @@ public:
 private:
     imu::Preintegration::Ptr mpInt;
     //Vector3d gl;
+    const Matrix3d JRg, JVg, JPg;
+    const Matrix3d JVa, JPa;
 };
 
 class GyroRWError
