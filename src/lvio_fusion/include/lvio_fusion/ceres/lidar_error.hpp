@@ -9,15 +9,15 @@ namespace lvio_fusion
 {
 
 //TODO
-// class LidarEdgeError
+// class LidarEdgeRError
 // {
 // public:
-//     LidarEdgeError() = default;
-//     LidarEdgeError(Vector3d p, Vector3d pa, Vector3d pb, Lidar::Ptr lidar)
+//     LidarEdgeRError() = default;
+//     LidarEdgeRError(Vector3d p, Vector3d pa, Vector3d pb, Vector3d last_kf_t, Vector3d kf_t, Lidar::Ptr lidar)
 //         : p_(p), pa_(pa), pb_(pb), lidar_(lidar) {}
 
 //     template <typename T>
-//     bool operator()(const T *Tcw1, const T *Tcw2, T *residual) const
+//     bool operator()(const T *q1, const T *q2, T *residual) const
 //     {
 //         T cp[3] = {T(p_.x()), T(p_.y()), T(p_.z())};
 //         T lpa[3] = {T(pa_.x()), T(pa_.y()), T(pa_.z())};
@@ -42,15 +42,17 @@ namespace lvio_fusion
 //         return true;
 //     }
 
-//     static ceres::CostFunction *Create(const Vector3d p, const Vector3d pa, const Vector3d pb, Lidar::Ptr lidar)
+//     static ceres::CostFunction *Create(const Vector3d p, const Vector3d pa, const Vector3d pb,const Vector3d last_kf_t, const Vector3d kf_t, Lidar::Ptr lidar)
 //     {
-//         return (new ceres::AutoDiffCostFunction<LidarEdgeError, 3, 7, 7>(new LidarEdgeError(p, pa, pb, lidar)));
+//         return (new ceres::AutoDiffCostFunction<LidarEdgeRError, 3, 4, 4>(new LidarEdgeRError(p, pa, pb,last_kf_t, kf_t, lidar)));
 //     }
 
 // private:
 //     Vector3d p_, pa_, pb_;
+//     Vector3d last_kf_t_, kf_t_;
 //     Lidar::Ptr lidar_;
 // };
+    
 
 class LidarPlaneRError
 {

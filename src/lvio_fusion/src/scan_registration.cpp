@@ -225,7 +225,7 @@ void ScanRegistration::Preprocess(PointICloud &points, Frame::Ptr frame)
     }
 
     // extract features
-    static int num_zones = 3;
+    static int num_zones = 8;
     static pcl::VoxelGrid<PointI> voxel_filter;
     voxel_filter.setLeafSize(lidar_->resolution, lidar_->resolution, lidar_->resolution);
     for (int i = 0; i < num_scans_; i++)
@@ -311,7 +311,7 @@ void ScanRegistration::Preprocess(PointICloud &points, Frame::Ptr frame)
                     points_flat.push_back(points.points[si]);
 
                     num_smallest_corvature++;
-                    if (num_smallest_corvature >= 4) // NOTE: change the number of flat points
+                    if (num_smallest_corvature >= 2) // NOTE: change the number of flat points
                     {
                         break;
                     }
@@ -390,7 +390,7 @@ void ScanRegistration::Associate(Frame::Ptr current_frame, Frame::Ptr last_frame
     std::vector<int> points_index;
     std::vector<float> points_distance;
 
-    static const double distance_threshold = lidar_->resolution * lidar_->resolution * 100; // squared
+    static const double distance_threshold = lidar_->resolution * lidar_->resolution * 400; // squared
     static const double nearby_scan = 2;
     int num_points_sharp = points_sharp.points.size();
     int num_points_flat = points_flat.points.size();
@@ -399,87 +399,87 @@ void ScanRegistration::Associate(Frame::Ptr current_frame, Frame::Ptr last_frame
 
     //TODO: bad
     // find correspondence for corner features
-    // for (int i = 0; i < num_points_sharp; ++i)
-    // {
-    //     //NOTE: Sophus is too slow
-    //     // lidar_->Transform(points_sharp.points[i], current_frame->pose, last_frame->pose, point);  //  too slow
-    //     ceres::SE3TransformPoint(tf, points_sharp.points[i].data, point.data);
-    //     point.intensity = points_sharp.points[i].intensity;
-    //     kdtree_sharp_last.nearestKSearch(point, 1, points_index, points_distance);
-    //     int closest_index = -1, closest_index2 = -1;
-    //     if (points_distance[0] < distance_threshold)
-    //     {
-    //         closest_index = points_index[0];
-    //         int scan_id = int(points_less_sharp_last.points[closest_index].intensity);
-    //         double min_distance = distance_threshold;
-    //         // point b in the direction of increasing scan line
-    //         for (int j = closest_index + 1; j < (int)points_less_sharp_last.points.size(); ++j)
-    //         {
-    //             // if in the same scan line, continue
-    //             if (int(points_less_sharp_last.points[j].intensity) <= scan_id)
-    //                 continue;
-    //             // if not in nearby scans, end the loop
-    //             if (int(points_less_sharp_last.points[j].intensity) > (scan_id + nearby_scan))
-    //                 break;
-    //             double point_distance = (points_less_sharp_last.points[j].x - point.x) *
-    //                                         (points_less_sharp_last.points[j].x - point.x) +
-    //                                     (points_less_sharp_last.points[j].y - point.y) *
-    //                                         (points_less_sharp_last.points[j].y - point.y) +
-    //                                     (points_less_sharp_last.points[j].z - point.z) *
-    //                                         (points_less_sharp_last.points[j].z - point.z);
-    //             if (point_distance < min_distance)
-    //             {
-    //                 // find nearer point
-    //                 min_distance = point_distance;
-    //                 closest_index2 = j;
-    //             }
-    //         }
-    //         // point b in the direction of decreasing scan line
-    //         for (int j = closest_index - 1; j >= 0; --j)
-    //         {
-    //             // if in the same scan line, continue
-    //             if (int(points_less_sharp_last.points[j].intensity) >= scan_id)
-    //                 continue;
-    //             // if not in nearby scans, end the loop
-    //             if (int(points_less_sharp_last.points[j].intensity) < (scan_id - nearby_scan))
-    //                 break;
-    //             double point_distance = (points_less_sharp_last.points[j].x - point.x) *
-    //                                         (points_less_sharp_last.points[j].x - point.x) +
-    //                                     (points_less_sharp_last.points[j].y - point.y) *
-    //                                         (points_less_sharp_last.points[j].y - point.y) +
-    //                                     (points_less_sharp_last.points[j].z - point.z) *
-    //                                         (points_less_sharp_last.points[j].z - point.z);
-    //             if (point_distance < min_distance)
-    //             {
-    //                 // find nearer point
-    //                 min_distance = point_distance;
-    //                 closest_index2 = j;
-    //             }
-    //         }
-    //     }
-    //     if (closest_index2 >= 0) // both A and B is valid
-    //     {
-    //         Vector3d curr_point(points_sharp.points[i].x,
-    //                             points_sharp.points[i].y,
-    //                             points_sharp.points[i].z);
-    //         Vector3d last_point_a(points_less_sharp_last.points[closest_index].x,
-    //                               points_less_sharp_last.points[closest_index].y,
-    //                               points_less_sharp_last.points[closest_index].z);
-    //         Vector3d last_point_b(points_less_sharp_last.points[closest_index2].x,
-    //                               points_less_sharp_last.points[closest_index2].y,
-    //                               points_less_sharp_last.points[closest_index2].z);
-    //         ceres::CostFunction *cost_function;
-    //         if (old_frame)
-    //         {
-    //             cost_function = LidarEdgeErrorBasedLoop::Create(curr_point, last_point_a, last_point_b, lidar_, relative_pose);
-    //         }
-    //         else
-    //         {
-    //             cost_function = LidarEdgeError::Create(curr_point, last_point_a, last_point_b, lidar_);
-    //         }
-    //         problem.AddResidualBlock(cost_function, loss_function, para_last_kf, para_kf);
-    //     }
-    // }
+    for (int i = 0; i < num_points_sharp; ++i)
+    {
+        //NOTE: Sophus is too slow
+        // lidar_->Transform(points_sharp.points[i], current_frame->pose, last_frame->pose, point);  //  too slow
+        ceres::SE3TransformPoint(tf, points_sharp.points[i].data, point.data);
+        point.intensity = points_sharp.points[i].intensity;
+        kdtree_sharp_last.nearestKSearch(point, 1, points_index, points_distance);
+        int closest_index = -1, closest_index2 = -1;
+        if (points_distance[0] < distance_threshold)
+        {
+            closest_index = points_index[0];
+            int scan_id = int(points_less_sharp_last.points[closest_index].intensity);
+            double min_distance = distance_threshold;
+            // point b in the direction of increasing scan line
+            for (int j = closest_index + 1; j < (int)points_less_sharp_last.points.size(); ++j)
+            {
+                // if in the same scan line, continue
+                if (int(points_less_sharp_last.points[j].intensity) <= scan_id)
+                    continue;
+                // if not in nearby scans, end the loop
+                if (int(points_less_sharp_last.points[j].intensity) > (scan_id + nearby_scan))
+                    break;
+                double point_distance = (points_less_sharp_last.points[j].x - point.x) *
+                                            (points_less_sharp_last.points[j].x - point.x) +
+                                        (points_less_sharp_last.points[j].y - point.y) *
+                                            (points_less_sharp_last.points[j].y - point.y) +
+                                        (points_less_sharp_last.points[j].z - point.z) *
+                                            (points_less_sharp_last.points[j].z - point.z);
+                if (point_distance < min_distance)
+                {
+                    // find nearer point
+                    min_distance = point_distance;
+                    closest_index2 = j;
+                }
+            }
+            // point b in the direction of decreasing scan line
+            for (int j = closest_index - 1; j >= 0; --j)
+            {
+                // if in the same scan line, continue
+                if (int(points_less_sharp_last.points[j].intensity) >= scan_id)
+                    continue;
+                // if not in nearby scans, end the loop
+                if (int(points_less_sharp_last.points[j].intensity) < (scan_id - nearby_scan))
+                    break;
+                double point_distance = (points_less_sharp_last.points[j].x - point.x) *
+                                            (points_less_sharp_last.points[j].x - point.x) +
+                                        (points_less_sharp_last.points[j].y - point.y) *
+                                            (points_less_sharp_last.points[j].y - point.y) +
+                                        (points_less_sharp_last.points[j].z - point.z) *
+                                            (points_less_sharp_last.points[j].z - point.z);
+                if (point_distance < min_distance)
+                {
+                    // find nearer point
+                    min_distance = point_distance;
+                    closest_index2 = j;
+                }
+            }
+        }
+        if (closest_index2 >= 0) // both A and B is valid
+        {
+            Vector3d curr_point(points_sharp.points[i].x,
+                                points_sharp.points[i].y,
+                                points_sharp.points[i].z);
+            Vector3d last_point_a(points_less_sharp_last.points[closest_index].x,
+                                  points_less_sharp_last.points[closest_index].y,
+                                  points_less_sharp_last.points[closest_index].z);
+            Vector3d last_point_b(points_less_sharp_last.points[closest_index2].x,
+                                  points_less_sharp_last.points[closest_index2].y,
+                                  points_less_sharp_last.points[closest_index2].z);
+            ceres::CostFunction *cost_function;
+            if (old_frame)
+            {
+                cost_function = LidarEdgeErrorBasedLoop::Create(curr_point, last_point_a, last_point_b, lidar_, relative_pose);
+            }
+            else
+            {
+                cost_function = LidarEdgeError::Create(curr_point, last_point_a, last_point_b, lidar_);
+            }
+            problem.AddResidualBlock(cost_function, loss_function, para_last_kf, para_kf);
+        }
+    }
 
     // find correspondence for plane features
     for (int i = 0; i < num_points_flat; ++i)

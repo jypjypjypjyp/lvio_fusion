@@ -31,21 +31,30 @@ inline void Mapping::AddToWorld(const PointICloud &in, Frame::Ptr frame, PointRG
         double pin[3] = {in[i].x, in[i].y, in[i].z}, pw[3], pc[3];
         ceres::SE3TransformPoint(ltiei, pin, pw);
         ceres::SE3TransformPoint(cet, pw, pc);
-        auto pixel = camera_->Sensor2Pixel(Vector3d(pc[0], pc[1], pc[2]));
+        // auto pixel = camera_->Sensor2Pixel(Vector3d(pc[0], pc[1], pc[2]));
 
-        auto &image = frame->image_left;
-        if (0 < pixel.x() && pixel.x() < image.cols && 0 < pixel.y() && pixel.y() < image.rows)
-        {
-            unsigned char gray = image.at<uchar>((int)pixel.y(), (int)pixel.x());
-            PointRGB point_world;
-            point_world.x = pw[0];
-            point_world.y = pw[1];
-            point_world.z = pw[2];
-            point_world.r = gray;
-            point_world.g = gray;
-            point_world.b = gray;
-            out.push_back(point_world);
-        }
+        // auto &image = frame->image_left;
+        // if (0 < pixel.x() && pixel.x() < image.cols && 0 < pixel.y() && pixel.y() < image.rows)
+        // {
+        //     unsigned char gray = image.at<uchar>((int)pixel.y(), (int)pixel.x());
+        //     PointRGB point_world;
+        //     point_world.x = pw[0];
+        //     point_world.y = pw[1];
+        //     point_world.z = pw[2];
+        //     point_world.r = gray;
+        //     point_world.g = gray;
+        //     point_world.b = gray;
+        //     out.push_back(point_world);
+        // }
+
+        PointRGB point_world;
+        point_world.x = pw[0];
+        point_world.y = pw[1];
+        point_world.z = pw[2];
+        point_world.r = 1;
+        point_world.g = 1;
+        point_world.b = 1;
+        out.push_back(point_world);
     }
 }
 
@@ -99,7 +108,7 @@ void Mapping::MappingLoop()
 void Mapping::BuildProblem(Frames &active_kfs, ceres::Problem &problem)
 {
     double start_time = active_kfs.begin()->first;
-    static int num_associations = 3;
+    static int num_associations = 2;
     static int step = 2;
     int num_last_frames = (num_associations - 1) * step + 1;
     Frames base_kfs = map_->GetKeyFrames(0, start_time, num_last_frames);
@@ -150,7 +159,7 @@ void Mapping::BuildProblem(Frames &active_kfs, ceres::Problem &problem)
                     }
                     else
                     {
-                        scan_registration_->Associate(current_frame, last_frames[i], problem, lidar_loss_function, true);
+                        scan_registration_->Associate(current_frame, last_frames[i], problem, lidar_loss_function, false);
                     }
                 }
             }
@@ -193,6 +202,8 @@ void Mapping::Optimize(Frames &active_kfs)
 
                 ceres::Solver::Options options;
                 options.linear_solver_type = ceres::DENSE_SCHUR;
+                options.function_tolerance = DBL_MIN;
+                options.gradient_tolerance = DBL_MIN;
                 options.max_num_iterations = 1;
                 options.num_threads = 4;
                 ceres::Solver::Summary summary;
