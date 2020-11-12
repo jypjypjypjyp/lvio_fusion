@@ -225,7 +225,7 @@ void ScanRegistration::Preprocess(PointICloud &points, Frame::Ptr frame)
     }
 
     // extract features
-    static int num_zones = 8;
+    static int num_zones = 6;
     static pcl::VoxelGrid<PointI> voxel_filter;
     voxel_filter.setLeafSize(lidar_->resolution, lidar_->resolution, lidar_->resolution);
     for (int i = 0; i < num_scans_; i++)
@@ -362,7 +362,7 @@ void ScanRegistration::Preprocess(PointICloud &points, Frame::Ptr frame)
     frame->feature_lidar = feature;
 }
 
-void ScanRegistration::Associate(Frame::Ptr current_frame, Frame::Ptr last_frame, ceres::Problem &problem, ceres::LossFunction *loss_function, bool only_rotate, Frame::Ptr old_frame)
+void ScanRegistration::Associate(Frame::Ptr current_frame, Frame::Ptr last_frame, ceres::Problem &problem, ceres::LossFunction *loss_function)
 {
     PointICloud &points_sharp = current_frame->feature_lidar->points_sharp;
     PointICloud &points_less_sharp = current_frame->feature_lidar->points_less_sharp;
@@ -378,19 +378,12 @@ void ScanRegistration::Associate(Frame::Ptr current_frame, Frame::Ptr last_frame
 
     double *para_kf = current_frame->pose.data();
     double *para_last_kf = last_frame->pose.data();
-    // check if is based old frame
-    SE3d relative_pose;
-    if (old_frame)
-    {
-        relative_pose = last_frame->pose * old_frame->pose.inverse();
-        para_last_kf = old_frame->pose.data();
-    }
 
     PointI point;
     std::vector<int> points_index;
     std::vector<float> points_distance;
 
-    static const double distance_threshold = lidar_->resolution * lidar_->resolution * 400; // squared
+    static const double distance_threshold = lidar_->resolution * lidar_->resolution * 100; // squared
     static const double nearby_scan = 2;
     int num_points_sharp = points_sharp.points.size();
     int num_points_flat = points_flat.points.size();
@@ -469,14 +462,7 @@ void ScanRegistration::Associate(Frame::Ptr current_frame, Frame::Ptr last_frame
                                   points_less_sharp_last.points[closest_index2].y,
                                   points_less_sharp_last.points[closest_index2].z);
             ceres::CostFunction *cost_function;
-            if (old_frame)
-            {
-                cost_function = LidarEdgeErrorBasedLoop::Create(curr_point, last_point_a, last_point_b, lidar_, relative_pose);
-            }
-            else
-            {
-                cost_function = LidarEdgeError::Create(curr_point, last_point_a, last_point_b, lidar_);
-            }
+            cost_function = LidarEdgeError::Create(curr_point, last_point_a, last_point_b, lidar_);
             problem.AddResidualBlock(cost_function, loss_function, para_last_kf, para_kf);
         }
     }
@@ -581,18 +567,7 @@ void ScanRegistration::Associate(Frame::Ptr current_frame, Frame::Ptr last_frame
                 Vector3d kf_t(para_kf[4], para_kf[5], para_kf[6]);
 
                 ceres::CostFunction *cost_function;
-                if (old_frame)
-                {
-                    cost_function = LidarPlaneErrorBasedLoop::Create(curr_point, last_point_a, last_point_b, last_point_c, lidar_, relative_pose);
-                }
-                else if (only_rotate)
-                {
-                    cost_function = LidarPlaneRError::Create(curr_point, last_point_a, last_point_b, last_point_c, last_kf_t, kf_t, lidar_);
-                }
-                else
-                {
-                    cost_function = LidarPlaneError::Create(curr_point, last_point_a, last_point_b, last_point_c, lidar_);
-                }
+                cost_function = LidarPlaneError::Create(curr_point, last_point_a, last_point_b, last_point_c, lidar_);
                 problem.AddResidualBlock(cost_function, loss_function, para_last_kf, para_kf);
             }
         }

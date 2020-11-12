@@ -21,10 +21,11 @@ inline void Mapping::AddToWorld(const PointICloud &in, Frame::Ptr frame, PointRG
 
     for (int i = 0; i < in.size(); i++)
     {
+        //NOTE: colorful pointcloud
         // if (in[i].x <= 0)
         //     continue;
-        if (in[i].y >= 0)
-            continue;
+        // if (in[i].y >= 0)
+        // continue;
         //NOTE: Sophus is too slow
         // auto p_w = lidar_->Sensor2World(Vector3d(in[i].x, in[i].y, in[i].z), frame->pose);
         // auto pixel = camera_->World2Pixel(p_w, frame->pose);
@@ -108,13 +109,12 @@ void Mapping::MappingLoop()
 void Mapping::BuildProblem(Frames &active_kfs, ceres::Problem &problem)
 {
     double start_time = active_kfs.begin()->first;
-    static int num_associations = 2;
-    static int step = 2;
+    static int num_associations = 3;
+    static int step = 1;
     int num_last_frames = (num_associations - 1) * step + 1;
     Frames base_kfs = map_->GetKeyFrames(0, start_time, num_last_frames);
 
-    ceres::LossFunction *lidar_loss_function = new ceres::HuberLoss(0.1);
-    // ceres::LocalParameterization *local_parameterization = new ceres::EigenQuaternionParameterization();
+    ceres::LossFunction *lidar_loss_function = new ceres::HuberLoss(1);
     ceres::LocalParameterization *local_parameterization = new ceres::ProductParameterization(
         new ceres::EigenQuaternionParameterization(),
         new ceres::IdentityParameterization(3));
@@ -143,24 +143,9 @@ void Mapping::BuildProblem(Frames &active_kfs, ceres::Problem &problem)
         {
             for (int i = 1; i <= num_last_frames; i += step)
             {
-                Frame::Ptr old_frame;
                 if (last_frames[i] && last_frames[i]->feature_lidar)
                 {
-                    if (last_frames[i]->id + i != current_frame->id)
-                    {
-                        // last_frame is in a inner submap
-                        if (!old_frame)
-                        {
-                            old_frame = last_frames[i];
-                        }
-                        auto real_last_frame = (--map_->GetAllKeyFrames().find(current_frame->time))->second;
-                        scan_registration_->Associate(current_frame, real_last_frame, problem, lidar_loss_function, true, old_frame);
-                        continue;
-                    }
-                    else
-                    {
-                        scan_registration_->Associate(current_frame, last_frames[i], problem, lidar_loss_function, false);
-                    }
+                    scan_registration_->Associate(current_frame, last_frames[i], problem, lidar_loss_function);
                 }
             }
         }
@@ -188,12 +173,12 @@ void Mapping::BuildProblem(Frames &active_kfs, ceres::Problem &problem)
 void Mapping::Optimize(Frames &active_kfs)
 {
     std::unique_lock<std::mutex> lock(mutex);
-    Frames active_kfs_slice;
-    for (auto pair_kf : active_kfs)
-    {
-        active_kfs_slice.insert(pair_kf);
-        if (active_kfs_slice.size() >= 4)
-        {
+    // Frames active_kfs_slice;
+    // for (auto pair_kf : active_kfs)
+    // {
+    //     active_kfs_slice.insert(pair_kf);
+    //     if (active_kfs_slice.size() >= 4 || pair_kf.first == active_kfs)
+    //     {
             // NOTE: some place is good, don't need optimize too much.
             for (int i = 0; i < 4; i++)
             {
@@ -208,14 +193,15 @@ void Mapping::Optimize(Frames &active_kfs)
                 options.num_threads = 4;
                 ceres::Solver::Summary summary;
                 ceres::Solve(options, &problem, &summary);
+                LOG(INFO) << summary.FullReport();
                 if (summary.final_cost / summary.initial_cost > 0.99)
                 {
                     break;
                 }
             }
-            active_kfs_slice.clear();
-        }
-    }
+    //         active_kfs_slice.clear();
+    //     }
+    // }
 
     // Build global map
     BuildGlobalMap(active_kfs);

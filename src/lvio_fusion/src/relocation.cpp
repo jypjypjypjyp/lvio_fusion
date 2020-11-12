@@ -260,10 +260,6 @@ bool Relocation::RelocateByPoints(Frame::Ptr frame, Frame::Ptr old_frame, loop::
     voxel_filter.setInputCloud(pc_old);
     voxel_filter.filter(*pc_old_filtered);
 
-    // save
-    pcl::io::savePCDFile("/home/jyp/Projects/lvio_fusion/result/" + std::to_string(frame->time) + ".pcd", *pc);
-    pcl::io::savePCDFile("/home/jyp/Projects/lvio_fusion/result/old_" + std::to_string(frame->time) + ".pcd", *pc_old);
-
     // icp
     pcl::IterativeClosestPoint<PointI, PointI> icp;
     icp.setInputSource(pc);
@@ -304,10 +300,12 @@ bool Relocation::RelocateByPoints(Frame::Ptr frame, Frame::Ptr old_frame, loop::
         problem.AddParameterBlock(para_kf_old, SE3d::num_parameters, local_parameterization);
         problem.SetParameterBlockConstant(para_kf_old);
 
-        scan_registration_->Associate(frame_copy, old_frame, problem, lidar_loss_function, false);
+        scan_registration_->Associate(frame_copy, old_frame, problem, lidar_loss_function);
 
         ceres::Solver::Options options;
         options.linear_solver_type = ceres::DENSE_QR;
+        options.function_tolerance = DBL_MIN;
+        options.gradient_tolerance = DBL_MIN;
         options.max_num_iterations = 1;
         options.num_threads = 4;
         ceres::Solver::Summary summary;

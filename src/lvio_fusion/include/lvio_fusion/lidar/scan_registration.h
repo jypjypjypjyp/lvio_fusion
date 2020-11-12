@@ -32,7 +32,7 @@ public:
 
     void MergeScan(const PointICloud &in, SE3d from_pose, SE3d to_pose, PointICloud &out);
 
-    void Associate(Frame::Ptr current_frame, Frame::Ptr last_frame, ceres::Problem &problem, ceres::LossFunction *loss_function, bool only_rotate = true, Frame::Ptr old_frame = nullptr);
+    void Associate(Frame::Ptr current_frame, Frame::Ptr last_frame, ceres::Problem &problem, ceres::LossFunction *loss_function);
 
 private:
     void UndistortPoint(PointI &point, Frame::Ptr frame);
