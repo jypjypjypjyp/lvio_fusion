@@ -1,4 +1,4 @@
-#include "lvio_fusion/lidar/scan_registration.h"
+#include "lvio_fusion/lidar/association.h"
 #include "lvio_fusion/ceres/lidar_error.hpp"
 #include "lvio_fusion/ceres/loop_error.hpp"
 #include "lvio_fusion/lidar/feature.h"
@@ -11,23 +11,7 @@
 namespace lvio_fusion
 {
 
-void ScanRegistration::AddScan(double time, Point3Cloud::Ptr new_scan)
-{
-    raw_point_clouds_[time] = new_scan;
-
-    Frames new_kfs = map_->GetKeyFrames(head_, time);
-    for (auto pair_kf : new_kfs)
-    {
-        PointICloud point_cloud;
-        if (TimeAlign(pair_kf.first, point_cloud))
-        {
-            Preprocess(point_cloud, pair_kf.second);
-            head_ = pair_kf.first;
-        }
-    }
-}
-
-void ScanRegistration::MergeScan(const PointICloud &in, SE3d from_pose, SE3d to_pose, PointICloud &out)
+void FeatureAssociation::MergeScan(const PointICloud &in, SE3d from_pose, SE3d to_pose, PointICloud &out)
 {
     Sophus::SE3f tf_se3 = lidar_->TransformMatrix(from_pose, to_pose).cast<float>();
     float *tf = tf_se3.data();
@@ -40,32 +24,7 @@ void ScanRegistration::MergeScan(const PointICloud &in, SE3d from_pose, SE3d to_
     }
 }
 
-bool ScanRegistration::TimeAlign(double time, PointICloud &out)
-{
-    auto iter = raw_point_clouds_.upper_bound(time);
-    if (iter == raw_point_clouds_.begin())
-        return false;
-    Point3Cloud &pc2 = *(iter->second);
-    double end_time = iter->first + cycle_time_ / 2;
-    Point3Cloud &pc1 = *((--iter)->second);
-    double start_time = iter->first - cycle_time_ / 2;
-    Point3Cloud pc = pc1 + pc2;
-    int size = pc.size();
-    if (time - cycle_time_ / 2 < start_time || time + cycle_time_ / 2 > end_time)
-    {
-        return false;
-    }
-    auto start_iter = pc.begin() + size * (time - start_time - cycle_time_ / 2) / (end_time - start_time);
-    auto end_iter = pc.begin() + size * (time - start_time + cycle_time_ / 2) / (end_time - start_time);
-    Point3Cloud out3;
-    out3.clear();
-    out3.insert(out3.begin(), start_iter, end_iter);
-    pcl::copyPointCloud(out3, out);
-    raw_point_clouds_.erase(raw_point_clouds_.begin(), iter);
-    return true;
-}
-
-void ScanRegistration::UndistortPoint(PointI &point, Frame::Ptr frame)
+void FeatureAssociation::UndistortPoint(PointI &point, Frame::Ptr frame)
 {
     double time_delta = (point.intensity - int(point.intensity));
     double time = frame->time - cycle_time_ * 0.5 + time_delta;
@@ -77,7 +36,7 @@ void ScanRegistration::UndistortPoint(PointI &point, Frame::Ptr frame)
     point.z = p2.z();
 }
 
-inline void ScanRegistration::UndistortPointCloud(PointICloud &points, Frame::Ptr frame)
+inline void FeatureAssociation::UndistortPointCloud(PointICloud &points, Frame::Ptr frame)
 {
     for (auto &p : points)
     {
@@ -94,7 +53,7 @@ void remove_outliers(PointICloud &in, PointICloud &out)
     sor.filter(out);
 }
 
-void ScanRegistration::Preprocess(PointICloud &points, Frame::Ptr frame)
+void FeatureAssociation::Preprocess(PointICloud &points, Frame::Ptr frame)
 {
     PointICloud points_sharp;
     PointICloud points_less_sharp;
@@ -362,7 +321,7 @@ void ScanRegistration::Preprocess(PointICloud &points, Frame::Ptr frame)
     frame->feature_lidar = feature;
 }
 
-void ScanRegistration::Associate(Frame::Ptr current_frame, Frame::Ptr last_frame, ceres::Problem &problem, ceres::LossFunction *loss_function)
+void FeatureAssociation::Associate(Frame::Ptr current_frame, Frame::Ptr last_frame, ceres::Problem &problem, ceres::LossFunction *loss_function)
 {
     PointICloud &points_sharp = current_frame->feature_lidar->points_sharp;
     PointICloud &points_less_sharp = current_frame->feature_lidar->points_less_sharp;

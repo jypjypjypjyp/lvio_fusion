@@ -237,8 +237,8 @@ bool Relocation::RelocateByPoints(Frame::Ptr frame, Frame::Ptr old_frame, loop::
     if (old_frame->feature_lidar)
     {
         PointICloud pc_old_prev_less_flat, pc_old_prev_less_sharp;
-        scan_registration_->MergeScan(old_frame_prev->feature_lidar->points_less_flat, old_frame_prev->pose, old_frame->pose, pc_old_prev_less_flat);
-        scan_registration_->MergeScan(old_frame_prev->feature_lidar->points_less_sharp, old_frame_prev->pose, old_frame->pose, pc_old_prev_less_sharp);
+        association_->MergeScan(old_frame_prev->feature_lidar->points_less_flat, old_frame_prev->pose, old_frame->pose, pc_old_prev_less_flat);
+        association_->MergeScan(old_frame_prev->feature_lidar->points_less_sharp, old_frame_prev->pose, old_frame->pose, pc_old_prev_less_sharp);
         *pc_old += pc_old_prev_less_sharp;
         *pc_old += pc_old_prev_less_flat;
     }
@@ -246,8 +246,8 @@ bool Relocation::RelocateByPoints(Frame::Ptr frame, Frame::Ptr old_frame, loop::
     if (old_frame->feature_lidar)
     {
         PointICloud pc_old_subs_less_flat, pc_old_subs_less_sharp;
-        scan_registration_->MergeScan(old_frame_subs->feature_lidar->points_less_flat, old_frame_subs->pose, old_frame->pose, pc_old_subs_less_flat);
-        scan_registration_->MergeScan(old_frame_subs->feature_lidar->points_less_sharp, old_frame_subs->pose, old_frame->pose, pc_old_subs_less_sharp);
+        association_->MergeScan(old_frame_subs->feature_lidar->points_less_flat, old_frame_subs->pose, old_frame->pose, pc_old_subs_less_flat);
+        association_->MergeScan(old_frame_subs->feature_lidar->points_less_sharp, old_frame_subs->pose, old_frame->pose, pc_old_subs_less_sharp);
         *pc_old += pc_old_subs_less_sharp;
         *pc_old += pc_old_subs_less_flat;
     }
@@ -300,7 +300,7 @@ bool Relocation::RelocateByPoints(Frame::Ptr frame, Frame::Ptr old_frame, loop::
         problem.AddParameterBlock(para_kf_old, SE3d::num_parameters, local_parameterization);
         problem.SetParameterBlockConstant(para_kf_old);
 
-        scan_registration_->Associate(frame_copy, old_frame, problem, lidar_loss_function);
+        association_->Associate(frame_copy, old_frame, problem, lidar_loss_function);
 
         ceres::Solver::Options options;
         options.linear_solver_type = ceres::DENSE_QR;

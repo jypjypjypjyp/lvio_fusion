@@ -6,7 +6,7 @@
 #include "lvio_fusion/frame.h"
 #include "lvio_fusion/frontend.h"
 #include "lvio_fusion/lidar/mapping.h"
-#include "lvio_fusion/lidar/scan_registration.h"
+#include "lvio_fusion/lidar/association.h"
 #include "lvio_fusion/loop/atlas.h"
 #include "lvio_fusion/loop/loop_constraint.h"
 #include "lvio_fusion/map.h"
@@ -70,7 +70,7 @@ public:
 
     void SetMap(Map::Ptr map) { map_ = map; }
 
-    void SetScanRegistration(ScanRegistration::Ptr scan_registration) { scan_registration_ = scan_registration; }
+    void SetFeatureAssociation(FeatureAssociation::Ptr association) { association_ = association; }
 
     void SetMapping(Mapping::Ptr mapping) { mapping_ = mapping; }
 
@@ -107,7 +107,7 @@ private:
     Mapping::Ptr mapping_;
     Frontend::Ptr frontend_;
     Backend::Ptr backend_;
-    ScanRegistration::Ptr scan_registration_;
+    FeatureAssociation::Ptr association_;
     loop::Atlas atlas_;
 
     std::thread thread_;

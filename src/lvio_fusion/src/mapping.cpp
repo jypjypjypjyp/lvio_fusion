@@ -145,7 +145,7 @@ void Mapping::BuildProblem(Frames &active_kfs, ceres::Problem &problem)
             {
                 if (last_frames[i] && last_frames[i]->feature_lidar)
                 {
-                    scan_registration_->Associate(current_frame, last_frames[i], problem, lidar_loss_function);
+                    association_->Associate(current_frame, last_frames[i], problem, lidar_loss_function);
                 }
             }
         }

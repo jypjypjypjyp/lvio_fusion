@@ -6,7 +6,7 @@
 #include "lvio_fusion/common.h"
 #include "lvio_fusion/frontend.h"
 #include "lvio_fusion/imu/initializer.h"
-#include "lvio_fusion/lidar/scan_registration.h"
+#include "lvio_fusion/lidar/association.h"
 #include "lvio_fusion/lidar/mapping.h"
 #include "lvio_fusion/loop/relocation.h"
 #include "lvio_fusion/semantic/detected_object.h"
@@ -35,7 +35,7 @@ public:
     Frontend::Ptr frontend;
     Backend::Ptr backend;
     Relocation::Ptr relocation;
-    ScanRegistration::Ptr scan_registration;
+    FeatureAssociation::Ptr association;
     Mapping::Ptr mapping;
     Initializer::Ptr initializer;
 

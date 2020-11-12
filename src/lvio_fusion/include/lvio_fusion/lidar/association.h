@@ -11,12 +11,12 @@ namespace lvio_fusion
 
 class Frontend;
 
-class ScanRegistration
+class FeatureAssociation
 {
 public:
-    typedef std::shared_ptr<ScanRegistration> Ptr;
+    typedef std::shared_ptr<FeatureAssociation> Ptr;
 
-    ScanRegistration(int num_scans, double cycle_time, double min_range, double max_range, double deskew) : num_scans_(num_scans), cycle_time_(cycle_time), min_range_(min_range), max_range_(max_range), deskew_(deskew) {}
+    FeatureAssociation(int num_scans, double cycle_time, double min_range, double max_range, double deskew) : num_scans_(num_scans), cycle_time_(cycle_time), min_range_(min_range), max_range_(max_range), deskew_(deskew) {}
 
     void SetLidar(Lidar::Ptr lidar)
     {

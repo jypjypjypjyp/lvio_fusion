@@ -12,7 +12,7 @@ add_library(lvio_fusion SHARED
         navsat.cpp
         preintegration.cpp
         relocation.cpp
-        scan_registration.cpp)
+        association.cpp)
 
 target_link_libraries(lvio_fusion ${THIRD_PARTY_LIBS})
 target_compile_features(lvio_fusion PRIVATE cxx_std_14)

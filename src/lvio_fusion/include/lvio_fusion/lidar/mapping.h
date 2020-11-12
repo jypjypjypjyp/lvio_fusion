@@ -5,7 +5,7 @@
 #include "lvio_fusion/common.h"
 #include "lvio_fusion/frontend.h"
 #include "lvio_fusion/lidar/lidar.hpp"
-#include "lvio_fusion/lidar/scan_registration.h"
+#include "lvio_fusion/lidar/association.h"
 #include "lvio_fusion/map.h"
 #include "lvio_fusion/visual/camera.hpp"
 
@@ -25,7 +25,7 @@ public:
 
     void SetMap(Map::Ptr map) { map_ = map; }
 
-    void SetScanRegistration(ScanRegistration::Ptr scan_registration) { scan_registration_ = scan_registration; }
+    void SetFeatureAssociation(FeatureAssociation::Ptr association) { association_ = association; }
 
     void SetFrontend(Frontend::Ptr frontend) { frontend_ = frontend; }
 
@@ -48,7 +48,7 @@ private:
     void BuildGlobalMap(Frames &active_kfs);
 
     Map::Ptr map_;
-    ScanRegistration::Ptr scan_registration_;
+    FeatureAssociation::Ptr association_;
     Frontend::Ptr frontend_;
     Backend::Ptr backend_;
 

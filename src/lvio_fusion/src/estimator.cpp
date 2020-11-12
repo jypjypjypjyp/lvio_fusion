@@ -123,27 +123,27 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
             SE3d(q_base_to_lidar, t_base_to_lidar),
             Config::Get<double>("resolution")));
 
-        scan_registration = ScanRegistration::Ptr(new ScanRegistration(
+        association = FeatureAssociation::Ptr(new FeatureAssociation(
             Config::Get<int>("num_scans"),
             Config::Get<double>("cycle_time"),
             Config::Get<double>("min_range"),
             Config::Get<double>("max_range"),
             Config::Get<int>("deskew")));
-        scan_registration->SetLidar(lidar);
-        scan_registration->SetMap(map);
+        association->SetLidar(lidar);
+        association->SetMap(map);
 
         mapping = Mapping::Ptr(new Mapping());
         mapping->SetMap(map);
         mapping->SetCamera(camera1);
         mapping->SetLidar(lidar);
-        mapping->SetScanRegistration(scan_registration);
+        mapping->SetFeatureAssociation(association);
         mapping->SetFrontend(frontend);
         mapping->SetBackend(backend);
 
         if (relocation)
         {
             relocation->SetLidar(lidar);
-            relocation->SetScanRegistration(scan_registration);
+            relocation->SetFeatureAssociation(association);
             relocation->SetMapping(mapping);
         }
 
@@ -178,7 +178,7 @@ void Estimator::InputImage(double time, cv::Mat &left_image, cv::Mat &right_imag
 void Estimator::InputPointCloud(double time, Point3Cloud::Ptr point_cloud)
 {
     auto t1 = std::chrono::steady_clock::now();
-    scan_registration->AddScan(time, point_cloud);
+    association->AddScan(time, point_cloud);
     auto t2 = std::chrono::steady_clock::now();
     auto time_used =
         std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);
