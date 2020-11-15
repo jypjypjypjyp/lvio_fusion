@@ -31,6 +31,10 @@ camera2.cy: 1.852157000000e+02
 
 # lidar parameters
 num_scans: 64           # only for 16, 32, 64
+horizon_scan: 1800
+ang_res_y: 0.427
+ang_bottom: 24.9
+ground_rows: 60
 cycle_time: 0.1036
 min_range: 5
 max_range: 30

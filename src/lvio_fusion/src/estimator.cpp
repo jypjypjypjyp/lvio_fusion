@@ -125,6 +125,10 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
 
         association = FeatureAssociation::Ptr(new FeatureAssociation(
             Config::Get<int>("num_scans"),
+            Config::Get<int>("horizon_scan"),
+            Config::Get<double>("ang_res_y"),
+            Config::Get<double>("ang_bottom"),
+            Config::Get<int>("ground_rows"),
             Config::Get<double>("cycle_time"),
             Config::Get<double>("min_range"),
             Config::Get<double>("max_range"),

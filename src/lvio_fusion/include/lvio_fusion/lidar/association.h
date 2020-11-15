@@ -3,6 +3,7 @@
 
 #include "lvio_fusion/common.h"
 #include "lvio_fusion/lidar/lidar.hpp"
+#include "lvio_fusion/lidar/projection.h"
 #include "lvio_fusion/map.h"
 #include <ceres/ceres.h>
 
@@ -11,12 +12,28 @@ namespace lvio_fusion
 
 class Frontend;
 
+struct smoothness_t{ 
+    float value;
+    size_t ind;
+    bool operator()(smoothness_t const &left, smoothness_t const &right) { 
+        return left.value < right.value;
+    }
+};
+
 class FeatureAssociation
 {
 public:
     typedef std::shared_ptr<FeatureAssociation> Ptr;
 
-    FeatureAssociation(int num_scans, double cycle_time, double min_range, double max_range, double deskew) : num_scans_(num_scans), cycle_time_(cycle_time), min_range_(min_range), max_range_(max_range), deskew_(deskew) {}
+    FeatureAssociation(int num_scans, int horizon_scan, double ang_res_y, double ang_bottom, int ground_rows,double cycle_time, double min_range, double max_range, double deskew)
+        : num_scans_(num_scans), cycle_time_(cycle_time), min_range_(min_range), max_range_(max_range), deskew_(deskew)
+    {
+        cloudCurvature = new float[num_scans*horizon_scan];
+        cloudNeighborPicked = new int[num_scans*horizon_scan];
+        cloudLabel = new int[num_scans*horizon_scan];
+        cloudSmoothness.resize(num_scans*horizon_scan);
+        projection_ = ImageProjection::Ptr(new ImageProjection(num_scans, horizon_scan, ang_res_y, ang_bottom, ground_rows));
+    }
 
     void SetLidar(Lidar::Ptr lidar)
     {
@@ -40,19 +57,42 @@ private:
 
     bool TimeAlign(double time, PointICloud &out);
 
-    void Preprocess(PointICloud &points, Frame::Ptr frame);
+    void Process(PointICloud &points, Frame::Ptr frame);
+
+    void Preprocess(PointICloud &points);
+
+    void Extract(PointICloud &points_segmented, SegmentedInfo& segemented_info, Frame::Ptr frame);
+
+    void AdjustDistortion(PointICloud &points_segmented, SegmentedInfo &segemented_info);
+
+    void CalculateSmoothness(PointICloud &points_segmented, SegmentedInfo &segemented_info);
+
+    void MarkOccludedPoints(PointICloud &points_segmented, SegmentedInfo &segemented_info);
+
+    void ExtractFeatures(PointICloud &points_segmented, SegmentedInfo &segemented_info, Frame::Ptr frame);
+
+    std::vector<smoothness_t> cloudSmoothness;
+    float *cloudCurvature;
+    int *cloudNeighborPicked;
+    int *cloudLabel;
 
     Map::Ptr map_;
+    ImageProjection::Ptr projection_;
     std::map<double, Point3Cloud::Ptr> raw_point_clouds_;
     double head_ = 0; // header of the frames' time which already has a point cloud
     Lidar::Ptr lidar_;
 
     // params
-    const int num_scans_;
+    const double num_scans_;
     const double cycle_time_;
     const double min_range_;
     const double max_range_;
     const bool deskew_;
+
+    const int edgeFeatureNum = 2;
+    const int surfFeatureNum = 4;
+    const float edgeThreshold = 0.1;
+    const float surfThreshold = 0.1;
 };
 
 } // namespace lvio_fusion

@@ -2,7 +2,7 @@
 
 # flags
 use_imu: 0
-use_lidar: 1
+use_lidar: 0
 use_navsat: 0
 use_loop: 0             # 0 for only odometry, 1 for whole system
 num_of_cam: 2
@@ -31,9 +31,13 @@ camera2.cy: 236.7432098388672
 
 # lidar parameters
 num_scans: 32           # only for 16, 32, 64
+horizon_scan: 1800
+ang_res_y: 1
+ang_bottom: 16
+ground_rows: 16
 cycle_time: 0.1
 min_range: 1
-max_range: 10
+max_range: 5
 deskew: 0
 resolution: 0.05
 
@@ -44,35 +48,68 @@ acc_w: 0.00004          # accelerometer bias random work noise standard deviatio
 gyr_w: 2.0e-6           # gyroscope bias random work noise standard deviation.     #4.0e-5
 g_norm: 9.81007         # gravity magnitude
 
+# # body to camera0
+# base_to_cam0: !!opencv-matrix
+#    rows: 4
+#    cols: 4
+#    dt: d
+#    data: [1, 0, 0, 0,
+#           0, 1, 0, 0,
+#           0, 0, 1, 0,
+#           0, 0, 0, 1]
+
+# # body to camera1
+# base_to_cam1: !!opencv-matrix
+#    rows: 4
+#    cols: 4
+#    dt: d
+#    data: [1, 0, 0, -0.05,
+#           0, 1, 0, 0,
+#           0, 0, 1, 0,
+#           0, 0, 0, 1]
+
+# # body to lidar
+# base_to_lidar: !!opencv-matrix
+#    rows: 4
+#    cols: 4
+#    dt: d
+#    data: [  -1,          -0,          0  ,      0.062,
+#             0 ,          0 ,          -1 ,       0.149,
+#             0 ,          -1,          0  ,     0.0945,
+#             -0,           0,           -0,            1]
+
+
 # body to camera0
 base_to_cam0: !!opencv-matrix
    rows: 4
    cols: 4
    dt: d
-   data: [1, 0, 0, 0,
-          0, 1, 0, 0,
-          0, 0, 1, 0,
-          0, 0, 0, 1]
+   data: [  0 ,    -1,    0 ,           0,
+            0 ,    0 ,    -1,           0,
+            1 ,    0 ,    0 ,           0,
+            -0,    0 ,    -0,           1]
+
 
 # body to camera1
 base_to_cam1: !!opencv-matrix
    rows: 4
    cols: 4
    dt: d
-   data: [1, 0, 0, -0.05,
-          0, 1, 0, 0,
-          0, 0, 1, 0,
-          0, 0, 0, 1]
+   data: [    0 ,   -1 ,    0 ,-0.05,
+               0,     0,    -1,     0,
+               1,     0,     0,     0,
+               0,     0,     0,     1]
 
 # body to lidar
 base_to_lidar: !!opencv-matrix
    rows: 4
    cols: 4
    dt: d
-   data: [   -0.999999,  -0.00159265, -1.34228e-16,   -0.0642372,
-            1.26827e-06, -0.000796326,           -1,    -0.945118,
-            0.00159265,    -0.999998,  0.000796327,    -0.148145,
-             -0,            0,           -0,            1]
+   data: [      0,      1,      0,  -0.062,
+               -1,      0,      0,  -0.0945,
+                0,      0,      1, -0.149,
+                0,      0,      0,      1]
+
 
 # number of features
 num_features: 200

@@ -11,6 +11,48 @@
 namespace lvio_fusion
 {
 
+void FeatureAssociation::AddScan(double time, Point3Cloud::Ptr new_scan)
+{
+    static double head = 0;
+    raw_point_clouds_[time] = new_scan;
+
+    Frames new_kfs = map_->GetKeyFrames(head, time);
+    for (auto pair_kf : new_kfs)
+    {
+        PointICloud point_cloud;
+        if (TimeAlign(pair_kf.first, point_cloud))
+        {
+            Process(point_cloud, pair_kf.second);
+            head = pair_kf.first;
+        }
+    }
+}
+
+bool FeatureAssociation::TimeAlign(double time, PointICloud &out)
+{
+    auto iter = raw_point_clouds_.upper_bound(time);
+    if (iter == raw_point_clouds_.begin())
+        return false;
+    Point3Cloud &pc2 = *(iter->second);
+    double end_time = iter->first + cycle_time_ / 2;
+    Point3Cloud &pc1 = *((--iter)->second);
+    double start_time = iter->first - cycle_time_ / 2;
+    Point3Cloud pc = pc1 + pc2;
+    int size = pc.size();
+    if (time - cycle_time_ / 2 < start_time || time + cycle_time_ / 2 > end_time)
+    {
+        return false;
+    }
+    auto start_iter = pc.begin() + size * (time - start_time - cycle_time_ / 2) / (end_time - start_time);
+    auto end_iter = pc.begin() + size * (time - start_time + cycle_time_ / 2) / (end_time - start_time);
+    Point3Cloud out3;
+    out3.clear();
+    out3.insert(out3.begin(), start_iter, end_iter);
+    pcl::copyPointCloud(out3, out);
+    raw_point_clouds_.erase(raw_point_clouds_.begin(), iter);
+    return true;
+}
+
 void FeatureAssociation::MergeScan(const PointICloud &in, SE3d from_pose, SE3d to_pose, PointICloud &out)
 {
     Sophus::SE3f tf_se3 = lidar_->TransformMatrix(from_pose, to_pose).cast<float>();
@@ -53,262 +95,254 @@ void remove_outliers(PointICloud &in, PointICloud &out)
     sor.filter(out);
 }
 
-void FeatureAssociation::Preprocess(PointICloud &points, Frame::Ptr frame)
+void FeatureAssociation::Process(PointICloud &points, Frame::Ptr frame)
+{
+    Preprocess(points);
+
+    PointICloud points_segmented, points_outlier;
+    auto segmented_info = projection_->Process(points, points_segmented, points_outlier);
+
+    Extract(points_segmented, segmented_info, frame);
+}
+
+void FeatureAssociation::Preprocess(PointICloud &points)
+{
+    std::vector<int> indices;
+    pcl::removeNaNFromPointCloud(points, points, indices);
+    filter_points_by_distance(points, points, min_range_, max_range_);
+}
+
+void FeatureAssociation::Extract(PointICloud &points_segmented, SegmentedInfo &segemented_info, Frame::Ptr frame)
+{
+    AdjustDistortion(points_segmented, segemented_info);
+
+    CalculateSmoothness(points_segmented, segemented_info);
+
+    MarkOccludedPoints(points_segmented, segemented_info);
+
+    ExtractFeatures(points_segmented, segemented_info, frame);
+}
+
+void FeatureAssociation::AdjustDistortion(PointICloud &points_segmented, SegmentedInfo &segemented_info)
+{
+    bool halfPassed = false;
+    int cloudSize = points_segmented.points.size();
+    PointI point;
+    for (int i = 0; i < cloudSize; i++)
+    {
+        point.x = points_segmented.points[i].x;
+        point.y = points_segmented.points[i].y;
+        point.z = points_segmented.points[i].z;
+
+        float ori = -atan2(point.y, point.x);
+        if (!halfPassed)
+        {
+            if (ori < segemented_info.startOrientation - M_PI / 2)
+                ori += 2 * M_PI;
+            else if (ori > segemented_info.startOrientation + M_PI * 3 / 2)
+                ori -= 2 * M_PI;
+
+            if (ori - segemented_info.startOrientation > M_PI)
+                halfPassed = true;
+        }
+        else
+        {
+            ori += 2 * M_PI;
+
+            if (ori < segemented_info.endOrientation - M_PI * 3 / 2)
+                ori += 2 * M_PI;
+            else if (ori > segemented_info.endOrientation + M_PI / 2)
+                ori -= 2 * M_PI;
+        }
+
+        float relTime = (ori - segemented_info.startOrientation) / segemented_info.orientationDiff;
+        point.intensity = int(points_segmented.points[i].intensity) + cycle_time_ * relTime;
+        //TODO:deskew
+        points_segmented.points[i] = point;
+    }
+}
+
+void FeatureAssociation::CalculateSmoothness(PointICloud &points_segmented, SegmentedInfo &segemented_info)
+{
+    int cloudSize = points_segmented.points.size();
+    for (int i = 5; i < cloudSize - 5; i++)
+    {
+        // clang-format off
+        float diffRange = segemented_info.segmentedCloudRange[i - 5] 
+                        + segemented_info.segmentedCloudRange[i - 4] 
+                        + segemented_info.segmentedCloudRange[i - 3] 
+                        + segemented_info.segmentedCloudRange[i - 2] 
+                        + segemented_info.segmentedCloudRange[i - 1] 
+                        - segemented_info.segmentedCloudRange[i] * 10 
+                        + segemented_info.segmentedCloudRange[i + 1] 
+                        + segemented_info.segmentedCloudRange[i + 2] 
+                        + segemented_info.segmentedCloudRange[i + 3] 
+                        + segemented_info.segmentedCloudRange[i + 4] 
+                        + segemented_info.segmentedCloudRange[i + 5];
+        // clang-format on
+        cloudCurvature[i] = diffRange * diffRange;
+        cloudNeighborPicked[i] = 0;
+        cloudLabel[i] = 0;
+        cloudSmoothness[i].value = cloudCurvature[i];
+        cloudSmoothness[i].ind = i;
+    }
+}
+
+void FeatureAssociation::MarkOccludedPoints(PointICloud &points_segmented, SegmentedInfo &segemented_info)
+{
+    int cloudSize = points_segmented.points.size();
+
+    for (int i = 5; i < cloudSize - 6; ++i)
+    {
+
+        float depth1 = segemented_info.segmentedCloudRange[i];
+        float depth2 = segemented_info.segmentedCloudRange[i + 1];
+        int columnDiff = std::abs(int(segemented_info.segmentedCloudColInd[i + 1] - segemented_info.segmentedCloudColInd[i]));
+
+        if (columnDiff < 10)
+        {
+
+            if (depth1 - depth2 > 0.3)
+            {
+                cloudNeighborPicked[i - 5] = 1;
+                cloudNeighborPicked[i - 4] = 1;
+                cloudNeighborPicked[i - 3] = 1;
+                cloudNeighborPicked[i - 2] = 1;
+                cloudNeighborPicked[i - 1] = 1;
+                cloudNeighborPicked[i] = 1;
+            }
+            else if (depth2 - depth1 > 0.3)
+            {
+                cloudNeighborPicked[i + 1] = 1;
+                cloudNeighborPicked[i + 2] = 1;
+                cloudNeighborPicked[i + 3] = 1;
+                cloudNeighborPicked[i + 4] = 1;
+                cloudNeighborPicked[i + 5] = 1;
+                cloudNeighborPicked[i + 6] = 1;
+            }
+        }
+
+        float diff1 = std::abs(float(segemented_info.segmentedCloudRange[i - 1] - segemented_info.segmentedCloudRange[i]));
+        float diff2 = std::abs(float(segemented_info.segmentedCloudRange[i + 1] - segemented_info.segmentedCloudRange[i]));
+
+        if (diff1 > 0.02 * segemented_info.segmentedCloudRange[i] && diff2 > 0.02 * segemented_info.segmentedCloudRange[i])
+            cloudNeighborPicked[i] = 1;
+    }
+}
+
+void FeatureAssociation::ExtractFeatures(PointICloud &points_segmented, SegmentedInfo &segemented_info, Frame::Ptr frame)
 {
     PointICloud points_sharp;
     PointICloud points_less_sharp;
     PointICloud points_flat;
     PointICloud point_less_flat;
 
-    std::vector<int> indices;
-    pcl::removeNaNFromPointCloud(points, points, indices);
-    filter_points_by_distance(points, points, min_range_, max_range_);
-
-    int raw_size = points.size();
-    float start_ori = -atan2(points.points[0].y, points.points[0].x);
-    float end_ori = -atan2(points.points[raw_size - 1].y, points.points[raw_size - 1].x) + 2 * M_PI;
-
-    if (end_ori - start_ori > 3 * M_PI)
-    {
-        end_ori -= 2 * M_PI;
-    }
-    else if (end_ori - start_ori < M_PI)
-    {
-        end_ori += 2 * M_PI;
-    }
-
-    int size = raw_size;
-    std::vector<PointICloud> scans_in_point_cloud(num_scans_);
-    PointI point;
-    bool half_passed = false;
-    for (int i = 0; i < raw_size; i++)
-    {
-        point = points[i];
-        float angle = atan(point.z / sqrt(point.x * point.x + point.y * point.y)) * 180 / M_PI;
-        int scan_id = 0;
-        if (num_scans_ == 16)
-        {
-            scan_id = int((angle + 15) / 2 + 0.5);
-            if (scan_id > (num_scans_ - 1) || scan_id < 0)
-            {
-                size--;
-                continue;
-            }
-        }
-        else if (num_scans_ == 32)
-        {
-            scan_id = int((angle + 92.0 / 3.0) * 3.0 / 4.0);
-            if (scan_id > (num_scans_ - 1) || scan_id < 0)
-            {
-                size--;
-                continue;
-            }
-        }
-        else if (num_scans_ == 64)
-        {
-            if (angle >= -8.83)
-                scan_id = int((2 - angle) * 3.0 + 0.5);
-            else
-                scan_id = num_scans_ / 2 + int((-8.83 - angle) * 2.0 + 0.5);
-
-            if (angle > 2 || angle < -24.33 || scan_id > 50 || scan_id < 0)
-            {
-                size--;
-                continue;
-            }
-        }
-
-        float ori = -atan2(point.y, point.x);
-        if (!half_passed)
-        {
-            if (ori < start_ori - M_PI / 2)
-            {
-                ori += 2 * M_PI;
-            }
-            else if (ori > start_ori + M_PI * 3 / 2)
-            {
-                ori -= 2 * M_PI;
-            }
-
-            if (ori - start_ori > M_PI)
-            {
-                half_passed = true;
-            }
-        }
-        else
-        {
-            ori += 2 * M_PI;
-            if (ori < end_ori - M_PI * 3 / 2)
-            {
-                ori += 2 * M_PI;
-            }
-            else if (ori > end_ori + M_PI / 2)
-            {
-                ori -= 2 * M_PI;
-            }
-        }
-
-        point.intensity = scan_id + cycle_time_ * (ori - start_ori) / (end_ori - start_ori);
-        scans_in_point_cloud[scan_id].push_back(point);
-    }
-
-    points.clear();
-
-    std::vector<int> start_index(num_scans_, 0);
-    std::vector<int> end_index(num_scans_, 0);
-    // ignore the first 5 and the last 5 points
-    for (int i = 0; i < num_scans_; i++)
-    {
-        start_index[i] = points.size() + 5;
-        points += scans_in_point_cloud[i];
-        end_index[i] = points.size() - 6;
-    }
-
-    // calculate curvatures
-    static float curvatures[150000]; // curvatures
-    static int sort_index[150000];   // index
-    static int is_feature[150000];   // is feature
-    static int label[150000];        // Label 2: corner_sharp
-                                     // Label 1: corner_less_sharp
-                                     // Label -1: surf_flat
-                                     // Label 0: surf_less_flat
-    for (int i = 5; i < size - 5; i++)
-    {
-        float dx = points.points[i - 5].x + points.points[i - 4].x + points.points[i - 3].x + points.points[i - 2].x + points.points[i - 1].x - 10 * points.points[i].x + points.points[i + 1].x + points.points[i + 2].x + points.points[i + 3].x + points.points[i + 4].x + points.points[i + 5].x;
-        float dy = points.points[i - 5].y + points.points[i - 4].y + points.points[i - 3].y + points.points[i - 2].y + points.points[i - 1].y - 10 * points.points[i].y + points.points[i + 1].y + points.points[i + 2].y + points.points[i + 3].y + points.points[i + 4].y + points.points[i + 5].y;
-        float dz = points.points[i - 5].z + points.points[i - 4].z + points.points[i - 3].z + points.points[i - 2].z + points.points[i - 1].z - 10 * points.points[i].z + points.points[i + 1].z + points.points[i + 2].z + points.points[i + 3].z + points.points[i + 4].z + points.points[i + 5].z;
-        curvatures[i] = dx * dx + dy * dy + dz * dz;
-        sort_index[i] = i;
-        is_feature[i] = 0;
-        label[i] = 0;
-    }
-
-    // extract features
-    static int num_zones = 6;
-    static pcl::VoxelGrid<PointI> voxel_filter;
+    pcl::VoxelGrid<PointI> voxel_filter;
     voxel_filter.setLeafSize(lidar_->resolution, lidar_->resolution, lidar_->resolution);
     for (int i = 0; i < num_scans_; i++)
     {
-        if (end_index[i] - start_index[i] < 6) // too few
-            continue;
         PointICloud::Ptr scan_less_flat(new PointICloud());
         // divide one scan into six segments
-        for (int j = 0; j < num_zones; j++)
+        for (int j = 0; j < 6; j++)
         {
-            int sp = start_index[i] + (end_index[i] - start_index[i]) * j / num_zones;
-            int ep = start_index[i] + (end_index[i] - start_index[i]) * (j + 1) / num_zones - 1;
 
-            std::sort(sort_index + sp, sort_index + ep + 1,
-                      [](int i, int j) {
-                          return (curvatures[i] < curvatures[j]);
-                      });
+            int sp = (segemented_info.startRingIndex[i] * (6 - j) + segemented_info.endRingIndex[i] * j) / 6;
+            int ep = (segemented_info.startRingIndex[i] * (5 - j) + segemented_info.endRingIndex[i] * (j + 1)) / 6 - 1;
 
-            // extract sharp features
-            int num_largest_curvature = 0;
+            if (sp >= ep)
+                continue;
+
+            std::sort(cloudSmoothness.begin() + sp, cloudSmoothness.begin() + ep, smoothness_t());
+
+            int largestPickedNum = 0;
             for (int k = ep; k >= sp; k--)
             {
-                int si = sort_index[k];
-
-                if (is_feature[si] == 0 && curvatures[si] > 0.1)
+                int ind = cloudSmoothness[k].ind;
+                if (cloudNeighborPicked[ind] == 0 &&
+                    cloudCurvature[ind] > edgeThreshold &&
+                    segemented_info.segmentedCloudGroundFlag[ind] == false)
                 {
-                    num_largest_curvature++;
-                    if (num_largest_curvature <= 1) // NOTE: change the number of sharpest points
+
+                    largestPickedNum++;
+                    if (largestPickedNum <= edgeFeatureNum)
                     {
-                        label[si] = 2;
-                        points_sharp.push_back(points.points[si]);
-                        points_less_sharp.push_back(points.points[si]);
+                        cloudLabel[ind] = 2;
+                        points_sharp.push_back(points_segmented.points[ind]);
+                        points_less_sharp.push_back(points_segmented.points[ind]);
                     }
-                    else if (num_largest_curvature <= 20) // NOTE: change the number of less sharp points
+                    else if (largestPickedNum <= 20)
                     {
-                        label[si] = 1;
-                        points_less_sharp.push_back(points.points[si]);
+                        cloudLabel[ind] = 1;
+                        points_less_sharp.push_back(points_segmented.points[ind]);
                     }
                     else
                     {
                         break;
                     }
 
-                    is_feature[si] = 1;
-
-                    // avoid too dense
+                    cloudNeighborPicked[ind] = 1;
                     for (int l = 1; l <= 5; l++)
                     {
-                        float dx = points.points[si + l].x - points.points[si + l - 1].x;
-                        float dy = points.points[si + l].y - points.points[si + l - 1].y;
-                        float dz = points.points[si + l].z - points.points[si + l - 1].z;
-                        if (dx * dx + dy * dy + dz * dz > 0.05)
-                        {
+                        int columnDiff = std::abs(int(segemented_info.segmentedCloudColInd[ind + l] - segemented_info.segmentedCloudColInd[ind + l - 1]));
+                        if (columnDiff > 10)
                             break;
-                        }
-                        is_feature[si + l] = 1;
+                        cloudNeighborPicked[ind + l] = 1;
                     }
                     for (int l = -1; l >= -5; l--)
                     {
-                        float dx = points.points[si + l].x - points.points[si + l + 1].x;
-                        float dy = points.points[si + l].y - points.points[si + l + 1].y;
-                        float dz = points.points[si + l].z - points.points[si + l + 1].z;
-                        if (dx * dx + dy * dy + dz * dz > 0.05)
-                        {
+                        int columnDiff = std::abs(int(segemented_info.segmentedCloudColInd[ind + l] - segemented_info.segmentedCloudColInd[ind + l + 1]));
+                        if (columnDiff > 10)
                             break;
-                        }
-                        is_feature[si + l] = 1;
+                        cloudNeighborPicked[ind + l] = 1;
                     }
                 }
             }
 
-            // extract flat features
-            int num_smallest_corvature = 0;
+            int smallestPickedNum = 0;
             for (int k = sp; k <= ep; k++)
             {
-                int si = sort_index[k];
-
-                if (is_feature[si] == 0 &&
-                    curvatures[si] < 0.1)
+                int ind = cloudSmoothness[k].ind;
+                if (cloudNeighborPicked[ind] == 0 &&
+                    cloudCurvature[ind] < surfThreshold &&
+                    segemented_info.segmentedCloudGroundFlag[ind] == true)
                 {
 
-                    label[si] = -1;
-                    points_flat.push_back(points.points[si]);
+                    cloudLabel[ind] = -1;
+                    points_flat.push_back(points_segmented.points[ind]);
 
-                    num_smallest_corvature++;
-                    if (num_smallest_corvature >= 2) // NOTE: change the number of flat points
+                    smallestPickedNum++;
+                    if (smallestPickedNum >= surfFeatureNum)
                     {
                         break;
                     }
 
-                    is_feature[si] = 1;
+                    cloudNeighborPicked[ind] = 1;
                     for (int l = 1; l <= 5; l++)
                     {
-                        float dx = points.points[si + l].x - points.points[si + l - 1].x;
-                        float dy = points.points[si + l].y - points.points[si + l - 1].y;
-                        float dz = points.points[si + l].z - points.points[si + l - 1].z;
-                        if (dx * dx + dy * dy + dz * dz > 0.05)
-                        {
-                            break;
-                        }
 
-                        is_feature[si + l] = 1;
+                        int columnDiff = std::abs(int(segemented_info.segmentedCloudColInd[ind + l] - segemented_info.segmentedCloudColInd[ind + l - 1]));
+                        if (columnDiff > 10)
+                            break;
+
+                        cloudNeighborPicked[ind + l] = 1;
                     }
                     for (int l = -1; l >= -5; l--)
                     {
-                        float dx = points.points[si + l].x - points.points[si + l + 1].x;
-                        float dy = points.points[si + l].y - points.points[si + l + 1].y;
-                        float dz = points.points[si + l].z - points.points[si + l + 1].z;
-                        if (dx * dx + dy * dy + dz * dz > 0.05)
-                        {
-                            break;
-                        }
 
-                        is_feature[si + l] = 1;
+                        int columnDiff = std::abs(int(segemented_info.segmentedCloudColInd[ind + l] - segemented_info.segmentedCloudColInd[ind + l + 1]));
+                        if (columnDiff > 10)
+                            break;
+
+                        cloudNeighborPicked[ind + l] = 1;
                     }
                 }
             }
 
-            // mark other point as less flat
             for (int k = sp; k <= ep; k++)
             {
-                if (label[k] <= 0)
+                if (cloudLabel[k] <= 0)
                 {
-                    scan_less_flat->push_back(points.points[k]);
+                    point_less_flat.push_back(points_segmented.points[k]);
                 }
             }
         }
