@@ -7,19 +7,19 @@
 
 #include <opencv2/core/eigen.hpp>
 
+double epsilon = 1e-3;
+
 namespace lvio_fusion
 {
 
 Matrix2d TwoFrameReprojectionError::sqrt_info = Matrix2d::Identity();
 Matrix2d PoseOnlyReprojectionError::sqrt_info = Matrix2d::Identity();
-Matrix3d LidarEdgeError::sqrt_info = 0.1 * Matrix3d::Identity();
-double LidarPlaneError::sqrt_info = 0.1;
 Matrix3d NavsatError::sqrt_info = 10 * Matrix3d::Identity();
 
 Estimator::Estimator(std::string &config_path)
     : config_file_path_(config_path) {}
 
-bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, int is_semantic, Calib calib)//NEWADD  参数加了一个, Calib calib
+bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, int is_semantic, Calib calib)
 {
     // read from config file
     if (!Config::SetParameterFile(config_file_path_))
@@ -59,19 +59,17 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
               << " extrinsics: " << t_base_to_cam1.transpose();
 
     // create components and links
+    map = Map::Ptr(new Map());
+
     frontend = Frontend::Ptr(new Frontend(
         Config::Get<int>("num_features"),
         Config::Get<int>("num_features_init"),
         Config::Get<int>("num_features_tracking"),
         Config::Get<int>("num_features_tracking_bad"),
-        Config::Get<int>("num_features_needed_for_keyframe")
-        ));
-
+        Config::Get<int>("num_features_needed_for_keyframe")));
 
     backend = Backend::Ptr(new Backend(
-        Config::Get<double>("range")));
-
-    map = Map::Ptr(new Map());
+        Config::Get<double>("delay")));
 
     frontend->SetBackend(backend);
     frontend->SetMap(map);
@@ -82,18 +80,16 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
     backend->SetCameras(camera1, camera2);
     backend->SetFrontend(frontend);
 
-    mapping = Mapping::Ptr(new Mapping());
-    mapping->SetCamera(camera1);
-    mapping->SetMap(map);
-    mapping->SetBackend(backend);
-
     if (use_loop)
     {
-        relocation = Relocation::Ptr(new Relocation(Config::Get<std::string>("voc_path")));
-        relocation->SetCameras(camera1, camera2);
+        relocation = Relocation::Ptr(new Relocation(
+            Config::Get<std::string>("voc_path")));
         relocation->SetMap(map);
-        frontend->SetRelocation(relocation);
+        relocation->SetCameras(camera1, camera2);
+        relocation->SetFrontend(frontend);
+        relocation->SetBackend(backend);
     }
+
     if (use_navsat)
     {
         NavsatMap::Ptr navsat_map(new NavsatMap(map));
@@ -106,20 +102,14 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
         Imu::Ptr imu(new Imu(SE3d()));
 
         initializer = Initializer::Ptr(new Initializer);
-        //NEWADD
         initializer->SetMap(map);
         initializer->SetFrontend(frontend);
-       
-        //NEWADDEND
+
         backend->SetImu(imu);
         backend->SetInitializer(initializer);
 
         frontend->SetImu(imu);
-        //NEWADD
-         //TODO 加Calib
         frontend->SetCalib(calib);
-      //  frontend->SetInitializer(initializer);
-        //NEWADDEND
         frontend->flags += Flag::IMU;
     }
 
@@ -132,7 +122,9 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
         Quaterniond q_base_to_lidar(R_base_to_lidar);
         Vector3d t_base_to_lidar(0, 0, 0);
         t_base_to_lidar << base_to_lidar(0, 3), base_to_lidar(1, 3), base_to_lidar(2, 3);
-        Lidar::Ptr lidar(new Lidar(SE3d(q_base_to_lidar, t_base_to_lidar)));
+        Lidar::Ptr lidar(new Lidar(
+            SE3d(q_base_to_lidar, t_base_to_lidar),
+            Config::Get<double>("resolution")));
 
         scan_registration = ScanRegistration::Ptr(new ScanRegistration(
             Config::Get<int>("num_scans"),
@@ -143,21 +135,26 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
         scan_registration->SetLidar(lidar);
         scan_registration->SetMap(map);
 
+        mapping = Mapping::Ptr(new Mapping());
+        mapping->SetMap(map);
+        mapping->SetCamera(camera1);
         mapping->SetLidar(lidar);
+        mapping->SetScanRegistration(scan_registration);
+        mapping->SetFrontend(frontend);
+        mapping->SetBackend(backend);
 
-        backend->SetLidar(lidar);
-        backend->SetScanRegistration(scan_registration);
-        if(relocation)
+        if (relocation)
         {
             relocation->SetLidar(lidar);
             relocation->SetScanRegistration(scan_registration);
+            relocation->SetMapping(mapping);
         }
 
         frontend->flags += Flag::Laser;
     }
 
     // semantic map
-    if (Config::Get<int>("is_semantic"))
+    if (is_semantic)
     {
         frontend->flags += Flag::Semantic;
     }
@@ -172,7 +169,6 @@ void Estimator::InputImage(double time, cv::Mat &left_image, cv::Mat &right_imag
     new_frame->image_left = left_image;
     new_frame->image_right = right_image;
     new_frame->objects = objects;
-
     auto t1 = std::chrono::steady_clock::now();
     bool success = frontend->AddFrame(new_frame);
     auto t2 = std::chrono::steady_clock::now();
@@ -189,7 +185,7 @@ void Estimator::InputPointCloud(double time, Point3Cloud::Ptr point_cloud)
     auto time_used =
         std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);
     if (time_used.count() > 1e-2)
-        LOG(INFO) << "Scan Registration cost time: " << time_used.count() << " seconds.";
+        LOG(INFO) << "Lidar Preprocessing cost time: " << time_used.count() << " seconds.";
 }
 
 void Estimator::InputIMU(double time, Vector3d acc, Vector3d gyr)

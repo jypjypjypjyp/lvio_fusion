@@ -8,6 +8,7 @@
 #include <map>
 #include <memory>
 #include <mutex>
+#include <queue>
 #include <string>
 #include <thread>
 #include <unordered_map>
@@ -28,7 +29,7 @@ typedef Sophus::SO3d SO3d;
 
 // opencv
 #include <opencv2/opencv.hpp>
-#include <opencv2/core/eigen.hpp>
+
 // PCL
 #include <pcl/common/common_headers.h>
 
@@ -48,5 +49,7 @@ class NotImplemented : public std::logic_error
 public:
     NotImplemented() : std::logic_error("Function not yet implemented"){};
 };
+
+extern double epsilon;
 
 #endif // lvio_fusion_COMMON_H

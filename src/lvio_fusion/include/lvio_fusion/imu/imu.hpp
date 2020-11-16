@@ -51,8 +51,8 @@ class Bias
 
 public:
     Bias():bax(0),bay(0),baz(0),bwx(0),bwy(0),bwz(0){}
-    Bias(const float &b_acc_x, const float &b_acc_y, const float &b_acc_z,
-            const float &b_ang_vel_x, const float &b_ang_vel_y, const float &b_ang_vel_z):
+    Bias(float b_acc_x, float b_acc_y,float b_acc_z,
+            float b_ang_vel_x, float b_ang_vel_y, float b_ang_vel_z):
             bax(b_acc_x), bay(b_acc_y), baz(b_acc_z), bwx(b_ang_vel_x), bwy(b_ang_vel_y), bwz(b_ang_vel_z){}
     void CopyFrom(Bias &b)
     {
@@ -86,11 +86,8 @@ public:
 
     return out;
     }
-
-
-public:
-    float bax, bay, baz;
-    float bwx, bwy, bwz;
+    float bax=0, bay=0, baz=0;
+    float bwx=0, bwy=0, bwz=0;
 };
 
 class IntegratedRotation

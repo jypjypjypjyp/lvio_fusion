@@ -1,4 +1,5 @@
 add_library(lvio_fusion SHARED
+        atlas.cpp
         backend.cpp
         config.cpp
         estimator.cpp

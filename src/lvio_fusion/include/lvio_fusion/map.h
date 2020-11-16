@@ -16,24 +16,19 @@ public:
 
     Map() {}
 
-    visual::Landmarks &GetAllLandmarks()
+    int size()
     {
-        std::unique_lock<std::mutex> lock(data_mutex_);
-        return landmarks_;
+        return keyframes_.size();
     }
 
     Frames &GetAllKeyFrames()
     {
-        std::unique_lock<std::mutex> lock(data_mutex_);
         return keyframes_;
     }
-    //NEWADD
     int GetAllKeyFramesSize(){return keyframes_.size();}
     void ApplyScaledRotation(const cv::Mat &R, const float s, const bool bScaledVel, const cv::Mat t=cv::Mat::zeros(cv::Size(1,3),CV_32F));
-//NEWADDEND 
-
     Frames GetKeyFrames(double start, double end = 0, int num = 0);
-    
+
     void InsertKeyFrame(Frame::Ptr frame);
 
     void InsertLandmark(visual::Landmark::Ptr landmark);
@@ -50,10 +45,10 @@ public:
 
     Frame::Ptr current_frame;
     NavsatMap::Ptr navsat_map;
-    PointRGBCloud simple_map;
+    std::mutex mutex_local_kfs;
+    
 
 private:
-    std::mutex data_mutex_;
     visual::Landmarks landmarks_;
     Frames keyframes_;
 };

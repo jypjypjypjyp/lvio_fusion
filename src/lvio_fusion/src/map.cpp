@@ -6,42 +6,43 @@ namespace lvio_fusion
 
 void Map::InsertKeyFrame(Frame::Ptr frame)
 {
-    std::unique_lock<std::mutex> lock(data_mutex_);
+    std::unique_lock<std::mutex> lock(mutex_local_kfs);
     Frame::current_frame_id++;
-    current_frame = frame;
-    keyframes_.insert(make_pair(frame->time, frame));
+     current_frame = frame;
+    keyframes_[frame->time] = frame;
 }
 
 void Map::InsertLandmark(visual::Landmark::Ptr landmark)
 {
-    std::unique_lock<std::mutex> lock(data_mutex_);
+    std::unique_lock<std::mutex> lock(mutex_local_kfs);
     visual::Landmark::current_landmark_id++;
-    landmarks_.insert(make_pair(landmark->id, landmark));
+    landmarks_[landmark->id] = landmark;
 }
 
-// 1: start
-// 2: start -> end
-// 2: start -> num
-// 3: num -> end
+// 1: [start]
+// 2: [start -> end]
+// 3: (start -> num]
+// 4: [num -> end)
 Frames Map::GetKeyFrames(double start, double end, int num)
 {
-    std::unique_lock<std::mutex> lock(data_mutex_);
     if (end == 0 && num == 0)
     {
-        return Frames(keyframes_.upper_bound(start), keyframes_.end());
+        auto start_iter = keyframes_.lower_bound(start);
+        return start_iter == keyframes_.end() ? Frames() : Frames(start_iter, keyframes_.end());
     }
     else if (num == 0)
     {
-        return Frames(keyframes_.upper_bound(start), keyframes_.lower_bound(end));
+        auto start_iter = keyframes_.lower_bound(start);
+        auto end_iter = keyframes_.upper_bound(end);
+        return start >= end ? Frames() : Frames(start_iter, end_iter);
     }
     else if (end == 0)
     {
         auto iter = keyframes_.upper_bound(start);
         Frames frames;
-        for (size_t i = 0; i < num; i++)
+        for (size_t i = 0; i < num && iter != keyframes_.end(); i++)
         {
-            frames.insert(*iter);
-            iter++;
+            frames.insert(*(iter++));
         }
         return frames;
     }
@@ -49,10 +50,9 @@ Frames Map::GetKeyFrames(double start, double end, int num)
     {
         auto iter = keyframes_.lower_bound(end);
         Frames frames;
-        for (size_t i = 0; i < num && iter != --keyframes_.begin(); i++)
+        for (size_t i = 0; i < num && iter != keyframes_.begin(); i++)
         {
-            frames.insert(*iter);
-            iter--;
+            frames.insert(*(--iter));
         }
         return frames;
     }
@@ -61,7 +61,7 @@ Frames Map::GetKeyFrames(double start, double end, int num)
 
 void Map::RemoveLandmark(visual::Landmark::Ptr landmark)
 {
-    std::unique_lock<std::mutex> lock(data_mutex_);
+    std::unique_lock<std::mutex> lock(mutex_local_kfs);
     landmark->Clear();
     landmarks_.erase(landmark->id);
 }
@@ -78,7 +78,6 @@ SE3d Map::ComputePose(double time)
     return SE3d(q, t);
 }
 
-//NEWADD   TODO
 // 对地图数据应用相似变换
 // R Rgw
 void Map::ApplyScaledRotation(const cv::Mat &R, const float s, const bool bScaledVel, const cv::Mat t)
@@ -130,8 +129,5 @@ void Map::ApplyScaledRotation(const cv::Mat &R, const float s, const bool bScale
     }
   //  mnMapChange++;
 }
-//NEWADDEND
-
-
 
 } // namespace lvio_fusion

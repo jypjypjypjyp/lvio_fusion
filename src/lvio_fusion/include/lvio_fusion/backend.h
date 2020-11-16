@@ -5,8 +5,6 @@
 #include "lvio_fusion/frame.h"
 #include "lvio_fusion/imu/imu.hpp"
 #include "lvio_fusion/imu/initializer.h"
-#include "lvio_fusion/lidar/lidar.hpp"
-#include "lvio_fusion/lidar/scan_registration.h"
 #include "lvio_fusion/map.h"
 #include "lvio_fusion/visual/camera.hpp"
 
@@ -37,15 +35,11 @@ public:
         camera_right_ = right;
     }
 
-    void SetLidar(Lidar::Ptr lidar) { lidar_ = lidar; }
-
     void SetImu(Imu::Ptr imu) { imu_ = imu; }
 
     void SetMap(Map::Ptr map) { map_ = map; }
 
     void SetFrontend(std::shared_ptr<Frontend> frontend) { frontend_ = frontend; }
-
-    void SetScanRegistration(ScanRegistration::Ptr scan_registration) { scan_registration_ = scan_registration; }
 
     void SetInitializer(Initializer::Ptr initializer) { initializer_ = initializer; }
 
@@ -55,45 +49,34 @@ public:
 
     void Continue();
 
-    double ActiveTime()
-    {
-        return head_ - range_;
-    }
-
     BackendStatus status = BackendStatus::RUNNING;
+    std::mutex mutex;
+    double head = 0;
     Initializer::Ptr initializer_;
 private:
-    enum class ProblemType
-    {
-        Optimize,
-        ForwardPropagate,
-        BackwardPropagate
-    };
-
     void BackendLoop();
+
+    void GlobalLoop();
 
     void Optimize(bool full = false);
 
     void ForwardPropagate(double time);
 
-    void BuildProblem(Frames &active_kfs, ceres::Problem &problem, ProblemType type,std::vector<double *> &para_gbs,std::vector<double *> &para_abs);
+    void BuildProblem(Frames &active_kfs, ceres::Problem &problem,std::vector<double *> &para_gbs,std::vector<double *> &para_abs);
 
     Map::Ptr map_;
     std::weak_ptr<Frontend> frontend_;
-    ScanRegistration::Ptr scan_registration_;
-   
+
 
     std::thread thread_;
     std::mutex running_mutex_, pausing_mutex_;
     std::condition_variable running_;
     std::condition_variable pausing_;
     std::condition_variable map_update_;
-    double head_ = 0;
-    const double range_;
+    const double delay_;
 
     Camera::Ptr camera_left_;
     Camera::Ptr camera_right_;
-    Lidar::Ptr lidar_;
     Imu::Ptr imu_;
 };
 

@@ -482,27 +482,6 @@ public:
         return (new ceres::AutoDiffCostFunction<AccRWError,3, 3,3>(new AccRWError()));
     }
 };
-/*
-class StereoError
-{
-public:
-    StereoError(){}
-
-    template <typename T>
-    bool operator()(T const *const *parameters, T *residuals) const
-    {
-
-        
-    }
-    static ceres::CostFunction *Create()
-    {
-        return (new ceres::AutoDiffCostFunction<StereoError,9, 3,7,>(new StereoError()));
-    }
-};
-*/
-
-
-
 
 
 } // namespace lvio_fusion

@@ -83,13 +83,24 @@ inline void Norm(const T A[3], T *norm)
 }
 
 template <typename T>
-inline void Cast(double *raw, int size, T *result)
+inline void Cast(const double *raw, int size, T *result)
 {
     for (int i = 0; i < size; i++)
     {
         result[i] = T(raw[i]);
     }
 }
+
+template <typename T>
+T normalize_angle(const T &angle)
+{
+    if (angle > T(M_PI / 2))
+        return angle - T(M_PI);
+    else if (angle < T(-M_PI / 2))
+        return angle + T(M_PI);
+    else
+        return angle;
+};
 
 } // namespace ceres
 

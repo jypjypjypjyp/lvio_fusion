@@ -2,6 +2,7 @@
 #include "lvio_fusion/visual/feature.h"
 #include "lvio_fusion/map.h"
 #include "lvio_fusion/visual/landmark.h"
+
 namespace lvio_fusion
 {
 
@@ -9,9 +10,8 @@ unsigned long Frame::current_frame_id = 0;
 
 Frame::Ptr Frame::Create()
 {
-    Frame::Ptr new_frame(new Frame);
+    Frame::Ptr new_frame(new Frame());
     new_frame->id = current_frame_id + 1;
-    new_frame->bImu=false;
     return new_frame;
 }
 
@@ -20,11 +20,11 @@ void Frame::AddFeature(visual::Feature::Ptr feature)
     assert(feature->frame.lock()->id == id);
     if (feature->is_on_left_image)
     {
-        features_left.insert(std::make_pair(feature->landmark.lock()->id, feature));
+        features_left[feature->landmark.lock()->id] = feature;
     }
     else
     {
-        features_right.insert(std::make_pair(feature->landmark.lock()->id, feature));
+        features_right[feature->landmark.lock()->id] = feature;
     }
 }
 
@@ -49,15 +49,12 @@ LabelType Frame::GetLabelType(int x, int y)
 
 void Frame::UpdateLabel()
 {
-    for (auto feature_pair : features_left)
+    for (auto pair_feature : features_left)
     {
-        auto camera_point = feature_pair.second->landmark.lock();
-        camera_point->label = GetLabelType(feature_pair.second->keypoint.x, feature_pair.second->keypoint.y);
+        auto camera_point = pair_feature.second->landmark.lock();
+        camera_point->label = GetLabelType(pair_feature.second->keypoint.x, pair_feature.second->keypoint.y);
     }
 }
-
-//NEWADD
-
 void Frame::SetVelocity(const cv::Mat &Vw_)
 {
     cv::cv2eigen(Vw_,mVw);
@@ -157,6 +154,4 @@ void Frame::UpdatePoseMatrices()
     mtcw = mTcw.rowRange(0,3).col(3);
     mOw = -mRcw.t()*mtcw;
 }
-//NEWADDEND
-
 } // namespace lvio_fusion

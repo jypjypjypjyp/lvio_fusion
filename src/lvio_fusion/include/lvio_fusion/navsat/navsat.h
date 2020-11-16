@@ -29,7 +29,7 @@ public:
 
     void AddPoint(NavsatPoint point)
     {
-        navsat_points.insert(std::make_pair(point.time, point));
+        navsat_points[point.time] = point;
     }
 
     void Transfrom(NavsatPoint &point)
@@ -40,7 +40,7 @@ public:
     void Initialize();
 
     bool initialized = false;
-    int num_frames_init = 20;
+    int num_frames_init = 40;
     NavsatPoints navsat_points;
     SE3d tf;
 

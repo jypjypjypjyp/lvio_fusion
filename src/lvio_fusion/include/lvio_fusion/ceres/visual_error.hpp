@@ -24,6 +24,7 @@ inline void Reprojection(const T *pw, const T *Tcw, Camera::Ptr camera, T *resul
 class PoseOnlyReprojectionError
 {
 public:
+    PoseOnlyReprojectionError() = default;
     PoseOnlyReprojectionError(Vector2d ob, Vector3d pw, Camera::Ptr camera)
         : ob_(ob), pw_(pw), camera_(camera) {}
 
@@ -64,6 +65,7 @@ inline void Projection(const T *pc, const T *Tcw, T *result)
 class TwoFrameReprojectionError
 {
 public:
+    TwoFrameReprojectionError() = default;
     TwoFrameReprojectionError(Vector3d pr, Vector2d ob, Camera::Ptr camera)
         : pr_(pr), ob_(ob), camera_(camera) {}
 

@@ -5,7 +5,6 @@
 #include "lvio_fusion/frame.h"
 #include "lvio_fusion/imu/imu.hpp"
 #include "lvio_fusion/imu/initializer.h"
-#include "lvio_fusion/loop/relocation.h"
 #include "lvio_fusion/map.h"
 #include "lvio_fusion/visual/camera.hpp"
 
@@ -42,7 +41,7 @@ public:
     typedef std::shared_ptr<Frontend> Ptr;
 
     Frontend(int num_features, int init, int tracking, int tracking_bad, int need_for_keyframe);
-    
+
     bool AddFrame(Frame::Ptr frame);
 
     void AddImu(double time, Vector3d acc, Vector3d gyr);
@@ -51,13 +50,10 @@ public:
 
     void SetBackend(std::shared_ptr<Backend> backend) { backend_ = backend; }
 
-    void SetRelocation(std::shared_ptr<Relocation> relocation) { relocation_ = relocation; }
-//NEWADD
- //   void SetInitializer(Initializer::Ptr initializer) { initializer_ = initializer; }
     void SetCalib(Calib calib){ImuCalib_=calib;}
-    void UpdateFrameIMU(const float s, const Bias &b, Frame::Ptr pCurrentKeyFrame);
 
-//NEWADDEND
+    void UpdateFrameIMU(const float s, const Bias &b, Frame::Ptr pCurrentKeyFrame);
+    
     void SetCameras(Camera::Ptr left, Camera::Ptr right)
     {
         camera_left_ = left;
@@ -71,30 +67,19 @@ public:
 
     void UpdateCache();
 
-    std::unordered_map<unsigned long, Vector3d> GetPositionCache();
-
     int flags = Flag::None;
     FrontendStatus status = FrontendStatus::BUILDING;
     Frame::Ptr current_frame;
     Frame::Ptr last_frame;
     Frame::Ptr current_key_frame;
-    //NEWADD
     Frame::Ptr last_key_frame;
     Frame::Ptr reference_key_frame;
-//NEWADDEND
-    SE3d relative_motion;
-    std::mutex last_frame_mutex;
-//NEWADD
-    // Lists used to recover the full camera trajectory at the end of the execution.
-    // Basically we store the reference keyframe for each frame and its relative transformation
+    SE3d relative_pose;
+    std::mutex mutex;
     std::list<cv::Mat> mlRelativeFramePoses;  // frame 与 referenceKF 的相对变换
     std::list<Frame::Ptr> mlpReferences;       // 相对变换的 referenceKF
    // list<double> mlFrameTimes;           // 每一相对变换的frame的time_stamp
     std::list<bool> mlbLost;                  // 是否丢失
-
-//NEWADDEND
-
-
 private:
     bool Track();
 
@@ -106,7 +91,7 @@ private:
 
     void CreateKeyframe(bool need_new_features = true);
 
-    bool BuildMap();
+    bool InitMap();
 
     int DetectNewFeatures();
 
@@ -115,18 +100,15 @@ private:
     // data
     Map::Ptr map_;
     std::weak_ptr<Backend> backend_;
-    Relocation::Ptr relocation_;
     std::unordered_map<unsigned long, Vector3d> position_cache_;
     SE3d last_frame_pose_cache_;
 
     Camera::Ptr camera_left_;
     Camera::Ptr camera_right_;
     Imu::Ptr imu_;
-    //NEWADD
-   // Initializer::Ptr initializer_;
-    Calib ImuCalib_;
-    //NEWADDEND
 
+    Calib ImuCalib_;
+    
     // params
     int num_features_;
     int num_features_init_;

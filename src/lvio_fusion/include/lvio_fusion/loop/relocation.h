@@ -1,10 +1,14 @@
 #ifndef lvio_fusion_RELOCATION_H
 #define lvio_fusion_RELOCATION_H
 
+#include "lvio_fusion/backend.h"
 #include "lvio_fusion/common.h"
 #include "lvio_fusion/frame.h"
-#include "lvio_fusion/lidar/lidar.hpp"
+#include "lvio_fusion/frontend.h"
+#include "lvio_fusion/lidar/mapping.h"
 #include "lvio_fusion/lidar/scan_registration.h"
+#include "lvio_fusion/loop/atlas.h"
+#include "lvio_fusion/loop/loop_constraint.h"
 #include "lvio_fusion/map.h"
 #include "lvio_fusion/visual/camera.hpp"
 
@@ -34,9 +38,9 @@ inline std::map<unsigned long, BRIEF> mat2briefs(Frame::Ptr frame)
 {
     std::map<unsigned long, BRIEF> briefs;
     int i = 0;
-    for (auto pair : frame->features_left)
+    for (auto pair_feature : frame->features_left)
     {
-        briefs.insert(std::make_pair(pair.first, mat2brief(frame->descriptors.row(i))));
+        briefs[pair_feature.first] = mat2brief(frame->descriptors.row(i));
         i++;
     }
     return briefs;
@@ -64,53 +68,55 @@ public:
 
     void SetLidar(Lidar::Ptr lidar) { lidar_ = lidar; }
 
-    void SetScanRegistration(ScanRegistration::Ptr scan_registration) { scan_registration_ = scan_registration; }
-
     void SetMap(Map::Ptr map) { map_ = map; }
 
-    void UpdateMap();
+    void SetScanRegistration(ScanRegistration::Ptr scan_registration) { scan_registration_ = scan_registration; }
 
-    void Pause();
+    void SetMapping(Mapping::Ptr mapping) { mapping_ = mapping; }
 
-    void Continue();
+    void SetFrontend(Frontend::Ptr frontend) { frontend_ = frontend; }
 
-    RelocationStatus status = RelocationStatus::RUNNING;
+    void SetBackend(Backend::Ptr backend) { backend_ = backend; }
+
+    double head = 0;
 
 private:
     void RelocationLoop();
 
-    bool DetectLoop(Frame::Ptr frame, Frame::Ptr &frame_old);
-
     void AddKeyFrameIntoVoc(Frame::Ptr frame);
 
-    void Associate(Frame::Ptr frame);
+    bool DetectLoop(Frame::Ptr frame, Frame::Ptr &old_frame);
 
-    void SearchByBRIEFDes(Frame::Ptr frame, Frame::Ptr frame_old, std::vector<cv::Point3d> &points_3d, std::vector<cv::Point2d> &points_2d);
+    bool Relocate(Frame::Ptr frame, Frame::Ptr old_frame);
+
+    bool RelocateByImage(Frame::Ptr frame, Frame::Ptr old_frame, loop::LoopConstraint::Ptr loop_constraint);
+
+    bool RelocateByPoints(Frame::Ptr frame, Frame::Ptr old_frame, loop::LoopConstraint::Ptr loop_constraint);
 
     bool SearchInAera(const BRIEF descriptor, const std::map<unsigned long, BRIEF> &descriptors_old, unsigned long &best_id);
 
     int Hamming(const BRIEF &a, const BRIEF &b);
 
-    bool UpdateFramePoseByPnP(Frame::Ptr frame, std::vector<cv::Point3d> points_3d, std::vector<cv::Point2d> points_2d);
+    void BuildProblem(Frames &active_kfs, ceres::Problem &problem);
 
-    void UpdateFramePoseByLidar(Frame::Ptr frame, Frame::Ptr frame_old);
+    void CorrectLoop(double old_time, double start_time, double end_time);
 
     DBoW3::Database db_;
     DBoW3::Vocabulary voc_;
-    ScanRegistration::Ptr scan_registration_;
     Map::Ptr map_;
+    Mapping::Ptr mapping_;
+    Frontend::Ptr frontend_;
+    Backend::Ptr backend_;
+    ScanRegistration::Ptr scan_registration_;
+    loop::Atlas atlas_;
 
     std::thread thread_;
-    std::mutex running_mutex_, pausing_mutex_;
-    std::condition_variable running_;
-    std::condition_variable pausing_;
-    std::condition_variable map_update_;
     cv::Ptr<cv::Feature2D> detector_;
-    std::map<DBoW3::EntryId, double> map_db_to_frames_;
-    double head_;
+    std::map<DBoW3::EntryId, double> map_dbow_to_frames_;
 
     Camera::Ptr camera_left_;
     Camera::Ptr camera_right_;
+    Imu::Ptr imu_;
     Lidar::Ptr lidar_;
 };
 
