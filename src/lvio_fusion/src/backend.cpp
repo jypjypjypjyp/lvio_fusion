@@ -188,7 +188,7 @@ void Backend::Optimize(bool full)
 
     ceres::Solver::Options options;
     options.linear_solver_type = ceres::DENSE_SCHUR;
-    options.max_solver_time_in_seconds = delay_ * 0.8;
+    options.max_solver_time_in_seconds = 0.4 * delay_;
     options.num_threads = 4;
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);

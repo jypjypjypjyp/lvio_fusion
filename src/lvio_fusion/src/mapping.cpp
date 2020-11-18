@@ -142,14 +142,13 @@ void Mapping::Optimize(Frames &active_kfs)
     {
         Frame::Ptr map_frame = Frame::Ptr(new Frame());
         BuildMapFrame(pair_kf.second, map_frame);
-        if (!map_frame->feature_lidar || !pair_kf.second->feature_lidar || !pair_kf.second->feature_lidar->points_less_flat.empty() || !pair_kf.second->feature_lidar->points_less_sharp.empty())
+        if (!map_frame->feature_lidar || !pair_kf.second->feature_lidar || map_frame->feature_lidar->points_less_flat.empty() || map_frame->feature_lidar->points_less_sharp.empty())
             continue;
 
         double rpyxyz[6];
         se32rpyxyz(map_frame->pose * pair_kf.second->pose.inverse(), rpyxyz); // relative_i_j
         for (int i = 0; i < 4; i++)
         {
-            double init_cost, final_cost;
             {
                 ceres::Problem problem;
                 BuildProblem(pair_kf.second, map_frame, rpyxyz, problem, Mapping::ProblemType::Ground);
@@ -161,7 +160,6 @@ void Mapping::Optimize(Frames &active_kfs)
                 options.num_threads = 4;
                 ceres::Solver::Summary summary;
                 ceres::Solve(options, &problem, &summary);
-                init_cost = summary.initial_cost;
                 pair_kf.second->pose = rpyxyz2se3(rpyxyz).inverse() * map_frame->pose;
             }
             {
@@ -175,12 +173,10 @@ void Mapping::Optimize(Frames &active_kfs)
                 options.num_threads = 4;
                 ceres::Solver::Summary summary;
                 ceres::Solve(options, &problem, &summary);
-                final_cost = summary.final_cost;
                 pair_kf.second->pose = rpyxyz2se3(rpyxyz).inverse() * map_frame->pose;
+                if (summary.final_cost / summary.initial_cost > 0.9)
+                    break;
             }
-
-            if (final_cost / init_cost > 0.99)
-                break;
         }
     }
 
