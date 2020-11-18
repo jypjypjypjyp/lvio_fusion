@@ -154,7 +154,7 @@ void ImageProjection::Segment(SegmentedInfo &segmented_info, PointICloud &points
     for (size_t i = 0; i < num_scans_; ++i)
         for (size_t j = 0; j < horizon_scan_; ++j)
             if (labelMat.at<int>(i, j) == 0)
-                labelComponents(i, j);
+                LabelComponents(i, j);
 
     int sizeOfSegCloud = 0;
     // extract segmented cloud for lidar odometry
@@ -203,7 +203,7 @@ void ImageProjection::Segment(SegmentedInfo &segmented_info, PointICloud &points
     }
 }
 
-void ImageProjection::labelComponents(int row, int col)
+void ImageProjection::LabelComponents(int row, int col)
 {
     static uint16_t *allPushedIndX = new uint16_t[num_scans_ * horizon_scan_]; // array for tracking points of a segmented object
     static uint16_t *allPushedIndY = new uint16_t[num_scans_ * horizon_scan_];
@@ -321,7 +321,7 @@ void ImageProjection::labelComponents(int row, int col)
     { // segment is invalid, mark these points
         for (size_t i = 0; i < allPushedIndSize; ++i)
         {
-            labelMat.at<int>(allPushedIndX[i], allPushedIndY[i]) = INT_MAX;
+            labelMat.at<int>(allPushedIndX[i], allPushedIndY[i]) = 999999;
         }
     }
 }

@@ -215,6 +215,11 @@ void Backend::Optimize(bool full)
         }
     }
 
+    if(lidar_)
+    {
+        mapping_->Optimize(active_kfs);
+    }    
+
     // propagate to the last frame
     double temp_head = (--active_kfs.end())->first + epsilon;
     ForwardPropagate(temp_head);
@@ -236,7 +241,7 @@ void Backend::ForwardPropagate(double time)
     BuildProblem(active_kfs, problem);
 
     ceres::Solver::Options options;
-    options.linear_solver_type = ceres::DENSE_SCHUR;
+    options.linear_solver_type = ceres::DENSE_QR;
     options.max_num_iterations = 3;
     options.num_threads = 4;
     ceres::Solver::Summary summary;

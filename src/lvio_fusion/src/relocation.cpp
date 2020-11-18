@@ -33,7 +33,7 @@ void Relocation::RelocationLoop()
     while (true)
     {
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        auto new_kfs = map_->GetKeyFrames(head, lidar_ ? mapping_->head : backend_->head);
+        auto new_kfs = map_->GetKeyFrames(head, backend_->head);
         if (new_kfs.empty())
         {
             continue;
@@ -138,7 +138,7 @@ bool Relocation::DetectLoop(Frame::Ptr frame, Frame::Ptr &old_frame)
     //     }
     // }
     // return false;
-    Frames candidate_kfs = map_->GetKeyFrames(0, (lidar_ ? mapping_->head : backend_->head) - 10);
+    Frames candidate_kfs = map_->GetKeyFrames(0, backend_->head - 10);
     double min_distance = 10;
     for (auto pair_kf : candidate_kfs)
     {
@@ -300,7 +300,7 @@ bool Relocation::RelocateByPoints(Frame::Ptr frame, Frame::Ptr old_frame, loop::
         problem.AddParameterBlock(para_kf_old, SE3d::num_parameters, local_parameterization);
         problem.SetParameterBlockConstant(para_kf_old);
 
-        association_->Associate(frame_copy, old_frame, problem, lidar_loss_function);
+        // association_->Associate(frame_copy, old_frame, problem, lidar_loss_function);
 
         ceres::Solver::Options options;
         options.linear_solver_type = ceres::DENSE_QR;
@@ -311,9 +311,7 @@ bool Relocation::RelocateByPoints(Frame::Ptr frame, Frame::Ptr old_frame, loop::
         ceres::Solver::Summary summary;
         ceres::Solve(options, &problem, &summary);
         if (summary.final_cost / summary.initial_cost > 0.99)
-        {
             break;
-        }
     }
     loop_constraint->relative_pose = frame_copy->pose * old_frame->pose.inverse();
     return true;
@@ -509,13 +507,8 @@ void Relocation::CorrectLoop(double old_time, double start_time, double end_time
 
     // forward propogate
     {
-        std::unique_lock<std::mutex> lock1;
-        if (lidar_)
-        {
-            lock1 = std::unique_lock<std::mutex>(mapping_->mutex);
-        }
-        std::unique_lock<std::mutex> lock2(backend_->mutex);
-        std::unique_lock<std::mutex> lock3(frontend_->mutex);
+        std::unique_lock<std::mutex> lock1(backend_->mutex);
+        std::unique_lock<std::mutex> lock2(frontend_->mutex);
 
         Frame::Ptr last_frame = frontend_->last_frame;
         Frames forward_kfs = map_->GetKeyFrames(end_time + epsilon);

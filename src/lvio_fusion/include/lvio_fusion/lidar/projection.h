@@ -57,7 +57,7 @@ private:
 
     void Segment(SegmentedInfo &segmented_info, PointICloud &points_segmented, PointICloud &points_outlier);
 
-    void labelComponents(int row, int col);
+    void LabelComponents(int row, int col);
 
     void Clear();
 

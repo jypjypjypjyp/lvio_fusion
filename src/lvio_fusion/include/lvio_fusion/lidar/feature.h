@@ -19,13 +19,15 @@ public:
         const PointICloud &points_sharp,
         const PointICloud &points_less_sharp,
         const PointICloud &points_flat,
-        const PointICloud &points_less_flat)
+        const PointICloud &points_less_flat,
+        const PointICloud &points_ground)
     {
         Feature::Ptr new_feature(new Feature);
         new_feature->points_sharp = points_sharp;
         new_feature->points_less_sharp = points_less_sharp;
         new_feature->points_flat = points_flat;
         new_feature->points_less_flat = points_less_flat;
+        new_feature->points_ground = points_ground;
         return new_feature;
     }
 
@@ -33,6 +35,7 @@ public:
     PointICloud points_less_sharp;
     PointICloud points_flat;
     PointICloud points_less_flat;
+    PointICloud points_ground;
 };
 
 } // namespace lidar

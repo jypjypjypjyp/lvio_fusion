@@ -49,13 +49,15 @@ public:
 
     void MergeScan(const PointICloud &in, SE3d from_pose, SE3d to_pose, PointICloud &out);
 
-    void Associate(Frame::Ptr current_frame, Frame::Ptr last_frame, ceres::Problem &problem, ceres::LossFunction *loss_function);
+    void ScanToMapWithGround(Frame::Ptr frame, Frame::Ptr map_frame, double* para, ceres::Problem &problem);
+
+    void AssociateWithSegmented(Frame::Ptr frame, Frame::Ptr map_frame, double* para, ceres::Problem &problem);
 
 private:
     void UndistortPoint(PointI &point, Frame::Ptr frame);
     void UndistortPointCloud(PointICloud &points, Frame::Ptr frame);
 
-    bool TimeAlign(double time, PointICloud &out);
+    bool AlignScan(double time, PointICloud &out);
 
     void Process(PointICloud &points, Frame::Ptr frame);
 

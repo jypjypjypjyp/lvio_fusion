@@ -10,7 +10,6 @@ namespace lvio_fusion
 class PoseGraphError
 {
 public:
-    PoseGraphError() = default;
     PoseGraphError(SE3d last_frame, SE3d frame)
     {
         relative_pose_ = frame * last_frame.inverse();

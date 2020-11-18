@@ -91,16 +91,63 @@ inline void Cast(const double *raw, int size, T *result)
     }
 }
 
+// rpy: Z->Y->X
 template <typename T>
-T normalize_angle(const T &angle)
+inline void QuaternionToRPY(const T *q, T *rpy)
 {
-    if (angle > T(M_PI / 2))
-        return angle - T(M_PI);
-    else if (angle < T(-M_PI / 2))
-        return angle + T(M_PI);
-    else
-        return angle;
+    rpy[0] = atan2(T(2) * (q[1] * q[2] + q[0] * q[3]), 1 - T(2) * (q[2] * q[2] + q[3] * q[3]));
+    rpy[1] = asin(T(2) * (q[0] * q[2] - q[1] * q[3]));
+    rpy[2] = atan2(T(2) * (q[2] * q[3] + q[0] * q[1]), 1 - T(2) * (q[1] * q[1] + q[2] * q[2]));
 };
+
+template <typename T>
+inline void EigenQuaternionToRPY(const T *e_q, T *rpy)
+{
+    const T q[4] = {e_q[3], e_q[0], e_q[1], e_q[2]};
+    QuaternionToRPY(q, rpy);
+};
+
+template <typename T>
+inline void RPYToQuaternion(const T *rpy, T *q)
+{
+    T z = rpy[0] / T(2), y = rpy[1] / T(2), x = rpy[2] / T(2);
+    T c_z = cos(z), s_z = sin(z);
+    T c_y = cos(y), s_y = sin(y);
+    T c_x = cos(x), s_x = sin(x);
+    q[0] = c_z * c_y * c_x + s_z * s_y * s_x;
+    q[1] = c_z * c_y * s_x - s_z * s_y * c_x;
+    q[2] = c_z * s_y * c_x + s_z * c_y * s_x;
+    q[3] = s_z * c_y * c_x - c_z * s_y * s_x;
+};
+
+template <typename T>
+inline void RPYToEigenQuaternion(const T *rpy, T *e_q)
+{
+    T q[4];
+    RPYToQuaternion(rpy, q);
+    e_q[0] = q[1];
+    e_q[1] = q[2];
+    e_q[2] = q[3];
+    e_q[3] = q[0];
+};
+
+template <typename T>
+inline void SE3ToRpyxyz(const T *relatice_i_j, T *rpyxyz)
+{
+    EigenQuaternionToRPY(relatice_i_j, rpyxyz);
+    rpyxyz[3] = relatice_i_j[4];
+    rpyxyz[4] = relatice_i_j[5];
+    rpyxyz[5] = relatice_i_j[6];
+}
+
+template <typename T>
+inline void RpyxyzToSE3(const T *rpyxyz, T *relatice_i_j)
+{
+    RPYToEigenQuaternion(rpyxyz, relatice_i_j);
+    relatice_i_j[4] = rpyxyz[3];
+    relatice_i_j[5] = rpyxyz[4];
+    relatice_i_j[6] = rpyxyz[5];
+}
 
 } // namespace ceres
 
