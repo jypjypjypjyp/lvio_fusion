@@ -84,12 +84,11 @@ cv::Mat Frame::GetVelocity()
     return Vw_;
 }
 
-cv::Mat   Frame::GetImuRotation(){
-
+cv::Mat   Frame::GetImuRotation()
+{
      cv::Mat Rwc;
      cv::eigen2cv(pose.rotationMatrix(),Rwc);
-     return Rwc*preintegration->calib.Tcb;
-
+    return Rwc*calib_.Tcb.rowRange(0,3).colRange(0,3);
 }
 
 cv::Mat Frame::GetImuPosition()
@@ -100,7 +99,7 @@ cv::Mat Rcw = Tcw_.rowRange(0,3).colRange(0,3);
     cv::Mat tcw = Tcw_.rowRange(0,3).col(3);
     cv::Mat Rwc = Rcw.t();
     cv::Mat Ow=Rwc*tcw;
-cv::Mat TCB=preintegration->calib.Tcb;
+cv::Mat TCB=calib_.Tcb;
      if (!TCB.empty())
         Owb = Rwc*TCB.rowRange(0,3).col(3)+Ow; //imu position
     return  Owb.clone();
@@ -144,7 +143,7 @@ void Frame::SetImuPoseVelocity(const cv::Mat &Rwb, const cv::Mat &twb, const cv:
     cv::Mat Tbw = cv::Mat::eye(4,4,CV_32F);
     Rbw.copyTo(Tbw.rowRange(0,3).colRange(0,3));
     tbw.copyTo(Tbw.rowRange(0,3).col(3));
-    mTcw = preintegration->calib.Tcb*Tbw;
+    mTcw = calib_.Tcb*Tbw;
     UpdatePoseMatrices();
 }
 void Frame::UpdatePoseMatrices()

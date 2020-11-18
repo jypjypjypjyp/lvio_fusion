@@ -45,6 +45,7 @@ public:
     Frame::Ptr mpLastKeyFrame;
 
 //IMU
+    Calib calib_;
     // Rotation, translation and camera center
     cv::Mat mRcw;
     cv::Mat mtcw;

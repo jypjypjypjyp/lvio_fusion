@@ -20,6 +20,7 @@ Frontend::Frontend(int num_features, int init, int tracking, int tracking_bad, i
 bool Frontend::AddFrame(lvio_fusion::Frame::Ptr frame)
 {
     std::unique_lock<std::mutex> lock(mutex);
+    frame->calib_= ImuCalib_;//NEWADD
     current_frame = frame;
 
     switch (status)

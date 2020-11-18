@@ -6,9 +6,6 @@ string NAVSAT_TOPIC;
 string IMAGE0_TOPIC, IMAGE1_TOPIC;
 string result_path;
 int use_imu, use_lidar, num_of_cam, use_navsat, use_loop, is_semantic;
-double acc_n,gyr_n,acc_w,gyr_w,g_norm;
-float  freq;
- cv::Mat TBC;
 
 void read_parameters(string config_file)
 {
@@ -43,12 +40,6 @@ void read_parameters(string config_file)
     if (use_imu)
     {
         fsSettings["imu_topic"] >> IMU_TOPIC;
-        fsSettings["acc_n"]>>acc_n;
-        fsSettings["gyr_n"]>>gyr_n;
-        fsSettings["acc_w"]>>acc_w;
-        fsSettings["gyr_w"]>>gyr_w;
-        fsSettings["g_norm"]>>g_norm;
-        fsSettings["frequency"]>>freq;
     }
     if (use_lidar)
     {

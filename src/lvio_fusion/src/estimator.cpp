@@ -19,7 +19,7 @@ Matrix3d NavsatError::sqrt_info = 10 * Matrix3d::Identity();
 Estimator::Estimator(std::string &config_path)
     : config_file_path_(config_path) {}
 
-bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, int is_semantic, Calib calib)
+bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, int is_semantic)
 {
     // read from config file
     if (!Config::SetParameterFile(config_file_path_))
@@ -57,6 +57,17 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
                                    SE3d(q_base_to_cam1, t_base_to_cam1)));
     LOG(INFO) << "Camera 2"
               << " extrinsics: " << t_base_to_cam1.transpose();
+
+//read imu NEWADD
+        double acc_n= Config::Get<double>("acc_n");
+        double gyr_n= Config::Get<double>("gyr_n");
+        double acc_w= Config::Get<double>("acc_w");
+        double gyr_w= Config::Get<double>("gyr_w");
+        double g_norm= Config::Get<double>("g_norm");
+       double freq= Config::Get<double>("frequency");
+       const double sf = sqrt(freq);
+        Calib calib_=Calib(cv_base_to_cam0,gyr_n*sf, acc_n*sf,gyr_w/sf,acc_w/sf,g_norm);
+ //NEWADDEND
 
     // create components and links
     map = Map::Ptr(new Map());
@@ -109,7 +120,7 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
         backend->SetInitializer(initializer);
 
         frontend->SetImu(imu);
-        frontend->SetCalib(calib);
+        frontend->SetCalib(calib_);
         frontend->flags += Flag::IMU;
     }
 
