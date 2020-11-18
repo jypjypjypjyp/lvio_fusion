@@ -57,21 +57,21 @@ bool Frontend::AddFrame(lvio_fusion::Frame::Ptr frame)
 
 void Frontend::AddImu(double time, Vector3d acc, Vector3d gyr)
 {
-    //   imuPoint imuMeas(acc,gyr,time);
-    //   static bool first = true;
-    //  if (current_frame)
-    // {
-    //     if (!current_frame->preintegration)
-    //     {
-    //         current_frame->preintegration = imu::Preintegration::Create(current_frame->GetImuBias(), ImuCalib_,NULL);
-    //     }
-    //     current_frame->preintegration->Appendimu(imuMeas);
-    //     if (current_key_frame && current_key_frame->preintegration && current_key_frame != current_frame)
-    //     {
-    //         current_key_frame->preintegration->Appendimu(imuMeas);
-    //     }
+      imuPoint imuMeas(acc,gyr,time);
+      static bool first = true;
+     if (current_frame)
+    {
+        if (!current_frame->preintegration)
+        {
+            current_frame->preintegration = imu::Preintegration::Create(current_frame->GetImuBias(), ImuCalib_,NULL);
+        }
+        current_frame->preintegration->Appendimu(imuMeas);
+        if (current_key_frame && current_key_frame->preintegration && current_key_frame != current_frame)
+        {
+            current_key_frame->preintegration->Appendimu(imuMeas);
+        }
 
-    // }
+    }
 }
 
 bool Frontend::Track()
@@ -79,18 +79,18 @@ bool Frontend::Track()
     current_frame->pose = relative_pose * last_frame_pose_cache_;
 
      //如果有imu  预积分上一帧到当前帧的imu 
-    // if(imu_&&last_frame&&last_frame->preintegration){
-    //     if (!current_frame->preintegration)
-    //     {
-    //         current_frame->preintegration = imu::Preintegration::Create(current_frame->GetImuBias(), ImuCalib_,imu_);
-    //     }
-    //     current_frame->preintegration->PreintegrateIMU( last_frame->preintegration->imuData_buf,last_frame->time, current_frame->time);//TODO 这个结果应该存在current_frame
-    //    if(last_key_frame)
-    //    {  
-    //         current_frame->mpLastKeyFrame = last_key_frame;
-    //         current_frame->SetNewBias(last_key_frame->GetImuBias());
-    //    }
-    // }
+    if(imu_&&last_frame&&last_frame->preintegration){
+        if (!current_frame->preintegration)
+        {
+            current_frame->preintegration = imu::Preintegration::Create(current_frame->GetImuBias(), ImuCalib_,imu_);
+        }
+        current_frame->preintegration->PreintegrateIMU( last_frame->preintegration->imuData_buf,last_frame->time, current_frame->time);//TODO 这个结果应该存在current_frame
+       if(last_key_frame)
+       {  
+            current_frame->mpLastKeyFrame = last_key_frame;
+            current_frame->SetNewBias(last_key_frame->GetImuBias());
+       }
+    }
 
     TrackLastFrame();
     InitFramePoseByPnP();
@@ -140,8 +140,9 @@ bool Frontend::Track()
     relative_pose = current_frame->pose * last_frame_pose_cache_.inverse();
 
 //NEW
-//  if(!current_frame->mpReferenceKF)
-//            current_frame->mpReferenceKF = reference_key_frame;
+// if(imu_){
+//     if(!current_frame->mpReferenceKF)
+//         current_frame->mpReferenceKF = reference_key_frame;
 
 //     if(status == FrontendStatus::TRACKING_GOOD||status == FrontendStatus::LOST||status == FrontendStatus::TRACKING_TRY)
 //     {
@@ -151,7 +152,6 @@ bool Frontend::Track()
 //             cv::Mat Tcr = current_frame->mTcw*current_frame->mpReferenceKF->GetPoseInverse();
 //             mlRelativeFramePoses.push_back(Tcr);
 //             mlpReferences.push_back(current_frame->mpReferenceKF);
-//            // mlFrameTimes.push_back(mCurrentFrame.mTimeStamp);
 //             mlbLost.push_back(status == FrontendStatus::LOST||status == FrontendStatus::TRACKING_TRY);
 //         }
 //         else
@@ -159,10 +159,10 @@ bool Frontend::Track()
 //             // This can happen if tracking is lost
 //             mlRelativeFramePoses.push_back(mlRelativeFramePoses.back());
 //             mlpReferences.push_back(mlpReferences.back());
-//           //  mlFrameTimes.push_back(mlFrameTimes.back());
 //             mlbLost.push_back(status == FrontendStatus::LOST||status == FrontendStatus::TRACKING_TRY);
 //         }
 //     }
+// }
 
     return true;
 }
@@ -170,14 +170,14 @@ bool Frontend::Track()
 void Frontend::CreateKeyframe(bool need_new_features)
 {
     // //NEW
-    // if(imu_){    //如果有imu  预积分上一关键帧到当前帧的imu 
-    //     if(backend_.lock()->initializer_ ->bInitializing)//初始化时不能创建关键帧
-    //     {
-    //         return;
-    //     }
-    //     last_key_frame=current_key_frame;
-    //    // current_key_frame->preintegration->PreintegrateIMU(last_frame->time, current_frame->time);
-    // }
+    if(imu_){    //如果有imu  预积分上一关键帧到当前帧的imu 
+        if(backend_.lock()->initializer_ ->bInitializing)//初始化时不能创建关键帧
+        {
+            return;
+        }
+        last_key_frame=current_key_frame;
+       // current_key_frame->preintegration->PreintegrateIMU(last_frame->time, current_frame->time);
+    }
     // first, add new observations of old points
     for (auto pair_feature : current_frame->features_left)
     {
@@ -416,16 +416,7 @@ void Frontend::UpdateFrameIMU(const float s, const Bias &b, Frame::Ptr pCurrentK
 
        Frame::Ptr pKF = *lRit;
 
-      /*  while(pKF->isBad())
-        {
-            pKF = pKF->GetParent();
-        }
- */
-
-  //      if(pKF->GetMap() == pMap)
- ///       {
             (*lit).rowRange(0,3).col(3)=(*lit).rowRange(0,3).col(3)*s;
-   //     }
     }
 
     // Step 2:更新imu信息

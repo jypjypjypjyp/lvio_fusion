@@ -31,7 +31,6 @@ void read_parameters(string config_file)
     fsSettings["num_of_cam"] >> num_of_cam;
     fsSettings["is_semantic"] >> is_semantic;
     fsSettings["result_path"] >> result_path;
-     fsSettings["base_to_cam0"]>>TBC;//base to cam0 
     if (num_of_cam == 2)
     {
         fsSettings["image0_topic"] >> IMAGE0_TOPIC;

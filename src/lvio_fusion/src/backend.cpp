@@ -171,15 +171,16 @@ void Backend::Optimize(bool full)
     Frames active_kfs = map_->GetKeyFrames(full ? 0 : head);
 
     // imu init
-    // if (imu_ && !initializer_->initialized)
-    // {
-    //     Frames frames_init = map_->GetKeyFrames(0,head-delay_, initializer_->num_frames);
-    //     if (frames_init.size() == initializer_->num_frames)
-    //     {
-    //         initializer_->InitializeIMU(1e2,1e5,true);
-    //         frontend_.lock()->status = FrontendStatus::TRACKING_GOOD;
-    //     }
-    // }
+    if (imu_ && !initializer_->initialized)
+    {
+        Frames frames_init = map_->GetKeyFrames(0,head-delay_, initializer_->num_frames);
+        if (frames_init.size() == initializer_->num_frames)
+        {
+            initializer_->InitializeIMU(1e2,1e5,true);
+            frontend_.lock()->status = FrontendStatus::TRACKING_GOOD;
+             initializer_->initialized=true;
+        }
+    }
 
 
     // navsat init
