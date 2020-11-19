@@ -39,7 +39,7 @@ cycle_time: 0.1
 min_range: 0.2
 max_range: 10
 deskew: 0
-resolution: 0.05
+resolution: 0.1
 
 #imu parameters
 acc_n: 0.08             # accelerometer measurement noise standard deviation. #0.2   0.04

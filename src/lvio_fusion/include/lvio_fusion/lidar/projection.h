@@ -12,23 +12,23 @@ class SegmentedInfo
 public:
     SegmentedInfo(double num_scans, double horizon_scan)
     {
-        startRingIndex.assign(num_scans, 0);
-        endRingIndex.assign(num_scans, 0);
-        segmentedCloudGroundFlag.assign(num_scans * horizon_scan, false);
-        segmentedCloudColInd.assign(num_scans * horizon_scan, 0);
-        segmentedCloudRange.assign(num_scans * horizon_scan, 0);
+        start_ring_index.assign(num_scans, 0);
+        end_ring_index.assign(num_scans, 0);
+        ground_flag.assign(num_scans * horizon_scan, false);
+        col_ind.assign(num_scans * horizon_scan, 0);
+        range.assign(num_scans * horizon_scan, 0);
     }
 
-    std::vector<int> startRingIndex;
-    std::vector<int> endRingIndex;
+    std::vector<int> start_ring_index;
+    std::vector<int> end_ring_index;
 
-    float startOrientation;
-    float endOrientation;
-    float orientationDiff;
+    float start_orientation;
+    float end_orientation;
+    float orientation_diff;
 
-    std::vector<bool> segmentedCloudGroundFlag;     // true - ground point, false - other points
-    std::vector<unsigned int> segmentedCloudColInd; // point column index in range image
-    std::vector<float> segmentedCloudRange;         // point range
+    std::vector<bool> ground_flag;     // true - ground point, false - other points
+    std::vector<unsigned int> col_ind; // point column index in range image
+    std::vector<float> range;         // point range
 };
 
 class ImageProjection

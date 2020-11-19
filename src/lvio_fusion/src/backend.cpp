@@ -243,8 +243,8 @@ void Backend::ForwardPropagate(double time)
     BuildProblem(active_kfs, problem);
 
     ceres::Solver::Options options;
-    options.linear_solver_type = ceres::DENSE_QR;
-    options.max_num_iterations = 3;
+    options.linear_solver_type = ceres::DENSE_SCHUR;
+    options.max_num_iterations = 1;
     options.num_threads = 4;
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);

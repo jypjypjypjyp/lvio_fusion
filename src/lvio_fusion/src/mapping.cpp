@@ -59,7 +59,7 @@ inline void Mapping::AddToWorld(const PointICloud &in, Frame::Ptr frame, PointRG
 void Mapping::BuildMapFrame(Frame::Ptr frame, Frame::Ptr map_frame)
 {
     double start_time = frame->time;
-    static int num_last_frames = 3;
+    static int num_last_frames = 1;
     Frames last_frames = map_->GetKeyFrames(0, start_time, num_last_frames);
     if (last_frames.empty())
         return;
@@ -194,7 +194,7 @@ void Mapping::BuildGlobalMap(Frames &active_kfs)
         if (frame->feature_lidar)
         {
             PointRGBCloud pointcloud;
-            AddToWorld(frame->feature_lidar->points_ground, frame, pointcloud);
+            AddToWorld(frame->feature_lidar->points_less_flat, frame, pointcloud);
             pointclouds_[frame->time] = pointcloud;
         }
     }

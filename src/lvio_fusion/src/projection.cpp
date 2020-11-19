@@ -39,17 +39,17 @@ SegmentedInfo ImageProjection::Process(PointICloud &points, PointICloud &points_
 void ImageProjection::FindStartEndAngle(SegmentedInfo &segmented_info, PointICloud& points)
 {
     // start and end orientation of this cloud
-    segmented_info.startOrientation = -atan2(points.points[0].y, points.points[0].x);
-    segmented_info.endOrientation = -atan2(points.points[points.points.size() - 1].y,
+    segmented_info.start_orientation = -atan2(points.points[0].y, points.points[0].x);
+    segmented_info.end_orientation = -atan2(points.points[points.points.size() - 1].y,
                                            points.points[points.points.size() - 1].x) +
                                     2 * M_PI;
-    if (segmented_info.endOrientation - segmented_info.startOrientation > 3 * M_PI)
+    if (segmented_info.end_orientation - segmented_info.start_orientation > 3 * M_PI)
     {
-        segmented_info.endOrientation -= 2 * M_PI;
+        segmented_info.end_orientation -= 2 * M_PI;
     }
-    else if (segmented_info.endOrientation - segmented_info.startOrientation < M_PI)
-        segmented_info.endOrientation += 2 * M_PI;
-    segmented_info.orientationDiff = segmented_info.endOrientation - segmented_info.startOrientation;
+    else if (segmented_info.end_orientation - segmented_info.start_orientation < M_PI)
+        segmented_info.end_orientation += 2 * M_PI;
+    segmented_info.orientation_diff = segmented_info.end_orientation - segmented_info.start_orientation;
 }
 
 void ImageProjection::ProjectPointCloud(SegmentedInfo &segmented_info, PointICloud& points)
@@ -161,7 +161,7 @@ void ImageProjection::Segment(SegmentedInfo &segmented_info, PointICloud &points
     for (size_t i = 0; i < num_scans_; ++i)
     {
 
-        segmented_info.startRingIndex[i] = sizeOfSegCloud - 1 + 5;
+        segmented_info.start_ring_index[i] = sizeOfSegCloud - 1 + 5;
 
         for (size_t j = 0; j < horizon_scan_; ++j)
         {
@@ -187,11 +187,11 @@ void ImageProjection::Segment(SegmentedInfo &segmented_info, PointICloud &points
                 //         continue;
                 // }
                 // mark ground points so they will not be considered as edge features later
-                segmented_info.segmentedCloudGroundFlag[sizeOfSegCloud] = (groundMat.at<int8_t>(i, j) == 1);
+                segmented_info.ground_flag[sizeOfSegCloud] = (groundMat.at<int8_t>(i, j) == 1);
                 // mark the points' column index for marking occlusion later
-                segmented_info.segmentedCloudColInd[sizeOfSegCloud] = j;
+                segmented_info.col_ind[sizeOfSegCloud] = j;
                 // save range info
-                segmented_info.segmentedCloudRange[sizeOfSegCloud] = rangeMat.at<float>(i, j);
+                segmented_info.range[sizeOfSegCloud] = rangeMat.at<float>(i, j);
                 // save seg cloud
                 points_segmented.push_back(points_full.points[j + i * horizon_scan_]);
                 // size of seg cloud
@@ -199,7 +199,7 @@ void ImageProjection::Segment(SegmentedInfo &segmented_info, PointICloud &points
             }
         }
 
-        segmented_info.endRingIndex[i] = sizeOfSegCloud - 1 - 5;
+        segmented_info.end_ring_index[i] = sizeOfSegCloud - 1 - 5;
     }
 }
 

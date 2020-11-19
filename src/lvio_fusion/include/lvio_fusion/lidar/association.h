@@ -28,10 +28,10 @@ public:
     FeatureAssociation(int num_scans, int horizon_scan, double ang_res_y, double ang_bottom, int ground_rows,double cycle_time, double min_range, double max_range, double deskew)
         : num_scans_(num_scans), cycle_time_(cycle_time), min_range_(min_range), max_range_(max_range), deskew_(deskew)
     {
-        cloudCurvature = new float[num_scans*horizon_scan];
-        cloudNeighborPicked = new int[num_scans*horizon_scan];
+        curvatures = new float[num_scans*horizon_scan];
+        neighbor_picked = new int[num_scans*horizon_scan];
         cloudLabel = new int[num_scans*horizon_scan];
-        cloudSmoothness.resize(num_scans*horizon_scan);
+        smoothness.resize(num_scans*horizon_scan);
         projection_ = ImageProjection::Ptr(new ImageProjection(num_scans, horizon_scan, ang_res_y, ang_bottom, ground_rows));
     }
 
@@ -73,9 +73,9 @@ private:
 
     void ExtractFeatures(PointICloud &points_segmented, SegmentedInfo &segemented_info, Frame::Ptr frame);
 
-    std::vector<smoothness_t> cloudSmoothness;
-    float *cloudCurvature;
-    int *cloudNeighborPicked;
+    std::vector<smoothness_t> smoothness;
+    float *curvatures;
+    int *neighbor_picked;
     int *cloudLabel;
 
     Map::Ptr map_;
@@ -90,11 +90,6 @@ private:
     const double min_range_;
     const double max_range_;
     const bool deskew_;
-
-    const int edgeFeatureNum = 2;
-    const int surfFeatureNum = 4;
-    const float edgeThreshold = 0.1;
-    const float surfThreshold = 0.1;
 };
 
 } // namespace lvio_fusion
