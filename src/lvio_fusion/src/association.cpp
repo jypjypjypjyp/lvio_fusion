@@ -52,19 +52,6 @@ bool FeatureAssociation::AlignScan(double time, PointICloud &out)
     return true;
 }
 
-void FeatureAssociation::MergeScan(const PointICloud &in, SE3d from_pose, SE3d to_pose, PointICloud &out)
-{
-    Sophus::SE3f tf_se3 = lidar_->TransformMatrix(from_pose, to_pose).cast<float>();
-    float *tf = tf_se3.data();
-    for (auto point_in : in)
-    {
-        PointI point_out;
-        ceres::SE3TransformPoint(tf, point_in.data, point_out.data);
-        point_out.intensity = point_in.intensity;
-        out.push_back(point_out);
-    }
-}
-
 void FeatureAssociation::UndistortPoint(PointI &point, Frame::Ptr frame)
 {
     double time_delta = (point.intensity - int(point.intensity));
@@ -364,7 +351,7 @@ void FeatureAssociation::ScanToMapWithGround(Frame::Ptr frame, Frame::Ptr map_fr
     static const double distance_threshold = lidar_->resolution * lidar_->resolution * 100; // squared
     static const double nearby_scan = 2;
     int num_points_flat = frame->feature_lidar->points_ground.size();
-    Sophus::SE3f tf_se3 = lidar_->TransformMatrix(frame->pose, map_frame->pose).cast<float>();
+    Sophus::SE3f tf_se3 = lidar_->TransformMatrix(frame->pose).cast<float>();
     float *tf = tf_se3.data();
 
     // find correspondence for ground features
@@ -480,7 +467,7 @@ void FeatureAssociation::ScanToMapWithSegmented(Frame::Ptr frame, Frame::Ptr map
     static const double nearby_scan = 2;
     int num_points_sharp = frame->feature_lidar->points_sharp.size();
     int num_points_flat = frame->feature_lidar->points_flat.size();
-    Sophus::SE3f tf_se3 = lidar_->TransformMatrix(frame->pose, map_frame->pose).cast<float>();
+    Sophus::SE3f tf_se3 = lidar_->TransformMatrix(frame->pose).cast<float>();
     float *tf = tf_se3.data();
 
     // find correspondence for corner features

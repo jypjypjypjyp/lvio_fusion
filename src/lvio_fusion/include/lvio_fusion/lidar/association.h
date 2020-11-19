@@ -47,8 +47,6 @@ public:
 
     void AddScan(double time, Point3Cloud::Ptr new_scan);
 
-    void MergeScan(const PointICloud &in, SE3d from_pose, SE3d to_pose, PointICloud &out);
-
     void ScanToMapWithGround(Frame::Ptr frame, Frame::Ptr map_frame, double* para, ceres::Problem &problem);
 
     void ScanToMapWithSegmented(Frame::Ptr frame, Frame::Ptr map_frame, double* para, ceres::Problem &problem);

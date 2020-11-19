@@ -2,20 +2,13 @@
 #include "lvio_fusion/ceres/lidar_error.hpp"
 #include "lvio_fusion/utility.h"
 
-#include <pcl/filters/radius_outlier_removal.h>
 #include <pcl/filters/voxel_grid.h>
 
 namespace lvio_fusion
 {
 
-inline void Mapping::AddToWorld(const PointICloud &in, Frame::Ptr frame, PointRGBCloud &out)
+inline void Mapping::Color(const PointICloud &in, Frame::Ptr frame, PointRGBCloud &out)
 {
-    double lti[7], lei[7], ltiei[7], cet[7];
-    ceres::SE3Inverse(frame->pose.data(), lti);
-    ceres::SE3Inverse(lidar_->extrinsic.data(), lei);
-    ceres::SE3Product(lti, lei, ltiei);
-    ceres::SE3Product(camera_->extrinsic.data(), frame->pose.data(), cet);
-
     for (int i = 0; i < in.size(); i++)
     {
         //NOTE: colorful pointcloud
@@ -26,11 +19,7 @@ inline void Mapping::AddToWorld(const PointICloud &in, Frame::Ptr frame, PointRG
         //NOTE: Sophus is too slow
         // auto p_w = lidar_->Sensor2World(Vector3d(in[i].x, in[i].y, in[i].z), frame->pose);
         // auto pixel = camera_->World2Pixel(p_w, frame->pose);
-        double pin[3] = {in[i].x, in[i].y, in[i].z}, pw[3], pc[3];
-        ceres::SE3TransformPoint(ltiei, pin, pw);
-        ceres::SE3TransformPoint(cet, pw, pc);
         // auto pixel = camera_->Sensor2Pixel(Vector3d(pc[0], pc[1], pc[2]));
-
         // auto &image = frame->image_left;
         // if (0 < pixel.x() && pixel.x() < image.cols && 0 < pixel.y() && pixel.y() < image.rows)
         // {
@@ -45,21 +34,21 @@ inline void Mapping::AddToWorld(const PointICloud &in, Frame::Ptr frame, PointRG
         //     out.push_back(point_world);
         // }
 
-        PointRGB point_world;
-        point_world.x = pw[0];
-        point_world.y = pw[1];
-        point_world.z = pw[2];
-        point_world.r = 0;
-        point_world.g = 0;
-        point_world.b = 0;
-        out.push_back(point_world);
+        PointRGB point_color;
+        point_color.x = in[i].x;
+        point_color.y = in[i].y;
+        point_color.z = in[i].z;
+        point_color.r = 0;
+        point_color.g = 0;
+        point_color.b = 0;
+        out.push_back(point_color);
     }
 }
 
 void Mapping::BuildMapFrame(Frame::Ptr frame, Frame::Ptr map_frame)
 {
     double start_time = frame->time;
-    static int num_last_frames = 1;
+    static int num_last_frames = 2;
     Frames last_frames = map_->GetKeyFrames(0, start_time, num_last_frames);
     if (last_frames.empty())
         return;
@@ -69,44 +58,12 @@ void Mapping::BuildMapFrame(Frame::Ptr frame, Frame::Ptr map_frame)
     PointICloud points_less_flat_merged;
     for (auto pair_kf : last_frames)
     {
-        if (pair_kf.second->feature_lidar)
-        {
-            if (pair_kf.first == map_frame->time)
-            {
-                points_less_sharp_merged += pair_kf.second->feature_lidar->points_less_sharp;
-                points_less_flat_merged += pair_kf.second->feature_lidar->points_less_flat;
-            }
-            else
-            {
-                association_->MergeScan(pair_kf.second->feature_lidar->points_less_sharp, pair_kf.second->pose, map_frame->pose, points_less_sharp_merged);
-                association_->MergeScan(pair_kf.second->feature_lidar->points_less_flat, pair_kf.second->pose, map_frame->pose, points_less_flat_merged);
-            }
-        }
+        points_less_sharp_merged += pointclouds_sharp_[pair_kf.first];
+        points_less_flat_merged += pointclouds_flat_[pair_kf.first];
     }
+
     {
         PointICloud::Ptr temp(new PointICloud());
-        pcl::RadiusOutlierRemoval<PointI> radius_filter;
-        pcl::copyPointCloud(points_less_sharp_merged, *temp);
-        radius_filter.setInputCloud(temp);
-        radius_filter.setRadiusSearch(2 * lidar_->resolution);
-        radius_filter.setMinNeighborsInRadius(8);
-        radius_filter.filter(points_less_sharp_merged);
-        temp->clear();
-        pcl::VoxelGrid<PointI> voxel_filter;
-        pcl::copyPointCloud(points_less_sharp_merged, *temp);
-        voxel_filter.setInputCloud(temp);
-        voxel_filter.setLeafSize(lidar_->resolution, lidar_->resolution, lidar_->resolution);
-        voxel_filter.filter(points_less_sharp_merged);
-    }
-    {
-        PointICloud::Ptr temp(new PointICloud());
-        pcl::RadiusOutlierRemoval<PointI> radius_filter;
-        pcl::copyPointCloud(points_less_sharp_merged, *temp);
-        radius_filter.setInputCloud(temp);
-        radius_filter.setRadiusSearch(2 * lidar_->resolution);
-        radius_filter.setMinNeighborsInRadius(4);
-        radius_filter.filter(points_less_sharp_merged);
-        temp->clear();
         pcl::VoxelGrid<PointI> voxel_filter;
         pcl::copyPointCloud(points_less_sharp_merged, *temp);
         voxel_filter.setInputCloud(temp);
@@ -142,69 +99,94 @@ void Mapping::Optimize(Frames &active_kfs)
     // NOTE: some place is good, don't need optimize too much.
     for (auto pair_kf : active_kfs)
     {
+        auto t1 = std::chrono::steady_clock::now();
+
         Frame::Ptr map_frame = Frame::Ptr(new Frame());
         BuildMapFrame(pair_kf.second, map_frame);
-        if (!map_frame->feature_lidar || !pair_kf.second->feature_lidar || map_frame->feature_lidar->points_less_flat.empty() || map_frame->feature_lidar->points_less_sharp.empty())
-            continue;
 
-        double rpyxyz[6];
-        se32rpyxyz(map_frame->pose * pair_kf.second->pose.inverse(), rpyxyz); // relative_i_j
-        for (int i = 0; i < 4; i++)
+        auto t2 = std::chrono::steady_clock::now();
+        if (map_frame->feature_lidar && pair_kf.second->feature_lidar && !map_frame->feature_lidar->points_less_flat.empty() && !map_frame->feature_lidar->points_less_sharp.empty())
         {
-            // {
-            //     ceres::Problem problem;
-            //     BuildProblem(pair_kf.second, map_frame, rpyxyz, problem, Mapping::ProblemType::Ground);
-            //     ceres::Solver::Options options;
-            //     options.linear_solver_type = ceres::DENSE_SCHUR;
-            //     options.function_tolerance = DBL_MIN;
-            //     options.gradient_tolerance = DBL_MIN;
-            //     options.max_num_iterations = 1;
-            //     options.num_threads = 4;
-            //     ceres::Solver::Summary summary;
-            //     ceres::Solve(options, &problem, &summary);
-            //     pair_kf.second->pose = rpyxyz2se3(rpyxyz).inverse() * map_frame->pose;
-            // }
+            double rpyxyz[6];
+            se32rpyxyz(map_frame->pose * pair_kf.second->pose.inverse(), rpyxyz); // relative_i_j
+            for (int i = 0; i < 4; i++)
             {
-                ceres::Problem problem;
-                BuildProblem(pair_kf.second, map_frame, rpyxyz, problem, Mapping::ProblemType::Segmented);
-                ceres::Solver::Options options;
-                options.linear_solver_type = ceres::DENSE_SCHUR;
-                options.function_tolerance = DBL_MIN;
-                options.gradient_tolerance = DBL_MIN;
-                options.max_num_iterations = 1;
-                options.num_threads = 4;
-                ceres::Solver::Summary summary;
-                ceres::Solve(options, &problem, &summary);
-                pair_kf.second->pose = rpyxyz2se3(rpyxyz).inverse() * map_frame->pose;
-                if (summary.final_cost / summary.initial_cost > 0.9)
-                    break;
+                {
+                    ceres::Problem problem;
+                    BuildProblem(pair_kf.second, map_frame, rpyxyz, problem, Mapping::ProblemType::Ground);
+                    ceres::Solver::Options options;
+                    options.linear_solver_type = ceres::DENSE_SCHUR;
+                    options.function_tolerance = DBL_MIN;
+                    options.gradient_tolerance = DBL_MIN;
+                    options.max_num_iterations = 1;
+                    options.num_threads = 4;
+                    ceres::Solver::Summary summary;
+                    ceres::Solve(options, &problem, &summary);
+                    pair_kf.second->pose = rpyxyz2se3(rpyxyz).inverse() * map_frame->pose;
+                }
+                {
+                    ceres::Problem problem;
+                    BuildProblem(pair_kf.second, map_frame, rpyxyz, problem, Mapping::ProblemType::Segmented);
+                    ceres::Solver::Options options;
+                    options.linear_solver_type = ceres::DENSE_SCHUR;
+                    options.function_tolerance = DBL_MIN;
+                    options.gradient_tolerance = DBL_MIN;
+                    options.max_num_iterations = 1;
+                    options.num_threads = 4;
+                    ceres::Solver::Summary summary;
+                    ceres::Solve(options, &problem, &summary);
+                    pair_kf.second->pose = rpyxyz2se3(rpyxyz).inverse() * map_frame->pose;
+                    if (summary.final_cost / summary.initial_cost > 0.9)
+                        break;
+                }
             }
         }
-    }
+        auto t3 = std::chrono::steady_clock::now();
+        AddToWorld(pair_kf.second);
+        auto t4 = std::chrono::steady_clock::now();
 
-    // Build global map
-    BuildGlobalMap(active_kfs);
+        auto time_used1 = std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);
+        auto time_used2 = std::chrono::duration_cast<std::chrono::duration<double>>(t3 - t2);
+        auto time_used3 = std::chrono::duration_cast<std::chrono::duration<double>>(t4 - t3);
+        LOG(INFO) << "time_used1 cost time: " << time_used1.count() << " seconds.";
+        LOG(INFO) << "time_used2 cost time: " << time_used2.count() << " seconds.";
+        LOG(INFO) << "time_used3 cost time: " << time_used3.count() << " seconds.";
+    }
 }
 
-void Mapping::BuildGlobalMap(Frames &active_kfs)
+void Mapping::MergeScan(const PointICloud &in, SE3d from_pose, PointICloud &out)
 {
-    for (auto pair_kf : active_kfs)
+    Sophus::SE3f tf_se3 = lidar_->TransformMatrix(from_pose).cast<float>();
+    float *tf = tf_se3.data();
+    for (auto point_in : in)
     {
-        Frame::Ptr frame = pair_kf.second;
-        if (frame->feature_lidar)
-        {
-            PointRGBCloud pointcloud;
-            AddToWorld(frame->feature_lidar->points_less_flat, frame, pointcloud);
-            pointclouds_[frame->time] = pointcloud;
-        }
+        PointI point_out;
+        ceres::SE3TransformPoint(tf, point_in.data, point_out.data);
+        point_out.intensity = point_in.intensity;
+        out.push_back(point_out);
     }
+}
+
+void Mapping::AddToWorld(Frame::Ptr frame)
+{
+    PointICloud pointcloud_flat;
+    PointICloud pointcloud_sharp;
+    PointRGBCloud pointcloud_color;
+    if (frame->feature_lidar)
+    {
+        MergeScan(frame->feature_lidar->points_less_sharp, frame->pose, pointcloud_sharp);
+        MergeScan(frame->feature_lidar->points_less_flat, frame->pose, pointcloud_flat);
+        Color(pointcloud_flat, frame, pointcloud_color);
+    }
+    pointclouds_flat_[frame->time] = pointcloud_flat;
+    pointclouds_sharp_[frame->time] = pointcloud_sharp;
+    pointclouds_color_[frame->time] = pointcloud_color;
 }
 
 PointRGBCloud Mapping::GetGlobalMap()
 {
-
     PointRGBCloud global_map;
-    for (auto pair_pc : pointclouds_)
+    for (auto pair_pc : pointclouds_color_)
     {
         auto &pointcloud = pair_pc.second;
         global_map.insert(global_map.end(), pointcloud.begin(), pointcloud.end());
@@ -212,15 +194,6 @@ PointRGBCloud Mapping::GetGlobalMap()
     if (global_map.size() > 0)
     {
         PointRGBCloud::Ptr temp(new PointRGBCloud());
-
-        pcl::RadiusOutlierRemoval<PointRGB> radius_filter;
-        pcl::copyPointCloud(global_map, *temp);
-        radius_filter.setInputCloud(temp);
-        radius_filter.setRadiusSearch(2 * lidar_->resolution);
-        radius_filter.setMinNeighborsInRadius(4);
-        radius_filter.filter(global_map);
-        temp->clear();
-
         pcl::VoxelGrid<PointRGB> voxel_filter;
         pcl::copyPointCloud(global_map, *temp);
         voxel_filter.setInputCloud(temp);

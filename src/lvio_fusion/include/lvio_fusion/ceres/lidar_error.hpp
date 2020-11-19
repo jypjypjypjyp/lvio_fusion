@@ -15,19 +15,17 @@ public:
         : p_(p), pa_(pa), pb_(pb), lidar_(lidar) {}
 
     template <typename T>
-    bool operator()(const T *Tcw1, const T *Tcw2, T *residual) const
+    bool operator()(const T *Tcw2, T *residual) const
     {
         T cp[3] = {T(p_.x()), T(p_.y()), T(p_.z())};
         T lpa[3] = {T(pa_.x()), T(pa_.y()), T(pa_.z())};
         T lpb[3] = {T(pb_.x()), T(pb_.y()), T(pb_.z())};
-        T Twc2_inverse[7], extrinsic[7], extrinsic_inverse[7], se3[7], se3_[7];
+        T Twc2_inverse[7], extrinsic[7], extrinsic_inverse[7], se3[7];
         T lp[3], nu[3], de[3], lp_lpa[3], lp_lpb[3], de_norm;
         ceres::Cast(lidar_->extrinsic.data(), SE3d::num_parameters, extrinsic);
         ceres::SE3Inverse(extrinsic, extrinsic_inverse);
         ceres::SE3Inverse(Tcw2, Twc2_inverse);
-        ceres::SE3Product(extrinsic, Tcw1, se3);
-        ceres::SE3Product(se3, Twc2_inverse, se3_);
-        ceres::SE3Product(se3_, extrinsic_inverse, se3);
+        ceres::SE3Product(Twc2_inverse, extrinsic_inverse, se3);
         ceres::SE3TransformPoint(se3, cp, lp);
         ceres::Minus(lp, lpa, lp_lpa);
         ceres::Minus(lp, lpb, lp_lpb);
@@ -42,7 +40,7 @@ public:
 
     static ceres::CostFunction *Create(const Vector3d p, const Vector3d pa, const Vector3d pb, Lidar::Ptr lidar)
     {
-        return (new ceres::AutoDiffCostFunction<LidarEdgeError, 3, 7, 7>(new LidarEdgeError(p, pa, pb, lidar)));
+        return (new ceres::AutoDiffCostFunction<LidarEdgeError, 3, 7>(new LidarEdgeError(p, pa, pb, lidar)));
     }
 
 private:
@@ -61,19 +59,17 @@ public:
     }
 
     template <typename T>
-    bool operator()(const T *Tcw1, const T *Tcw2, T *residual) const
+    bool operator()(const T *Tcw2, T *residual) const
     {
         T cp[3] = {T(p_.x()), T(p_.y()), T(p_.z())};
         T lpj[3] = {T(pa_.x()), T(pa_.y()), T(pa_.z())};
         T ljm[3] = {T(abc_norm_.x()), T(abc_norm_.y()), T(abc_norm_.z())};
-        T Twc2_inverse[7], extrinsic[7], extrinsic_inverse[7], se3[7], se3_[7];
+        T Twc2_inverse[7], extrinsic[7], extrinsic_inverse[7], se3[7];
         T lp[3], lp_lpj[3];
         ceres::Cast(lidar_->extrinsic.data(), SE3d::num_parameters, extrinsic);
         ceres::SE3Inverse(extrinsic, extrinsic_inverse);
         ceres::SE3Inverse(Tcw2, Twc2_inverse);
-        ceres::SE3Product(extrinsic, Tcw1, se3);
-        ceres::SE3Product(se3, Twc2_inverse, se3_);
-        ceres::SE3Product(se3_, extrinsic_inverse, se3);
+        ceres::SE3Product(Twc2_inverse, extrinsic_inverse, se3);
         ceres::SE3TransformPoint(se3, cp, lp);
         ceres::Minus(lp, lpj, lp_lpj);
         residual[0] = ceres::DotProduct(lp_lpj, ljm);
@@ -82,7 +78,7 @@ public:
 
     static ceres::CostFunction *Create(const Vector3d p, const Vector3d pa, const Vector3d pb, const Vector3d pc, Lidar::Ptr lidar)
     {
-        return (new ceres::AutoDiffCostFunction<LidarPlaneError, 1, 7, 7>(new LidarPlaneError(p, pa, pb, pc, lidar)));
+        return (new ceres::AutoDiffCostFunction<LidarPlaneError, 1, 7>(new LidarPlaneError(p, pa, pb, pc, lidar)));
     }
 
 private:
@@ -125,7 +121,7 @@ public:
         ceres::SE3Inverse(relative_i_j, relative_j_i);
         ceres::Cast(Tcw1_.data(), SE3d::num_parameters, Tcw1);
         ceres::SE3Product(relative_j_i, Tcw1, Tcw2);
-        origin_error_(Tcw1, Tcw2, residual);
+        origin_error_(Tcw2, residual);
         return true;
     }
 
@@ -160,7 +156,7 @@ public:
         ceres::SE3Inverse(relative_i_j, relative_j_i);
         ceres::Cast(Tcw1_.data(), SE3d::num_parameters, Tcw1);
         ceres::SE3Product(relative_j_i, Tcw1, Tcw2);
-        origin_error_(Tcw1, Tcw2, residual);
+        origin_error_(Tcw2, residual);
         return true;
     }
 
@@ -195,7 +191,7 @@ public:
         ceres::SE3Inverse(relative_i_j, relative_j_i);
         ceres::Cast(Tcw1_.data(), SE3d::num_parameters, Tcw1);
         ceres::SE3Product(relative_j_i, Tcw1, Tcw2);
-        origin_error_(Tcw1, Tcw2, residual);
+        origin_error_(Tcw2, residual);
         return true;
     }
 
