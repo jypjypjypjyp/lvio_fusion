@@ -181,11 +181,11 @@ void ImageProjection::Segment(SegmentedInfo &segmented_info, PointICloud &points
                     }
                 }
                 // majority of ground points are skipped
-                if (groundMat.at<int8_t>(i, j) == 1)
-                {
-                    if (j % 5 != 0 && j > 5 && j < horizon_scan_ - 5)
-                        continue;
-                }
+                // if (groundMat.at<int8_t>(i, j) == 1)
+                // {
+                //     if (j % 5 != 0 && j > 5 && j < horizon_scan_ - 5)
+                //         continue;
+                // }
                 // mark ground points so they will not be considered as edge features later
                 segmented_info.segmentedCloudGroundFlag[sizeOfSegCloud] = (groundMat.at<int8_t>(i, j) == 1);
                 // mark the points' column index for marking occlusion later

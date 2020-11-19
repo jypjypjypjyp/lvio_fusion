@@ -51,7 +51,7 @@ public:
 
     void ScanToMapWithGround(Frame::Ptr frame, Frame::Ptr map_frame, double* para, ceres::Problem &problem);
 
-    void AssociateWithSegmented(Frame::Ptr frame, Frame::Ptr map_frame, double* para, ceres::Problem &problem);
+    void ScanToMapWithSegmented(Frame::Ptr frame, Frame::Ptr map_frame, double* para, ceres::Problem &problem);
 
 private:
     void UndistortPoint(PointI &point, Frame::Ptr frame);

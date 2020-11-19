@@ -154,6 +154,7 @@ double compute_reprojection_error(Vector2d ob, Vector3d pw, SE3d pose, Camera::P
 
 void Backend::Optimize(bool full)
 {
+    static double forward_head = 0;
     std::unique_lock<std::mutex> lock(mutex, std::defer_lock);
     if (!full)
     {
@@ -188,10 +189,16 @@ void Backend::Optimize(bool full)
 
     ceres::Solver::Options options;
     options.linear_solver_type = ceres::DENSE_SCHUR;
-    options.max_solver_time_in_seconds = 0.4 * delay_;
+    options.max_solver_time_in_seconds = 0.6 * delay_;
     options.num_threads = 4;
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
+
+    if (!full && lidar_)
+    {
+        Frames mappping_kfs = map_->GetKeyFrames(head, forward_head);
+        mapping_->Optimize(mappping_kfs);
+    }
 
     // reject outliers and clean the map
     for (auto pair_kf : active_kfs)
@@ -215,15 +222,10 @@ void Backend::Optimize(bool full)
         }
     }
 
-    if(lidar_)
-    {
-        mapping_->Optimize(active_kfs);
-    }    
-
     // propagate to the last frame
-    double temp_head = (--active_kfs.end())->first + epsilon;
-    ForwardPropagate(temp_head);
-    head = temp_head - delay_;
+    forward_head = (--active_kfs.end())->first + epsilon;
+    ForwardPropagate(forward_head);
+    head = forward_head - delay_;
 }
 
 void Backend::ForwardPropagate(double time)

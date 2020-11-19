@@ -114,7 +114,9 @@ void Mapping::BuildMapFrame(Frame::Ptr frame, Frame::Ptr map_frame)
         voxel_filter.filter(points_less_sharp_merged);
     }
 
-    map_frame->feature_lidar = lidar::Feature::Create(PointICloud(), points_less_sharp_merged, PointICloud(), points_less_flat_merged, PointICloud());
+    map_frame->feature_lidar = lidar::Feature::Create();
+    map_frame->feature_lidar->points_less_flat = points_less_flat_merged;
+    map_frame->feature_lidar->points_less_sharp = points_less_sharp_merged;
 }
 
 void Mapping::BuildProblem(Frame::Ptr frame, Frame::Ptr map_frame, double *para, ceres::Problem &problem, Mapping::ProblemType type)
@@ -131,7 +133,7 @@ void Mapping::BuildProblem(Frame::Ptr frame, Frame::Ptr map_frame, double *para,
         problem.AddParameterBlock(para + 0, 1);
         problem.AddParameterBlock(para + 3, 1);
         problem.AddParameterBlock(para + 4, 1);
-        association_->AssociateWithSegmented(frame, map_frame, para, problem);
+        association_->ScanToMapWithSegmented(frame, map_frame, para, problem);
     }
 }
 
@@ -149,19 +151,19 @@ void Mapping::Optimize(Frames &active_kfs)
         se32rpyxyz(map_frame->pose * pair_kf.second->pose.inverse(), rpyxyz); // relative_i_j
         for (int i = 0; i < 4; i++)
         {
-            {
-                ceres::Problem problem;
-                BuildProblem(pair_kf.second, map_frame, rpyxyz, problem, Mapping::ProblemType::Ground);
-                ceres::Solver::Options options;
-                options.linear_solver_type = ceres::DENSE_SCHUR;
-                options.function_tolerance = DBL_MIN;
-                options.gradient_tolerance = DBL_MIN;
-                options.max_num_iterations = 1;
-                options.num_threads = 4;
-                ceres::Solver::Summary summary;
-                ceres::Solve(options, &problem, &summary);
-                pair_kf.second->pose = rpyxyz2se3(rpyxyz).inverse() * map_frame->pose;
-            }
+            // {
+            //     ceres::Problem problem;
+            //     BuildProblem(pair_kf.second, map_frame, rpyxyz, problem, Mapping::ProblemType::Ground);
+            //     ceres::Solver::Options options;
+            //     options.linear_solver_type = ceres::DENSE_SCHUR;
+            //     options.function_tolerance = DBL_MIN;
+            //     options.gradient_tolerance = DBL_MIN;
+            //     options.max_num_iterations = 1;
+            //     options.num_threads = 4;
+            //     ceres::Solver::Summary summary;
+            //     ceres::Solve(options, &problem, &summary);
+            //     pair_kf.second->pose = rpyxyz2se3(rpyxyz).inverse() * map_frame->pose;
+            // }
             {
                 ceres::Problem problem;
                 BuildProblem(pair_kf.second, map_frame, rpyxyz, problem, Mapping::ProblemType::Segmented);
@@ -192,7 +194,7 @@ void Mapping::BuildGlobalMap(Frames &active_kfs)
         if (frame->feature_lidar)
         {
             PointRGBCloud pointcloud;
-            AddToWorld(frame->feature_lidar->points_less_flat, frame, pointcloud);
+            AddToWorld(frame->feature_lidar->points_ground, frame, pointcloud);
             pointclouds_[frame->time] = pointcloud;
         }
     }
