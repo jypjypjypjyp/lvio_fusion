@@ -76,44 +76,39 @@ void Mapping::BuildMapFrame(Frame::Ptr frame, Frame::Ptr map_frame)
     map_frame->feature_lidar->points_less_sharp = points_less_sharp_merged;
 }
 
-void Mapping::BuildProblem(Frame::Ptr frame, Frame::Ptr map_frame, double *para, ceres::Problem &problem, Mapping::ProblemType type)
-{
-    if (type == Mapping::ProblemType::Ground)
-    {
-        problem.AddParameterBlock(para + 2, 1);
-        problem.AddParameterBlock(para + 1, 1);
-        problem.AddParameterBlock(para + 5, 1);
-        association_->ScanToMapWithGround(frame, map_frame, para, problem);
-    }
-    else if (type == Mapping::ProblemType::Segmented)
-    {
-        problem.AddParameterBlock(para + 0, 1);
-        problem.AddParameterBlock(para + 3, 1);
-        problem.AddParameterBlock(para + 4, 1);
-        association_->ScanToMapWithSegmented(frame, map_frame, para, problem);
-    }
-}
-
 void Mapping::Optimize(Frames &active_kfs)
 {
     // NOTE: some place is good, don't need optimize too much.
     for (auto pair_kf : active_kfs)
     {
         auto t1 = std::chrono::steady_clock::now();
-
         Frame::Ptr map_frame = Frame::Ptr(new Frame());
         BuildMapFrame(pair_kf.second, map_frame);
-
-        auto t2 = std::chrono::steady_clock::now();
         if (map_frame->feature_lidar && pair_kf.second->feature_lidar && !map_frame->feature_lidar->points_less_flat.empty() && !map_frame->feature_lidar->points_less_sharp.empty())
         {
             double rpyxyz[6];
             se32rpyxyz(map_frame->pose * pair_kf.second->pose.inverse(), rpyxyz); // relative_i_j
+
+            {
+                ceres::Problem problem;
+                association_->ScanToMapWithGround(pair_kf.second, map_frame, rpyxyz, problem);
+                ceres::Solver::Options options;
+                options.linear_solver_type = ceres::DENSE_SCHUR;
+                options.function_tolerance = DBL_MIN;
+                options.gradient_tolerance = DBL_MIN;
+                options.max_num_iterations = 4;
+                options.num_threads = 4;
+                ceres::Solver::Summary summary;
+                ceres::Solve(options, &problem, &summary);
+                pair_kf.second->pose = rpyxyz2se3(rpyxyz).inverse() * map_frame->pose;
+            }
+
             for (int i = 0; i < 4; i++)
             {
+
                 {
                     ceres::Problem problem;
-                    BuildProblem(pair_kf.second, map_frame, rpyxyz, problem, Mapping::ProblemType::Ground);
+                    association_->ScanToMapWithSegmented(pair_kf.second, map_frame, rpyxyz, problem);
                     ceres::Solver::Options options;
                     options.linear_solver_type = ceres::DENSE_SCHUR;
                     options.function_tolerance = DBL_MIN;
@@ -123,34 +118,16 @@ void Mapping::Optimize(Frames &active_kfs)
                     ceres::Solver::Summary summary;
                     ceres::Solve(options, &problem, &summary);
                     pair_kf.second->pose = rpyxyz2se3(rpyxyz).inverse() * map_frame->pose;
-                }
-                {
-                    ceres::Problem problem;
-                    BuildProblem(pair_kf.second, map_frame, rpyxyz, problem, Mapping::ProblemType::Segmented);
-                    ceres::Solver::Options options;
-                    options.linear_solver_type = ceres::DENSE_SCHUR;
-                    options.function_tolerance = DBL_MIN;
-                    options.gradient_tolerance = DBL_MIN;
-                    options.max_num_iterations = 1;
-                    options.num_threads = 4;
-                    ceres::Solver::Summary summary;
-                    ceres::Solve(options, &problem, &summary);
-                    pair_kf.second->pose = rpyxyz2se3(rpyxyz).inverse() * map_frame->pose;
-                    if (summary.final_cost / summary.initial_cost > 0.9)
+                    if (summary.final_cost / summary.initial_cost > 0.99)
                         break;
                 }
             }
         }
-        auto t3 = std::chrono::steady_clock::now();
         AddToWorld(pair_kf.second);
-        auto t4 = std::chrono::steady_clock::now();
 
-        auto time_used1 = std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);
-        auto time_used2 = std::chrono::duration_cast<std::chrono::duration<double>>(t3 - t2);
-        auto time_used3 = std::chrono::duration_cast<std::chrono::duration<double>>(t4 - t3);
-        LOG(INFO) << "time_used1 cost time: " << time_used1.count() << " seconds.";
-        LOG(INFO) << "time_used2 cost time: " << time_used2.count() << " seconds.";
-        LOG(INFO) << "time_used3 cost time: " << time_used3.count() << " seconds.";
+        auto t2 = std::chrono::steady_clock::now();
+        auto time_used = std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);
+        LOG(INFO) << "Mapping cost time: " << time_used.count() << " seconds.";
     }
 }
 
@@ -171,12 +148,14 @@ void Mapping::AddToWorld(Frame::Ptr frame)
 {
     PointICloud pointcloud_flat;
     PointICloud pointcloud_sharp;
+    PointICloud pointcloud_ss;
     PointRGBCloud pointcloud_color;
     if (frame->feature_lidar)
     {
         MergeScan(frame->feature_lidar->points_less_sharp, frame->pose, pointcloud_sharp);
         MergeScan(frame->feature_lidar->points_less_flat, frame->pose, pointcloud_flat);
-        Color(pointcloud_flat, frame, pointcloud_color);
+        MergeScan(frame->feature_lidar->points_flat, frame->pose, pointcloud_ss);
+        Color(pointcloud_ss, frame, pointcloud_color);
     }
     pointclouds_flat_[frame->time] = pointcloud_flat;
     pointclouds_sharp_[frame->time] = pointcloud_sharp;

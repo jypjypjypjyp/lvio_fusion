@@ -109,13 +109,13 @@ public:
         : origin_error_(origin_error), Tcw1_(Tcw1), rpyxyz_(rpyxyz) {}
 
     template <typename T>
-    bool operator()(const T *roll, const T *pitch, const T *z, T *residual) const
+    bool operator()(const T *pitch, const T *roll, const T *z, T *residual) const
     {
         T Tcw1[7], Tcw2[7], relative_i_j[7], relative_j_i[7], rpyxyz[6];
         ceres::Cast(rpyxyz_, 6, rpyxyz);
         //NOTE: the real order of rpy is y p r
-        rpyxyz[2] = *roll;
         rpyxyz[1] = *pitch;
+        rpyxyz[2] = *roll;
         rpyxyz[5] = *z;
         ceres::RpyxyzToSE3(rpyxyz, relative_i_j);
         ceres::SE3Inverse(relative_i_j, relative_j_i);

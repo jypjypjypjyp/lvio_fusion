@@ -32,17 +32,10 @@ public:
     PointRGBCloud GetGlobalMap();
 
 private:
-    enum class ProblemType
-    {
-        Ground,
-        Segmented,
-    };
 
     void MappingLoop();
 
     void BuildMapFrame(Frame::Ptr frame, Frame::Ptr map_frame);
-
-    void BuildProblem(Frame::Ptr frame, Frame::Ptr map_frame, double *para, ceres::Problem &problem, Mapping::ProblemType type);
 
     void AddToWorld(Frame::Ptr frame);
 

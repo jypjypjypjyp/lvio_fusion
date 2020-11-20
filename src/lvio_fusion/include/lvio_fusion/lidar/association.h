@@ -71,6 +71,8 @@ private:
 
     void ExtractFeatures(PointICloud &points_segmented, SegmentedInfo &segemented_info, Frame::Ptr frame);
 
+    void SegmentPlane(PointICloud& pointcloud);
+
     std::vector<smoothness_t> smoothness;
     float *curvatures;
     int *neighbor_picked;
