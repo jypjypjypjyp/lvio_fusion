@@ -295,7 +295,7 @@ void FeatureAssociation::ExtractFeatures(PointICloud &points_segmented, Segmente
                         num_surf++;
                     }
 
-                    if (num_surf >= num_surf_feature || num_ground > num_ground_feature)
+                    if (num_surf >= num_surf_feature)
                         break;
 
                     neighbor_picked[ind] = 1;
@@ -484,16 +484,16 @@ void FeatureAssociation::ScanToMapWithGround(Frame::Ptr frame, Frame::Ptr map_fr
 
 void FeatureAssociation::ScanToMapWithSegmented(Frame::Ptr frame, Frame::Ptr map_frame, double *para, ceres::Problem &problem)
 {
-    ceres::LossFunction *loss_function = new ceres::HuberLoss(0.1);
-    PointICloud &points_less_sharp_last = map_frame->feature_lidar->points_less_sharp;
+    ceres::LossFunction *loss_function = new ceres::HuberLoss(1);
+    // PointICloud &points_less_sharp_last = map_frame->feature_lidar->points_less_sharp;
     PointICloud &points_less_flat_last = map_frame->feature_lidar->points_less_flat;
     problem.AddParameterBlock(para + 0, 1);
     problem.AddParameterBlock(para + 3, 1);
     problem.AddParameterBlock(para + 4, 1);
 
-    pcl::KdTreeFLANN<PointI> kdtree_sharp_last;
+    // pcl::KdTreeFLANN<PointI> kdtree_sharp_last;
     pcl::KdTreeFLANN<PointI> kdtree_flat_last;
-    kdtree_sharp_last.setInputCloud(boost::make_shared<PointICloud>(points_less_sharp_last));
+    // kdtree_sharp_last.setInputCloud(boost::make_shared<PointICloud>(points_less_sharp_last));
     kdtree_flat_last.setInputCloud(boost::make_shared<PointICloud>(points_less_flat_last));
 
     PointI point;
@@ -502,7 +502,7 @@ void FeatureAssociation::ScanToMapWithSegmented(Frame::Ptr frame, Frame::Ptr map
 
     static const double distance_threshold = lidar_->resolution * lidar_->resolution * 25; // squared
     static const double nearby_scan = 2;
-    int num_points_sharp = frame->feature_lidar->points_sharp.size();
+    // int num_points_sharp = frame->feature_lidar->points_sharp.size();
     int num_points_flat = frame->feature_lidar->points_flat.size();
     Sophus::SE3f tf_se3 = lidar_->TransformMatrix(frame->pose).cast<float>();
     float *tf = tf_se3.data();

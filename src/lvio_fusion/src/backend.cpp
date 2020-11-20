@@ -196,8 +196,7 @@ void Backend::Optimize(bool full)
 
     if (!full && lidar_)
     {
-        Frames mappping_kfs = map_->GetKeyFrames(head, forward_head);
-        mapping_->Optimize(mappping_kfs);
+        mapping_->Optimize(active_kfs);
     }
 
     // reject outliers and clean the map
