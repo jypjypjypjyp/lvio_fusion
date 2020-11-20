@@ -80,54 +80,49 @@ SE3d Map::ComputePose(double time)
 
 // 对地图数据应用相似变换
 // R Rgw
-void Map::ApplyScaledRotation(const cv::Mat &R, const float s, const bool bScaledVel, const cv::Mat t)
+void Map::ApplyScaledRotation(const Matrix3d &R, const double s, const bool bScaledVel)
 {
     // Step 1: 求解变换矩阵
     // Body position (IMU) of first keyframe is fixed to (0,0,0)
     // T world 2 gravity
-    cv::Mat Txw = cv::Mat::eye(4,4,CV_32F);
-    R.copyTo(Txw.rowRange(0,3).colRange(0,3));
+    Matrix4d Txw = Matrix4d::Identity();
+    Txw.block<3,3>(0,0)=R;
 
-    cv::Mat Tyx = cv::Mat::eye(4,4,CV_32F);
+    Matrix4d Tyx = Matrix4d::Identity();
 
     // Tyw:world 2 correct 不带s的变换矩阵，将原始位姿转换到gravity矫正后的坐标系下
-    cv::Mat Tyw = Tyx*Txw;
-    Tyw.rowRange(0,3).col(3) = Tyw.rowRange(0,3).col(3)+t;
-    cv::Mat Ryw = Tyw.rowRange(0,3).colRange(0,3);
-    cv::Mat tyw = Tyw.rowRange(0,3).col(3);
+    Matrix4d Tyw = Tyx*Txw;
+    Tyw.block<3,1>(0,3)= Tyw.block<3,1>(0,3);
+    Matrix3d Ryw = Tyw.block<3,3>(0,0);
+    Vector3d tyw = Tyw.block<3,1>(0,3);
 
     // Step 2: 变换KF的位姿到s，gravity矫正的坐标系下
     for(std::map<double, Frame::Ptr>::iterator sit=keyframes_.begin(); sit!=keyframes_.end(); sit++)
     {
-       Frame::Ptr pKF = (*sit).second;
-        cv::Mat Twc = pKF->GetPoseInverse();
+        Frame::Ptr pKF = (*sit).second;
+        Matrix4d Twc = pKF->GetPoseInverse();
         //对位姿的translation进行尺度放缩
-        Twc.rowRange(0,3).col(3)*=s;
+        Twc.block<3,1>(0,3)*=s;
         // 对位姿进行相似变换
-        cv::Mat Tyc = Tyw*Twc;  //此处Tyw = Tgw
-        cv::Mat Tcy = cv::Mat::eye(4,4,CV_32F);
-        Tcy.rowRange(0,3).colRange(0,3) = Tyc.rowRange(0,3).colRange(0,3).t();
-        Tcy.rowRange(0,3).col(3) = -Tcy.rowRange(0,3).colRange(0,3)*Tyc.rowRange(0,3).col(3);
-        pKF->SetPose(Tcy);
-        cv::Mat Vw = pKF->GetVelocity();
+       Matrix4d Tyc = Tyw*Twc;  //此处Tyw = Tgw
+        Matrix3d Rcy = Tyc.block<3,3>(0,0).transpose();
+        Vector3d tcy = -Rcy*Tyc.block<3,1>(0,3);
+        pKF->SetPose(Rcy,tcy);
+        Vector3d Vw = pKF->GetVelocity();
         if(!bScaledVel)
-            pKF->SetVelocity(Ryw*Vw);
+            pKF->SetVelocity(R*Vw);
         else
-            pKF->SetVelocity(Ryw*Vw*s);
+            pKF->SetVelocity(R*Vw*s);
 
     }
     // Step 2: 对MapPoints进行相似变换
     // | sR t |
     // |  0 1 | x MapPoints
-    for(visual::Landmarks::iterator sit=landmarks_.begin(); sit!=landmarks_.end(); sit++)
-    {
-       visual::Landmark::Ptr pMP = (*sit).second;
-       cv::Mat pos;
-       cv::eigen2cv(pMP->position,pos);
-        cv::cv2eigen( s*Ryw*pos+tyw,pMP->position);
-   //     pMP->UpdateNormalAndDepth();
-    }
-  //  mnMapChange++;
+    // for(visual::Landmarks::iterator sit=landmarks_.begin(); sit!=landmarks_.end(); sit++)
+    // {
+    //    visual::Landmark::Ptr pMP = (*sit).second;
+    //   Vector3d pos = pMP->position;
+    //   pMP->position= s*Ryw*pos+tyw;
+    // }
 }
-
 } // namespace lvio_fusion

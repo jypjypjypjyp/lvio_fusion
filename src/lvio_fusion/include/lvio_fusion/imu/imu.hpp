@@ -7,7 +7,7 @@
 #include <boost/serialization/vector.hpp>
 namespace lvio_fusion
 {
-const float eps = 1e-4;
+const double eps = 1e-4;
 class Imu : public Sensor
 {
 public:
@@ -22,8 +22,8 @@ class  imuPoint
 {
 public:
     typedef std::shared_ptr<imuPoint> Ptr;
-    imuPoint(const float &acc_x, const float &acc_y, const float &acc_z,
-             const float &ang_vel_x, const float &ang_vel_y, const float &ang_vel_z,
+    imuPoint(const double &acc_x, const double &acc_y, const double &acc_z,
+             const double &ang_vel_x, const double &ang_vel_y, const double &ang_vel_z,
              const double &timestamp): a(acc_x,acc_y,acc_z), w(ang_vel_x,ang_vel_y,ang_vel_z), t(timestamp){}
     imuPoint(const Vector3d Acc, const  Vector3d Gyro, const double &timestamp):
              a(Acc[0],Acc[1],Acc[2]), w(Gyro[0],Gyro[1],Gyro[2]), t(timestamp){}
@@ -51,8 +51,8 @@ class Bias
 
 public:
     Bias():bax(0),bay(0),baz(0),bwx(0),bwy(0),bwz(0){}
-    Bias(float b_acc_x, float b_acc_y,float b_acc_z,
-            float b_ang_vel_x, float b_ang_vel_y, float b_ang_vel_z):
+    Bias(double b_acc_x, double b_acc_y,double b_acc_z,
+            double b_ang_vel_x, double b_ang_vel_y, double b_ang_vel_z):
             bax(b_acc_x), bay(b_acc_y), baz(b_acc_z), bwx(b_ang_vel_x), bwy(b_ang_vel_y), bwz(b_ang_vel_z){}
     void CopyFrom(Bias &b)
     {
@@ -86,32 +86,33 @@ public:
 
     return out;
     }
-    float bax=0, bay=0, baz=0;
-    float bwx=0, bwy=0, bwz=0;
+    double bax=0, bay=0, baz=0;
+    double bwx=0, bwy=0, bwz=0;
 };
 
 class IntegratedRotation
 {
 public:
     IntegratedRotation(){}
-    IntegratedRotation(const Vector3d &angVel, const Bias &imuBias, const float &time)
+    IntegratedRotation(const Vector3d &angVel, const Bias &imuBias, const double &time)
 {
-    const float x = (angVel[0]-imuBias.bwx)*time;
-    const float y = (angVel[1]-imuBias.bwy)*time;
-    const float z = (angVel[2]-imuBias.bwz)*time;
+    const double x = (angVel[0]-imuBias.bwx)*time;
+    const double y = (angVel[1]-imuBias.bwy)*time;
+    const double z = (angVel[2]-imuBias.bwz)*time;
 
-    cv::Mat I = cv::Mat::eye(3,3,CV_32F);
+    Matrix3d I =Matrix3d::Identity();
 
-    const float d2 = x*x+y*y+z*z;
-    const float d = sqrt(d2);
+    const double d2 = x*x+y*y+z*z;
+    const double d = sqrt(d2);
 
-    cv::Mat W = (cv::Mat_<float>(3,3) << 0, -z, y,
+    Matrix3d W;
+    W << 0, -z, y,
                  z, 0, -x,
-                 -y,  x, 0);
+                 -y,  x, 0;
     if(d<eps)
     {
         deltaR = I + W;                                    // 公式(4)
-        rightJ = cv::Mat::eye(3,3,CV_32F);
+        rightJ = Matrix3d::Identity();
     }
     else
     {
@@ -121,9 +122,9 @@ public:
 }
 
 public:
-    float deltaT; //integration time
-    cv::Mat deltaR; //integrated rotation
-    cv::Mat rightJ; // right jacobian
+    double deltaT; //integration time
+    Matrix3d deltaR; //integrated rotation
+    Matrix3d rightJ; // right jacobian
 };
 
 class Calib
@@ -165,52 +166,52 @@ class Calib
     }
 
 public:
-    Calib(const cv::Mat &Tbc_, const float &ng, const float &na, const float &ngw, const float &naw,const float g_norm_)
+    Calib(const Matrix4d &Tbc_, const double &ng, const double &na, const double &ngw, const double &naw,const double g_norm_)
     {
        G_norm=g_norm_;
         Set(Tbc_,ng,na,ngw,naw);
     }
     Calib(const Calib &calib)
     {
-    Tbc = calib.Tbc.clone();
-    Tcb = calib.Tcb.clone();
-    Cov = calib.Cov.clone();
-    CovWalk = calib.CovWalk.clone();
+    Tbc = calib.Tbc;
+    Tcb = calib.Tcb;
+    Cov = calib.Cov;
+    CovWalk = calib.CovWalk;
     G_norm=calib.G_norm;
     }
     Calib(){}
 
-    void Set(const cv::Mat &Tbc_, const float &ng, const float &na, const float &ngw, const float &naw)
+    void Set(const Matrix4d &Tbc_, const double &ng, const double &na, const double &ngw, const double &naw)
     {
-    Tbc = Tbc_.clone();
-    Tcb = cv::Mat::eye(4,4,CV_32F);
-    Tcb.rowRange(0,3).colRange(0,3) = Tbc.rowRange(0,3).colRange(0,3).t();
-    Tcb.rowRange(0,3).col(3) = -Tbc.rowRange(0,3).colRange(0,3).t()*Tbc.rowRange(0,3).col(3);
-    Cov = cv::Mat::eye(6,6,CV_32F);
-    const float ng2 = ng*ng;
-    const float na2 = na*na;
-    Cov.at<float>(0,0) = ng2;
-    Cov.at<float>(1,1) = ng2;
-    Cov.at<float>(2,2) = ng2;
-    Cov.at<float>(3,3) = na2;
-    Cov.at<float>(4,4) = na2;
-    Cov.at<float>(5,5) = na2;
-    CovWalk = cv::Mat::eye(6,6,CV_32F);
-    const float ngw2 = ngw*ngw;
-    const float naw2 = naw*naw;
-    CovWalk.at<float>(0,0) = ngw2;
-    CovWalk.at<float>(1,1) = ngw2;
-    CovWalk.at<float>(2,2) = ngw2;
-    CovWalk.at<float>(3,3) = naw2;
-    CovWalk.at<float>(4,4) = naw2;
-    CovWalk.at<float>(5,5) = naw2;
+    Tbc = Tbc_;
+    Tcb = Matrix4d::Identity();
+    Tcb.block<3, 3>(0,0) = Tbc.block<3, 3>(0,0).transpose();
+    Tcb.block<3, 1>(0,3) = -Tbc.block<3, 3>(0,0).transpose()*Tbc.block<3, 1>(0,3);
+    Cov = Matrix<double, 6, 6> ::Identity();
+    const double ng2 = ng*ng;
+    const double na2 = na*na;
+    Cov(0,0) = ng2;
+    Cov(1,1) = ng2;
+    Cov(2,2) = ng2;
+    Cov(3,3) = na2;
+    Cov(4,4) = na2;
+    Cov(5,5) = na2;
+    CovWalk = Matrix<double, 6, 6> ::Identity();
+    const double ngw2 = ngw*ngw;
+    const double naw2 = naw*naw;
+    CovWalk(0,0) = ngw2;
+    CovWalk(1,1) = ngw2;
+    CovWalk(2,2) = ngw2;
+    CovWalk(3,3) = naw2;
+    CovWalk(4,4) = naw2;
+    CovWalk(5,5) = naw2;
     }
     
 public:
-    cv::Mat Tcb;  //b to camera
-    cv::Mat Tbc;
-    cv::Mat Cov, CovWalk; // imu协方差， 随机游走协方差
-    float G_norm;
+    Matrix4d Tcb;  //b to camera
+    Matrix4d Tbc;
+    Matrix<double, 6, 6> Cov, CovWalk; // imu协方差， 随机游走协方差
+    double G_norm;
 };
 
 

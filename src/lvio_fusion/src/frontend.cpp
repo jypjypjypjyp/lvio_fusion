@@ -22,7 +22,7 @@ bool Frontend::AddFrame(lvio_fusion::Frame::Ptr frame)
     std::unique_lock<std::mutex> lock(mutex);
     frame->calib_= ImuCalib_;//NEWADD
     current_frame = frame;
-
+    current_frame->preintegration = imu::Preintegration::Create(current_frame->GetImuBias(), ImuCalib_,NULL);
     switch (status)
     {
     case FrontendStatus::BUILDING:
@@ -147,9 +147,9 @@ bool Frontend::Track()
 //     if(status == FrontendStatus::TRACKING_GOOD||status == FrontendStatus::LOST||status == FrontendStatus::TRACKING_TRY)
 //     {
 //         // Store frame pose information to retrieve the complete camera trajectory afterwards.
-//         if(!current_frame->mTcw.empty())
+//         if(!(current_frame->mTcw==Matrix4d::Zero()))
 //         {
-//             cv::Mat Tcr = current_frame->mTcw*current_frame->mpReferenceKF->GetPoseInverse();
+//             Matrix4d Tcr = current_frame->mTcw*current_frame->mpReferenceKF->GetPoseInverse();
 //             mlRelativeFramePoses.push_back(Tcr);
 //             mlpReferences.push_back(current_frame->mpReferenceKF);
 //             mlbLost.push_back(status == FrontendStatus::LOST||status == FrontendStatus::TRACKING_TRY);
@@ -403,20 +403,20 @@ void Frontend::UpdateCache()
     }
     last_frame_pose_cache_ = last_frame->pose;
 }
-void Frontend::UpdateFrameIMU(const float s, const Bias &b, Frame::Ptr pCurrentKeyFrame)
+void Frontend::UpdateFrameIMU(const double s, const Bias &b, Frame::Ptr pCurrentKeyFrame)
 {
     Map::Ptr pMap =map_;
     std::list<Frame::Ptr>::iterator lRit = mlpReferences.begin();
     std::list<bool>::iterator lbL = mlbLost.begin();
     // Step 1:更新相对位姿集合的尺度信息
-    for(std::list<cv::Mat>::iterator lit=mlRelativeFramePoses.begin(),lend=mlRelativeFramePoses.end();lit!=lend;lit++, lRit++, lbL++)
+    for(std::list<Matrix4d>::iterator lit=mlRelativeFramePoses.begin(),lend=mlRelativeFramePoses.end();lit!=lend;lit++, lRit++, lbL++)
     {
         if(*lbL)
             continue;
 
        Frame::Ptr pKF = *lRit;
 
-            (*lit).rowRange(0,3).col(3)=(*lit).rowRange(0,3).col(3)*s;
+            (*lit).block<3,1>(0,3)=(*lit).block<3,1>(0,3)*s;
     }
 
     // Step 2:更新imu信息
@@ -427,12 +427,13 @@ void Frontend::UpdateFrameIMU(const float s, const Bias &b, Frame::Ptr pCurrentK
     last_frame->SetNewBias(b);
     current_frame->SetNewBias(b);
 
-    cv::Mat Gz = (cv::Mat_<float>(3,1) << 0, 0, -ImuCalib_.G_norm);
+    Vector3d Gz ;
+    Gz << 0, 0, -ImuCalib_.G_norm;
 
-    cv::Mat twb1;
-    cv::Mat Rwb1;
-    cv::Mat Vwb1;
-    float t12;  // 时间间隔
+    Vector3d twb1;
+    Matrix3d Rwb1;
+   Vector3d Vwb1;
+    double t12;  // 时间间隔
 
     while(!current_frame->preintegration->isPreintegrated)
     {
@@ -470,8 +471,6 @@ void Frontend::UpdateFrameIMU(const float s, const Bias &b, Frame::Ptr pCurrentK
                                       twb1 + Vwb1*t12 + 0.5f*t12*t12*Gz+ Rwb1*current_frame->preintegration->GetUpdatedDeltaPosition(),
                                       Vwb1 + Gz*t12 + Rwb1*current_frame->preintegration->GetUpdatedDeltaVelocity());
     }
-
- //  mnFirstImuFrameId = mCurrentFrame.mnId;
 }
 
 } // namespace lvio_fusion

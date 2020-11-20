@@ -55,9 +55,9 @@ void Frame::UpdateLabel()
         camera_point->label = GetLabelType(pair_feature.second->keypoint.x, pair_feature.second->keypoint.y);
     }
 }
-void Frame::SetVelocity(const cv::Mat &Vw_)
+void Frame::SetVelocity(const Vector3d  &Vw_)
 {
-    cv::cv2eigen(Vw_,mVw);
+    mVw=Vw_;
 }
 
 void Frame::SetNewBias(const Bias &b)
@@ -67,90 +67,80 @@ void Frame::SetNewBias(const Bias &b)
         preintegration->SetNewBias(b);
 }
 
-void Frame::SetPose(const cv::Mat &Tcw_)
+void Frame::SetPose(const Matrix3d Rcw,const Vector3d tcw)
 {
-     cv::Mat Rcw = Tcw_.rowRange(0,3).colRange(0,3);
-    cv::Mat tcw = Tcw_.rowRange(0,3).col(3);
-    Eigen::Matrix3d R ;
-    cv::cv2eigen(Rcw,R);
-    Eigen::Vector3d t(tcw.at<double>(0,0),tcw.at<double>(1,0),tcw.at<double>(2,0));  
-    pose=SE3d(R,t);
+    pose=SE3d(Rcw,tcw);
 }
 
-cv::Mat Frame::GetVelocity()
+Vector3d Frame::GetVelocity()
 {
-    cv::Mat Vw_;
-    cv::eigen2cv(mVw,Vw_);
-    return Vw_;
+    return mVw;
 }
 
-cv::Mat   Frame::GetImuRotation()
+Matrix3d  Frame::GetImuRotation()
 {
-     cv::Mat Rwc;
-     cv::eigen2cv(pose.rotationMatrix(),Rwc);
-    return Rwc*calib_.Tcb.rowRange(0,3).colRange(0,3);
+    return pose.rotationMatrix()*calib_.Tcb.block<3,3>(0,0);
 }
 
-cv::Mat Frame::GetImuPosition()
+Vector3d Frame::GetImuPosition()
 {
-    cv::Mat Tcw_;
-    cv::eigen2cv(pose.matrix(),Tcw_);  
-cv::Mat Rcw = Tcw_.rowRange(0,3).colRange(0,3);
-    cv::Mat tcw = Tcw_.rowRange(0,3).col(3);
-    cv::Mat Rwc = Rcw.t();
-    cv::Mat Ow=Rwc*tcw;
-cv::Mat TCB=calib_.Tcb;
-     if (!TCB.empty())
-        Owb = Rwc*TCB.rowRange(0,3).col(3)+Ow; //imu position
-    return  Owb.clone();
+    Matrix4d Tcw_=pose.matrix();  
+    Matrix3d Rcw = Tcw_.block<3,3>(0,0);
+    Vector3d tcw = Tcw_.block<3,1>(0,3);
+    Matrix3d Rwc = Rcw.transpose();
+    Vector3d Ow=Rwc*tcw;
+    Matrix4d TCB=calib_.Tcb;
+    Owb = Rwc*TCB.block<3,1>(0,3)+Ow; //imu position
+    return  Owb;
 }
 
-cv::Mat Frame::GetGyroBias()
+Vector3d Frame::GetGyroBias()
 {
-    return (cv::Mat_<float>(3,1) << mImuBias.bwx, mImuBias.bwy, mImuBias.bwz);
+    Vector3d gb;
+    gb<<mImuBias.bwx, mImuBias.bwy, mImuBias.bwz;
+    return gb;
 }
 
-cv::Mat Frame::GetAccBias()
+Vector3d Frame::GetAccBias()
 {
-    
-      return (cv::Mat_<float>(3,1) << mImuBias.bax, mImuBias.bay, mImuBias.baz);
+    Vector3d ab;
+    ab<<mImuBias.bax, mImuBias.bay, mImuBias.baz;
+    return ab;
 }
 Bias Frame::GetImuBias()
 {
     return mImuBias;
 }
-cv::Mat Frame::GetPoseInverse()
+Matrix4d Frame::GetPoseInverse()
 {
-     cv::Mat Tcw_;
-    cv::eigen2cv(pose.matrix(),Tcw_);  
-    cv::Mat Rcw = Tcw_.rowRange(0,3).colRange(0,3);
-    cv::Mat tcw = Tcw_.rowRange(0,3).col(3);
-    cv::Mat Rwc = Rcw.t();
-    cv::Mat Ow=Rwc*tcw;
+    Matrix4d Tcw_=pose.matrix();  
+    Matrix3d Rcw = Tcw_.block<3,3>(0,0);
+    Vector3d tcw = Tcw_.block<3,1>(0,3);
+    Matrix3d Rwc = Rcw.transpose();
+    Vector3d Ow=Rwc*tcw;
 
-
-    cv::Mat Twc = cv::Mat::eye(4,4,Tcw_.type());
-   Rwc.copyTo(Twc.rowRange(0,3).colRange(0,3));
-    Ow.copyTo(Twc.rowRange(0,3).col(3));
-    return Twc.clone();
+    Matrix4d  Twc =  Matrix4d ::Identity();
+    Twc.block<3,3>(0,0)=Rwc;
+    Twc.block<3,1>(0,3)=Ow;
+    return Twc;
 }
 
-void Frame::SetImuPoseVelocity(const cv::Mat &Rwb, const cv::Mat &twb, const cv::Mat &Vwb)
+void Frame::SetImuPoseVelocity(const Matrix3d &Rwb,const Vector3d &twb, const Vector3d &Vwb)
 {
-    cv::cv2eigen(Vwb,mVw);
-    cv::Mat Rbw = Rwb.t();
-    cv::Mat tbw = -Rbw*twb;
-    cv::Mat Tbw = cv::Mat::eye(4,4,CV_32F);
-    Rbw.copyTo(Tbw.rowRange(0,3).colRange(0,3));
-    tbw.copyTo(Tbw.rowRange(0,3).col(3));
+    mVw=Vwb;
+    Matrix3d Rbw = Rwb.transpose();
+    Vector3d tbw = -Rbw*twb;
+    Matrix4d Tbw = Matrix4d::Identity();
+    Tbw.block<3,3>(0,0)=Rbw;
+    Tbw.block<3,1>(0,3)=tbw;
     mTcw = calib_.Tcb*Tbw;
     UpdatePoseMatrices();
 }
 void Frame::UpdatePoseMatrices()
 {
-    mRcw = mTcw.rowRange(0,3).colRange(0,3);
-    mRwc = mRcw.t();
-    mtcw = mTcw.rowRange(0,3).col(3);
-    mOw = -mRcw.t()*mtcw;
+    mRcw = mTcw.block<3,3>(0,0);
+    mRwc = mRcw.transpose();
+    mtcw = mTcw.block<3,1>(0,3);
+    mOw = -mRcw.transpose()*mtcw;
 }
 } // namespace lvio_fusion

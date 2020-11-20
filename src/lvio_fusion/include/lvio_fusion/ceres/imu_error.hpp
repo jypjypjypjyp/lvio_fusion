@@ -9,7 +9,7 @@
 namespace lvio_fusion
 {
 
-const float GRAVITY_VALUE=9.81;
+const double GRAVITY_VALUE=9.81;
 
 class ImuError : public ceres::SizedCostFunction<15, 7, 3, 3, 3, 7, 3, 3, 3>
 {
@@ -34,8 +34,7 @@ public:
 
         Eigen::Map<Matrix<double, 15, 1>> residual(residuals);
         residual = preintegration_->Evaluate(Pi, Qi, Vi, Bai, Bgi, Pj, Qj, Vj, Baj, Bgj);
-        Matrix<double, 15, 15> covariance;
-        cv::cv2eigen(preintegration_->C,covariance);
+        Matrix<double, 15, 15> covariance=preintegration_->C;
         Matrix<double, 15, 15> sqrt_info = LLT<Matrix<double, 15, 15>>(covariance.inverse()).matrixL().transpose();
         residual = sqrt_info * residual;
         LOG(INFO) << residual;
@@ -43,22 +42,13 @@ public:
         if (jacobians)
         {
             double sum_dt = preintegration_->dT;
-            Matrix3d dp_dba;
-            Matrix3d dp_dbg;
-            Matrix3d dq_dbg;
-            Matrix3d dv_dba;
-            Matrix3d dv_dbg;
-
-            cv::cv2eigen(preintegration_->JPa,dp_dba);
-            cv::cv2eigen(preintegration_->JPg,dp_dbg);
-            cv::cv2eigen(preintegration_->JRg,dq_dbg);
-            cv::cv2eigen(preintegration_->JVa,dv_dba);
-            cv::cv2eigen(preintegration_->JVg,dv_dbg);
-
-            Matrix3d dr;
-            cv::cv2eigen(preintegration_->dR,dr);
+            Matrix3d dp_dba=preintegration_->JPa;
+            Matrix3d dp_dbg=preintegration_->JPg;
+            Matrix3d dq_dbg=preintegration_->JRg;
+            Matrix3d dv_dba=preintegration_->JVa;
+            Matrix3d dv_dbg=preintegration_->JVg;
             Quaterniond delta_q;
-            delta_q=dr;
+            delta_q=preintegration_->dR;
             Vector3d  linearized_bg(preintegration_->bu.bwx,preintegration_->bu.bwy,preintegration_->bu.bwz);
             
 ///int O_T = 0, O_R = 3, O_V = 6, O_BA = 9, O_BG = 12, O_PR = 0, O_PT = 4;
@@ -163,10 +153,8 @@ public:
             return true;
 
     }
-    static ceres::CostFunction *Create(const cv::Mat &bprior_)
+    static ceres::CostFunction *Create(const Vector3d &v)
     {
-        Eigen::Matrix<double,3,1> v;
-        v << bprior_.at<float>(0), bprior_.at<float>(1), bprior_.at<float>(2);
         return new PriorGyroError(v);
     }
 private:
@@ -193,10 +181,8 @@ public:
             return true;
 
     }
-    static ceres::CostFunction *Create(const cv::Mat &bprior_)
+    static ceres::CostFunction *Create(const Vector3d &v)
     {
-        Eigen::Matrix<double,3,1> v;
-        v << bprior_.at<float>(0), bprior_.at<float>(1), bprior_.at<float>(2);
         return new PriorAccError(v);
     }
 private:
@@ -207,9 +193,9 @@ private:
 class InertialGSError:public ceres::SizedCostFunction<9, 7,3,7,3,3,3,3,1>
 {
 public:
-    InertialGSError(imu::Preintegration::Ptr preintegration) : mpInt(preintegration),JRg( toMatrix3d( preintegration->JRg)),
-    JVg( toMatrix3d( preintegration->JVg)), JPg( toMatrix3d( preintegration->JPg)), JVa( toMatrix3d( preintegration->JVa)),
-    JPa( toMatrix3d( preintegration->JPa))
+    InertialGSError(imu::Preintegration::Ptr preintegration) : mpInt(preintegration),JRg(  preintegration->JRg),
+    JVg( preintegration->JVg), JPg( preintegration->JPg), JVa( preintegration->JVa),
+    JPa( preintegration->JPa)
     {
         gl<< 0, 0, -GRAVITY_VALUE;
     }
@@ -234,9 +220,9 @@ public:
         Rwg= yawAngle*pitchAngle*rollAngle;
         Vector3d g=Rwg*gl;
         const Bias  b1(accBias(0,0),accBias(1,0),accBias(2,0),gyroBias(0,0),gyroBias(1,0),gyroBias(2,0));
-        const Matrix3d dR = toMatrix3d(mpInt->GetDeltaRotation(b1));
-        const Vector3d dV = toVector3d(mpInt->GetDeltaVelocity(b1));
-        const Vector3d dP =toVector3d(mpInt->GetDeltaPosition(b1));
+        Matrix3d dR = (mpInt->GetDeltaRotation(b1));
+        Vector3d dV = (mpInt->GetDeltaVelocity(b1));
+        Vector3d dP =(mpInt->GetDeltaPosition(b1));
 
         const Vector3d er = LogSO3(dR.transpose()*Qi.toRotationMatrix().transpose()*Qj.toRotationMatrix());
         const Vector3d ev = Qi.toRotationMatrix().transpose()*(Scale*(Vj - Vi) - g*dt) - dV;
@@ -255,18 +241,18 @@ public:
             Bias db=mpInt->GetDeltaBias(b1);
             Vector3d dbg;
             dbg << db.bwx, db.bwy, db.bwz;
-            const Matrix3d Rwb1 =Qi.toRotationMatrix();
-            const Matrix3d Rbw1 = Rwb1.transpose();
-            const Matrix3d Rwb2 = Qj.toRotationMatrix();
+            Matrix3d Rwb1 =Qi.toRotationMatrix();
+            Matrix3d Rbw1 = Rwb1.transpose();
+            Matrix3d Rwb2 = Qj.toRotationMatrix();
             MatrixXd Gm = MatrixXd::Zero(3,2);
             Gm(0,1) = -GRAVITY_VALUE;
             Gm(1,0) = GRAVITY_VALUE;
-            const double s = Scale;
-            const Eigen::MatrixXd dGdTheta = Rwg*Gm;
-            const Eigen::Matrix3d dR = toMatrix3d(mpInt->GetDeltaRotation(b1));
-            const Eigen::Matrix3d eR = dR.transpose()*Rbw1*Rwb2;
-            const Eigen::Vector3d er = LogSO3(eR);
-            const Eigen::Matrix3d invJr = InverseRightJacobianSO3(er);
+            double s = Scale;
+            Eigen::MatrixXd dGdTheta = Rwg*Gm;
+            Eigen::Matrix3d dR = (mpInt->GetDeltaRotation(b1));
+            Eigen::Matrix3d eR = dR.transpose()*Rbw1*Rwb2;
+            Eigen::Vector3d er = LogSO3(eR);
+            Eigen::Matrix3d invJr = InverseRightJacobianSO3(er);
             if(jacobians[0]){
                 Eigen::Map<Matrix<double, 9, 7, RowMajor>> jacobian_pose_i(jacobians[0]);
                 jacobian_pose_i.setZero();
@@ -330,18 +316,17 @@ public:
 private:
     imu::Preintegration::Ptr mpInt;
     Vector3d gl;
-    const Matrix3d JRg, JVg, JPg;
-    const Matrix3d JVa, JPa;
+    Matrix3d JRg, JVg, JPg;
+    Matrix3d JVa, JPa;
 };
 
 
 class InertialError:public ceres::SizedCostFunction<9, 7,3,3,3,7,3>
 {
 public:
-    InertialError(imu::Preintegration::Ptr preintegration) : mpInt(preintegration),JRg( toMatrix3d( preintegration->JRg)),
-    JVg( toMatrix3d( preintegration->JVg)), JPg( toMatrix3d( preintegration->JPg)), JVa( toMatrix3d( preintegration->JVa)),
-    JPa( toMatrix3d( preintegration->JPa)) {}
-//P1,V1,g1,a1,P2,V2//7,3,3,3,7,3
+    InertialError(imu::Preintegration::Ptr preintegration) : mpInt(preintegration),JRg( preintegration->JRg),
+    JVg(  preintegration->JVg), JPg( preintegration->JPg), JVa(  preintegration->JVa),
+    JPa( preintegration->JPa) {}
 
     virtual bool Evaluate(double const *const *parameters, double *residuals, double **jacobians) const
     {
@@ -359,9 +344,9 @@ public:
         Vector3d g;
         g<< 0, 0, -GRAVITY_VALUE;
         const Bias  b1(accBias(0,0),accBias(1,0),accBias(2,0),gyroBias(0,0),gyroBias(1,0),gyroBias(2,0));
-        const Matrix3d dR = toMatrix3d(mpInt->GetDeltaRotation(b1));
-        const Vector3d dV = toVector3d(mpInt->GetDeltaVelocity(b1));
-        const Vector3d dP =toVector3d(mpInt->GetDeltaPosition(b1));
+        Matrix3d dR = mpInt->GetDeltaRotation(b1);
+        Vector3d dV = mpInt->GetDeltaVelocity(b1);
+        Vector3d dP =mpInt->GetDeltaPosition(b1);
 
         const Vector3d er = LogSO3(dR.transpose()*Qi.toRotationMatrix().transpose()*Qj.toRotationMatrix());
         const Vector3d ev = Qi.toRotationMatrix().transpose()*((Vj - Vi) - g*dt) - dV;
@@ -382,14 +367,14 @@ public:
             Bias db=mpInt->GetDeltaBias(b1);
             Vector3d dbg;
             dbg << db.bwx, db.bwy, db.bwz;
-            const Matrix3d Rwb1 =Qi.toRotationMatrix();
-            const Matrix3d Rbw1 = Rwb1.transpose();
-            const Matrix3d Rwb2 = Qj.toRotationMatrix();
+            Matrix3d Rwb1 =Qi.toRotationMatrix();
+            Matrix3d Rbw1 = Rwb1.transpose();
+            Matrix3d Rwb2 = Qj.toRotationMatrix();
 
-            const Eigen::Matrix3d dR = toMatrix3d(mpInt->GetDeltaRotation(b1));
-            const Eigen::Matrix3d eR = dR.transpose()*Rbw1*Rwb2;
-            const Eigen::Vector3d er = LogSO3(eR);
-            const Eigen::Matrix3d invJr = InverseRightJacobianSO3(er);
+            Eigen::Matrix3d dR = mpInt->GetDeltaRotation(b1);
+            Eigen::Matrix3d eR = dR.transpose()*Rbw1*Rwb2;
+            Eigen::Vector3d er = LogSO3(eR);
+            Eigen::Matrix3d invJr = InverseRightJacobianSO3(er);
             if(jacobians[0]){
                 Eigen::Map<Matrix<double, 9, 7, RowMajor>> jacobian_pose_i(jacobians[0]);
                 jacobian_pose_i.setZero();
@@ -442,8 +427,8 @@ public:
 private:
     imu::Preintegration::Ptr mpInt;
     //Vector3d gl;
-    const Matrix3d JRg, JVg, JPg;
-    const Matrix3d JVa, JPa;
+    Matrix3d JRg, JVg, JPg;
+    Matrix3d JVa, JPa;
 };
 
 class GyroRWError

@@ -52,7 +52,7 @@ public:
 
     void SetCalib(Calib calib){ImuCalib_=calib;}
 
-    void UpdateFrameIMU(const float s, const Bias &b, Frame::Ptr pCurrentKeyFrame);
+    void UpdateFrameIMU(const double s, const Bias &b, Frame::Ptr pCurrentKeyFrame);
     
     void SetCameras(Camera::Ptr left, Camera::Ptr right)
     {
@@ -76,7 +76,7 @@ public:
     Frame::Ptr reference_key_frame;
     SE3d relative_pose;
     std::mutex mutex;
-    std::list<cv::Mat> mlRelativeFramePoses;  // frame 与 referenceKF 的相对变换
+    std::list<Matrix4d> mlRelativeFramePoses;  // frame 与 referenceKF 的相对变换
     std::list<Frame::Ptr> mlpReferences;       // 相对变换的 referenceKF
    // list<double> mlFrameTimes;           // 每一相对变换的frame的time_stamp
     std::list<bool> mlbLost;                  // 是否丢失

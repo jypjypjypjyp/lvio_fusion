@@ -16,7 +16,7 @@ public:
     typedef std::shared_ptr<Initializer> Ptr;
     
    // bool Initialize(Frames kfs);
-    void InitializeIMU(float priorG, float priorA, bool bFIBA);
+    void InitializeIMU(double priorG, double priorA, bool bFIBA);
     void SetMap(Map::Ptr map) { map_ = map; }
     void SetFrontend(std::shared_ptr<Frontend>  frontend) { frontend_ = frontend; }
     std::weak_ptr<Frontend> frontend_;
@@ -28,7 +28,7 @@ public:
     int mNumLM;
     int mNumKFCulling;
 
-    float mTinit;  // 用于IMU初始化的时间
+    double mTinit;  // 用于IMU初始化的时间
 
     int countRefinement;
     int num_frames = 10;

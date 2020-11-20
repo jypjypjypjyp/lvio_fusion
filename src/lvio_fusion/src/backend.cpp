@@ -124,12 +124,10 @@ void Backend::BuildProblem(Frames &active_kfs, ceres::Problem &problem,std::vect
     //             continue;
     //         auto para_kf = current_frame->pose.data();
     //         auto para_v = current_frame->mVw.data();
-    //         Vector3d g;
-    //         cv::cv2eigen(current_frame->GetGyroBias(),g);
+    //         Vector3d g=current_frame->GetGyroBias();
     //         auto para_bg = g.data();
     //         para_gbs.push_back(para_bg);
-    //         Vector3d a;
-    //         cv::cv2eigen(current_frame->GetAccBias(),a);
+    //         Vector3d a=current_frame->GetAccBias();
     //         auto para_ba = a.data();
     //         para_abs.push_back(para_ba);
     //         problem.AddParameterBlock(para_v, 3);
@@ -139,11 +137,9 @@ void Backend::BuildProblem(Frames &active_kfs, ceres::Problem &problem,std::vect
     //         {
     //             auto para_kf_last = last_frame->pose.data();
     //             auto para_v_last = last_frame->mVw.data();
-    //             Vector3d g2;
-    //             cv::cv2eigen(last_frame->GetGyroBias(),g2);
+    //             Vector3d g2=last_frame->GetGyroBias();
     //             auto para_bg_last = g2.data();//恢复
-    //             Vector3d a2;
-    //             cv::cv2eigen(last_frame->GetAccBias(),a2);
+    //             Vector3d a2=last_frame->GetAccBias();
     //             auto para_ba_last = a2.data();//恢复
     //             ceres::CostFunction *cost_function = ImuError::Create(last_frame->preintegration);
     //             problem.AddResidualBlock(cost_function, NULL, para_kf_last, para_v_last, para_ba_last, para_bg_last, para_kf, para_v, para_ba, para_bg);

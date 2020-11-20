@@ -26,7 +26,7 @@ public:
         return keyframes_;
     }
     int GetAllKeyFramesSize(){return keyframes_.size();}
-    void ApplyScaledRotation(const cv::Mat &R, const float s, const bool bScaledVel, const cv::Mat t=cv::Mat::zeros(cv::Size(1,3),CV_32F));
+    void ApplyScaledRotation(const Matrix3d &R, const double s, const bool bScaledVel);
     Frames GetKeyFrames(double start, double end = 0, int num = 0);
 
     void InsertKeyFrame(Frame::Ptr frame);

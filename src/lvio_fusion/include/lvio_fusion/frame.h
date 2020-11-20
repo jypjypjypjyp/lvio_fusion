@@ -17,7 +17,7 @@ class Frame
 public:
     typedef std::shared_ptr<Frame> Ptr;
 
-    Frame(){ }
+    Frame():mTcw(Matrix4d::Zero()),mImuBias(Bias(0,0,0,0,0,0)){ }
 
     void AddFeature(visual::Feature::Ptr feature);
 
@@ -47,33 +47,33 @@ public:
 //IMU
     Calib calib_;
     // Rotation, translation and camera center
-    cv::Mat mRcw;
-    cv::Mat mtcw;
-    cv::Mat mRwc;
-    cv::Mat mOw;
+    Matrix3d mRcw;
+    Vector3d mtcw;
+    Matrix3d mRwc;
+    Vector3d mOw;
 
     // IMU linear velocity
     Vector3d mVw;
 
     // Camera pose.
-    cv::Mat mTcw;  //? world to camera 
+    Matrix4d  mTcw;  //? world to camera 
 
     Bias mImuBias;
     bool bImu;  //是否经过imu尺度优化
     // IMU position
-    cv::Mat Owb;
+    Vector3d Owb;
 
-    cv::Mat GetGyroBias();
-    cv::Mat GetAccBias();
-    cv::Mat   GetImuRotation();
-    cv::Mat   GetImuPosition();
-    void SetVelocity(const cv::Mat &Vw);
+    Vector3d GetGyroBias();
+    Vector3d GetAccBias();
+    Matrix3d  GetImuRotation();
+    Vector3d  GetImuPosition();
+    void SetVelocity(const Vector3d  &Vw_);
     Bias GetImuBias();
-    cv::Mat GetPoseInverse();
-    cv::Mat GetVelocity();
-    void SetPose(const cv::Mat &Tcw_);
+    Matrix4d GetPoseInverse();
+    Vector3d GetVelocity();
+    void SetPose(const Matrix3d Rcw,const Vector3d tcw);
     void SetNewBias(const Bias &b);
-    void SetImuPoseVelocity(const cv::Mat &Rwb, const cv::Mat &twb, const cv::Mat &Vwb);
+    void SetImuPoseVelocity(const Matrix3d &Rwb,const Vector3d &twb, const Vector3d &Vwb);
     void UpdatePoseMatrices();
 
 private:

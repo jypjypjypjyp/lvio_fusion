@@ -66,7 +66,7 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
         double g_norm= Config::Get<double>("g_norm");
        double freq= Config::Get<double>("frequency");
        const double sf = sqrt(freq);
-        Calib calib_=Calib(cv_base_to_cam0,gyr_n*sf, acc_n*sf,gyr_w/sf,acc_w/sf,g_norm);
+        Calib calib_=Calib(base_to_cam0,gyr_n*sf, acc_n*sf,gyr_w/sf,acc_w/sf,g_norm);
  //NEWADDEND
 
     // create components and links
