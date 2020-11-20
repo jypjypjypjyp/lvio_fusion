@@ -3,6 +3,8 @@
 
 #include <pcl/filters/voxel_grid.h>
 
+#define OUTLIER_LABEL 999999
+
 namespace lvio_fusion
 {
 
@@ -20,7 +22,7 @@ void ImageProjection::Clear()
     std::fill(points_full.points.begin(), points_full.points.end(), nanPoint);
 }
 
-SegmentedInfo ImageProjection::Process(PointICloud &points, PointICloud &points_segmented, PointICloud &points_outlier)
+SegmentedInfo ImageProjection::Process(PointICloud &points, PointICloud &points_segmented)
 {
     SegmentedInfo segmented_info(num_scans_, horizon_scan_);
 
@@ -30,19 +32,19 @@ SegmentedInfo ImageProjection::Process(PointICloud &points, PointICloud &points_
 
     RemoveGround(segmented_info);
 
-    Segment(segmented_info, points_segmented, points_outlier);
+    Segment(segmented_info, points_segmented);
 
     Clear();
     return segmented_info;
 }
 
-void ImageProjection::FindStartEndAngle(SegmentedInfo &segmented_info, PointICloud& points)
+void ImageProjection::FindStartEndAngle(SegmentedInfo &segmented_info, PointICloud &points)
 {
     // start and end orientation of this cloud
     segmented_info.start_orientation = -atan2(points.points[0].y, points.points[0].x);
     segmented_info.end_orientation = -atan2(points.points[points.points.size() - 1].y,
-                                           points.points[points.points.size() - 1].x) +
-                                    2 * M_PI;
+                                            points.points[points.points.size() - 1].x) +
+                                     2 * M_PI;
     if (segmented_info.end_orientation - segmented_info.start_orientation > 3 * M_PI)
     {
         segmented_info.end_orientation -= 2 * M_PI;
@@ -52,7 +54,7 @@ void ImageProjection::FindStartEndAngle(SegmentedInfo &segmented_info, PointIClo
     segmented_info.orientation_diff = segmented_info.end_orientation - segmented_info.start_orientation;
 }
 
-void ImageProjection::ProjectPointCloud(SegmentedInfo &segmented_info, PointICloud& points)
+void ImageProjection::ProjectPointCloud(SegmentedInfo &segmented_info, PointICloud &points)
 {
     // range image projection
     float verticalAngle, horizonAngle, range;
@@ -61,7 +63,7 @@ void ImageProjection::ProjectPointCloud(SegmentedInfo &segmented_info, PointIClo
 
     cloudSize = points.points.size();
 
-     for (size_t i = 0; i < cloudSize; ++i)
+    for (size_t i = 0; i < cloudSize; ++i)
     {
 
         thisPoint.x = points.points[i].x;
@@ -148,7 +150,7 @@ void ImageProjection::RemoveGround(SegmentedInfo &segmented_info)
     }
 }
 
-void ImageProjection::Segment(SegmentedInfo &segmented_info, PointICloud &points_segmented, PointICloud &points_outlier)
+void ImageProjection::Segment(SegmentedInfo &segmented_info, PointICloud &points_segmented)
 {
     // segmentation process
     for (size_t i = 0; i < num_scans_; ++i)
@@ -168,17 +170,9 @@ void ImageProjection::Segment(SegmentedInfo &segmented_info, PointICloud &points
             if (labelMat.at<int>(i, j) > 0 || groundMat.at<int8_t>(i, j) == 1)
             {
                 // outliers that will not be used for optimization (always continue)
-                if (labelMat.at<int>(i, j) == 999999)
+                if (labelMat.at<int>(i, j) == OUTLIER_LABEL)
                 {
-                    if (i > ground_rows_ && j % 5 == 0)
-                    {
-                        points_outlier.push_back(points_full.points[j + i * horizon_scan_]);
-                        continue;
-                    }
-                    else
-                    {
-                        continue;
-                    }
+                    continue;
                 }
                 // majority of ground points are skipped
                 // if (groundMat.at<int8_t>(i, j) == 1)
@@ -321,7 +315,7 @@ void ImageProjection::LabelComponents(int row, int col)
     { // segment is invalid, mark these points
         for (size_t i = 0; i < allPushedIndSize; ++i)
         {
-            labelMat.at<int>(allPushedIndX[i], allPushedIndY[i]) = 999999;
+            labelMat.at<int>(allPushedIndX[i], allPushedIndY[i]) = OUTLIER_LABEL;
         }
     }
 }

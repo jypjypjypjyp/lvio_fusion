@@ -46,7 +46,7 @@ public:
         Clear();
     }
 
-    SegmentedInfo Process(PointICloud &points, PointICloud &points_segmented, PointICloud &points_outlier);
+    SegmentedInfo Process(PointICloud &points, PointICloud &points_segmented);
 
 private:
     void FindStartEndAngle(SegmentedInfo &segmented_info, PointICloud& points);
@@ -55,7 +55,7 @@ private:
 
     void RemoveGround(SegmentedInfo &segmented_info);
 
-    void Segment(SegmentedInfo &segmented_info, PointICloud &points_segmented, PointICloud &points_outlier);
+    void Segment(SegmentedInfo &segmented_info, PointICloud &points_segmented);
 
     void LabelComponents(int row, int col);
 

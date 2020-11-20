@@ -149,19 +149,19 @@ void FeatureAssociation::CalculateSmoothness(PointICloud &points_segmented, Segm
     for (int i = 5; i < size - 5; i++)
     {
         // clang-format off
-        float diffRange = segemented_info.range[i - 5] 
-                        + segemented_info.range[i - 4] 
-                        + segemented_info.range[i - 3] 
-                        + segemented_info.range[i - 2] 
-                        + segemented_info.range[i - 1] 
-                        - segemented_info.range[i] * 10 
-                        + segemented_info.range[i + 1] 
-                        + segemented_info.range[i + 2] 
-                        + segemented_info.range[i + 3] 
-                        + segemented_info.range[i + 4] 
-                        + segemented_info.range[i + 5];
+        float dr = segemented_info.range[i - 5] 
+                + segemented_info.range[i - 4] 
+                + segemented_info.range[i - 3] 
+                + segemented_info.range[i - 2] 
+                + segemented_info.range[i - 1] 
+                - segemented_info.range[i] * 10 
+                + segemented_info.range[i + 1] 
+                + segemented_info.range[i + 2] 
+                + segemented_info.range[i + 3] 
+                + segemented_info.range[i + 4] 
+                + segemented_info.range[i + 5];
         // clang-format on
-        curvatures[i] = diffRange * diffRange;
+        curvatures[i] = (dr * dr) / segemented_info.range[i];
         neighbor_picked[i] = 0;
         cloudLabel[i] = 0;
         smoothness[i].value = curvatures[i];
@@ -213,10 +213,6 @@ void FeatureAssociation::MarkOccludedPoints(PointICloud &points_segmented, Segme
 
 void FeatureAssociation::ExtractFeatures(PointICloud &points_segmented, SegmentedInfo &segemented_info, Frame::Ptr frame)
 {
-    static const int num_edge_feature = 2;
-    static const int num_ground_feature = 2;
-    static const int num_surf_feature = 20;
-    static const float threshold_sharp = 0.1;
     static const float threshold_flat = 0.1;
     lidar::Feature::Ptr feature = lidar::Feature::Create();
 
@@ -234,89 +230,40 @@ void FeatureAssociation::ExtractFeatures(PointICloud &points_segmented, Segmente
 
             std::sort(smoothness.begin() + sp, smoothness.begin() + ep, smoothness_t());
 
-            // int num_sharp = 0;
-            // for (int k = ep; k >= sp; k--)
-            // {
-            //     int ind = smoothness[k].ind;
-            //     if (neighbor_picked[ind] == 0 &&
-            //         //curvatures[ind] > threshold_sharp &&
-            //         segemented_info.ground_flag[ind] == false)
-            //     {
-            //         num_sharp++;
-            //         if (num_sharp <= num_edge_feature)
-            //         {
-            //             cloudLabel[ind] = 2;
-            //             feature->points_sharp.push_back(points_segmented[ind]);
-            //             feature->points_less_sharp.push_back(points_segmented[ind]);
-            //         }
-            //         else if (num_sharp <= 20)
-            //         {
-            //             cloudLabel[ind] = 1;
-            //             feature->points_less_sharp.push_back(points_segmented[ind]);
-            //         }
-            //         else
-            //         {
-            //             break;
-            //         }
-            //         neighbor_picked[ind] = 1;
-            //         for (int l = 1; l <= 5; l++)
-            //         {
-            //             int column_diff = std::abs(int(segemented_info.col_ind[ind + l] - segemented_info.col_ind[ind + l - 1]));
-            //             if (column_diff > 10)
-            //                 break;
-            //             neighbor_picked[ind + l] = 1;
-            //         }
-            //         for (int l = -1; l >= -5; l--)
-            //         {
-            //             int column_diff = std::abs(int(segemented_info.col_ind[ind + l] - segemented_info.col_ind[ind + l + 1]));
-            //             if (column_diff > 10)
-            //                 break;
-            //             neighbor_picked[ind + l] = 1;
-            //         }
-            //     }
-            // }
-
-            int num_ground = 0;
-            int num_surf = 0;
             for (int k = sp; k <= ep; k++)
             {
                 int ind = smoothness[k].ind;
-                if (neighbor_picked[ind] == 0) // && curvatures[ind] < threshold_flat)
+                if (neighbor_picked[ind] == 0 && curvatures[ind] < threshold_flat)
                 {
                     cloudLabel[ind] = -1;
                     if (segemented_info.ground_flag[ind] == true)
                     {
                         feature->points_ground.push_back(points_segmented[ind]);
-                        num_ground++;
                     }
                     else
                     {
-                        feature->points_flat.push_back(points_segmented[ind]);
-                        num_surf++;
+                        feature->points_surf.push_back(points_segmented[ind]);
                     }
 
-                    if (num_surf >= num_surf_feature)
-                        break;
+                    // neighbor_picked[ind] = 1;
+                    // for (int l = 1; l <= 5; l++)
+                    // {
 
-                    neighbor_picked[ind] = 1;
-                    for (int l = 1; l <= 5; l++)
-                    {
+                    //     int column_diff = std::abs(int(segemented_info.col_ind[ind + l] - segemented_info.col_ind[ind + l - 1]));
+                    //     if (column_diff > 10)
+                    //         break;
 
-                        int column_diff = std::abs(int(segemented_info.col_ind[ind + l] - segemented_info.col_ind[ind + l - 1]));
-                        if (column_diff > 10)
-                            break;
+                    //     neighbor_picked[ind + l] = 1;
+                    // }
+                    // for (int l = -1; l >= -5; l--)
+                    // {
 
-                        neighbor_picked[ind + l] = 1;
-                    }
-                    for (int l = -1; l >= -5; l--)
-                    {
+                    //     int column_diff = std::abs(int(segemented_info.col_ind[ind + l] - segemented_info.col_ind[ind + l + 1]));
+                    //     if (column_diff > 10)
+                    //         break;
 
-                        int column_diff = std::abs(int(segemented_info.col_ind[ind + l] - segemented_info.col_ind[ind + l + 1]));
-                        if (column_diff > 10)
-                            break;
-
-                        neighbor_picked[ind + l] = 1;
-                    }
+                    //     neighbor_picked[ind + l] = 1;
+                    // }
                 }
             }
 
@@ -324,7 +271,7 @@ void FeatureAssociation::ExtractFeatures(PointICloud &points_segmented, Segmente
             {
                 if (cloudLabel[k] <= 0)
                 {
-                    feature->points_less_flat.push_back(points_segmented[k]);
+                    feature->points_full.push_back(points_segmented[k]);
                 }
             }
         }
@@ -332,17 +279,22 @@ void FeatureAssociation::ExtractFeatures(PointICloud &points_segmented, Segmente
 
     PointICloud::Ptr temp(new PointICloud());
     pcl::VoxelGrid<PointI> voxel_filter;
-    pcl::copyPointCloud(feature->points_less_flat, *temp);
+    pcl::copyPointCloud(feature->points_full, *temp);
     voxel_filter.setLeafSize(lidar_->resolution, lidar_->resolution, lidar_->resolution);
     voxel_filter.setInputCloud(temp);
-    voxel_filter.filter(feature->points_less_flat);
+    voxel_filter.filter(feature->points_full);
 
-    pcl::copyPointCloud(feature->points_flat, *temp);
+    pcl::copyPointCloud(feature->points_surf, *temp);
     voxel_filter.setLeafSize(2 * lidar_->resolution, 2 * lidar_->resolution, 2 * lidar_->resolution);
     voxel_filter.setInputCloud(temp);
-    voxel_filter.filter(feature->points_flat);
+    voxel_filter.filter(feature->points_surf);
 
+    pcl::copyPointCloud(feature->points_ground, *temp);
+    voxel_filter.setLeafSize(2 * lidar_->resolution, 2 * lidar_->resolution, 2 * lidar_->resolution);
+    voxel_filter.setInputCloud(temp);
+    voxel_filter.filter(feature->points_ground);
     SegmentPlane(feature->points_ground);
+
     frame->feature_lidar = feature;
 }
 
@@ -357,7 +309,7 @@ inline void FeatureAssociation::SegmentPlane(PointICloud &pointcloud)
     seg.setModelType(pcl::SACMODEL_PLANE);
     seg.setMethodType(pcl::SAC_RANSAC);
     seg.setMaxIterations(100);
-    seg.setDistanceThreshold(2 * lidar_->resolution);
+    seg.setDistanceThreshold(lidar_->resolution);
     seg.setInputCloud(pointcloud_seg);
     seg.segment(*inliers, *coefficients);
     pcl::ExtractIndices<PointI> extract;
@@ -370,7 +322,7 @@ inline void FeatureAssociation::SegmentPlane(PointICloud &pointcloud)
 void FeatureAssociation::ScanToMapWithGround(Frame::Ptr frame, Frame::Ptr map_frame, double *para, ceres::Problem &problem)
 {
     ceres::LossFunction *loss_function = new ceres::HuberLoss(0.1);
-    PointICloud &points_less_flat_last = map_frame->feature_lidar->points_less_flat;
+    PointICloud &points_less_flat_last = map_frame->feature_lidar->points_full;
     problem.AddParameterBlock(para + 2, 1);
     problem.AddParameterBlock(para + 1, 1);
     problem.AddParameterBlock(para + 5, 1);
@@ -486,7 +438,7 @@ void FeatureAssociation::ScanToMapWithSegmented(Frame::Ptr frame, Frame::Ptr map
 {
     ceres::LossFunction *loss_function = new ceres::HuberLoss(1);
     // PointICloud &points_less_sharp_last = map_frame->feature_lidar->points_less_sharp;
-    PointICloud &points_less_flat_last = map_frame->feature_lidar->points_less_flat;
+    PointICloud &points_less_flat_last = map_frame->feature_lidar->points_full;
     problem.AddParameterBlock(para + 0, 1);
     problem.AddParameterBlock(para + 3, 1);
     problem.AddParameterBlock(para + 4, 1);
@@ -503,7 +455,7 @@ void FeatureAssociation::ScanToMapWithSegmented(Frame::Ptr frame, Frame::Ptr map
     static const double distance_threshold = lidar_->resolution * lidar_->resolution * 25; // squared
     static const double nearby_scan = 2;
     // int num_points_sharp = frame->feature_lidar->points_sharp.size();
-    int num_points_flat = frame->feature_lidar->points_flat.size();
+    int num_points_flat = frame->feature_lidar->points_surf.size();
     Sophus::SE3f tf_se3 = lidar_->TransformMatrix(frame->pose).cast<float>();
     float *tf = tf_se3.data();
 
@@ -588,8 +540,8 @@ void FeatureAssociation::ScanToMapWithSegmented(Frame::Ptr frame, Frame::Ptr map
     {
         //NOTE: Sophus is too slow
         // lidar_->Transform(frame->feature_lidar->points_flat[i], current_frame->pose, last_frame->pose, point);
-        ceres::SE3TransformPoint(tf, frame->feature_lidar->points_flat[i].data, point.data);
-        point.intensity = frame->feature_lidar->points_flat[i].intensity;
+        ceres::SE3TransformPoint(tf, frame->feature_lidar->points_surf[i].data, point.data);
+        point.intensity = frame->feature_lidar->points_surf[i].intensity;
         kdtree_flat_last.nearestKSearch(point, 1, points_index, points_distance);
         int closest_index = -1, closest_index2 = -1, closest_index3 = -1;
         if (points_index[0] < points_less_flat_last.size() && points_distance[0] < distance_threshold)
@@ -659,9 +611,9 @@ void FeatureAssociation::ScanToMapWithSegmented(Frame::Ptr frame, Frame::Ptr map
             if (closest_index2 >= 0 && closest_index3 >= 0)
             {
 
-                Vector3d curr_point(frame->feature_lidar->points_flat[i].x,
-                                    frame->feature_lidar->points_flat[i].y,
-                                    frame->feature_lidar->points_flat[i].z);
+                Vector3d curr_point(frame->feature_lidar->points_surf[i].x,
+                                    frame->feature_lidar->points_surf[i].y,
+                                    frame->feature_lidar->points_surf[i].z);
                 Vector3d last_point_a(points_less_flat_last[closest_index].x,
                                       points_less_flat_last[closest_index].y,
                                       points_less_flat_last[closest_index].z);

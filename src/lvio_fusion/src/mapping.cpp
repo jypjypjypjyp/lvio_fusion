@@ -72,7 +72,7 @@ void Mapping::BuildMapFrame(Frame::Ptr frame, Frame::Ptr map_frame)
     }
 
     map_frame->feature_lidar = lidar::Feature::Create();
-    map_frame->feature_lidar->points_less_flat = points_less_flat_merged;
+    map_frame->feature_lidar->points_full = points_less_flat_merged;
     map_frame->feature_lidar->points_less_sharp = points_less_sharp_merged;
 }
 
@@ -84,7 +84,7 @@ void Mapping::Optimize(Frames &active_kfs)
         auto t1 = std::chrono::steady_clock::now();
         Frame::Ptr map_frame = Frame::Ptr(new Frame());
         BuildMapFrame(pair_kf.second, map_frame);
-        if (map_frame->feature_lidar && pair_kf.second->feature_lidar && !map_frame->feature_lidar->points_less_flat.empty())// && !map_frame->feature_lidar->points_less_sharp.empty())
+        if (map_frame->feature_lidar && pair_kf.second->feature_lidar && !map_frame->feature_lidar->points_full.empty())// && !map_frame->feature_lidar->points_less_sharp.empty())
         {
             double rpyxyz[6];
             se32rpyxyz(map_frame->pose * pair_kf.second->pose.inverse(), rpyxyz); // relative_i_j
@@ -146,7 +146,7 @@ void Mapping::AddToWorld(Frame::Ptr frame)
     if (frame->feature_lidar)
     {
         MergeScan(frame->feature_lidar->points_less_sharp, frame->pose, pointcloud_sharp);
-        MergeScan(frame->feature_lidar->points_less_flat, frame->pose, pointcloud_flat);
+        MergeScan(frame->feature_lidar->points_full, frame->pose, pointcloud_flat);
         // MergeScan(frame->feature_lidar->points_flat, frame->pose, pointcloud_ss);
         Color(pointcloud_flat, frame, pointcloud_color);
     }

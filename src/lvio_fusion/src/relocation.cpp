@@ -230,14 +230,14 @@ bool Relocation::RelocateByPoints(Frame::Ptr frame, Frame::Ptr old_frame, loop::
 
     // build two pointclouds
     PointICloud::Ptr pc = PointICloud::Ptr(new PointICloud);
-    *pc = frame->feature_lidar->points_less_sharp + frame->feature_lidar->points_less_flat;
+    *pc = frame->feature_lidar->points_less_sharp + frame->feature_lidar->points_full;
     PointICloud::Ptr pc_old = PointICloud::Ptr(new PointICloud);
-    *pc_old = old_frame->feature_lidar->points_less_sharp + old_frame->feature_lidar->points_less_flat;
+    *pc_old = old_frame->feature_lidar->points_less_sharp + old_frame->feature_lidar->points_full;
     Frame::Ptr old_frame_prev = map_->GetKeyFrames(0, old_frame->time, 1).begin()->second;
     if (old_frame->feature_lidar)
     {
         PointICloud pc_old_prev_less_flat, pc_old_prev_less_sharp;
-        mapping_->MergeScan(old_frame_prev->feature_lidar->points_less_flat, old_frame_prev->pose, pc_old_prev_less_flat);
+        mapping_->MergeScan(old_frame_prev->feature_lidar->points_full, old_frame_prev->pose, pc_old_prev_less_flat);
         mapping_->MergeScan(old_frame_prev->feature_lidar->points_less_sharp, old_frame_prev->pose, pc_old_prev_less_sharp);
         *pc_old += pc_old_prev_less_sharp;
         *pc_old += pc_old_prev_less_flat;
@@ -246,7 +246,7 @@ bool Relocation::RelocateByPoints(Frame::Ptr frame, Frame::Ptr old_frame, loop::
     if (old_frame->feature_lidar)
     {
         PointICloud pc_old_subs_less_flat, pc_old_subs_less_sharp;
-        mapping_->MergeScan(old_frame_subs->feature_lidar->points_less_flat, old_frame_subs->pose, pc_old_subs_less_flat);
+        mapping_->MergeScan(old_frame_subs->feature_lidar->points_full, old_frame_subs->pose, pc_old_subs_less_flat);
         mapping_->MergeScan(old_frame_subs->feature_lidar->points_less_sharp, old_frame_subs->pose, pc_old_subs_less_sharp);
         *pc_old += pc_old_subs_less_sharp;
         *pc_old += pc_old_subs_less_flat;
