@@ -150,16 +150,6 @@ bool Frontend::Track()
 //         if(!(current_frame->mTcw==Matrix4d::Zero()))
 //         {
 //             Matrix4d Tcr = current_frame->mTcw*current_frame->mpReferenceKF->GetPoseInverse();
-//             mlRelativeFramePoses.push_back(Tcr);
-//             mlpReferences.push_back(current_frame->mpReferenceKF);
-//             mlbLost.push_back(status == FrontendStatus::LOST||status == FrontendStatus::TRACKING_TRY);
-//         }
-//         else
-//         {
-//             // This can happen if tracking is lost
-//             mlRelativeFramePoses.push_back(mlRelativeFramePoses.back());
-//             mlpReferences.push_back(mlpReferences.back());
-//             mlbLost.push_back(status == FrontendStatus::LOST||status == FrontendStatus::TRACKING_TRY);
 //         }
 //     }
 // }
@@ -384,9 +374,6 @@ bool Frontend::Reset()
     last_frame=Frame::Create();
     last_key_frame=static_cast<Frame::Ptr>(NULL);
     current_key_frame=static_cast<Frame::Ptr>(NULL);
-    mlRelativeFramePoses.clear();   
-    mlpReferences.clear();
-    mlbLost.clear();
 
     LOG(INFO) << "Reset Succeed";
     return true;
@@ -405,23 +392,6 @@ void Frontend::UpdateCache()
 }
 void Frontend::UpdateFrameIMU(const double s, const Bias &b, Frame::Ptr pCurrentKeyFrame)
 {
-    Map::Ptr pMap =map_;
-    std::list<Frame::Ptr>::iterator lRit = mlpReferences.begin();
-    std::list<bool>::iterator lbL = mlbLost.begin();
-    // Step 1:更新相对位姿集合的尺度信息
-    for(std::list<Matrix4d>::iterator lit=mlRelativeFramePoses.begin(),lend=mlRelativeFramePoses.end();lit!=lend;lit++, lRit++, lbL++)
-    {
-        if(*lbL)
-            continue;
-
-       Frame::Ptr pKF = *lRit;
-
-            (*lit).block<3,1>(0,3)=(*lit).block<3,1>(0,3)*s;
-    }
-
-    // Step 2:更新imu信息
-    //mLastBias = b;
-
     last_key_frame = pCurrentKeyFrame;
 
     last_frame->SetNewBias(b);

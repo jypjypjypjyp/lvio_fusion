@@ -235,11 +235,7 @@ int iii=0;
 for(Frames::iterator iter = KFs.begin(); iter != KFs.end(); iter++,iii++)
 {
      current_frame=iter->second;
-     // auto para_kf=para_kfs[iii];
-     // Quaterniond Qi(para_kf[3], para_kf[0], para_kf[1], para_kf[2]);
-     
-     // Vector3d Pi(para_kf[4], para_kf[5], para_kf[6]);
-     // current_frame->SetPose(Qi.toRotationMatrix(),Pi);
+
      if(current_frame->bImu)
      {
           double* ab;
@@ -296,12 +292,14 @@ void  Initializer::InitializeIMU(double priorG, double priorA, bool bFIBA)
         {
             if (!(*itKF)->preintegration)
                 continue;
+            if(!(*itKF)->mpLastKeyFrame)
+               continue;
             // 预积分中delta_V 用来表示:Rwb_i.transpose()*(V2 - V1 - g*dt),故此处获得 -(V_i - V_0 - (i-0)*(mRwg*gI)*dt)
             // 应该使用将速度偏差在此处忽略或当做噪声，因为后面会优化mRwg
-            dirG -= (*(itKF-1))->GetImuRotation()*(*itKF)->preintegration->GetUpdatedDeltaVelocity();
+            dirG -= (*itKF)->mpLastKeyFrame->GetImuRotation()*(*itKF)->preintegration->GetUpdatedDeltaVelocity();
             Vector3d _vel = ((*itKF)->GetImuPosition() - (*(itKF-1))->GetImuPosition())/(*itKF)->preintegration->dT;
             (*itKF)->SetVelocity(_vel);
-            (*(itKF-1))->SetVelocity(_vel);
+            (*itKF)->mpLastKeyFrame->SetVelocity(_vel);
         }
 
         // Step 2.1:计算重力方向(与z轴偏差)，用轴角方式表示偏差
@@ -351,7 +349,7 @@ void  Initializer::InitializeIMU(double priorG, double priorA, bool bFIBA)
 
     // Step 4:更新地图
 
-    map_->ApplyScaledRotation(mRwg.transpose(),mScale,true);
+    //map_->ApplyScaledRotation(mRwg.transpose(),mScale);
     frontend_.lock()->UpdateFrameIMU(mScale,vpKF[0]->GetImuBias(),frontend_.lock()->current_key_frame);
 
     // Check if initialization OK

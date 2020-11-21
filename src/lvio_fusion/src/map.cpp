@@ -80,7 +80,7 @@ SE3d Map::ComputePose(double time)
 
 // 对地图数据应用相似变换
 // R Rgw
-void Map::ApplyScaledRotation(const Matrix3d &R, const double s, const bool bScaledVel)
+void Map::ApplyScaledRotation(const Matrix3d &R, const double s)
 {
     // Step 1: 求解变换矩阵
     // Body position (IMU) of first keyframe is fixed to (0,0,0)
@@ -109,20 +109,17 @@ void Map::ApplyScaledRotation(const Matrix3d &R, const double s, const bool bSca
         Vector3d tcy = -Rcy*Tyc.block<3,1>(0,3);
         pKF->SetPose(Rcy,tcy);
         Vector3d Vw = pKF->GetVelocity();
-        if(!bScaledVel)
-            pKF->SetVelocity(R*Vw);
-        else
-            pKF->SetVelocity(R*Vw*s);
+        pKF->SetVelocity(R*Vw*s);
 
     }
     // Step 2: 对MapPoints进行相似变换
     // | sR t |
     // |  0 1 | x MapPoints
-    // for(visual::Landmarks::iterator sit=landmarks_.begin(); sit!=landmarks_.end(); sit++)
-    // {
-    //    visual::Landmark::Ptr pMP = (*sit).second;
-    //   Vector3d pos = pMP->position;
-    //   pMP->position= s*Ryw*pos+tyw;
-    // }
+    for(visual::Landmarks::iterator sit=landmarks_.begin(); sit!=landmarks_.end(); sit++)
+    {
+       visual::Landmark::Ptr pMP = (*sit).second;
+      Vector3d pos = pMP->position;
+      pMP->position= s*Ryw*pos+tyw;
+    }
 }
 } // namespace lvio_fusion
