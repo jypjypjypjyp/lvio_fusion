@@ -30,12 +30,12 @@ void InertialOptimization(Map::Ptr pMap, Eigen::Matrix3d &Rwg, double &scale, Ei
      problem.AddResidualBlock(cost_function,NULL,para_accBias);
     
 
-     Vector3d rwg=Rwg.eulerAngles(2,1,0);
+     Vector3d rwg=Rwg.eulerAngles(0,1,2);
       auto para_rwg=rwg.data();
      problem.AddParameterBlock(para_rwg, 3);
      problem.AddParameterBlock(&scale, 1);
 
-     if (bFixedVel)
+     if (bFixedVel)//false
      {
           problem.SetParameterBlockConstant(para_gyroBias);
           problem.SetParameterBlockConstant(para_accBias);
@@ -78,9 +78,9 @@ void InertialOptimization(Map::Ptr pMap, Eigen::Matrix3d &Rwg, double &scale, Ei
     ceres::Solve(options, &problem, &summary);
 
 
-     Eigen::AngleAxisd rollAngle(AngleAxisd(rwg(2),Vector3d::UnitX()));
+     Eigen::AngleAxisd rollAngle(AngleAxisd(rwg(0),Vector3d::UnitX()));
      Eigen::AngleAxisd pitchAngle(AngleAxisd(rwg(1),Vector3d::UnitY()));
-     Eigen::AngleAxisd yawAngle(AngleAxisd(rwg(0),Vector3d::UnitZ()));
+     Eigen::AngleAxisd yawAngle(AngleAxisd(rwg(2),Vector3d::UnitZ()));
      Rwg= yawAngle*pitchAngle*rollAngle;
 //for kfs  setNewBias 
      Bias bias_(para_accBias[0],para_accBias[1],para_accBias[2],para_gyroBias[0],para_gyroBias[1],para_gyroBias[2]);
@@ -94,7 +94,7 @@ void InertialOptimization(Map::Ptr pMap, Eigen::Matrix3d &Rwg, double &scale, Ei
           {
                current_frame->SetNewBias(bias_);
                if (current_frame->preintegration)
-                    current_frame->preintegration->Reintegrate();//TODO
+                    current_frame->preintegration->Reintegrate();
           }
           else
           {

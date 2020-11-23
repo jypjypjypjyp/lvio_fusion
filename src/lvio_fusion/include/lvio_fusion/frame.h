@@ -41,7 +41,6 @@ public:
     loop::LoopConstraint::Ptr loop_constraint;  // loop constraint
     SE3d pose;
 
-    Frame::Ptr mpReferenceKF;
     Frame::Ptr mpLastKeyFrame;
 
 //IMU

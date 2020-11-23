@@ -9,7 +9,7 @@
 namespace lvio_fusion
 {
 
-const double GRAVITY_VALUE=9.81;
+const double G=9.81;
 
 class ImuError : public ceres::SizedCostFunction<15, 7, 3, 3, 3, 7, 3, 3, 3>
 {
@@ -37,7 +37,6 @@ public:
         Matrix<double, 15, 15> covariance=preintegration_->C;
         Matrix<double, 15, 15> sqrt_info = LLT<Matrix<double, 15, 15>>(covariance.inverse()).matrixL().transpose();
         residual = sqrt_info * residual;
-        LOG(INFO) << residual;
         
         if (jacobians)
         {
@@ -189,7 +188,6 @@ private:
     const Vector3d bprior;
 };
 
-
 class InertialGSError:public ceres::SizedCostFunction<9, 7,3,7,3,3,3,3,1>
 {
 public:
@@ -197,7 +195,7 @@ public:
     JVg( preintegration->JVg), JPg( preintegration->JPg), JVa( preintegration->JVa),
     JPa( preintegration->JPa)
     {
-        gl<< 0, 0, -GRAVITY_VALUE;
+        gl<< 0, 0, -G;
     }
 
     virtual bool Evaluate(double const *const *parameters, double *residuals, double **jacobians) const
@@ -213,9 +211,9 @@ public:
         Vector3d eulerAngle(parameters[6][0], parameters[6][1], parameters[6][2]);
         double Scale=parameters[7][0];
         double dt=(mpInt->dT);
-        Eigen::AngleAxisd rollAngle(AngleAxisd(eulerAngle(2),Vector3d::UnitX()));
+        Eigen::AngleAxisd rollAngle(AngleAxisd(eulerAngle(0),Vector3d::UnitX()));
         Eigen::AngleAxisd pitchAngle(AngleAxisd(eulerAngle(1),Vector3d::UnitY()));
-        Eigen::AngleAxisd yawAngle(AngleAxisd(eulerAngle(0),Vector3d::UnitZ()));
+        Eigen::AngleAxisd yawAngle(AngleAxisd(eulerAngle(2),Vector3d::UnitZ()));
         Matrix3d Rwg;
         Rwg= yawAngle*pitchAngle*rollAngle;
         Vector3d g=Rwg*gl;
@@ -245,8 +243,8 @@ public:
             Matrix3d Rbw1 = Rwb1.transpose();
             Matrix3d Rwb2 = Qj.toRotationMatrix();
             MatrixXd Gm = MatrixXd::Zero(3,2);
-            Gm(0,1) = -GRAVITY_VALUE;
-            Gm(1,0) = GRAVITY_VALUE;
+            Gm(0,1) = -G;
+            Gm(1,0) = G;
             double s = Scale;
             Eigen::MatrixXd dGdTheta = Rwg*Gm;
             Eigen::Matrix3d dR = (mpInt->GetDeltaRotation(b1));
@@ -320,7 +318,6 @@ private:
     Matrix3d JVa, JPa;
 };
 
-
 class InertialError:public ceres::SizedCostFunction<9, 7,3,3,3,7,3>
 {
 public:
@@ -342,7 +339,7 @@ public:
         Vector3d Vj(parameters[5][0], parameters[5][1], parameters[5][2]);
         double dt=(mpInt->dT);
         Vector3d g;
-        g<< 0, 0, -GRAVITY_VALUE;
+        g<< 0, 0, -G;
         const Bias  b1(accBias(0,0),accBias(1,0),accBias(2,0),gyroBias(0,0),gyroBias(1,0),gyroBias(2,0));
         Matrix3d dR = mpInt->GetDeltaRotation(b1);
         Vector3d dV = mpInt->GetDeltaVelocity(b1);

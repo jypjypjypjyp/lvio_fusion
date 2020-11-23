@@ -21,8 +21,9 @@ bool Frontend::AddFrame(lvio_fusion::Frame::Ptr frame)
 {
     std::unique_lock<std::mutex> lock(mutex);
     frame->calib_= ImuCalib_;//NEWADD
+    frame->pose = relative_pose * last_frame_pose_cache_;
+    frame->preintegration = imu::Preintegration::Create(frame->GetImuBias(), ImuCalib_,NULL);
     current_frame = frame;
-    current_frame->preintegration = imu::Preintegration::Create(current_frame->GetImuBias(), ImuCalib_,NULL);
     switch (status)
     {
     case FrontendStatus::BUILDING:
@@ -61,10 +62,10 @@ void Frontend::AddImu(double time, Vector3d acc, Vector3d gyr)
       static bool first = true;
      if (current_frame)
     {
-        if (!current_frame->preintegration)
-        {
-            current_frame->preintegration = imu::Preintegration::Create(current_frame->GetImuBias(), ImuCalib_,NULL);
-        }
+        // if (!current_frame->preintegration)
+        // {
+        //     current_frame->preintegration = imu::Preintegration::Create(current_frame->GetImuBias(), ImuCalib_,NULL);
+        // }
         current_frame->preintegration->Appendimu(imuMeas);
         if (current_key_frame && current_key_frame->preintegration && current_key_frame != current_frame)
         {
@@ -76,14 +77,14 @@ void Frontend::AddImu(double time, Vector3d acc, Vector3d gyr)
 
 bool Frontend::Track()
 {
-    current_frame->pose = relative_pose * last_frame_pose_cache_;
+    //current_frame->pose = relative_pose * last_frame_pose_cache_; NEWADD
 
      //如果有imu  预积分上一帧到当前帧的imu 
     if(imu_&&last_frame&&last_frame->preintegration){
-        if (!current_frame->preintegration)
-        {
-            current_frame->preintegration = imu::Preintegration::Create(current_frame->GetImuBias(), ImuCalib_,imu_);
-        }
+        // if (!current_frame->preintegration)
+        // {
+        //     current_frame->preintegration = imu::Preintegration::Create(current_frame->GetImuBias(), ImuCalib_,imu_);
+        // }
         current_frame->preintegration->PreintegrateIMU( last_frame->preintegration->imuData_buf,last_frame->time, current_frame->time);//TODO 这个结果应该存在current_frame
        if(last_key_frame)
        {  
@@ -139,21 +140,6 @@ bool Frontend::Track()
     }
     relative_pose = current_frame->pose * last_frame_pose_cache_.inverse();
 
-//NEW
-// if(imu_){
-//     if(!current_frame->mpReferenceKF)
-//         current_frame->mpReferenceKF = reference_key_frame;
-
-//     if(status == FrontendStatus::TRACKING_GOOD||status == FrontendStatus::LOST||status == FrontendStatus::TRACKING_TRY)
-//     {
-//         // Store frame pose information to retrieve the complete camera trajectory afterwards.
-//         if(!(current_frame->mTcw==Matrix4d::Zero()))
-//         {
-//             Matrix4d Tcr = current_frame->mTcw*current_frame->mpReferenceKF->GetPoseInverse();
-//         }
-//     }
-// }
-
     return true;
 }
 
@@ -166,8 +152,7 @@ void Frontend::CreateKeyframe(bool need_new_features)
             return;
         }
         last_key_frame=current_key_frame;
-       // current_key_frame->preintegration->PreintegrateIMU(last_frame->time, current_frame->time);
-    }
+        }
     // first, add new observations of old points
     for (auto pair_feature : current_frame->features_left)
     {
@@ -184,20 +169,20 @@ void Frontend::CreateKeyframe(bool need_new_features)
     map_->InsertKeyFrame(current_frame);
     current_key_frame = current_frame;
 //NEW
-    // if(imu_&&last_key_frame->preintegration)
-    // {
-    //     if(backend_.lock()->initializer_->bimu)
-    //     {
-    //         current_key_frame->bImu=true;
-    //     }  
-    //      if (!current_key_frame->preintegration)
-    //     {
-    //         current_key_frame->preintegration = imu::Preintegration::Create(current_key_frame->GetImuBias(), ImuCalib_,imu_);
-    //     }
-    //     current_key_frame->preintegration->PreintegrateIMU(last_key_frame->preintegration->imuData_buf,last_key_frame->time, current_key_frame->time);
-    // }
-    // reference_key_frame=current_key_frame;
-    // current_frame->mpReferenceKF=current_key_frame;
+
+    if(imu_&&last_key_frame&&last_key_frame->preintegration)
+    {
+        if(backend_.lock()->initializer_->bimu)
+        {
+            current_key_frame->bImu=true;
+        }  
+        //  if (!current_key_frame->preintegration)
+        // {
+        //     current_key_frame->preintegration = imu::Preintegration::Create(current_key_frame->GetImuBias(), ImuCalib_,imu_);
+        // }
+        current_key_frame->preintegration->PreintegrateIMU(last_key_frame->preintegration->imuData_buf,last_key_frame->time, current_key_frame->time);
+    }
+    reference_key_frame=current_key_frame;
 
     LOG(INFO) << "Add a keyframe " << current_frame->id;
     // update backend because we have a new keyframe

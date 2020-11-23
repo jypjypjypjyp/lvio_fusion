@@ -75,7 +75,7 @@ public:
 
    bool isPreintegrated;
 private:
-    Preintegration() = default;
+    Preintegration(){Initialize(Bias(0,0,0,0,0,0));};
 
     Preintegration(const Bias &b_,Calib ImuCalib_,const Imu::Ptr imu)
 {
