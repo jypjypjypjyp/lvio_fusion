@@ -99,7 +99,7 @@ void FeatureAssociation::Extract(PointICloud &points_segmented, SegmentedInfo &s
 
     CalculateSmoothness(points_segmented, segemented_info);
 
-    MarkOccludedPoints(points_segmented, segemented_info);
+    // MarkOccludedPoints(points_segmented, segemented_info);
 
     ExtractFeatures(points_segmented, segemented_info, frame);
 }
@@ -149,19 +149,30 @@ void FeatureAssociation::CalculateSmoothness(PointICloud &points_segmented, Segm
     for (int i = 5; i < size - 5; i++)
     {
         // clang-format off
-        float dr = segemented_info.range[i - 5] 
-                + segemented_info.range[i - 4] 
-                + segemented_info.range[i - 3] 
-                + segemented_info.range[i - 2] 
-                + segemented_info.range[i - 1] 
-                - segemented_info.range[i] * 10 
-                + segemented_info.range[i + 1] 
-                + segemented_info.range[i + 2] 
-                + segemented_info.range[i + 3] 
-                + segemented_info.range[i + 4] 
-                + segemented_info.range[i + 5];
+        float dr1 = segemented_info.range[i - 4] - segemented_info.range[i - 5];
+        float dr2 = segemented_info.range[i - 3] - segemented_info.range[i - 4];
+        float dr3 = segemented_info.range[i - 2] - segemented_info.range[i - 3];
+        float dr4 = segemented_info.range[i - 1] - segemented_info.range[i - 2];
+        float dr5 = segemented_info.range[i - 0] - segemented_info.range[i - 1];
+        float dr6 = segemented_info.range[i + 1] - segemented_info.range[i - 0];
+        float dr7 = segemented_info.range[i + 2] - segemented_info.range[i + 1];
+        float dr8 = segemented_info.range[i + 3] - segemented_info.range[i + 2];
+        float dr9 = segemented_info.range[i + 4] - segemented_info.range[i + 3];
+        float dr10 = segemented_info.range[i + 5] - segemented_info.range[i + 4];
+        float dr = (segemented_info.range[i + 5] - segemented_info.range[i - 5]) / 10;
+        float cov = ((dr1 -dr) * (dr1 -dr) +
+                    (dr2 -dr) * (dr2 -dr) +
+                    (dr3 -dr) * (dr3 -dr) +
+                    (dr4 -dr) * (dr4 -dr) +
+                    (dr5 -dr) * (dr5 -dr) +
+                    (dr6 -dr) * (dr6 -dr) +
+                    (dr7 -dr) * (dr7 -dr) +
+                    (dr8 -dr) * (dr8 -dr) +
+                    (dr9 -dr) * (dr9 -dr) +
+                    (dr10 -dr) * (dr10 -dr)) / 10;
+
         // clang-format on
-        curvatures[i] = (dr * dr) / segemented_info.range[i];
+        curvatures[i] = cov;
         neighbor_picked[i] = 0;
         label[i] = 0;
         smoothness[i].value = curvatures[i];
@@ -213,7 +224,7 @@ void FeatureAssociation::MarkOccludedPoints(PointICloud &points_segmented, Segme
 
 void FeatureAssociation::ExtractFeatures(PointICloud &points_segmented, SegmentedInfo &segemented_info, Frame::Ptr frame)
 {
-    static const float threshold_flat = 0.1;
+    static const float threshold = 1;
     lidar::Feature::Ptr feature = lidar::Feature::Create();
 
     // int num_sharp = 0;
@@ -275,7 +286,7 @@ void FeatureAssociation::ExtractFeatures(PointICloud &points_segmented, Segmente
             for (int k = sp; k <= ep; k++)
             {
                 int ind = smoothness[k].ind;
-                if (neighbor_picked[ind] == 0)// && curvatures[ind] < threshold_flat)
+                if (neighbor_picked[ind] == 0 && curvatures[ind] < threshold)
                 {
                     label[ind] = -1;
                     if (segemented_info.ground_flag[ind] == true)
@@ -337,11 +348,11 @@ void FeatureAssociation::ExtractFeatures(PointICloud &points_segmented, Segmente
     frame->feature_lidar = feature;
 }
 
-inline void FeatureAssociation::SegmentGround(PointICloud& points_ground, PointICloud& points_surf)
+inline void FeatureAssociation::SegmentGround(PointICloud &points_ground, PointICloud &points_surf)
 {
     PointICloud::Ptr pointcloud_seg(new PointICloud());
     pcl::copyPointCloud(points_ground, *pointcloud_seg);
-    pcl::ModelCoefficients::Ptr coefficients(new pcl::ModelCoefficients);
+    pcl::ModelCoefficients coefficients;
     pcl::PointIndices::Ptr inliers(new pcl::PointIndices);
     pcl::SACSegmentation<PointI> seg;
     seg.setOptimizeCoefficients(true);
@@ -350,7 +361,7 @@ inline void FeatureAssociation::SegmentGround(PointICloud& points_ground, PointI
     seg.setMaxIterations(100);
     seg.setDistanceThreshold(lidar_->resolution);
     seg.setInputCloud(pointcloud_seg);
-    seg.segment(*inliers, *coefficients);
+    seg.segment(*inliers, coefficients);
     pcl::ExtractIndices<PointI> extract;
     extract.setInputCloud(pointcloud_seg);
     extract.setIndices(inliers);
@@ -358,15 +369,15 @@ inline void FeatureAssociation::SegmentGround(PointICloud& points_ground, PointI
     extract.filter(points_ground);
     inliers->indices.clear();
 
-    pcl::copyPointCloud(points_surf, *pointcloud_seg);
-    seg.setOptimizeCoefficients(false);
-    seg.setDistanceThreshold(2 * lidar_->resolution);
-    seg.setInputCloud(pointcloud_seg);
-    seg.segment(*inliers, *coefficients);
-    extract.setInputCloud(pointcloud_seg);
-    extract.setIndices(inliers);
-    extract.setNegative(true);
-    extract.filter(points_surf);
+    // pcl::copyPointCloud(points_surf, *pointcloud_seg);
+    // seg.setOptimizeCoefficients(false);
+    // seg.setDistanceThreshold(2 * lidar_->resolution);
+    // seg.setInputCloud(pointcloud_seg);
+    // seg.segment(*inliers, coefficients);
+    // extract.setInputCloud(pointcloud_seg);
+    // extract.setIndices(inliers);
+    // extract.setNegative(true);
+    // extract.filter(points_surf);
 }
 
 void FeatureAssociation::ScanToMapWithGround(Frame::Ptr frame, Frame::Ptr map_frame, double *para, ceres::Problem &problem)

@@ -139,17 +139,17 @@ void Mapping::MergeScan(const PointICloud &in, SE3d from_pose, PointICloud &out)
 
 void Mapping::AddToWorld(Frame::Ptr frame)
 {
-    PointICloud pointcloud_flat;
+    PointICloud pointcloud_full;
     PointICloud pointcloud_temp;
     PointRGBCloud pointcloud_color;
     if (frame->feature_lidar)
     {
         // MergeScan(frame->feature_lidar->points_less_sharp, frame->pose, pointcloud_sharp);
-        MergeScan(frame->feature_lidar->points_full, frame->pose, pointcloud_flat);
-        // MergeScan(frame->feature_lidar->points_full, frame->pose, pointcloud_temp);
-        Color(pointcloud_flat, frame, pointcloud_color);
+        MergeScan(frame->feature_lidar->points_full, frame->pose, pointcloud_full);
+        // MergeScan(frame->feature_lidar->points_ground, frame->pose, pointcloud_temp);
+        Color(pointcloud_full, frame, pointcloud_color);
     }
-    pointclouds_flat_[frame->time] = pointcloud_flat;
+    pointclouds_flat_[frame->time] = pointcloud_full;
     // pointclouds_sharp_[frame->time] = pointcloud_sharp;
     pointclouds_color_[frame->time] = pointcloud_color;
 }

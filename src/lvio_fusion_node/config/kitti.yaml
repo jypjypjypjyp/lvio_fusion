@@ -37,7 +37,7 @@ ang_bottom: 24.9
 ground_rows: 60
 cycle_time: 0.1036
 min_range: 5
-max_range: 50
+max_range: 30
 deskew: 0
 resolution: 0.2
 
