@@ -46,7 +46,7 @@ private:
 
     std::map<double, PointRGBCloud> pointclouds_color_;
     std::map<double, PointICloud> pointclouds_flat_;
-    std::map<double, PointICloud> pointclouds_sharp_;
+    // std::map<double, PointICloud> pointclouds_sharp_;
 
     Lidar::Ptr lidar_;
     Camera::Ptr camera_;

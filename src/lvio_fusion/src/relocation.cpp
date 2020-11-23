@@ -219,101 +219,101 @@ bool Relocation::RelocateByImage(Frame::Ptr frame, Frame::Ptr old_frame, loop::L
 
 bool Relocation::RelocateByPoints(Frame::Ptr frame, Frame::Ptr old_frame, loop::LoopConstraint::Ptr loop_constraint)
 {
-    if (!frame->feature_lidar || !old_frame->feature_lidar)
-    {
-        return false;
-    }
+    // if (!frame->feature_lidar || !old_frame->feature_lidar)
+    // {
+    //     return false;
+    // }
 
-    // init relative pose
-    SE3d init_transform = old_frame->pose * frame->pose.inverse();
-    init_transform.translation().z() = 0;
+    // // init relative pose
+    // SE3d init_transform = old_frame->pose * frame->pose.inverse();
+    // init_transform.translation().z() = 0;
 
-    // build two pointclouds
-    PointICloud::Ptr pc = PointICloud::Ptr(new PointICloud);
-    *pc = frame->feature_lidar->points_less_sharp + frame->feature_lidar->points_full;
-    PointICloud::Ptr pc_old = PointICloud::Ptr(new PointICloud);
-    *pc_old = old_frame->feature_lidar->points_less_sharp + old_frame->feature_lidar->points_full;
-    Frame::Ptr old_frame_prev = map_->GetKeyFrames(0, old_frame->time, 1).begin()->second;
-    if (old_frame->feature_lidar)
-    {
-        PointICloud pc_old_prev_less_flat, pc_old_prev_less_sharp;
-        mapping_->MergeScan(old_frame_prev->feature_lidar->points_full, old_frame_prev->pose, pc_old_prev_less_flat);
-        mapping_->MergeScan(old_frame_prev->feature_lidar->points_less_sharp, old_frame_prev->pose, pc_old_prev_less_sharp);
-        *pc_old += pc_old_prev_less_sharp;
-        *pc_old += pc_old_prev_less_flat;
-    }
-    Frame::Ptr old_frame_subs = map_->GetKeyFrames(old_frame->time, 0, 1).begin()->second;
-    if (old_frame->feature_lidar)
-    {
-        PointICloud pc_old_subs_less_flat, pc_old_subs_less_sharp;
-        mapping_->MergeScan(old_frame_subs->feature_lidar->points_full, old_frame_subs->pose, pc_old_subs_less_flat);
-        mapping_->MergeScan(old_frame_subs->feature_lidar->points_less_sharp, old_frame_subs->pose, pc_old_subs_less_sharp);
-        *pc_old += pc_old_subs_less_sharp;
-        *pc_old += pc_old_subs_less_flat;
-    }
-    pcl::transformPointCloud(*pc, *pc, init_transform.matrix().cast<float>());
+    // // build two pointclouds
+    // PointICloud::Ptr pc = PointICloud::Ptr(new PointICloud);
+    // *pc = frame->feature_lidar->points_less_sharp + frame->feature_lidar->points_full;
+    // PointICloud::Ptr pc_old = PointICloud::Ptr(new PointICloud);
+    // *pc_old = old_frame->feature_lidar->points_less_sharp + old_frame->feature_lidar->points_full;
+    // Frame::Ptr old_frame_prev = map_->GetKeyFrames(0, old_frame->time, 1).begin()->second;
+    // if (old_frame->feature_lidar)
+    // {
+    //     PointICloud pc_old_prev_less_flat, pc_old_prev_less_sharp;
+    //     mapping_->MergeScan(old_frame_prev->feature_lidar->points_full, old_frame_prev->pose, pc_old_prev_less_flat);
+    //     mapping_->MergeScan(old_frame_prev->feature_lidar->points_less_sharp, old_frame_prev->pose, pc_old_prev_less_sharp);
+    //     *pc_old += pc_old_prev_less_sharp;
+    //     *pc_old += pc_old_prev_less_flat;
+    // }
+    // Frame::Ptr old_frame_subs = map_->GetKeyFrames(old_frame->time, 0, 1).begin()->second;
+    // if (old_frame->feature_lidar)
+    // {
+    //     PointICloud pc_old_subs_less_flat, pc_old_subs_less_sharp;
+    //     mapping_->MergeScan(old_frame_subs->feature_lidar->points_full, old_frame_subs->pose, pc_old_subs_less_flat);
+    //     mapping_->MergeScan(old_frame_subs->feature_lidar->points_less_sharp, old_frame_subs->pose, pc_old_subs_less_sharp);
+    //     *pc_old += pc_old_subs_less_sharp;
+    //     *pc_old += pc_old_subs_less_flat;
+    // }
+    // pcl::transformPointCloud(*pc, *pc, init_transform.matrix().cast<float>());
 
-    // downsample old pointclouds
-    PointICloud::Ptr pc_old_filtered(new PointICloud);
-    pcl::VoxelGrid<PointI> voxel_filter;
-    voxel_filter.setLeafSize(0.4, 0.4, 0.4);
-    voxel_filter.setInputCloud(pc_old);
-    voxel_filter.filter(*pc_old_filtered);
+    // // downsample old pointclouds
+    // PointICloud::Ptr pc_old_filtered(new PointICloud);
+    // pcl::VoxelGrid<PointI> voxel_filter;
+    // voxel_filter.setLeafSize(0.4, 0.4, 0.4);
+    // voxel_filter.setInputCloud(pc_old);
+    // voxel_filter.filter(*pc_old_filtered);
 
-    // icp
-    pcl::IterativeClosestPoint<PointI, PointI> icp;
-    icp.setInputSource(pc);
-    icp.setInputTarget(pc_old_filtered);
-    icp.setMaximumIterations(100);
-    icp.setMaxCorrespondenceDistance(1);
-    PointICloud::Ptr aligned(new PointICloud);
-    icp.align(*aligned);
-    if (!icp.hasConverged()) // || icp.getFitnessScore() > 1)
-    {
-        return false;
-    }
+    // // icp
+    // pcl::IterativeClosestPoint<PointI, PointI> icp;
+    // icp.setInputSource(pc);
+    // icp.setInputTarget(pc_old_filtered);
+    // icp.setMaximumIterations(100);
+    // icp.setMaxCorrespondenceDistance(1);
+    // PointICloud::Ptr aligned(new PointICloud);
+    // icp.align(*aligned);
+    // if (!icp.hasConverged()) // || icp.getFitnessScore() > 1)
+    // {
+    //     return false;
+    // }
 
-    // optimize
-    Matrix4d transform_matrix = icp.getFinalTransformation().cast<double>();
-    Matrix3d R(transform_matrix.block(0, 0, 3, 3));
-    Quaterniond q(R);
-    Vector3d t(0, 0, 0);
-    t << transform_matrix(0, 3), transform_matrix(1, 3), transform_matrix(2, 3);
-    SE3d transform(q, t);
-    SE3d relative_pose = (transform * init_transform).inverse();
+    // // optimize
+    // Matrix4d transform_matrix = icp.getFinalTransformation().cast<double>();
+    // Matrix3d R(transform_matrix.block(0, 0, 3, 3));
+    // Quaterniond q(R);
+    // Vector3d t(0, 0, 0);
+    // t << transform_matrix(0, 3), transform_matrix(1, 3), transform_matrix(2, 3);
+    // SE3d transform(q, t);
+    // SE3d relative_pose = (transform * init_transform).inverse();
 
-    Frame::Ptr frame_copy = Frame::Ptr(new Frame);
-    *frame_copy = *frame;
-    frame_copy->pose = relative_pose * old_frame->pose;
-    static int num_iters = 4;
-    for (int i = 0; i < num_iters; i++)
-    {
-        ceres::Problem problem;
-        ceres::LossFunction *lidar_loss_function = new ceres::HuberLoss(0.1);
-        ceres::LocalParameterization *local_parameterization = new ceres::ProductParameterization(
-            new ceres::EigenQuaternionParameterization(),
-            new ceres::IdentityParameterization(3));
+    // Frame::Ptr frame_copy = Frame::Ptr(new Frame);
+    // *frame_copy = *frame;
+    // frame_copy->pose = relative_pose * old_frame->pose;
+    // static int num_iters = 4;
+    // for (int i = 0; i < num_iters; i++)
+    // {
+    //     ceres::Problem problem;
+    //     ceres::LossFunction *lidar_loss_function = new ceres::HuberLoss(0.1);
+    //     ceres::LocalParameterization *local_parameterization = new ceres::ProductParameterization(
+    //         new ceres::EigenQuaternionParameterization(),
+    //         new ceres::IdentityParameterization(3));
 
-        double *para_kf = frame_copy->pose.data();
-        problem.AddParameterBlock(para_kf, SE3d::num_parameters, local_parameterization);
-        double *para_kf_old = old_frame->pose.data();
-        problem.AddParameterBlock(para_kf_old, SE3d::num_parameters, local_parameterization);
-        problem.SetParameterBlockConstant(para_kf_old);
+    //     double *para_kf = frame_copy->pose.data();
+    //     problem.AddParameterBlock(para_kf, SE3d::num_parameters, local_parameterization);
+    //     double *para_kf_old = old_frame->pose.data();
+    //     problem.AddParameterBlock(para_kf_old, SE3d::num_parameters, local_parameterization);
+    //     problem.SetParameterBlockConstant(para_kf_old);
 
-        // association_->Associate(frame_copy, old_frame, problem, lidar_loss_function);
+    //     // association_->Associate(frame_copy, old_frame, problem, lidar_loss_function);
 
-        ceres::Solver::Options options;
-        options.linear_solver_type = ceres::DENSE_QR;
-        options.function_tolerance = DBL_MIN;
-        options.gradient_tolerance = DBL_MIN;
-        options.max_num_iterations = 1;
-        options.num_threads = 4;
-        ceres::Solver::Summary summary;
-        ceres::Solve(options, &problem, &summary);
-        if (summary.final_cost / summary.initial_cost > 0.99)
-            break;
-    }
-    loop_constraint->relative_pose = frame_copy->pose * old_frame->pose.inverse();
+    //     ceres::Solver::Options options;
+    //     options.linear_solver_type = ceres::DENSE_QR;
+    //     options.function_tolerance = DBL_MIN;
+    //     options.gradient_tolerance = DBL_MIN;
+    //     options.max_num_iterations = 1;
+    //     options.num_threads = 4;
+    //     ceres::Solver::Summary summary;
+    //     ceres::Solve(options, &problem, &summary);
+    //     if (summary.final_cost / summary.initial_cost > 0.99)
+    //         break;
+    // }
+    // loop_constraint->relative_pose = frame_copy->pose * old_frame->pose.inverse();
     return true;
 }
 

@@ -48,32 +48,32 @@ inline void Mapping::Color(const PointICloud &in, Frame::Ptr frame, PointRGBClou
 void Mapping::BuildMapFrame(Frame::Ptr frame, Frame::Ptr map_frame)
 {
     double start_time = frame->time;
-    static int num_last_frames = 2;
+    static int num_last_frames = 3;
     Frames last_frames = map_->GetKeyFrames(0, start_time, num_last_frames);
     if (last_frames.empty())
         return;
     map_frame->time = (--last_frames.end())->second->time;
     map_frame->pose = (--last_frames.end())->second->pose;
-    PointICloud points_less_sharp_merged;
+    // PointICloud points_less_sharp_merged;
     PointICloud points_less_flat_merged;
     for (auto pair_kf : last_frames)
     {
-        points_less_sharp_merged += pointclouds_sharp_[pair_kf.first];
+        // points_less_sharp_merged += pointclouds_sharp_[pair_kf.first];
         points_less_flat_merged += pointclouds_flat_[pair_kf.first];
     }
 
     {
         PointICloud::Ptr temp(new PointICloud());
         pcl::VoxelGrid<PointI> voxel_filter;
-        pcl::copyPointCloud(points_less_sharp_merged, *temp);
+        pcl::copyPointCloud(points_less_flat_merged, *temp);
         voxel_filter.setInputCloud(temp);
         voxel_filter.setLeafSize(lidar_->resolution, lidar_->resolution, lidar_->resolution);
-        voxel_filter.filter(points_less_sharp_merged);
+        voxel_filter.filter(points_less_flat_merged);
     }
 
     map_frame->feature_lidar = lidar::Feature::Create();
     map_frame->feature_lidar->points_full = points_less_flat_merged;
-    map_frame->feature_lidar->points_less_sharp = points_less_sharp_merged;
+    // map_frame->feature_lidar->points_less_sharp = points_less_sharp_merged;
 }
 
 void Mapping::Optimize(Frames &active_kfs)
@@ -140,18 +140,17 @@ void Mapping::MergeScan(const PointICloud &in, SE3d from_pose, PointICloud &out)
 void Mapping::AddToWorld(Frame::Ptr frame)
 {
     PointICloud pointcloud_flat;
-    PointICloud pointcloud_sharp;
-    PointICloud pointcloud_ss;
+    PointICloud pointcloud_temp;
     PointRGBCloud pointcloud_color;
     if (frame->feature_lidar)
     {
-        MergeScan(frame->feature_lidar->points_less_sharp, frame->pose, pointcloud_sharp);
+        // MergeScan(frame->feature_lidar->points_less_sharp, frame->pose, pointcloud_sharp);
         MergeScan(frame->feature_lidar->points_full, frame->pose, pointcloud_flat);
-        // MergeScan(frame->feature_lidar->points_flat, frame->pose, pointcloud_ss);
+        // MergeScan(frame->feature_lidar->points_full, frame->pose, pointcloud_temp);
         Color(pointcloud_flat, frame, pointcloud_color);
     }
     pointclouds_flat_[frame->time] = pointcloud_flat;
-    pointclouds_sharp_[frame->time] = pointcloud_sharp;
+    // pointclouds_sharp_[frame->time] = pointcloud_sharp;
     pointclouds_color_[frame->time] = pointcloud_color;
 }
 

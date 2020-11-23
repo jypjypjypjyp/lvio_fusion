@@ -20,6 +20,8 @@ public:
         return Feature::Ptr(new Feature);
     }
 
+    // PointICloud points_sharp;
+    // PointICloud points_less_sharp;
     PointICloud points_surf;
     PointICloud points_ground;
     PointICloud points_full;

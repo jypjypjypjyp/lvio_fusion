@@ -30,7 +30,7 @@ public:
     {
         curvatures = new float[num_scans*horizon_scan];
         neighbor_picked = new int[num_scans*horizon_scan];
-        cloudLabel = new int[num_scans*horizon_scan];
+        label = new int[num_scans*horizon_scan];
         smoothness.resize(num_scans*horizon_scan);
         projection_ = ImageProjection::Ptr(new ImageProjection(num_scans, horizon_scan, ang_res_y, ang_bottom, ground_rows));
     }
@@ -71,12 +71,12 @@ private:
 
     void ExtractFeatures(PointICloud &points_segmented, SegmentedInfo &segemented_info, Frame::Ptr frame);
 
-    void SegmentPlane(PointICloud& pointcloud);
+    void SegmentGround(PointICloud& points_ground, PointICloud& points_surf);
 
     std::vector<smoothness_t> smoothness;
     float *curvatures;
     int *neighbor_picked;
-    int *cloudLabel;
+    int *label;
 
     Map::Ptr map_;
     ImageProjection::Ptr projection_;
