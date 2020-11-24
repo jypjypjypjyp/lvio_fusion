@@ -12,14 +12,6 @@ namespace lvio_fusion
 
 class Frontend;
 
-struct smoothness_t{ 
-    float value;
-    size_t ind;
-    bool operator()(smoothness_t const &left, smoothness_t const &right) { 
-        return left.value < right.value;
-    }
-};
-
 class FeatureAssociation
 {
 public:
@@ -29,9 +21,6 @@ public:
         : num_scans_(num_scans), cycle_time_(cycle_time), min_range_(min_range), max_range_(max_range), deskew_(deskew)
     {
         curvatures = new float[num_scans*horizon_scan];
-        neighbor_picked = new int[num_scans*horizon_scan];
-        label = new int[num_scans*horizon_scan];
-        smoothness.resize(num_scans*horizon_scan);
         projection_ = ImageProjection::Ptr(new ImageProjection(num_scans, horizon_scan, ang_res_y, ang_bottom, ground_rows));
     }
 
@@ -67,22 +56,16 @@ private:
 
     void CalculateSmoothness(PointICloud &points_segmented, SegmentedInfo &segemented_info);
 
-    void MarkOccludedPoints(PointICloud &points_segmented, SegmentedInfo &segemented_info);
-
     void ExtractFeatures(PointICloud &points_segmented, SegmentedInfo &segemented_info, Frame::Ptr frame);
 
     void SegmentGround(PointICloud& points_ground, PointICloud& points_surf);
-
-    std::vector<smoothness_t> smoothness;
-    float *curvatures;
-    int *neighbor_picked;
-    int *label;
 
     Map::Ptr map_;
     ImageProjection::Ptr projection_;
     std::map<double, Point3Cloud::Ptr> raw_point_clouds_;
     double head_ = 0; // header of the frames' time which already has a point cloud
     Lidar::Ptr lidar_;
+    float *curvatures;
 
     // params
     const double num_scans_;

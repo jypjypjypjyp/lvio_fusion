@@ -99,8 +99,6 @@ void FeatureAssociation::Extract(PointICloud &points_segmented, SegmentedInfo &s
 
     CalculateSmoothness(points_segmented, segemented_info);
 
-    // MarkOccludedPoints(points_segmented, segemented_info);
-
     ExtractFeatures(points_segmented, segemented_info, frame);
 }
 
@@ -173,52 +171,6 @@ void FeatureAssociation::CalculateSmoothness(PointICloud &points_segmented, Segm
 
         // clang-format on
         curvatures[i] = cov;
-        neighbor_picked[i] = 0;
-        label[i] = 0;
-        smoothness[i].value = curvatures[i];
-        smoothness[i].ind = i;
-    }
-}
-
-void FeatureAssociation::MarkOccludedPoints(PointICloud &points_segmented, SegmentedInfo &segemented_info)
-{
-    int size = points_segmented.size();
-
-    for (int i = 5; i < size - 6; ++i)
-    {
-
-        float depth1 = segemented_info.range[i];
-        float depth2 = segemented_info.range[i + 1];
-        int column_diff = std::abs(int(segemented_info.col_ind[i + 1] - segemented_info.col_ind[i]));
-
-        if (column_diff < 10)
-        {
-
-            if (depth1 - depth2 > 0.3)
-            {
-                neighbor_picked[i - 5] = 1;
-                neighbor_picked[i - 4] = 1;
-                neighbor_picked[i - 3] = 1;
-                neighbor_picked[i - 2] = 1;
-                neighbor_picked[i - 1] = 1;
-                neighbor_picked[i] = 1;
-            }
-            else if (depth2 - depth1 > 0.3)
-            {
-                neighbor_picked[i + 1] = 1;
-                neighbor_picked[i + 2] = 1;
-                neighbor_picked[i + 3] = 1;
-                neighbor_picked[i + 4] = 1;
-                neighbor_picked[i + 5] = 1;
-                neighbor_picked[i + 6] = 1;
-            }
-        }
-
-        float diff1 = std::abs(float(segemented_info.range[i - 1] - segemented_info.range[i]));
-        float diff2 = std::abs(float(segemented_info.range[i + 1] - segemented_info.range[i]));
-
-        if (diff1 > 0.02 * segemented_info.range[i] && diff2 > 0.02 * segemented_info.range[i])
-            neighbor_picked[i] = 1;
     }
 }
 
@@ -226,48 +178,6 @@ void FeatureAssociation::ExtractFeatures(PointICloud &points_segmented, Segmente
 {
     static const float threshold = 1;
     lidar::Feature::Ptr feature = lidar::Feature::Create();
-
-    // int num_sharp = 0;
-    // for (int k = ep; k >= sp; k--)
-    // {
-    //     int ind = smoothness[k].ind;
-    //     if (neighbor_picked[ind] == 0 &&
-    //         //curvatures[ind] > threshold_sharp &&
-    //         segemented_info.ground_flag[ind] == false)
-    //     {
-    //         num_sharp++;
-    //         if (num_sharp <= num_edge_feature)
-    //         {
-    //             cloudLabel[ind] = 2;
-    //             feature->points_sharp.push_back(points_segmented[ind]);
-    //             feature->points_less_sharp.push_back(points_segmented[ind]);
-    //         }
-    //         else if (num_sharp <= 20)
-    //         {
-    //             cloudLabel[ind] = 1;
-    //             feature->points_less_sharp.push_back(points_segmented[ind]);
-    //         }
-    //         else
-    //         {
-    //             break;
-    //         }
-    //         neighbor_picked[ind] = 1;
-    //         for (int l = 1; l <= 5; l++)
-    //         {
-    //             int column_diff = std::abs(int(segemented_info.col_ind[ind + l] - segemented_info.col_ind[ind + l - 1]));
-    //             if (column_diff > 10)
-    //                 break;
-    //             neighbor_picked[ind + l] = 1;
-    //         }
-    //         for (int l = -1; l >= -5; l--)
-    //         {
-    //             int column_diff = std::abs(int(segemented_info.col_ind[ind + l] - segemented_info.col_ind[ind + l + 1]));
-    //             if (column_diff > 10)
-    //                 break;
-    //             neighbor_picked[ind + l] = 1;
-    //         }
-    //     }
-    // }
 
     for (int i = 0; i < num_scans_; i++)
     {
@@ -281,47 +191,20 @@ void FeatureAssociation::ExtractFeatures(PointICloud &points_segmented, Segmente
             if (sp >= ep)
                 continue;
 
-            std::sort(smoothness.begin() + sp, smoothness.begin() + ep, smoothness_t());
-
             for (int k = sp; k <= ep; k++)
             {
-                int ind = smoothness[k].ind;
-                if (neighbor_picked[ind] == 0 && curvatures[ind] < threshold)
+                if (curvatures[k] < threshold)
                 {
-                    label[ind] = -1;
-                    if (segemented_info.ground_flag[ind] == true)
+                    if (segemented_info.ground_flag[k] == true)
                     {
-                        feature->points_ground.push_back(points_segmented[ind]);
+                        feature->points_ground.push_back(points_segmented[k]);
                     }
                     else
                     {
-                        feature->points_surf.push_back(points_segmented[ind]);
+                        feature->points_surf.push_back(points_segmented[k]);
                     }
-
-                    // neighbor_picked[ind] = 1;
-                    // for (int l = 1; l <= 5; l++)
-                    // {
-                    //     int column_diff = std::abs(int(segemented_info.col_ind[ind + l] - segemented_info.col_ind[ind + l - 1]));
-                    //     if (column_diff > 10)
-                    //         break;
-                    //     neighbor_picked[ind + l] = 1;
-                    // }
-                    // for (int l = -1; l >= -5; l--)
-                    // {
-                    //     int column_diff = std::abs(int(segemented_info.col_ind[ind + l] - segemented_info.col_ind[ind + l + 1]));
-                    //     if (column_diff > 10)
-                    //         break;
-                    //     neighbor_picked[ind + l] = 1;
-                    // }
                 }
-            }
-
-            for (int k = sp; k <= ep; k++)
-            {
-                if (label[k] <= 0)
-                {
-                    feature->points_full.push_back(points_segmented[k]);
-                }
+                feature->points_full.push_back(points_segmented[k]);
             }
         }
     }
@@ -367,17 +250,6 @@ inline void FeatureAssociation::SegmentGround(PointICloud &points_ground, PointI
     extract.setIndices(inliers);
     extract.setNegative(false);
     extract.filter(points_ground);
-    inliers->indices.clear();
-
-    // pcl::copyPointCloud(points_surf, *pointcloud_seg);
-    // seg.setOptimizeCoefficients(false);
-    // seg.setDistanceThreshold(2 * lidar_->resolution);
-    // seg.setInputCloud(pointcloud_seg);
-    // seg.segment(*inliers, coefficients);
-    // extract.setInputCloud(pointcloud_seg);
-    // extract.setIndices(inliers);
-    // extract.setNegative(true);
-    // extract.filter(points_surf);
 }
 
 void FeatureAssociation::ScanToMapWithGround(Frame::Ptr frame, Frame::Ptr map_frame, double *para, ceres::Problem &problem)
@@ -519,82 +391,6 @@ void FeatureAssociation::ScanToMapWithSegmented(Frame::Ptr frame, Frame::Ptr map
     int num_points_flat = frame->feature_lidar->points_surf.size();
     Sophus::SE3f tf_se3 = lidar_->TransformMatrix(frame->pose).cast<float>();
     float *tf = tf_se3.data();
-
-    // find correspondence for corner features
-    // for (int i = 0; i < num_points_sharp; ++i)
-    // {
-    //     //NOTE: Sophus is too slow
-    //     // lidar_->Transform(frame->feature_lidar->points_sharp[i], current_frame->pose, last_frame->pose, point);  //  too slow
-    //     ceres::SE3TransformPoint(tf, frame->feature_lidar->points_sharp[i].data, point.data);
-    //     point.intensity = frame->feature_lidar->points_sharp[i].intensity;
-    //     kdtree_sharp_last.nearestKSearch(point, 1, points_index, points_distance);
-    //     int closest_index = -1, closest_index2 = -1;
-    //     if (points_index[0] < points_less_sharp_last.size() && points_distance[0] < distance_threshold)
-    //     {
-    //         closest_index = points_index[0];
-    //         int scan_id = int(points_less_sharp_last[closest_index].intensity);
-    //         double min_distance = distance_threshold;
-    //         // point b in the direction of increasing scan line
-    //         for (int j = closest_index + 1; j < (int)points_less_sharp_last.size(); ++j)
-    //         {
-    //             // if in the same scan line, continue
-    //             if (int(points_less_sharp_last[j].intensity) <= scan_id)
-    //                 continue;
-    //             // if not in nearby scans, end the loop
-    //             if (int(points_less_sharp_last[j].intensity) > (scan_id + nearby_scan))
-    //                 break;
-    //             double point_distance = (points_less_sharp_last[j].x - point.x) *
-    //                                         (points_less_sharp_last[j].x - point.x) +
-    //                                     (points_less_sharp_last[j].y - point.y) *
-    //                                         (points_less_sharp_last[j].y - point.y) +
-    //                                     (points_less_sharp_last[j].z - point.z) *
-    //                                         (points_less_sharp_last[j].z - point.z);
-    //             if (point_distance < min_distance)
-    //             {
-    //                 // find nearer point
-    //                 min_distance = point_distance;
-    //                 closest_index2 = j;
-    //             }
-    //         }
-    //         // point b in the direction of decreasing scan line
-    //         for (int j = closest_index - 1; j >= 0; --j)
-    //         {
-    //             // if in the same scan line, continue
-    //             if (int(points_less_sharp_last[j].intensity) >= scan_id)
-    //                 continue;
-    //             // if not in nearby scans, end the loop
-    //             if (int(points_less_sharp_last[j].intensity) < (scan_id - nearby_scan))
-    //                 break;
-    //             double point_distance = (points_less_sharp_last[j].x - point.x) *
-    //                                         (points_less_sharp_last[j].x - point.x) +
-    //                                     (points_less_sharp_last[j].y - point.y) *
-    //                                         (points_less_sharp_last[j].y - point.y) +
-    //                                     (points_less_sharp_last[j].z - point.z) *
-    //                                         (points_less_sharp_last[j].z - point.z);
-    //             if (point_distance < min_distance)
-    //             {
-    //                 // find nearer point
-    //                 min_distance = point_distance;
-    //                 closest_index2 = j;
-    //             }
-    //         }
-    //     }
-    //     if (closest_index2 >= 0) // both A and B is valid
-    //     {
-    //         Vector3d curr_point(frame->feature_lidar->points_sharp[i].x,
-    //                             frame->feature_lidar->points_sharp[i].y,
-    //                             frame->feature_lidar->points_sharp[i].z);
-    //         Vector3d last_point_a(points_less_sharp_last[closest_index].x,
-    //                               points_less_sharp_last[closest_index].y,
-    //                               points_less_sharp_last[closest_index].z);
-    //         Vector3d last_point_b(points_less_sharp_last[closest_index2].x,
-    //                               points_less_sharp_last[closest_index2].y,
-    //                               points_less_sharp_last[closest_index2].z);
-    //         ceres::CostFunction *cost_function;
-    //         cost_function = LidarEdgeErrorYXY::Create(curr_point, last_point_a, last_point_b, lidar_, map_frame->pose, para);
-    //         problem.AddResidualBlock(cost_function, loss_function, para, para + 3, para + 4);
-    //     }
-    // }
 
     // find correspondence for plane features
     for (int i = 0; i < num_points_flat; ++i)

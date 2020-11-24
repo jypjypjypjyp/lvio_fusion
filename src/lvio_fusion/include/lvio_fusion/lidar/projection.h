@@ -63,10 +63,10 @@ private:
 
     PointICloud points_full; // projected velodyne raw cloud, but saved in the form of 1-D matrix
 
-    cv::Mat rangeMat;  // range matrix for range image
-    cv::Mat labelMat;  // label matrix for segmentaiton marking
-    cv::Mat groundMat; // ground matrix for ground cloud marking
-    int labelCount;
+    cv::Mat range_mat;  // range matrix for range image
+    cv::Mat label_mat;  // label matrix for segmentaiton marking
+    cv::Mat ground_mat; // ground matrix for ground cloud marking
+    int label_count;
 
     // params
     const int num_scans_;
