@@ -6,3 +6,4 @@ notes
 *.weights
 result
 src/adaptive_fusion
+src/CMakeLists.txt
