@@ -79,7 +79,10 @@ Vector3d Frame::GetVelocity()
 
 Matrix3d  Frame::GetImuRotation()
 {
-    return pose.rotationMatrix()*calib_.Tcb.block<3,3>(0,0);
+    Matrix4d Tcw_=pose.matrix();  
+    Matrix3d Rcw = Tcw_.block<3,3>(0,0);
+    Matrix3d Rwc = Rcw.transpose();
+    return Rwc*calib_.Tcb.block<3,3>(0,0);
 }
 
 Vector3d Frame::GetImuPosition()

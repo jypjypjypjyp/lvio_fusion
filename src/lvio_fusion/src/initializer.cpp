@@ -286,7 +286,6 @@ void  Initializer::InitializeIMU(double priorG, double priorA, bool bFIBA)
     // Step 2:估计KF速度和重力方向
     if (!initialized)
     {
-        Matrix3d cvRwg;
         Vector3d dirG = Vector3d::Zero();  // 重力方向
         for(std::vector<Frame::Ptr>::iterator itKF = vpKF.begin()+1; itKF!=vpKF.end(); itKF++) 
         {

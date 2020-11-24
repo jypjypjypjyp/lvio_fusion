@@ -21,7 +21,6 @@ bool Frontend::AddFrame(lvio_fusion::Frame::Ptr frame)
 {
     std::unique_lock<std::mutex> lock(mutex);
     frame->calib_= ImuCalib_;//NEWADD
-    frame->pose = relative_pose * last_frame_pose_cache_;
     frame->preintegration = imu::Preintegration::Create(frame->GetImuBias(), ImuCalib_,NULL);
     current_frame = frame;
     switch (status)
@@ -77,7 +76,7 @@ void Frontend::AddImu(double time, Vector3d acc, Vector3d gyr)
 
 bool Frontend::Track()
 {
-    //current_frame->pose = relative_pose * last_frame_pose_cache_; NEWADD
+    current_frame->pose = relative_pose * last_frame_pose_cache_;
 
      //如果有imu  预积分上一帧到当前帧的imu 
     if(imu_&&last_frame&&last_frame->preintegration){
@@ -397,25 +396,27 @@ void Frontend::UpdateFrameIMU(const double s, const Bias &b, Frame::Ptr pCurrent
 
     // Step 2:更新Frame的pose velocity
     // Step 2.1:更新lastFrame的pose velocity
-    if(last_frame->id== last_frame->mpLastKeyFrame->id)
-    {
-        last_frame->SetImuPoseVelocity(last_frame->mpLastKeyFrame->GetImuRotation(),
-                                      last_frame->mpLastKeyFrame->GetImuPosition(),
-                                      last_frame->mpLastKeyFrame->GetVelocity());
-    }
-    else
-    {
-        twb1 = last_frame->mpLastKeyFrame->GetImuPosition();
-        Rwb1 = last_frame->mpLastKeyFrame->GetImuRotation();
-        Vwb1 = last_frame->mpLastKeyFrame->GetVelocity();
-        t12 = last_frame->preintegration->dT;
+    if(last_frame->mpLastKeyFrame){
+        if(last_frame->id== last_frame->mpLastKeyFrame->id)
+        {
+            last_frame->SetImuPoseVelocity(last_frame->mpLastKeyFrame->GetImuRotation(),
+                                        last_frame->mpLastKeyFrame->GetImuPosition(),
+                                        last_frame->mpLastKeyFrame->GetVelocity());
+        }
+        else
+        {
+            twb1 = last_frame->mpLastKeyFrame->GetImuPosition();
+            Rwb1 = last_frame->mpLastKeyFrame->GetImuRotation();
+            Vwb1 = last_frame->mpLastKeyFrame->GetVelocity();
+            t12 = last_frame->preintegration->dT;
 
-        last_frame->SetImuPoseVelocity(Rwb1*last_frame->preintegration->GetUpdatedDeltaRotation(),
-                                      twb1 + Vwb1*t12 + 0.5f*t12*t12*Gz+ Rwb1*last_frame->preintegration->GetUpdatedDeltaPosition(),
-                                      Vwb1 + Gz*t12 + Rwb1*last_frame->preintegration->GetUpdatedDeltaVelocity());
+            last_frame->SetImuPoseVelocity(Rwb1*last_frame->preintegration->GetUpdatedDeltaRotation(),
+                                        twb1 + Vwb1*t12 + 0.5f*t12*t12*Gz+ Rwb1*last_frame->preintegration->GetUpdatedDeltaPosition(),
+                                        Vwb1 + Gz*t12 + Rwb1*last_frame->preintegration->GetUpdatedDeltaVelocity());
+        }
     }
     // Step 2.2:更新currentFrame的pose velocity
-    if (current_frame->preintegration)
+    if (current_frame->preintegration&&current_frame->mpLastKeyFrame)
     {
         twb1 = current_frame->mpLastKeyFrame->GetImuPosition();
         Rwb1 = current_frame->mpLastKeyFrame->GetImuRotation();
