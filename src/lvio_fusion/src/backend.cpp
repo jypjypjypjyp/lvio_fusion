@@ -123,8 +123,9 @@ void Backend::BuildProblem(Frames &active_kfs, ceres::Problem &problem,std::vect
         for (auto kf_pair : active_kfs)
         {
             current_frame = kf_pair.second;
-            if (!current_frame->preintegration)
+            if (!current_frame->preintegration||!current_frame->mpLastKeyFrame)
             {
+                last_frame=NULL;
                 i++;
                 continue;
             }
@@ -139,7 +140,7 @@ void Backend::BuildProblem(Frames &active_kfs, ceres::Problem &problem,std::vect
             problem.AddParameterBlock(para_v, 3);
             problem.AddParameterBlock(para_ba, 3);
             problem.AddParameterBlock(para_bg, 3);
-            if (last_frame && last_frame->preintegration)
+            if (last_frame && last_frame->preintegration&&last_frame->mpLastKeyFrame)
             {
                 auto para_kf_last = last_frame->pose.data();
                 auto para_v_last = last_frame->mVw.data();
@@ -147,7 +148,7 @@ void Backend::BuildProblem(Frames &active_kfs, ceres::Problem &problem,std::vect
                 auto para_bg_last = g2.data();//恢复
                 Vector3d a2=last_frame->GetAccBias();
                 auto para_ba_last = a2.data();//恢复
-                ceres::CostFunction *cost_function = ImuError::Create(current_frame->preintegration);
+                ceres::CostFunction *cost_function = ImuError2::Create(current_frame->preintegration);
                 problem.AddResidualBlock(cost_function, NULL, para_kf_last, para_v_last, para_ba_last, para_bg_last, para_kf, para_v, para_ba, para_bg);
             }
             last_frame = current_frame;
@@ -218,26 +219,26 @@ std::vector<double *> para_abs;
         }
     }
     // reject outliers and clean the map
-    for (auto pair_kf : active_kfs)
-    {
-        auto frame = pair_kf.second;
-        auto left_features = frame->features_left;
-        for (auto pair_feature : left_features)
-        {
-            auto feature = pair_feature.second;
-            auto landmark = feature->landmark.lock();
-            auto first_frame = landmark->FirstFrame();
-            if (compute_reprojection_error(cv2eigen(feature->keypoint), landmark->ToWorld(), frame->pose, camera_left_) > 3)
-            {
-                landmark->RemoveObservation(feature);
-                frame->RemoveFeature(feature);
-            }
-            if (landmark->observations.size() == 1 && frame->id != Frame::current_frame_id)
-            {
-                map_->RemoveLandmark(landmark);
-            }
-        }
-    }
+    // for (auto pair_kf : active_kfs)
+    // {
+    //     auto frame = pair_kf.second;
+    //     auto left_features = frame->features_left;
+    //     for (auto pair_feature : left_features)
+    //     {
+    //         auto feature = pair_feature.second;
+    //         auto landmark = feature->landmark.lock();
+    //         auto first_frame = landmark->FirstFrame();
+    //         if (compute_reprojection_error(cv2eigen(feature->keypoint), landmark->ToWorld(), frame->pose, camera_left_) > 3)
+    //         {
+    //             landmark->RemoveObservation(feature);
+    //             frame->RemoveFeature(feature);
+    //         }
+    //         if (landmark->observations.size() == 1 && frame->id != Frame::current_frame_id)
+    //         {
+    //             map_->RemoveLandmark(landmark);
+    //         }
+    //     }
+    // }
 
     // propagate to the last frame
     double temp_head = (--active_kfs.end())->first + epsilon;

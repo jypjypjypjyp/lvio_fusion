@@ -82,7 +82,8 @@ Matrix3d  Frame::GetImuRotation()
     Matrix4d Tcw_=pose.matrix();  
     Matrix3d Rcw = Tcw_.block<3,3>(0,0);
     Matrix3d Rwc = Rcw.transpose();
-    return Rwc*calib_.Tcb.block<3,3>(0,0);
+    return Rwc;
+    //return Rwc*calib_.Tcb.block<3,3>(0,0);
 }
 
 Vector3d Frame::GetImuPosition()
@@ -92,8 +93,9 @@ Vector3d Frame::GetImuPosition()
     Vector3d tcw = Tcw_.block<3,1>(0,3);
     Matrix3d Rwc = Rcw.transpose();
     Vector3d Ow=Rwc*tcw;
-    Matrix4d TCB=calib_.Tcb;
-    Owb = Rwc*TCB.block<3,1>(0,3)+Ow; //imu position
+    Vector3d tcb;
+    tcb<< 0.537165718864418,0,0;
+    Owb = Rwc*tcb+Ow; //imu position
     return  Owb;
 }
 
@@ -136,8 +138,8 @@ void Frame::SetImuPoseVelocity(const Matrix3d &Rwb,const Vector3d &twb, const Ve
     Matrix4d Tbw = Matrix4d::Identity();
     Tbw.block<3,3>(0,0)=Rbw;
     Tbw.block<3,1>(0,3)=tbw;
-    mTcw = calib_.Tcb*Tbw;
-    UpdatePoseMatrices();
+    //mTcw = calib_.Tcb*Tbw;
+   // UpdatePoseMatrices();
 }
 void Frame::UpdatePoseMatrices()
 {

@@ -59,11 +59,11 @@ void InertialOptimization(Map::Ptr pMap, Eigen::Matrix3d &Rwg, double &scale, Ei
           if (bFixedVel)
                problem.SetParameterBlockConstant(para_v);
 
-          if (last_frame && last_frame->preintegration)
+          if (last_frame && current_frame->preintegration)
           {
                auto para_kf_last = last_frame->pose.data();
                auto para_v_last = last_frame->mVw.data();
-               cost_function = InertialGSError::Create(current_frame->preintegration);
+               cost_function = InertialGSError2::Create(current_frame->preintegration);
                problem.AddResidualBlock(cost_function, NULL, para_kf_last, para_v_last, para_kf, para_v,para_gyroBias,para_accBias,para_rwg,&scale);
           }
           last_frame = current_frame;
@@ -175,7 +175,7 @@ for(Frames::iterator iter = KFs.begin(); iter != KFs.end(); iter++,ii++)
           last_frame=current_frame;
           continue;
      }
-     if(current_frame->bImu && last_frame->bImu)
+     if(current_frame->bImu && last_frame->bImu&&current_frame->preintegration)
      {
           current_frame->SetNewBias(last_frame->GetImuBias());
           auto P1=para_kfs[ii-1];
@@ -195,7 +195,7 @@ for(Frames::iterator iter = KFs.begin(); iter != KFs.end(); iter++,ii++)
           auto V2=para_vs[ii];
 
           //ei p1,v1,g1,a1,p2,v2
-           ceres::CostFunction *cost_function = InertialError::Create(current_frame->preintegration);
+           ceres::CostFunction *cost_function = InertialError2::Create(current_frame->preintegration);
            problem.AddResidualBlock(cost_function, NULL, P1,V1,g1,a1,P2,V2);//7,3,3,3,7,3
 
 
@@ -294,11 +294,14 @@ void  Initializer::InitializeIMU(double priorG, double priorA, bool bFIBA)
             if(!(*itKF)->mpLastKeyFrame)
                continue;
             // 预积分中delta_V 用来表示:Rwb_i.transpose()*(V2 - V1 - g*dt),故此处获得 -(V_i - V_0 - (i-0)*(mRwg*gI)*dt)
-            // 应该使用将速度偏差在此处忽略或当做噪声，因为后面会优化mRwg
+            // 应该使用将 (*itKF)->mpLastKeyFrame速度偏差在此处忽略或当做噪声，因为后面会优化mRwg
             dirG -= (*itKF)->mpLastKeyFrame->GetImuRotation()*(*itKF)->preintegration->GetUpdatedDeltaVelocity();
+
             Vector3d _vel = ((*itKF)->GetImuPosition() - (*(itKF-1))->GetImuPosition())/(*itKF)->preintegration->dT;
-            (*itKF)->SetVelocity(_vel);
-            (*itKF)->mpLastKeyFrame->SetVelocity(_vel);
+          if(!(*itKF)->preintegration->dT==0){
+               (*itKF)->SetVelocity(_vel);
+               (*itKF)->mpLastKeyFrame->SetVelocity(_vel);
+            }
         }
 
         // Step 2.1:计算重力方向(与z轴偏差)，用轴角方式表示偏差

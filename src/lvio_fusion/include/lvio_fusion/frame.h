@@ -17,7 +17,7 @@ class Frame
 public:
     typedef std::shared_ptr<Frame> Ptr;
 
-    Frame():mTcw(Matrix4d::Zero()),mImuBias(Bias(0,0,0,0,0,0)){ }
+    Frame():mTcw(Matrix4d::Zero()),mImuBias(Bias(0,0,0,0,0,0)),mVw(Vector3d::Zero()){ }
 
     void AddFeature(visual::Feature::Ptr feature);
 

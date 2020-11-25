@@ -132,6 +132,44 @@ private:
     imu::Preintegration::Ptr preintegration_;
 };
 
+class ImuError2
+{
+public:
+    ImuError2(imu::Preintegration::Ptr preintegration) : preintegration_(preintegration) {}
+
+   bool operator()(const  double *  parameters0,const  double *  parameters1,const  double *  parameters2,const  double *  parameters3,const  double *  parameters4,const  double *  parameters5,const  double *  parameters6,const  double *  parameters7, double* residuals) const 
+    {
+        Quaterniond Qi(parameters0[3], parameters0[0], parameters0[1], parameters0[2]);
+        Vector3d Pi(parameters0[4], parameters0[5], parameters0[6]);
+
+        Vector3d Vi(parameters1[0], parameters1[1], parameters1[2]);
+        Vector3d Bai(parameters2[0], parameters2[1], parameters2[2]);
+        Vector3d Bgi(parameters3[0], parameters3[1], parameters3[2]);
+
+        Quaterniond Qj(parameters4[3], parameters4[0], parameters4[1], parameters4[2]);
+        Vector3d Pj(parameters4[4], parameters4[5], parameters4[6]);
+
+        Vector3d Vj(parameters5[0], parameters5[1], parameters5[2]);
+        Vector3d Baj(parameters6[0], parameters6[1], parameters6[2]);
+        Vector3d Bgj(parameters7[0], parameters7[1], parameters7[2]);
+
+        Eigen::Map<Matrix<double, 15, 1>> residual(residuals);
+        residual = preintegration_->Evaluate(Pi, Qi, Vi, Bai, Bgi, Pj, Qj, Vj, Baj, Bgj);
+        Matrix<double, 15, 15> covariance=preintegration_->C;
+        Matrix<double, 15, 15> sqrt_info = LLT<Matrix<double, 15, 15>>(covariance.inverse()).matrixL().transpose();
+        residual = sqrt_info * residual;
+        return true;
+    }
+
+    static ceres::CostFunction *Create(imu::Preintegration::Ptr preintegration)
+    {
+         return new ceres::NumericDiffCostFunction<ImuError2,ceres::FORWARD,15, 7, 3, 3, 3, 7, 3, 3, 3>(new ImuError2(preintegration));
+    }
+
+private:
+    imu::Preintegration::Ptr preintegration_;
+};
+
 class PriorGyroError:public ceres::SizedCostFunction<3, 3>
 {
 public:
@@ -318,6 +356,65 @@ private:
     Matrix3d JVa, JPa;
 };
 
+class InertialGSError2
+{
+public:
+    InertialGSError2(imu::Preintegration::Ptr preintegration) : mpInt(preintegration),JRg(  preintegration->JRg),
+    JVg( preintegration->JVg), JPg( preintegration->JPg), JVa( preintegration->JVa),
+    JPa( preintegration->JPa)
+    {
+        gl<< 0, 0, -G;
+    }
+
+ bool operator()(const  double *  parameters0,const  double *  parameters1,const  double *  parameters2,const  double *  parameters3,const  double *  parameters4,const  double *  parameters5,const  double *  parameters6,const  double *  parameters7, double* residuals) const 
+    {
+        Quaterniond Qi(parameters0[3], parameters0[0], parameters0[1], parameters0[2]);
+        Vector3d Pi(parameters0[4], parameters0[5], parameters0[6]);
+        Vector3d Vi(parameters1[0], parameters1[1], parameters1[2]);
+        Quaterniond Qj(parameters2[3], parameters2[0], parameters2[1], parameters2[2]);
+        Vector3d Pj(parameters2[4], parameters2[5], parameters2[6]);
+        Vector3d Vj(parameters3[0], parameters3[1], parameters3[2]);
+        Vector3d gyroBias(parameters4[0], parameters4[1], parameters4[2]);
+        Vector3d accBias(parameters5[0], parameters5[1], parameters5[2]);
+        Vector3d eulerAngle(parameters6[0], parameters6[1], parameters6[2]);
+        double Scale=parameters7[0];
+        double dt=(mpInt->dT);
+        Eigen::AngleAxisd rollAngle(AngleAxisd(eulerAngle(0),Vector3d::UnitX()));
+        Eigen::AngleAxisd pitchAngle(AngleAxisd(eulerAngle(1),Vector3d::UnitY()));
+        Eigen::AngleAxisd yawAngle(AngleAxisd(eulerAngle(2),Vector3d::UnitZ()));
+        Matrix3d Rwg;
+        Rwg= yawAngle*pitchAngle*rollAngle;
+        Vector3d g=Rwg*gl;
+        const Bias  b1(accBias(0,0),accBias(1,0),accBias(2,0),gyroBias(0,0),gyroBias(1,0),gyroBias(2,0));
+        Matrix3d dR = (mpInt->GetDeltaRotation(b1));
+        Vector3d dV = (mpInt->GetDeltaVelocity(b1));
+        Vector3d dP =(mpInt->GetDeltaPosition(b1));
+
+        const Vector3d er = LogSO3(dR.transpose()*Qi.toRotationMatrix().transpose()*Qj.toRotationMatrix());
+        const Vector3d ev = Qi.toRotationMatrix().transpose()*(Scale*(Vj - Vi) - g*dt) - dV;
+        const Vector3d ep = Qi.toRotationMatrix().transpose()*(Scale*(Pj - Pj - Vi*dt) - g*dt*dt/2) - dP;
+        residuals[0]=er[0];
+        residuals[1]=er[1];
+        residuals[2]=er[2];
+        residuals[3]=ev[0];
+        residuals[4]=ev[1];
+        residuals[5]=ev[2];
+        residuals[6]=ep[0];
+        residuals[7]=ep[1];
+        residuals[8]=ep[2];
+        return true;
+    }
+    static ceres::CostFunction *Create(imu::Preintegration::Ptr preintegration)
+    {
+        return new ceres::NumericDiffCostFunction<InertialGSError2,ceres::FORWARD,9, 7,3,7,3,3,3,3,1>(new InertialGSError2(preintegration));
+    }
+private:
+    imu::Preintegration::Ptr mpInt;
+    Vector3d gl;
+    Matrix3d JRg, JVg, JPg;
+    Matrix3d JVa, JPa;
+};
+
 class InertialError:public ceres::SizedCostFunction<9, 7,3,3,3,7,3>
 {
 public:
@@ -420,6 +517,59 @@ public:
     static ceres::CostFunction *Create(imu::Preintegration::Ptr preintegration)
     {
         return new InertialError(preintegration);
+    }
+private:
+    imu::Preintegration::Ptr mpInt;
+    //Vector3d gl;
+    Matrix3d JRg, JVg, JPg;
+    Matrix3d JVa, JPa;
+};
+
+class InertialError2
+{
+public:
+    InertialError2(imu::Preintegration::Ptr preintegration) : mpInt(preintegration),JRg( preintegration->JRg),
+    JVg(  preintegration->JVg), JPg( preintegration->JPg), JVa(  preintegration->JVa),
+    JPa( preintegration->JPa) {}
+
+     bool operator()(const double*  parameters0, const double*  parameters1, const double*  parameters2, const double*  parameters3, const double*  parameters4, const double*  parameters5, double* residuals) const 
+    {
+        Quaterniond Qi(parameters0[3], parameters0[0], parameters0[1], parameters0[2]);
+        Vector3d Pi(parameters0[4], parameters0[5], parameters0[6]);
+        Vector3d Vi(parameters1[0], parameters1[1], parameters1[2]);
+        
+        Vector3d gyroBias(parameters2[0], parameters2[1], parameters2[2]);
+        Vector3d accBias(parameters3[0], parameters3[1],parameters3[2]);
+
+        Quaterniond Qj(parameters4[3], parameters4[0], parameters4[1], parameters4[2]);
+        Vector3d Pj(parameters4[4], parameters4[5], parameters4[6]);
+        Vector3d Vj(parameters5[0], parameters5[1], parameters5[2]);
+        double dt=(mpInt->dT);
+        Vector3d g;
+        g<< 0, 0, -G;
+        const Bias  b1(accBias(0,0),accBias(1,0),accBias(2,0),gyroBias(0,0),gyroBias(1,0),gyroBias(2,0));
+        Matrix3d dR = mpInt->GetDeltaRotation(b1);
+        Vector3d dV = mpInt->GetDeltaVelocity(b1);
+        Vector3d dP =mpInt->GetDeltaPosition(b1);
+
+        const Vector3d er = LogSO3(dR.transpose()*Qi.toRotationMatrix().transpose()*Qj.toRotationMatrix());
+        const Vector3d ev = Qi.toRotationMatrix().transpose()*((Vj - Vi) - g*dt) - dV;
+        const Vector3d ep = Qi.toRotationMatrix().transpose()*((Pj - Pj - Vi*dt) - g*dt*dt/2) - dP;
+        
+        residuals[0]=er[0];
+        residuals[1]=er[1];
+        residuals[2]=er[2];
+        residuals[3]=ev[0];
+        residuals[4]=ev[1];
+        residuals[5]=ev[2];
+        residuals[6]=ep[0];
+        residuals[7]=ep[1];
+        residuals[8]=ep[2];
+         return true;
+    }
+    static ceres::CostFunction *Create(imu::Preintegration::Ptr preintegration)
+    {
+        return new ceres::NumericDiffCostFunction<InertialError2,ceres::FORWARD, 9, 7,3,3,3,7,3>(new InertialError2(preintegration));
     }
 private:
     imu::Preintegration::Ptr mpInt;
