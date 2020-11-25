@@ -50,13 +50,14 @@ void Mapping::BuildOldMapFrame(Frames old_frames, Frame::Ptr map_frame)
     PointICloud points_full_merged;
     for (auto pair_kf : old_frames)
     {
-        PointICloud::Ptr temp(new PointICloud());
-        pcl::VoxelGrid<PointI> voxel_filter;
-        pcl::copyPointCloud(points_full_merged, *temp);
-        voxel_filter.setInputCloud(temp);
-        voxel_filter.setLeafSize(lidar_->resolution, lidar_->resolution, lidar_->resolution);
-        voxel_filter.filter(points_full_merged);
+        points_full_merged += pointclouds_full[pair_kf.first];
     }
+    PointICloud::Ptr temp(new PointICloud());
+    pcl::VoxelGrid<PointI> voxel_filter;
+    pcl::copyPointCloud(points_full_merged, *temp);
+    voxel_filter.setInputCloud(temp);
+    voxel_filter.setLeafSize(lidar_->resolution, lidar_->resolution, lidar_->resolution);
+    voxel_filter.filter(points_full_merged);
 
     map_frame->time = old_frames.begin()->second->time;
     map_frame->pose = old_frames.begin()->second->pose;
@@ -78,15 +79,12 @@ void Mapping::BuildMapFrame(Frame::Ptr frame, Frame::Ptr map_frame)
     {
         points_full_merged += pointclouds_full[pair_kf.first];
     }
-
-    {
-        PointICloud::Ptr temp(new PointICloud());
-        pcl::VoxelGrid<PointI> voxel_filter;
-        pcl::copyPointCloud(points_full_merged, *temp);
-        voxel_filter.setInputCloud(temp);
-        voxel_filter.setLeafSize(lidar_->resolution, lidar_->resolution, lidar_->resolution);
-        voxel_filter.filter(points_full_merged);
-    }
+    PointICloud::Ptr temp(new PointICloud());
+    pcl::VoxelGrid<PointI> voxel_filter;
+    pcl::copyPointCloud(points_full_merged, *temp);
+    voxel_filter.setInputCloud(temp);
+    voxel_filter.setLeafSize(lidar_->resolution, lidar_->resolution, lidar_->resolution);
+    voxel_filter.filter(points_full_merged);
 
     map_frame->feature_lidar = lidar::Feature::Create();
     map_frame->feature_lidar->points_full = points_full_merged;
@@ -104,7 +102,6 @@ void Mapping::Optimize(Frames &active_kfs)
         {
             double rpyxyz[6];
             se32rpyxyz(map_frame->pose * pair_kf.second->pose.inverse(), rpyxyz); // relative_i_j
-
             {
                 ceres::Problem problem;
                 association_->ScanToMapWithGround(pair_kf.second, map_frame, rpyxyz, problem);
@@ -112,7 +109,7 @@ void Mapping::Optimize(Frames &active_kfs)
                 options.linear_solver_type = ceres::DENSE_SCHUR;
                 options.function_tolerance = DBL_MIN;
                 options.gradient_tolerance = DBL_MIN;
-                options.max_num_iterations = 1;
+                options.max_num_iterations = 2;
                 options.num_threads = 4;
                 ceres::Solver::Summary summary;
                 ceres::Solve(options, &problem, &summary);
@@ -125,7 +122,7 @@ void Mapping::Optimize(Frames &active_kfs)
                 options.linear_solver_type = ceres::DENSE_SCHUR;
                 options.function_tolerance = DBL_MIN;
                 options.gradient_tolerance = DBL_MIN;
-                options.max_num_iterations = 1;
+                options.max_num_iterations = 2;
                 options.num_threads = 4;
                 ceres::Solver::Summary summary;
                 ceres::Solve(options, &problem, &summary);
@@ -161,8 +158,8 @@ void Mapping::AddToWorld(Frame::Ptr frame)
     if (frame->feature_lidar)
     {
         MergeScan(frame->feature_lidar->points_full, frame->pose, pointcloud_full);
-        // MergeScan(frame->feature_lidar->points_ground, frame->pose, pointcloud_temp);
-        Color(pointcloud_full, frame, pointcloud_color);
+        MergeScan(frame->feature_lidar->points_surf, frame->pose, pointcloud_temp);
+        Color(pointcloud_temp, frame, pointcloud_color);
     }
     pointclouds_full[frame->time] = pointcloud_full;
     pointclouds_color[frame->time] = pointcloud_color;

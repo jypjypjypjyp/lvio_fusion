@@ -136,7 +136,7 @@ bool Relocation::DetectLoop(Frame::Ptr frame, Frame::Ptr &old_frame)
     //     }
     // }
     // return false;
-    Frames candidate_kfs = map_->GetKeyFrames(0, backend_->head - 10);
+    Frames candidate_kfs = map_->GetKeyFrames(0, backend_->head - 30);
     double min_distance = 10;
     for (auto pair_kf : candidate_kfs)
     {
@@ -352,7 +352,7 @@ void Relocation::BuildProblem(Frames &active_kfs, ceres::Problem &problem)
     for (auto pair_kf : active_kfs)
     {
         auto frame = pair_kf.second;
-        if (frame->loop_constraint->relocated)
+        if (frame->loop_constraint && frame->loop_constraint->relocated)
         {
             double *para_kf = frame->pose.data();
             problem.SetParameterBlockConstant(para_kf);
@@ -452,50 +452,58 @@ void Relocation::CorrectLoop(double old_time, double start_time, double end_time
     // mapping new submap frames
     if (lidar_)
     {
-        mapping_->Optimize(new_submap_kfs);
+        RelocateByPoints(new_submap_kfs);
     }
 }
 
 void Relocation::RelocateByPoints(Frames frames)
 {
-    Frame::Ptr old_frame_prev = map_->GetKeyFrames(0, old_frame->time, 1).begin()->second;
-    Frame::Ptr old_frame_subs = map_->GetKeyFrames(old_frame->time, 0, 1).begin()->second;
-    Frames old_frames = {{old_frame->time, old_frame}, {old_frame_prev->time, old_frame_prev}, {old_frame_subs->time, old_frame_subs}};
     Frame::Ptr map_frame = Frame::Ptr(new Frame());
+    Frames old_frames;
+    for (auto pair_kf : frames)
+    {
+        Frame::Ptr old_frame = pair_kf.second;
+        old_frames[old_frame->time] = old_frame;
+    }
     mapping_->BuildOldMapFrame(old_frames, map_frame);
 
-
-    double rpyxyz[6];
-    se32rpyxyz(map_frame->pose * clone_frame->pose.inverse(), rpyxyz); // relative_i_j
+    for (auto pair_kf : frames)
     {
-        ceres::Problem problem;
-        association_->ScanToMapWithGround(clone_frame, map_frame, rpyxyz, problem);
-        ceres::Solver::Options options;
-        options.linear_solver_type = ceres::DENSE_SCHUR;
-        options.function_tolerance = DBL_MIN;
-        options.gradient_tolerance = DBL_MIN;
-        options.max_num_iterations = 1;
-        options.num_threads = 4;
-        ceres::Solver::Summary summary;
-        ceres::Solve(options, &problem, &summary);
-        clone_frame->pose = rpyxyz2se3(rpyxyz).inverse() * map_frame->pose;
+        if (pair_kf.second->loop_constraint && !pair_kf.second->loop_constraint->relocated)
+        {
+            double rpyxyz[6];
+            se32rpyxyz(map_frame->pose * pair_kf.second->pose.inverse(), rpyxyz); // relative_i_j
+            {
+                ceres::Problem problem;
+                association_->ScanToMapWithGround(pair_kf.second, map_frame, rpyxyz, problem);
+                ceres::Solver::Options options;
+                options.linear_solver_type = ceres::DENSE_SCHUR;
+                options.function_tolerance = DBL_MIN;
+                options.gradient_tolerance = DBL_MIN;
+                options.max_num_iterations = 1;
+                options.num_threads = 4;
+                ceres::Solver::Summary summary;
+                ceres::Solve(options, &problem, &summary);
+                pair_kf.second->pose = rpyxyz2se3(rpyxyz).inverse() * map_frame->pose;
+            }
+            {
+                ceres::Problem problem;
+                association_->ScanToMapWithSegmented(pair_kf.second, map_frame, rpyxyz, problem);
+                ceres::Solver::Options options;
+                options.linear_solver_type = ceres::DENSE_SCHUR;
+                options.function_tolerance = DBL_MIN;
+                options.gradient_tolerance = DBL_MIN;
+                options.max_num_iterations = 1;
+                options.num_threads = 4;
+                ceres::Solver::Summary summary;
+                ceres::Solve(options, &problem, &summary);
+                pair_kf.second->pose = rpyxyz2se3(rpyxyz).inverse() * map_frame->pose;
+                if (summary.final_cost / summary.initial_cost < 0.9)
+                    break;
+            }
+            mapping_->AddToWorld(pair_kf.second);
+        }
     }
-    {
-        ceres::Problem problem;
-        association_->ScanToMapWithSegmented(clone_frame, map_frame, rpyxyz, problem);
-        ceres::Solver::Options options;
-        options.linear_solver_type = ceres::DENSE_SCHUR;
-        options.function_tolerance = DBL_MIN;
-        options.gradient_tolerance = DBL_MIN;
-        options.max_num_iterations = 1;
-        options.num_threads = 4;
-        ceres::Solver::Summary summary;
-        ceres::Solve(options, &problem, &summary);
-        clone_frame->pose = rpyxyz2se3(rpyxyz).inverse() * map_frame->pose;
-        if (summary.final_cost / summary.initial_cost < 0.9)
-            break;
-    }
-    frame->loop_constraint->relative_pose = clone_frame->pose * old_frame->pose.inverse();
 }
 
 } // namespace lvio_fusion

@@ -147,28 +147,17 @@ void FeatureAssociation::CalculateSmoothness(PointICloud &points_segmented, Segm
     for (int i = 5; i < size - 5; i++)
     {
         // clang-format off
-        float dr1 = segemented_info.range[i - 4] - segemented_info.range[i - 5];
-        float dr2 = segemented_info.range[i - 3] - segemented_info.range[i - 4];
-        float dr3 = segemented_info.range[i - 2] - segemented_info.range[i - 3];
-        float dr4 = segemented_info.range[i - 1] - segemented_info.range[i - 2];
-        float dr5 = segemented_info.range[i - 0] - segemented_info.range[i - 1];
-        float dr6 = segemented_info.range[i + 1] - segemented_info.range[i - 0];
-        float dr7 = segemented_info.range[i + 2] - segemented_info.range[i + 1];
-        float dr8 = segemented_info.range[i + 3] - segemented_info.range[i + 2];
-        float dr9 = segemented_info.range[i + 4] - segemented_info.range[i + 3];
-        float dr10 = segemented_info.range[i + 5] - segemented_info.range[i + 4];
         float dr = (segemented_info.range[i + 5] - segemented_info.range[i - 5]) / 10;
-        float cov = ((dr1 -dr) * (dr1 -dr) +
-                    (dr2 -dr) * (dr2 -dr) +
-                    (dr3 -dr) * (dr3 -dr) +
-                    (dr4 -dr) * (dr4 -dr) +
-                    (dr5 -dr) * (dr5 -dr) +
-                    (dr6 -dr) * (dr6 -dr) +
-                    (dr7 -dr) * (dr7 -dr) +
-                    (dr8 -dr) * (dr8 -dr) +
-                    (dr9 -dr) * (dr9 -dr) +
-                    (dr10 -dr) * (dr10 -dr)) / 10;
-
+        float r1 = segemented_info.range[i + 4] - segemented_info.range[i - 5] - 9 * dr;
+        float r2 = segemented_info.range[i + 3] - segemented_info.range[i - 5] - 8 * dr;
+        float r3 = segemented_info.range[i + 2] - segemented_info.range[i - 5] - 7 * dr;
+        float r4 = segemented_info.range[i + 1] - segemented_info.range[i - 5] - 6 * dr;
+        float r5 = segemented_info.range[i    ] - segemented_info.range[i - 5] - 5 * dr;
+        float r6 = segemented_info.range[i - 1] - segemented_info.range[i - 5] - 4 * dr;
+        float r7 = segemented_info.range[i - 2] - segemented_info.range[i - 5] - 3 * dr;
+        float r8 = segemented_info.range[i - 3] - segemented_info.range[i - 5] - 2 * dr;
+        float r9 = segemented_info.range[i - 4] - segemented_info.range[i - 5] - 1 * dr;
+        float cov = (r1*r1 + r2*r2 + r3*r3 + r4*r4 + r5*r5 + r6*r6 + r7*r7 + r8*r8 + r9*r9)/9;
         // clang-format on
         curvatures[i] = cov;
     }
@@ -178,16 +167,13 @@ void FeatureAssociation::ExtractFeatures(PointICloud &points_segmented, Segmente
 {
     static const float threshold = 1;
     lidar::Feature::Ptr feature = lidar::Feature::Create();
-
     for (int i = 0; i < num_scans_; i++)
     {
         // divide one scan into six segments
         for (int j = 0; j < 6; j++)
         {
-
             int sp = (segemented_info.start_ring_index[i] * (6 - j) + segemented_info.end_ring_index[i] * j) / 6;
             int ep = (segemented_info.start_ring_index[i] * (5 - j) + segemented_info.end_ring_index[i] * (j + 1)) / 6 - 1;
-
             if (sp >= ep)
                 continue;
 
