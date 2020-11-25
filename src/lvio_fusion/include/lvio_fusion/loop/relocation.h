@@ -89,9 +89,9 @@ private:
 
     bool Relocate(Frame::Ptr frame, Frame::Ptr old_frame);
 
-    bool RelocateByImage(Frame::Ptr frame, Frame::Ptr old_frame, loop::LoopConstraint::Ptr loop_constraint);
+    bool RelocateByImage(Frame::Ptr frame, Frame::Ptr old_frame);
 
-    bool RelocateByPoints(Frame::Ptr frame, Frame::Ptr old_frame, loop::LoopConstraint::Ptr loop_constraint);
+    bool RelocateByPoints(Frame::Ptr frame, Frame::Ptr old_frame);
 
     bool SearchInAera(const BRIEF descriptor, const std::map<unsigned long, BRIEF> &descriptors_old, unsigned long &best_id);
 
@@ -100,6 +100,8 @@ private:
     void BuildProblem(Frames &active_kfs, ceres::Problem &problem);
 
     void CorrectLoop(double old_time, double start_time, double end_time);
+
+    void RelocateByPoints(Frames frames);
 
     DBoW3::Database db_;
     DBoW3::Vocabulary voc_;

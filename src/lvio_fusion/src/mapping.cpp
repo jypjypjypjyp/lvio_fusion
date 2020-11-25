@@ -45,6 +45,25 @@ inline void Mapping::Color(const PointICloud &in, Frame::Ptr frame, PointRGBClou
     }
 }
 
+void Mapping::BuildOldMapFrame(Frames old_frames, Frame::Ptr map_frame)
+{
+    PointICloud points_full_merged;
+    for (auto pair_kf : old_frames)
+    {
+        PointICloud::Ptr temp(new PointICloud());
+        pcl::VoxelGrid<PointI> voxel_filter;
+        pcl::copyPointCloud(points_full_merged, *temp);
+        voxel_filter.setInputCloud(temp);
+        voxel_filter.setLeafSize(lidar_->resolution, lidar_->resolution, lidar_->resolution);
+        voxel_filter.filter(points_full_merged);
+    }
+
+    map_frame->time = old_frames.begin()->second->time;
+    map_frame->pose = old_frames.begin()->second->pose;
+    map_frame->feature_lidar = lidar::Feature::Create();
+    map_frame->feature_lidar->points_full = points_full_merged;
+}
+
 void Mapping::BuildMapFrame(Frame::Ptr frame, Frame::Ptr map_frame)
 {
     double start_time = frame->time;
@@ -54,26 +73,23 @@ void Mapping::BuildMapFrame(Frame::Ptr frame, Frame::Ptr map_frame)
         return;
     map_frame->time = (--last_frames.end())->second->time;
     map_frame->pose = (--last_frames.end())->second->pose;
-    // PointICloud points_less_sharp_merged;
-    PointICloud points_less_flat_merged;
+    PointICloud points_full_merged;
     for (auto pair_kf : last_frames)
     {
-        // points_less_sharp_merged += pointclouds_sharp_[pair_kf.first];
-        points_less_flat_merged += pointclouds_flat_[pair_kf.first];
+        points_full_merged += pointclouds_full[pair_kf.first];
     }
 
     {
         PointICloud::Ptr temp(new PointICloud());
         pcl::VoxelGrid<PointI> voxel_filter;
-        pcl::copyPointCloud(points_less_flat_merged, *temp);
+        pcl::copyPointCloud(points_full_merged, *temp);
         voxel_filter.setInputCloud(temp);
         voxel_filter.setLeafSize(lidar_->resolution, lidar_->resolution, lidar_->resolution);
-        voxel_filter.filter(points_less_flat_merged);
+        voxel_filter.filter(points_full_merged);
     }
 
     map_frame->feature_lidar = lidar::Feature::Create();
-    map_frame->feature_lidar->points_full = points_less_flat_merged;
-    // map_frame->feature_lidar->points_less_sharp = points_less_sharp_merged;
+    map_frame->feature_lidar->points_full = points_full_merged;
 }
 
 void Mapping::Optimize(Frames &active_kfs)
@@ -84,7 +100,7 @@ void Mapping::Optimize(Frames &active_kfs)
         auto t1 = std::chrono::steady_clock::now();
         Frame::Ptr map_frame = Frame::Ptr(new Frame());
         BuildMapFrame(pair_kf.second, map_frame);
-        if (map_frame->feature_lidar && pair_kf.second->feature_lidar && !map_frame->feature_lidar->points_full.empty())// && !map_frame->feature_lidar->points_less_sharp.empty())
+        if (map_frame->feature_lidar && pair_kf.second->feature_lidar && !map_frame->feature_lidar->points_full.empty())
         {
             double rpyxyz[6];
             se32rpyxyz(map_frame->pose * pair_kf.second->pose.inverse(), rpyxyz); // relative_i_j
@@ -144,20 +160,18 @@ void Mapping::AddToWorld(Frame::Ptr frame)
     PointRGBCloud pointcloud_color;
     if (frame->feature_lidar)
     {
-        // MergeScan(frame->feature_lidar->points_less_sharp, frame->pose, pointcloud_sharp);
         MergeScan(frame->feature_lidar->points_full, frame->pose, pointcloud_full);
         // MergeScan(frame->feature_lidar->points_ground, frame->pose, pointcloud_temp);
         Color(pointcloud_full, frame, pointcloud_color);
     }
-    pointclouds_flat_[frame->time] = pointcloud_full;
-    // pointclouds_sharp_[frame->time] = pointcloud_sharp;
-    pointclouds_color_[frame->time] = pointcloud_color;
+    pointclouds_full[frame->time] = pointcloud_full;
+    pointclouds_color[frame->time] = pointcloud_color;
 }
 
 PointRGBCloud Mapping::GetGlobalMap()
 {
     PointRGBCloud global_map;
-    for (auto pair_pc : pointclouds_color_)
+    for (auto pair_pc : pointclouds_color)
     {
         auto &pointcloud = pair_pc.second;
         global_map.insert(global_map.end(), pointcloud.begin(), pointcloud.end());

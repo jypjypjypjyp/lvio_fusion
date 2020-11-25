@@ -27,26 +27,24 @@ public:
 
     void Optimize(Frames &active_kfs);
 
+    void BuildOldMapFrame(Frames old_frames, Frame::Ptr map_frame);
+
     void MergeScan(const PointICloud &in, SE3d from_pose, PointICloud &out);
+
+    void AddToWorld(Frame::Ptr frame);
 
     PointRGBCloud GetGlobalMap();
 
+    std::map<double, PointRGBCloud> pointclouds_color;
+    std::map<double, PointICloud> pointclouds_full;
+
 private:
-
-    void MappingLoop();
-
     void BuildMapFrame(Frame::Ptr frame, Frame::Ptr map_frame);
-
-    void AddToWorld(Frame::Ptr frame);
 
     void Color(const PointICloud &in, Frame::Ptr frame, PointRGBCloud &out);
 
     Map::Ptr map_;
     FeatureAssociation::Ptr association_;
-
-    std::map<double, PointRGBCloud> pointclouds_color_;
-    std::map<double, PointICloud> pointclouds_flat_;
-    // std::map<double, PointICloud> pointclouds_sharp_;
 
     Lidar::Ptr lidar_;
     Camera::Ptr camera_;
