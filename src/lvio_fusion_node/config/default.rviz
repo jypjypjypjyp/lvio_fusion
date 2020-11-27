@@ -26,7 +26,7 @@ Panels:
     Experimental: false
     Name: Time
     SyncMode: 0
-    SyncSource: ""
+    SyncSource: PointCloud2
 Preferences:
   PromptSaveOnExit: true
 Toolbars:
@@ -78,14 +78,14 @@ Visualization Manager:
     - Alpha: 1
       Autocompute Intensity Bounds: true
       Autocompute Value Bounds:
-        Max Value: 10
-        Min Value: -10
+        Max Value: 3.0405941009521484
+        Min Value: -1.4029324054718018
         Value: true
       Axis: Z
       Channel Name: intensity
       Class: rviz/PointCloud2
       Color: 255; 255; 255
-      Color Transformer: MONO8
+      Color Transformer: AxisColor
       Decay Time: 0
       Enabled: true
       Invert Rainbow: false
@@ -140,7 +140,7 @@ Visualization Manager:
       Marker Topic: /lvio_fusion_node/car_model
       Name: Marker
       Namespaces:
-        {}
+        "": true
       Queue Size: 100
       Value: true
   Enabled: true
@@ -171,25 +171,25 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 187.56085205078125
+      Distance: 104.32775115966797
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: 20.50927734375
-        Y: 18.870346069335938
-        Z: 24.281417846679688
+        X: 9.894408226013184
+        Y: 11.481389999389648
+        Z: 24.208492279052734
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.7553978562355042
+      Pitch: 1.5697963237762451
       Target Frame: <Fixed Frame>
       Value: Orbit (rviz)
-      Yaw: 3.8853962421417236
+      Yaw: 3.3853940963745117
     Saved: ~
 Window Geometry:
   Displays:
@@ -207,5 +207,5 @@ Window Geometry:
   Views:
     collapsed: true
   Width: 2410
-  X: 787
-  Y: 292
+  X: 899
+  Y: 281

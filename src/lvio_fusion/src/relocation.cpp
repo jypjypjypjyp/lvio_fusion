@@ -262,7 +262,7 @@ bool Relocation::RelocateByPoints(Frame::Ptr frame, Frame::Ptr old_frame)
     SE3d transform(q, t);
     clone_frame->pose = clone_frame->pose * transform;
 
-    for (int i = 0; i < 4; i++)
+    for (int i = 0; i < 2; i++)
     {
         double rpyxyz[6];
         se32rpyxyz(map_frame->pose * clone_frame->pose.inverse(), rpyxyz); // relative_i_j
@@ -271,9 +271,7 @@ bool Relocation::RelocateByPoints(Frame::Ptr frame, Frame::Ptr old_frame)
             association_->ScanToMapWithGround(clone_frame, map_frame, rpyxyz, problem);
             ceres::Solver::Options options;
             options.linear_solver_type = ceres::DENSE_SCHUR;
-            options.function_tolerance = DBL_MIN;
-            options.gradient_tolerance = DBL_MIN;
-            options.max_num_iterations = 1;
+            options.max_num_iterations = 4;
             options.num_threads = 4;
             ceres::Solver::Summary summary;
             ceres::Solve(options, &problem, &summary);
@@ -284,15 +282,11 @@ bool Relocation::RelocateByPoints(Frame::Ptr frame, Frame::Ptr old_frame)
             association_->ScanToMapWithSegmented(clone_frame, map_frame, rpyxyz, problem);
             ceres::Solver::Options options;
             options.linear_solver_type = ceres::DENSE_SCHUR;
-            options.function_tolerance = DBL_MIN;
-            options.gradient_tolerance = DBL_MIN;
             options.max_num_iterations = 1;
             options.num_threads = 4;
             ceres::Solver::Summary summary;
             ceres::Solve(options, &problem, &summary);
             clone_frame->pose = rpyxyz2se3(rpyxyz).inverse() * map_frame->pose;
-            if (summary.final_cost / summary.initial_cost < 0.9)
-                break;
         }
     }
 
@@ -331,7 +325,8 @@ void Relocation::BuildProblem(Frames &active_kfs, ceres::Problem &problem)
         new ceres::IdentityParameterization(3));
 
     double start_time = active_kfs.begin()->first;
-
+    
+    double weights[6] = {10, 10, 10, 1, 1, 1};
     Frame::Ptr last_frame;
     for (auto pair_kf : active_kfs)
     {
@@ -342,7 +337,7 @@ void Relocation::BuildProblem(Frames &active_kfs, ceres::Problem &problem)
         {
             double *para_last_kf = last_frame->pose.data();
             ceres::CostFunction *cost_function;
-            cost_function = PoseGraphError::Create(last_frame->pose, frame->pose);
+            cost_function = PoseGraphError::Create(last_frame->pose, frame->pose, weights);
             problem.AddResidualBlock(cost_function, loss_function, para_last_kf, para_kf);
         }
         last_frame = frame;
@@ -453,6 +448,10 @@ void Relocation::CorrectLoop(double old_time, double start_time, double end_time
     if (lidar_)
     {
         RelocateByPoints(new_submap_kfs);
+        for (auto pair_kf : all_kfs)
+        {
+            mapping_->AddToWorld(pair_kf.second);
+        }
     }
 }
 
@@ -477,10 +476,8 @@ void Relocation::RelocateByPoints(Frames frames)
                 ceres::Problem problem;
                 association_->ScanToMapWithGround(pair_kf.second, map_frame, rpyxyz, problem);
                 ceres::Solver::Options options;
-                options.linear_solver_type = ceres::DENSE_SCHUR;
-                options.function_tolerance = DBL_MIN;
-                options.gradient_tolerance = DBL_MIN;
-                options.max_num_iterations = 1;
+                options.linear_solver_type = ceres::DENSE_QR;
+                options.max_num_iterations = 4;
                 options.num_threads = 4;
                 ceres::Solver::Summary summary;
                 ceres::Solve(options, &problem, &summary);
@@ -490,18 +487,13 @@ void Relocation::RelocateByPoints(Frames frames)
                 ceres::Problem problem;
                 association_->ScanToMapWithSegmented(pair_kf.second, map_frame, rpyxyz, problem);
                 ceres::Solver::Options options;
-                options.linear_solver_type = ceres::DENSE_SCHUR;
-                options.function_tolerance = DBL_MIN;
-                options.gradient_tolerance = DBL_MIN;
+                options.linear_solver_type = ceres::DENSE_QR;
                 options.max_num_iterations = 1;
                 options.num_threads = 4;
                 ceres::Solver::Summary summary;
                 ceres::Solve(options, &problem, &summary);
                 pair_kf.second->pose = rpyxyz2se3(rpyxyz).inverse() * map_frame->pose;
-                if (summary.final_cost / summary.initial_cost < 0.9)
-                    break;
             }
-            mapping_->AddToWorld(pair_kf.second);
         }
     }
 }

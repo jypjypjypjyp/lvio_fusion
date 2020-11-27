@@ -1,7 +1,4 @@
 #include "lvio_fusion/estimator.h"
-#include "lvio_fusion/ceres/lidar_error.hpp"
-#include "lvio_fusion/ceres/navsat_error.hpp"
-#include "lvio_fusion/ceres/visual_error.hpp"
 #include "lvio_fusion/config.h"
 #include "lvio_fusion/frame.h"
 
@@ -11,10 +8,6 @@ double epsilon = 1e-3;
 
 namespace lvio_fusion
 {
-
-Matrix2d TwoFrameReprojectionError::sqrt_info = Matrix2d::Identity();
-Matrix2d PoseOnlyReprojectionError::sqrt_info = Matrix2d::Identity();
-Matrix3d NavsatError::sqrt_info = 10 * Matrix3d::Identity();
 
 Estimator::Estimator(std::string &config_path)
     : config_file_path_(config_path) {}

@@ -8,6 +8,7 @@
 #include "lvio_fusion/visual/feature.h"
 #include "lvio_fusion/visual/landmark.h"
 #include "lvio_fusion/loop/loop_constraint.h"
+#include "lvio_fusion/adapt/weights.h"
 
 namespace lvio_fusion
 {
@@ -39,7 +40,9 @@ public:
     imu::Preintegration::Ptr preintegration;    // imu pre integration
     cv::Mat descriptors;                        // orb descriptors
     loop::LoopConstraint::Ptr loop_constraint;  // loop constraint
+    Weights weights;
     SE3d pose;
+    SE3d pose_inverse;
 
 private:
     //NOTE: semantic map

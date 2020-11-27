@@ -95,9 +95,9 @@ inline void Cast(const double *raw, int size, T *result)
 template <typename T>
 inline void QuaternionToRPY(const T *q, T *rpy)
 {
-    rpy[0] = atan2(T(2) * (q[1] * q[2] + q[0] * q[3]), 1 - T(2) * (q[2] * q[2] + q[3] * q[3]));
+    rpy[0] = atan2(T(2) * (q[1] * q[2] + q[0] * q[3]), T(1) - T(2) * (q[2] * q[2] + q[3] * q[3]));
     rpy[1] = asin(T(2) * (q[0] * q[2] - q[1] * q[3]));
-    rpy[2] = atan2(T(2) * (q[2] * q[3] + q[0] * q[1]), 1 - T(2) * (q[1] * q[1] + q[2] * q[2]));
+    rpy[2] = atan2(T(2) * (q[2] * q[3] + q[0] * q[1]), T(1) - T(2) * (q[1] * q[1] + q[2] * q[2]));
 };
 
 template <typename T>

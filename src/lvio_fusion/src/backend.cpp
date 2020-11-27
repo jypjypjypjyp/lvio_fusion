@@ -81,13 +81,13 @@ void Backend::BuildProblem(Frames &active_kfs, ceres::Problem &problem)
             ceres::CostFunction *cost_function;
             if (first_frame->time < start_time)
             {
-                cost_function = PoseOnlyReprojectionError::Create(cv2eigen(feature->keypoint), landmark->ToWorld(), camera_left_);
+                cost_function = PoseOnlyReprojectionError::Create(cv2eigen(feature->keypoint), landmark->ToWorld(), camera_left_, frame->weights.visual);
                 problem.AddResidualBlock(cost_function, loss_function, para_kf);
             }
             else if (first_frame != frame)
             {
                 double *para_fist_kf = first_frame->pose.data();
-                cost_function = TwoFrameReprojectionError::Create(landmark->position, cv2eigen(feature->keypoint), camera_left_);
+                cost_function = TwoFrameReprojectionError::Create(landmark->position, cv2eigen(feature->keypoint), camera_left_, frame->weights.visual);
                 problem.AddResidualBlock(cost_function, loss_function, para_fist_kf, para_kf);
             }
         }
@@ -107,7 +107,7 @@ void Backend::BuildProblem(Frames &active_kfs, ceres::Problem &problem)
             navsat_map->Transfrom(navsat_point);
             if (std::fabs(navsat_point.time - frame->time) < 1e-2)
             {
-                ceres::CostFunction *cost_function = NavsatError::Create(navsat_point.position);
+                ceres::CostFunction *cost_function = NavsatError::Create(navsat_point.position, frame->weights.navsat);
                 problem.AddResidualBlock(cost_function, navsat_loss_function, para_kf);
             }
         }
@@ -147,8 +147,9 @@ void Backend::BuildProblem(Frames &active_kfs, ceres::Problem &problem)
 
 double compute_reprojection_error(Vector2d ob, Vector3d pw, SE3d pose, Camera::Ptr camera)
 {
+    static double weights[2] = {1, 1};
     Vector2d error(0, 0);
-    PoseOnlyReprojectionError(ob, pw, camera)(pose.data(), error.data());
+    PoseOnlyReprojectionError(ob, pw, camera, weights)(pose.data(), error.data());
     return error.norm();
 }
 

@@ -127,7 +127,6 @@ void FeatureAssociation::AdjustDistortion(PointICloud &points_segmented, Segment
         else
         {
             ori += 2 * M_PI;
-
             if (ori < segemented_info.end_orientation - M_PI * 3 / 2)
                 ori += 2 * M_PI;
             else if (ori > segemented_info.end_orientation + M_PI / 2)
@@ -146,20 +145,18 @@ void FeatureAssociation::CalculateSmoothness(PointICloud &points_segmented, Segm
     int size = points_segmented.size();
     for (int i = 5; i < size - 5; i++)
     {
-        // clang-format off
         float dr = (segemented_info.range[i + 5] - segemented_info.range[i - 5]) / 10;
         float r1 = segemented_info.range[i + 4] - segemented_info.range[i - 5] - 9 * dr;
         float r2 = segemented_info.range[i + 3] - segemented_info.range[i - 5] - 8 * dr;
         float r3 = segemented_info.range[i + 2] - segemented_info.range[i - 5] - 7 * dr;
         float r4 = segemented_info.range[i + 1] - segemented_info.range[i - 5] - 6 * dr;
-        float r5 = segemented_info.range[i    ] - segemented_info.range[i - 5] - 5 * dr;
+        float r5 = segemented_info.range[i] - segemented_info.range[i - 5] - 5 * dr;
         float r6 = segemented_info.range[i - 1] - segemented_info.range[i - 5] - 4 * dr;
         float r7 = segemented_info.range[i - 2] - segemented_info.range[i - 5] - 3 * dr;
         float r8 = segemented_info.range[i - 3] - segemented_info.range[i - 5] - 2 * dr;
         float r9 = segemented_info.range[i - 4] - segemented_info.range[i - 5] - 1 * dr;
-        float cov = (r1*r1 + r2*r2 + r3*r3 + r4*r4 + r5*r5 + r6*r6 + r7*r7 + r8*r8 + r9*r9)/9;
-        // clang-format on
-        curvatures[i] = cov;
+        float cov = (r1 * r1 + r2 * r2 + r3 * r3 + r4 * r4 + r5 * r5 + r6 * r6 + r7 * r7 + r8 * r8 + r9 * r9) / 9;
+        curvatures[i] = cov * 10 / segemented_info.range[i];
     }
 }
 
@@ -179,16 +176,13 @@ void FeatureAssociation::ExtractFeatures(PointICloud &points_segmented, Segmente
 
             for (int k = sp; k <= ep; k++)
             {
-                if (curvatures[k] < threshold)
+                if (segemented_info.ground_flag[k] == true)
                 {
-                    if (segemented_info.ground_flag[k] == true)
-                    {
-                        feature->points_ground.push_back(points_segmented[k]);
-                    }
-                    else
-                    {
-                        feature->points_surf.push_back(points_segmented[k]);
-                    }
+                    feature->points_ground.push_back(points_segmented[k]);
+                }
+                else if (curvatures[k] < threshold)
+                {
+                    feature->points_surf.push_back(points_segmented[k]);
                 }
                 feature->points_full.push_back(points_segmented[k]);
             }
@@ -203,7 +197,7 @@ void FeatureAssociation::ExtractFeatures(PointICloud &points_segmented, Segmente
     voxel_filter.filter(feature->points_full);
 
     pcl::copyPointCloud(feature->points_surf, *temp);
-    voxel_filter.setLeafSize(lidar_->resolution, lidar_->resolution, lidar_->resolution);
+    voxel_filter.setLeafSize(2 * lidar_->resolution, 2 * lidar_->resolution, 2 * lidar_->resolution);
     voxel_filter.setInputCloud(temp);
     voxel_filter.filter(feature->points_surf);
 
@@ -228,7 +222,7 @@ inline void FeatureAssociation::SegmentGround(PointICloud &points_ground, PointI
     seg.setModelType(pcl::SACMODEL_PLANE);
     seg.setMethodType(pcl::SAC_RANSAC);
     seg.setMaxIterations(100);
-    seg.setDistanceThreshold(lidar_->resolution);
+    seg.setDistanceThreshold(0.5 * lidar_->resolution);
     seg.setInputCloud(pointcloud_seg);
     seg.segment(*inliers, coefficients);
     pcl::ExtractIndices<PointI> extract;
@@ -242,8 +236,8 @@ void FeatureAssociation::ScanToMapWithGround(Frame::Ptr frame, Frame::Ptr map_fr
 {
     ceres::LossFunction *loss_function = new ceres::HuberLoss(0.1);
     PointICloud &points_less_flat_last = map_frame->feature_lidar->points_full;
-    problem.AddParameterBlock(para + 2, 1);
     problem.AddParameterBlock(para + 1, 1);
+    problem.AddParameterBlock(para + 2, 1);
     problem.AddParameterBlock(para + 5, 1);
 
     pcl::KdTreeFLANN<PointI> kdtree_flat_last;
@@ -258,6 +252,10 @@ void FeatureAssociation::ScanToMapWithGround(Frame::Ptr frame, Frame::Ptr map_fr
     int num_points_flat = frame->feature_lidar->points_ground.size();
     Sophus::SE3f tf_se3 = lidar_->TransformMatrix(frame->pose).cast<float>();
     float *tf = tf_se3.data();
+
+    double weights[10] = {10000, 10000, 10000, 1000, 1000, 1000};
+    ceres::CostFunction *cost_function = PoseErrorRPZ::Create(para, weights);
+    problem.AddResidualBlock(cost_function, loss_function, para + 1, para + 2, para + 5);
 
     // find correspondence for ground features
     for (int i = 0; i < num_points_flat; ++i)
@@ -346,7 +344,7 @@ void FeatureAssociation::ScanToMapWithGround(Frame::Ptr frame, Frame::Ptr map_fr
                                       points_less_flat_last[closest_index3].z);
 
                 ceres::CostFunction *cost_function;
-                cost_function = LidarPlaneErrorRPZ::Create(curr_point, last_point_a, last_point_b, last_point_c, lidar_, map_frame->pose, para);
+                cost_function = LidarPlaneErrorRPZ::Create(curr_point, last_point_a, last_point_b, last_point_c, lidar_, map_frame->pose, para, frame->weights.lidar_ground);
                 problem.AddResidualBlock(cost_function, loss_function, para + 1, para + 2, para + 5);
             }
         }
@@ -377,6 +375,10 @@ void FeatureAssociation::ScanToMapWithSegmented(Frame::Ptr frame, Frame::Ptr map
     int num_points_flat = frame->feature_lidar->points_surf.size();
     Sophus::SE3f tf_se3 = lidar_->TransformMatrix(frame->pose).cast<float>();
     float *tf = tf_se3.data();
+
+    double weights[10] = {10000, 10000, 10000, 1000, 1000, 1000};
+    ceres::CostFunction *cost_function = PoseErrorRPZ::Create(para, weights);
+    problem.AddResidualBlock(cost_function, loss_function, para, para + 3, para + 4);
 
     // find correspondence for plane features
     for (int i = 0; i < num_points_flat; ++i)
@@ -467,7 +469,7 @@ void FeatureAssociation::ScanToMapWithSegmented(Frame::Ptr frame, Frame::Ptr map
                                       points_less_flat_last[closest_index3].y,
                                       points_less_flat_last[closest_index3].z);
                 ceres::CostFunction *cost_function;
-                cost_function = LidarPlaneErrorYXY::Create(curr_point, last_point_a, last_point_b, last_point_c, lidar_, map_frame->pose, para);
+                cost_function = LidarPlaneErrorYXY::Create(curr_point, last_point_a, last_point_b, last_point_c, lidar_, map_frame->pose, para, frame->weights.lidar_surf);
                 problem.AddResidualBlock(cost_function, loss_function, para, para + 3, para + 4);
             }
         }

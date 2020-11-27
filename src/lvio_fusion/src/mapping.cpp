@@ -106,10 +106,8 @@ void Mapping::Optimize(Frames &active_kfs)
                 ceres::Problem problem;
                 association_->ScanToMapWithGround(pair_kf.second, map_frame, rpyxyz, problem);
                 ceres::Solver::Options options;
-                options.linear_solver_type = ceres::DENSE_SCHUR;
-                options.function_tolerance = DBL_MIN;
-                options.gradient_tolerance = DBL_MIN;
-                options.max_num_iterations = 2;
+                options.linear_solver_type = ceres::DENSE_QR;
+                options.max_num_iterations = 4;
                 options.num_threads = 4;
                 ceres::Solver::Summary summary;
                 ceres::Solve(options, &problem, &summary);
@@ -119,10 +117,8 @@ void Mapping::Optimize(Frames &active_kfs)
                 ceres::Problem problem;
                 association_->ScanToMapWithSegmented(pair_kf.second, map_frame, rpyxyz, problem);
                 ceres::Solver::Options options;
-                options.linear_solver_type = ceres::DENSE_SCHUR;
-                options.function_tolerance = DBL_MIN;
-                options.gradient_tolerance = DBL_MIN;
-                options.max_num_iterations = 2;
+                options.linear_solver_type = ceres::DENSE_QR;
+                options.max_num_iterations = 1;
                 options.num_threads = 4;
                 ceres::Solver::Summary summary;
                 ceres::Solve(options, &problem, &summary);
@@ -158,7 +154,7 @@ void Mapping::AddToWorld(Frame::Ptr frame)
     if (frame->feature_lidar)
     {
         MergeScan(frame->feature_lidar->points_full, frame->pose, pointcloud_full);
-        MergeScan(frame->feature_lidar->points_surf, frame->pose, pointcloud_temp);
+        MergeScan(frame->feature_lidar->points_surf + frame->feature_lidar->points_ground, frame->pose, pointcloud_temp);
         Color(pointcloud_temp, frame, pointcloud_color);
     }
     pointclouds_full[frame->time] = pointcloud_full;

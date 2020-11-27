@@ -10,28 +10,27 @@ namespace lvio_fusion
 class NavsatError
 {
 public:
-    NavsatError(Vector3d p) : x_(p.x()), y_(p.y()), z_(p.z()) {}
+    NavsatError(Vector3d p, double* weights) : x_(p.x()), y_(p.y()), z_(p.z()), weights_(weights) {}
 
     template <typename T>
     bool operator()(const T *pose, T *residuals) const
     {
         T pose_inverse[7];
         ceres::SE3Inverse(pose, pose_inverse);
-        residuals[0] = T(sqrt_info(0, 0)) * (pose_inverse[4] - T(x_));
-        residuals[1] = T(sqrt_info(1, 1)) * (pose_inverse[5] - T(y_));
-        residuals[2] = T(sqrt_info(2, 2)) * (pose_inverse[6] - T(z_));
+        residuals[0] = T(weights_[0]) * (pose_inverse[4] - T(x_));
+        residuals[1] = T(weights_[1]) * (pose_inverse[5] - T(y_));
+        residuals[2] = T(weights_[2]) * (pose_inverse[6] - T(z_));
         return true;
     }
 
-    static ceres::CostFunction *Create(Vector3d p)
+    static ceres::CostFunction *Create(Vector3d p, double* weights)
     {
-        return (new ceres::AutoDiffCostFunction<NavsatError, 3, 7>(new NavsatError(p)));
+        return (new ceres::AutoDiffCostFunction<NavsatError, 3, 7>(new NavsatError(p, weights)));
     }
-
-    static Matrix3d sqrt_info;
 
 private:
     double x_, y_, z_;
+    const double *weights_;
 };
 
 class NavsatInitError
