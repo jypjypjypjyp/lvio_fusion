@@ -16,13 +16,13 @@ public:
     typedef std::shared_ptr<Initializer> Ptr;
     
    // bool Initialize(Frames kfs);
-    void InitializeIMU(double priorG, double priorA, bool bFIBA);
+    void InitializeIMU( bool bFIBA);
     void SetMap(Map::Ptr map) { map_ = map; }
     void SetFrontend(std::shared_ptr<Frontend>  frontend) { frontend_ = frontend; }
     std::weak_ptr<Frontend> frontend_;
     bool initialized = false;
     bool bimu=false;//是否经过imu尺度优化
-    bool bInitializing=false;
+  //  bool bInitializing=false;
 
     Eigen::MatrixXd infoInertial;
     int mNumLM;

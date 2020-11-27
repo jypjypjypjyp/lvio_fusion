@@ -36,58 +36,16 @@ public:
 
 class Bias
 {
-    friend class boost::serialization::access;
-    template<class Archive>
-    void serialize(Archive & ar, const unsigned int version)
-    {
-        ar & bax;
-        ar & bay;
-        ar & baz;
-
-        ar & bwx;
-        ar & bwy;
-        ar & bwz;
-    }
-
 public:
-    Bias():bax(0),bay(0),baz(0),bwx(0),bwy(0),bwz(0){}
+    Bias():linearized_ba(Vector3d::Zero()),linearized_bg(Vector3d::Zero()){}
     Bias(double b_acc_x, double b_acc_y,double b_acc_z,
-            double b_ang_vel_x, double b_ang_vel_y, double b_ang_vel_z):
-            bax(b_acc_x), bay(b_acc_y), baz(b_acc_z), bwx(b_ang_vel_x), bwy(b_ang_vel_y), bwz(b_ang_vel_z){}
-    void CopyFrom(Bias &b)
-    {
-    bax = b.bax;
-    bay = b.bay;
-    baz = b.baz;
-    bwx = b.bwx;
-    bwy = b.bwy;
-    bwz = b.bwz;
-    }
-    friend std::ostream& operator<< (std::ostream &out, const Bias &b)
-    {
-    if(b.bwx>0)
-        out << " ";
-    out << b.bwx << ",";
-    if(b.bwy>0)
-        out << " ";
-    out << b.bwy << ",";
-    if(b.bwz>0)
-        out << " ";
-    out << b.bwz << ",";
-    if(b.bax>0)
-        out << " ";
-    out << b.bax << ",";
-    if(b.bay>0)
-        out << " ";
-    out << b.bay << ",";
-    if(b.baz>0)
-        out << " ";
-    out << b.baz;
-
-    return out;
-    }
-    double bax=0, bay=0, baz=0;
-    double bwx=0, bwy=0, bwz=0;
+            double b_ang_vel_x, double b_ang_vel_y, double b_ang_vel_z)
+            {
+                linearized_ba<< b_acc_x,  b_acc_y,  b_acc_z;
+                linearized_bg<< b_ang_vel_x,  b_ang_vel_y,  b_ang_vel_z;
+            }
+    Vector3d linearized_ba;
+    Vector3d linearized_bg;
 };
 
 class IntegratedRotation
@@ -96,9 +54,9 @@ public:
     IntegratedRotation(){}
     IntegratedRotation(const Vector3d &angVel, const Bias &imuBias, const double &time)
 {
-    const double x = (angVel[0]-imuBias.bwx)*time;
-    const double y = (angVel[1]-imuBias.bwy)*time;
-    const double z = (angVel[2]-imuBias.bwz)*time;
+    const double x = (angVel[0]-imuBias.linearized_bg[0])*time;
+    const double y = (angVel[1]-imuBias.linearized_bg[1])*time;
+    const double z = (angVel[2]-imuBias.linearized_bg[2])*time;
 
     Matrix3d I =Matrix3d::Identity();
 

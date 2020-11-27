@@ -83,7 +83,6 @@ Matrix3d  Frame::GetImuRotation()
     Matrix3d Rcw = Tcw_.block<3,3>(0,0);
     Matrix3d Rwc = Rcw.transpose();
     return Rwc;
-    //return Rwc*calib_.Tcb.block<3,3>(0,0);
 }
 
 Vector3d Frame::GetImuPosition()
@@ -93,24 +92,18 @@ Vector3d Frame::GetImuPosition()
     Vector3d tcw = Tcw_.block<3,1>(0,3);
     Matrix3d Rwc = Rcw.transpose();
     Vector3d Ow=Rwc*tcw;
-    Vector3d tcb;
-    tcb<< 0.537165718864418,0,0;
-    Owb = Rwc*tcb+Ow; //imu position
+    Owb =Ow; //imu position
     return  Owb;
 }
 
 Vector3d Frame::GetGyroBias()
 {
-    Vector3d gb;
-    gb<<mImuBias.bwx, mImuBias.bwy, mImuBias.bwz;
-    return gb;
+    return mImuBias.linearized_bg;
 }
 
 Vector3d Frame::GetAccBias()
 {
-    Vector3d ab;
-    ab<<mImuBias.bax, mImuBias.bay, mImuBias.baz;
-    return ab;
+    return mImuBias.linearized_ba;
 }
 Bias Frame::GetImuBias()
 {

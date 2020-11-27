@@ -6,77 +6,76 @@
 #include <ceres/ceres.h>
 namespace lvio_fusion
 {
-void InertialOptimization(Map::Ptr pMap, Eigen::Matrix3d &Rwg, double &scale, Eigen::Vector3d &bg, Eigen::Vector3d &ba, Eigen::MatrixXd  &covInertial, bool bFixedVel=false, bool bGauss=false, double priorG = 1e2, double priorA = 1e6)
+void InertialOptimization(unsigned long last_initialized_id,Map::Ptr pMap, Eigen::Matrix3d &Rwg, double &scale, Eigen::Vector3d &bg, Eigen::Vector3d &ba, Eigen::MatrixXd  &covInertial, bool bFixedVel=false, bool bGauss=false, double priorG = 1, double priorA = 1e9)
 {
 
      Frames vpKFs = pMap->GetAllKeyFrames();
-
      ceres::Problem problem;
-        ceres::LocalParameterization *local_parameterization = new ceres::ProductParameterization(
-        new ceres::EigenQuaternionParameterization(),
-        new ceres::IdentityParameterization(3));
-
-
-     Vector3d g=vpKFs.begin()->second->GetGyroBias();
-     auto para_gyroBias=g.data();
+     //    ceres::LocalParameterization *local_parameterization = new ceres::ProductParameterization(
+     //    new ceres::EigenQuaternionParameterization(),
+     //    new ceres::IdentityParameterization(3));
+     auto para_gyroBias=vpKFs.begin()->second->mImuBias.linearized_bg.data();
+     // Vector3d g=vpKFs.begin()->second->mImuBias.linearized_bg;
+     // auto para_gyroBias=g.data();
      problem.AddParameterBlock(para_gyroBias, 3);
-     ceres::CostFunction *cost_function = PriorGyroError::Create(Vector3d::Zero());
+     ceres::CostFunction *cost_function = PriorGyroError::Create(Vector3d::Zero(),priorG);
      problem.AddResidualBlock(cost_function,NULL,para_gyroBias);
 
-     Vector3d a=vpKFs.begin()->second->GetAccBias();
-     auto para_accBias=a.data();
+     auto para_accBias=vpKFs.begin()->second->mImuBias.linearized_ba.data();
+     // Vector3d a =vpKFs.begin()->second->mImuBias.linearized_ba;
+     // auto para_accBias=a.data();
      problem.AddParameterBlock(para_accBias, 3);
-    cost_function = PriorAccError::Create(Vector3d::Zero());
+     cost_function = PriorAccError::Create(Vector3d::Zero(),priorA);
      problem.AddResidualBlock(cost_function,NULL,para_accBias);
     
 
      Vector3d rwg=Rwg.eulerAngles(0,1,2);
       auto para_rwg=rwg.data();
      problem.AddParameterBlock(para_rwg, 3);
-     problem.AddParameterBlock(&scale, 1);
+     // problem.AddParameterBlock(&scale, 1);
 
-     if (bFixedVel)//false
-     {
-          problem.SetParameterBlockConstant(para_gyroBias);
-          problem.SetParameterBlockConstant(para_accBias);
-     }
-     problem.SetParameterBlockConstant(&scale);
+     // problem.SetParameterBlockConstant(&scale);
 
-     Frame::Ptr last_frame;
-     Frame::Ptr current_frame;
+     Frame::Ptr last_frame_;
+     Frame::Ptr current_frame_;
      for(Frames::iterator iter = vpKFs.begin(); iter != vpKFs.end(); iter++)
      {
-          current_frame=iter->second;
+          current_frame_=iter->second;
+          if(current_frame_->id>last_initialized_id)break;
           double timestamp=iter->first;
-          if (!current_frame->preintegration)
-               continue;
-          auto para_kf = current_frame->pose.data();
-          auto para_v = current_frame->mVw.data();
-     
-          problem.AddParameterBlock(para_kf, SE3d::num_parameters, local_parameterization);
-          problem.AddParameterBlock(para_v, 3);   
-          problem.SetParameterBlockConstant(para_kf);
-          if (bFixedVel)
-               problem.SetParameterBlockConstant(para_v);
-
-          if (last_frame && current_frame->preintegration)
+          if (!current_frame_->preintegration||!current_frame_->mpLastKeyFrame)
           {
-               auto para_kf_last = last_frame->pose.data();
-               auto para_v_last = last_frame->mVw.data();
-               cost_function = InertialGSError2::Create(current_frame->preintegration);
-               problem.AddResidualBlock(cost_function, NULL, para_kf_last, para_v_last, para_kf, para_v,para_gyroBias,para_accBias,para_rwg,&scale);
+                last_frame_=NULL;
+               continue;
           }
-          last_frame = current_frame;
+        //  auto para_kf = current_frame->pose.data();
+          auto para_v = current_frame_->mVw.data();
+     
+        //  problem.AddParameterBlock(para_kf, SE3d::num_parameters, local_parameterization);
+          problem.AddParameterBlock(para_v, 3);   
+        //  problem.SetParameterBlockConstant(para_kf);
+          // if (bFixedVel)
+          //      problem.SetParameterBlockConstant(para_v);
+
+          if (last_frame_ && current_frame_->preintegration&&last_frame_->mpLastKeyFrame)
+          {
+               // auto para_kf_last = last_frame->pose.data();
+               // problem.SetParameterBlockConstant(para_kf_last);
+               auto para_v_last = last_frame_->mVw.data();
+               cost_function = InertialGSError::Create(current_frame_->preintegration,current_frame_->pose,last_frame_->pose);
+               problem.AddResidualBlock(cost_function, NULL,para_v_last,  para_v,para_gyroBias,para_accBias,para_rwg);
+          }
+          last_frame_ = current_frame_;
      }
 
      ceres::Solver::Options options;
     options.linear_solver_type = ceres::DENSE_SCHUR;
-    options.function_tolerance = 1e-9;
+//    options.function_tolerance = 1e-9;
     options.max_solver_time_in_seconds = 7 * 0.6;
     options.num_threads = 4;
     ceres::Solver::Summary summary;
-    ceres::Solve(options, &problem, &summary);
-
+    //ceres::Solve(options, &problem, &summary);
+     std::this_thread::sleep_for(std::chrono::seconds(3));
 
      Eigen::AngleAxisd rollAngle(AngleAxisd(rwg(0),Vector3d::UnitX()));
      Eigen::AngleAxisd pitchAngle(AngleAxisd(rwg(1),Vector3d::UnitY()));
@@ -88,41 +87,34 @@ void InertialOptimization(Map::Ptr pMap, Eigen::Matrix3d &Rwg, double &scale, Ei
      ba <<para_accBias[0],para_accBias[1],para_accBias[2];
      for(Frames::iterator iter = vpKFs.begin(); iter != vpKFs.end(); iter++)
      {
-           current_frame=iter->second;
-           Vector3d dbg=current_frame->GetGyroBias()-bg;
+           current_frame_=iter->second;
+           if(current_frame_->id>last_initialized_id)break;
+           Vector3d dbg=current_frame_->GetGyroBias()-bg;
           if(dbg.norm() >0.01)
           {
-               current_frame->SetNewBias(bias_);
-               if (current_frame->preintegration)
-                    current_frame->preintegration->Reintegrate();
+               current_frame_->SetNewBias(bias_);
+               if (current_frame_->preintegration)
+                    current_frame_->preintegration->Reintegrate();
           }
           else
           {
-               current_frame->SetNewBias(bias_);
-          }
-          
+               current_frame_->SetNewBias(bias_);
+          }     
      }
-
 }
     
-void FullInertialBA(Map::Ptr pMap, int its, const bool bFixLocal=false, const unsigned long nLoopKF=0, bool *pbStopFlag=NULL, bool bInit=false, double priorG = 1e2, double priorA=1e6, Eigen::VectorXd *vSingVal = NULL, bool *bHess=NULL)
+void FullInertialBA(unsigned long last_initialized_id,Map::Ptr pMap, int its, const bool bFixLocal=false, const unsigned long nLoopKF=0, bool *pbStopFlag=NULL, bool bInit=false, double priorG = 1, double priorA=1e9, Eigen::VectorXd *vSingVal = NULL, bool *bHess=NULL)
 {
-auto KFs=pMap->GetAllKeyFrames();
-//auto MPs=pMap->GetAllLandmarks();
+Frames KFs=pMap->GetAllKeyFrames();
 ceres::Problem problem;
  ceres::LocalParameterization *local_parameterization = new ceres::ProductParameterization(
         new ceres::EigenQuaternionParameterization(),
         new ceres::IdentityParameterization(3));
-
-
 std::vector<double *> para_kfs;
 std::vector<double *> para_vs;
-std::vector<double *> para_gbs;
-std::vector<double *> para_abs;
 para_kfs.reserve(KFs.size());
 para_vs.reserve(KFs.size());
-para_gbs.reserve(KFs.size());
-para_abs.reserve(KFs.size());
+
 
 int nNonFixed = 0;
 Frame::Ptr pIncKF;
@@ -130,7 +122,8 @@ int i=0;
 for(Frames::iterator iter = KFs.begin(); iter != KFs.end(); iter++,i++)
 {
      Frame::Ptr KFi=iter->second;
-     auto para_kf=KFi->pose.data();
+     if(KFi->id>last_initialized_id)break;
+     double* para_kf=KFi->pose.data();
      problem.AddParameterBlock(para_kf, SE3d::num_parameters, local_parameterization);   
      para_kfs[i]=para_kf;
      pIncKF=KFi;
@@ -139,30 +132,14 @@ for(Frames::iterator iter = KFs.begin(); iter != KFs.end(); iter++,i++)
           auto para_v = KFi->mVw.data();
           problem.AddParameterBlock(para_v, 3);   
           para_vs[i]=para_v;
-          if(!bInit)
-          {
-                Vector3d g=KFi->GetGyroBias();
-               auto para_gyroBias=g.data();
-               para_gbs[i]=para_gyroBias;
-               problem.AddParameterBlock(para_gyroBias, 3);   
-               Vector3d a=KFi->GetAccBias();
-               auto para_accBias=a.data();
-               para_abs[i]=para_accBias;
-               problem.AddParameterBlock(para_accBias, 3);   
-          }
      }
 }
 double* para_gyroBias;
 double* para_accBias;
-if(bInit)
-{
-    Vector3d g=pIncKF->GetGyroBias();
-     para_gyroBias=g.data();
-      problem.AddParameterBlock(para_accBias, 3);   
-     Vector3d a=pIncKF->GetAccBias();
-     para_accBias=a.data();
-      problem.AddParameterBlock(para_accBias, 3);   
-}
+para_gyroBias=pIncKF->mImuBias.linearized_bg.data();
+problem.AddParameterBlock(para_accBias, 3);   
+para_accBias=pIncKF->mImuBias.linearized_ba.data();
+problem.AddParameterBlock(para_accBias, 3);   
 
 int ii=0;
 Frame::Ptr last_frame;
@@ -170,6 +147,7 @@ Frame::Ptr current_frame;
 for(Frames::iterator iter = KFs.begin(); iter != KFs.end(); iter++,ii++)
 {
      current_frame=iter->second;
+     if(current_frame->id>last_initialized_id)break;
      if(ii==0)
      {
           last_frame=current_frame;
@@ -177,20 +155,17 @@ for(Frames::iterator iter = KFs.begin(); iter != KFs.end(); iter++,ii++)
      }
      if(current_frame->bImu && last_frame->bImu&&current_frame->preintegration)
      {
+          if(!current_frame->mpLastKeyFrame||!last_frame->mpLastKeyFrame)
+          {
+               last_frame=current_frame;
+               continue;
+          }
           current_frame->SetNewBias(last_frame->GetImuBias());
           auto P1=para_kfs[ii-1];
           auto V1=para_vs[ii-1];
-          double* g1,*g2,*a1,*a2;
-          if(!bInit){
-               g1=para_gbs[ii-1];
-               a1=para_abs[ii-1];
-               g2=para_gbs[ii];
-               a2=para_abs[ii];
-          }else
-          {
-               g1=para_gyroBias;
-               a1=para_accBias;
-          }
+          double* g1,*a1;
+          g1=para_gyroBias;
+          a1=para_accBias;
           auto P2=para_kfs[ii];
           auto V2=para_vs[ii];
 
@@ -198,15 +173,6 @@ for(Frames::iterator iter = KFs.begin(); iter != KFs.end(); iter++,ii++)
            ceres::CostFunction *cost_function = InertialError2::Create(current_frame->preintegration);
            problem.AddResidualBlock(cost_function, NULL, P1,V1,g1,a1,P2,V2);//7,3,3,3,7,3
 
-
-          if(!bInit){
-               //egr g1 g2
-               cost_function = GyroRWError::Create();
-               problem.AddResidualBlock(cost_function, NULL, g1,g2);//3,3
-               //ear a1 a2  
-               cost_function = AccRWError::Create();
-               problem.AddResidualBlock(cost_function, NULL, a1,a2);//3,3
-          }
      }
      last_frame = current_frame;
 }
@@ -214,10 +180,10 @@ for(Frames::iterator iter = KFs.begin(); iter != KFs.end(); iter++,ii++)
 //先验
 if(bInit){
      //epa  para_accBias
-     ceres::CostFunction *cost_function = PriorAccError::Create(Vector3d::Zero());
+     ceres::CostFunction *cost_function = PriorAccError::Create(Vector3d::Zero(),priorA);
      problem.AddResidualBlock(cost_function, NULL, para_accBias);//3
      //epg para_gyroBias
-     cost_function = PriorGyroError::Create(Vector3d::Zero());
+     cost_function = PriorGyroError::Create(Vector3d::Zero(),priorG);
      problem.AddResidualBlock(cost_function, NULL, para_gyroBias);//3
 }
 
@@ -230,34 +196,24 @@ if(bInit){
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
 //数据恢复
-int iii=0;
+ int iii=0;
  current_frame;
 for(Frames::iterator iter = KFs.begin(); iter != KFs.end(); iter++,iii++)
 {
      current_frame=iter->second;
-
-     if(current_frame->bImu)
+     if(current_frame->id>last_initialized_id)break;
+     if(current_frame->bImu&&current_frame->mpLastKeyFrame)
      {
-          double* ab;
-          double* gb;
-          if(!bInit)
-          {
-               gb=para_gbs[iii];
-               ab=para_abs[iii];
-          }
-          else
-          {
-               gb=para_gyroBias;
-               ab=para_gyroBias;
-          }
-          Bias b(ab[0],ab[1],ab[2],gb[0],gb[1],gb[2]);
+          Bias b(para_accBias[0],para_accBias[1],para_accBias[2],para_gyroBias[0],para_gyroBias[1],para_gyroBias[2]);
           current_frame->SetNewBias(b);
      }
 }
 }
 
-void  Initializer::InitializeIMU(double priorG, double priorA, bool bFIBA)
+void  Initializer::InitializeIMU(bool bFIBA)
 {
+     double priorA=1e4;
+     double priorG=1;
     double minTime=1.0;  // 初始化需要的最小时间间隔
     int nMinKF=10;     // 初始化需要的最少关键帧数
     if(map_->GetAllKeyFramesSize()<nMinKF)
@@ -272,13 +228,14 @@ void  Initializer::InitializeIMU(double priorG, double priorA, bool bFIBA)
     std::vector< Frame::Ptr > vpKF(lpKF.begin(),lpKF.end());
     if(vpKF.size()<nMinKF)
         return;
-    
+     unsigned long last_initialized_id=vpKF.back()->id;
+     LOG(INFO)<<"last_initialized_id"<<last_initialized_id;
        // imu计算初始时间
     mFirstTs=vpKF.front()->time;
     if(map_->current_frame->time-mFirstTs<minTime)
         return;
 
-    bInitializing = true;   // 暂时未使用
+    //bInitializing = true;   // 暂时未使用
 
     const int N = vpKF.size();  // 待处理的关键帧数目
     Bias b(0,0,0,0,0,0);
@@ -289,6 +246,7 @@ void  Initializer::InitializeIMU(double priorG, double priorA, bool bFIBA)
         Vector3d dirG = Vector3d::Zero();  // 重力方向
         for(std::vector<Frame::Ptr>::iterator itKF = vpKF.begin()+1; itKF!=vpKF.end(); itKF++) 
         {
+             if((*itKF)->id>last_initialized_id)break;
             if (!(*itKF)->preintegration)
                 continue;
             if(!(*itKF)->mpLastKeyFrame)
@@ -296,7 +254,6 @@ void  Initializer::InitializeIMU(double priorG, double priorA, bool bFIBA)
             // 预积分中delta_V 用来表示:Rwb_i.transpose()*(V2 - V1 - g*dt),故此处获得 -(V_i - V_0 - (i-0)*(mRwg*gI)*dt)
             // 应该使用将 (*itKF)->mpLastKeyFrame速度偏差在此处忽略或当做噪声，因为后面会优化mRwg
             dirG -= (*itKF)->mpLastKeyFrame->GetImuRotation()*(*itKF)->preintegration->GetUpdatedDeltaVelocity();
-
             Vector3d _vel = ((*itKF)->GetImuPosition() - (*(itKF-1))->GetImuPosition())/(*itKF)->preintegration->dT;
           if(!(*itKF)->preintegration->dT==0){
                (*itKF)->SetVelocity(_vel);
@@ -306,7 +263,7 @@ void  Initializer::InitializeIMU(double priorG, double priorA, bool bFIBA)
 
         // Step 2.1:计算重力方向(与z轴偏差)，用轴角方式表示偏差
         dirG = dirG/dirG.norm();
-        Vector3d  gI(0.0, 0.0, -1.0);//沿-z的归一化的重力数值
+         Vector3d  gI(0.0, 0.0, -1.0);//沿-z的归一化的重力数值
         // dirG和gI的模长都是1,故cross为sin，dot为cos
         
         // 计算旋转轴
@@ -336,14 +293,14 @@ void  Initializer::InitializeIMU(double priorG, double priorA, bool bFIBA)
 
     // 使用camera初始地图frame的pose与预积分的差值优化
     Eigen::MatrixXd infoInertial=Eigen::MatrixXd::Zero(9,9);
-    InertialOptimization(map_, mRwg, mScale, mbg, mba,infoInertial , false, false, priorG, priorA);
-
+    LOG(INFO)<<"InertialOptimization++++++++++++++";
+    InertialOptimization(last_initialized_id,map_, mRwg, mScale, mbg, mba,infoInertial , false, false, priorG, priorA);
+     LOG(INFO)<<"InertialOptimization-------------------";
 
     // 如果求解的scale过小，跳过，下次在优化
     if (mScale<1e-1)
     {
-    //    cout << "scale too small" << endl;
-        bInitializing=false;
+        //bInitializing=false;
         return;
     }
 
@@ -363,27 +320,22 @@ void  Initializer::InitializeIMU(double priorG, double priorA, bool bFIBA)
         }
 
     // Step 5: 进行完全惯性优化(包括MapPoints)
-
-    if (bFIBA)
-    {
-        if (priorA!=0.f)
-            FullInertialBA(map_, 100, false, 0, NULL, true, priorG, priorA);
-        else
-            FullInertialBA(map_, 100, false, 0, NULL, false);
-    }
+LOG(INFO)<<"FullInertialBA+++++++++++++++++++++";
+  //  FullInertialBA(last_initialized_id,map_, 100, false, 0, NULL, true, priorG, priorA);
+LOG(INFO)<<"FullInertialBA------------------------------";
 
     // Step 6: 设置当前map imu 已经初始化 
     // If initialization is OK
    frontend_.lock()->UpdateFrameIMU(1.0,vpKF[0]->GetImuBias(),frontend_.lock()->current_key_frame);
 
-       frontend_.lock()->current_key_frame->bImu = true;
+    frontend_.lock()->current_key_frame->bImu = true;
    // }
     //更新记录初始化状态的变量
     mbNewInit=true;
     mnKFs=vpKF.size();
     mIdxInit++;
 
-    bInitializing = false;
+    //bInitializing = false;
     bimu=true;
     return;
 

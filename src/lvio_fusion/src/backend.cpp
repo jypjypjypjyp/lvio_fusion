@@ -55,7 +55,7 @@ void Backend::BackendLoop()
         Optimize();
         auto t2 = std::chrono::steady_clock::now();
         auto time_used = std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);
-        LOG(INFO) << "Backend cost time: " << time_used.count() << " seconds.";
+  //      LOG(INFO) << "Backend cost time: " << time_used.count() << " seconds.";
     }
 }
 
@@ -113,49 +113,47 @@ void Backend::BuildProblem(Frames &active_kfs, ceres::Problem &problem,std::vect
         }
     }
 
-     if (imu_ && initializer_->initialized)
-    {
-        para_gbs.reserve(active_kfs.size());
-        para_abs.reserve(active_kfs.size());
-        Frame::Ptr last_frame;
-        Frame::Ptr current_frame;
-        int i=0;
-        for (auto kf_pair : active_kfs)
-        {
-            current_frame = kf_pair.second;
-            if (!current_frame->preintegration||!current_frame->mpLastKeyFrame)
-            {
-                last_frame=NULL;
-                i++;
-                continue;
-            }
-            auto para_kf = current_frame->pose.data();
-            auto para_v = current_frame->mVw.data();
-            Vector3d g=current_frame->GetGyroBias();
-            auto para_bg = g.data();
-            para_gbs[i]=para_bg;
-            Vector3d a=current_frame->GetAccBias();
-            auto para_ba = a.data();
-            para_abs[i]=para_ba;
-            problem.AddParameterBlock(para_v, 3);
-            problem.AddParameterBlock(para_ba, 3);
-            problem.AddParameterBlock(para_bg, 3);
-            if (last_frame && last_frame->preintegration&&last_frame->mpLastKeyFrame)
-            {
-                auto para_kf_last = last_frame->pose.data();
-                auto para_v_last = last_frame->mVw.data();
-                Vector3d g2=last_frame->GetGyroBias();
-                auto para_bg_last = g2.data();//恢复
-                Vector3d a2=last_frame->GetAccBias();
-                auto para_ba_last = a2.data();//恢复
-                ceres::CostFunction *cost_function = ImuError2::Create(current_frame->preintegration);
-                problem.AddResidualBlock(cost_function, NULL, para_kf_last, para_v_last, para_ba_last, para_bg_last, para_kf, para_v, para_ba, para_bg);
-            }
-            last_frame = current_frame;
-            i++;
-        }
+    //  if (imu_ && initializer_->initialized)
+    // {
+    //     LOG(INFO)<<"BACKEND IMU OPTIMIZER  ===>";
+    //     para_gbs.reserve(active_kfs.size());
+    //     para_abs.reserve(active_kfs.size());
+    //     Frame::Ptr last_frame;
+    //     Frame::Ptr current_frame;
+    //     int i=0;
+    //     for (auto kf_pair : active_kfs)
+    //     {
+    //         current_frame = kf_pair.second;
+    //         if (!current_frame->preintegration||!current_frame->mpLastKeyFrame)
+    //         {
+    //             last_frame=current_frame;
+    //             i++;
+    //             continue;
+    //         }
+    //         auto para_kf = current_frame->pose.data();
+    //         auto para_v = current_frame->mVw.data();
+    //         auto para_bg = current_frame->mImuBias.linearized_bg.data();
+    //         para_gbs[i]=para_bg;
+    //         auto para_ba = current_frame->mImuBias.linearized_ba.data();
+    //         para_abs[i]=para_ba;
+    //         problem.AddParameterBlock(para_v, 3);
+    //         problem.AddParameterBlock(para_ba, 3);
+    //         problem.AddParameterBlock(para_bg, 3);
+    //         if (last_frame && last_frame->preintegration&&last_frame->mpLastKeyFrame)
+    //         {
+    //             auto para_kf_last = last_frame->pose.data();
+    //             auto para_v_last = last_frame->mVw.data();
+    //             auto para_bg_last = last_frame->mImuBias.linearized_bg.data();//恢复
+    //             Vector3d a2=last_frame->GetAccBias();
+    //             auto para_ba_last =last_frame->mImuBias.linearized_ba.data();//恢复
+    //             ceres::CostFunction *cost_function = ImuError2::Create(current_frame->preintegration);
+    //             problem.AddResidualBlock(cost_function, NULL, para_kf_last, para_v_last, para_ba_last, para_bg_last, para_kf, para_v, para_ba, para_bg);
+    //          }
+    //         last_frame = current_frame;
+    //         i++;
+    //     }
 
-    }
+    //}
 }
 
 double compute_reprojection_error(Vector2d ob, Vector3d pw, SE3d pose, Camera::Ptr camera)
@@ -179,9 +177,11 @@ void Backend::Optimize(bool full){
         Frames frames_init = map_->GetKeyFrames(0,head, initializer_->num_frames);
         if (frames_init.size() == initializer_->num_frames)
         {
-            initializer_->InitializeIMU(1e2,1e5,true);
+            LOG(INFO)<<"Initialized+++++++++++++++++++++";
+            initializer_->InitializeIMU(true);
             frontend_.lock()->status = FrontendStatus::TRACKING_GOOD;
              initializer_->initialized=true;
+             LOG(INFO)<<"Initialized---------------------------------";
         }
     }
 
@@ -206,39 +206,41 @@ std::vector<double *> para_abs;
     options.num_threads = 4;
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
-    if(imu_&&initializer_->initialized)
-    {
-        int i=0;
-        for(auto kf_pair : active_kfs){
-            if(!kf_pair.second->preintegration)
-                continue;
-            Bias b(para_abs[i][0],para_abs[i][1],para_abs[i][2],para_gbs[i][0],para_gbs[i][1],para_gbs[i][2]);
-            auto frame = kf_pair.second;
-            frame->SetNewBias(b);
-            i++;
-        }
-    }
-    // reject outliers and clean the map
-    // for (auto pair_kf : active_kfs)
+    // if(imu_&&initializer_->initialized)
     // {
-    //     auto frame = pair_kf.second;
-    //     auto left_features = frame->features_left;
-    //     for (auto pair_feature : left_features)
-    //     {
-    //         auto feature = pair_feature.second;
-    //         auto landmark = feature->landmark.lock();
-    //         auto first_frame = landmark->FirstFrame();
-    //         if (compute_reprojection_error(cv2eigen(feature->keypoint), landmark->ToWorld(), frame->pose, camera_left_) > 3)
-    //         {
-    //             landmark->RemoveObservation(feature);
-    //             frame->RemoveFeature(feature);
+    //     int i=0;
+    //     for(auto kf_pair : active_kfs){
+    //         if(!kf_pair.second->preintegration||!!kf_pair.second->mpLastKeyFrame){
+    //                 i++;
+    //                 continue;
     //         }
-    //         if (landmark->observations.size() == 1 && frame->id != Frame::current_frame_id)
-    //         {
-    //             map_->RemoveLandmark(landmark);
-    //         }
+    //         Bias b(para_abs[i][0],para_abs[i][1],para_abs[i][2],para_gbs[i][0],para_gbs[i][1],para_gbs[i][2]);
+    //         auto frame = kf_pair.second;
+    //         frame->SetNewBias(b);
+    //         i++;
     //     }
     // }
+    // reject outliers and clean the map
+    for (auto pair_kf : active_kfs)
+    {
+        auto frame = pair_kf.second;
+        auto left_features = frame->features_left;
+        for (auto pair_feature : left_features)
+        {
+            auto feature = pair_feature.second;
+            auto landmark = feature->landmark.lock();
+            auto first_frame = landmark->FirstFrame();
+            if (compute_reprojection_error(cv2eigen(feature->keypoint), landmark->ToWorld(), frame->pose, camera_left_) > 3)
+            {
+                landmark->RemoveObservation(feature);
+                frame->RemoveFeature(feature);
+            }
+            if (landmark->observations.size() == 1 && frame->id != Frame::current_frame_id)
+            {
+                map_->RemoveLandmark(landmark);
+            }
+        }
+    }
 
     // propagate to the last frame
     double temp_head = (--active_kfs.end())->first + epsilon;
@@ -268,18 +270,20 @@ std::vector<double *> para_abs;
     options.num_threads = 4;
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
-    if(imu_&&initializer_->initialized)
-    {
-        int i=0;
-        for(auto kf_pair : active_kfs){
-            if(!kf_pair.second->preintegration)
-                continue;
-            Bias b(para_abs[i][0],para_abs[i][1],para_abs[i][2],para_gbs[i][0],para_gbs[i][1],para_gbs[i][2]);
-            auto frame = kf_pair.second;
-            frame->SetNewBias(b);
-            i++;
-        }
-    }
+    // if(imu_&&initializer_->initialized)
+    // {
+    //     int i=0;
+    //     for(auto kf_pair : active_kfs){
+    //         if(!kf_pair.second->preintegration||!kf_pair.second->mpLastKeyFrame){
+    //                 i++;
+    //                 continue;
+    //         }
+    //         Bias b(para_abs[i][0],para_abs[i][1],para_abs[i][2],para_gbs[i][0],para_gbs[i][1],para_gbs[i][2]);
+    //         auto frame = kf_pair.second;
+    //         frame->SetNewBias(b);
+    //         i++;
+    //     }
+    // }
     frontend_.lock()->UpdateCache();
 }
 
