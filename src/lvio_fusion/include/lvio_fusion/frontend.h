@@ -68,7 +68,7 @@ public:
     Frame::Ptr current_frame;
     Frame::Ptr last_frame;
     Frame::Ptr current_key_frame;
-    SE3d relative_pose;
+    SE3d relative_i_j;
     std::mutex mutex;
 
 private:

@@ -92,7 +92,7 @@ void Frontend::AddImu(double time, Vector3d acc, Vector3d gyr)
 
 bool Frontend::Track()
 {
-    current_frame->pose = relative_pose * last_frame_pose_cache_;
+    current_frame->pose = relative_i_j * last_frame_pose_cache_;
     TrackLastFrame();
     InitFramePoseByPnP();
     int inliers = current_frame->features_left.size();
@@ -138,7 +138,7 @@ bool Frontend::Track()
     {
         CreateKeyframe(false);
     }
-    relative_pose = current_frame->pose * last_frame_pose_cache_.inverse();
+    relative_i_j = current_frame->pose * last_frame_pose_cache_.inverse();
     return true;
 }
 

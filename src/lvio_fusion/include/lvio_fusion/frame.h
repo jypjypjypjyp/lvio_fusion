@@ -42,7 +42,6 @@ public:
     loop::LoopConstraint::Ptr loop_constraint;  // loop constraint
     Weights weights;
     SE3d pose;
-    SE3d pose_inverse;
 
 private:
     //NOTE: semantic map
