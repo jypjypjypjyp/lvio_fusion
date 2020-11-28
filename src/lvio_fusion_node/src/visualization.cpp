@@ -24,7 +24,7 @@ void publish_odometry(Estimator::Ptr estimator, double time)
         path.poses.clear();
         for (auto frame : estimator->map->GetAllKeyFrames())
         {
-            auto position = frame.second->pose.inverse().translation();
+            auto position = frame.second->pose.translation();
             geometry_msgs::PoseStamped pose_stamped;
             pose_stamped.header.stamp = ros::Time(frame.first);
             pose_stamped.header.frame_id = "world";
@@ -34,7 +34,7 @@ void publish_odometry(Estimator::Ptr estimator, double time)
             path.poses.push_back(pose_stamped);
             if (frame.second->loop_constraint)
             {
-                auto position = frame.second->loop_constraint->frame_old->pose.inverse().translation();
+                auto position = frame.second->loop_constraint->frame_old->pose.translation();
                 geometry_msgs::PoseStamped pose_stamped_loop;
                 pose_stamped_loop.header.stamp = ros::Time(frame.first);
                 pose_stamped_loop.header.frame_id = "world";
@@ -134,12 +134,12 @@ void publish_car_model(Estimator::Ptr estimator, double time)
     car_mesh.mesh_resource = "file:///home/jyp/Projects/lvio_fusion/src/lvio_fusion_node/models/car.dae";
     car_mesh.id = 0;
 
-    SE3d Twc = estimator->frontend->current_frame->pose.inverse();
+    SE3d pose = estimator->frontend->current_frame->pose;
     Matrix3d rotate;
     rotate << -1, 0, 0, 0, 0, 1, 0, 1, 0;
     Quaterniond Q;
-    Q = Twc.unit_quaternion() * rotate;
-    Vector3d t = Twc.translation();
+    Q = pose.unit_quaternion() * rotate;
+    Vector3d t = pose.translation();
     car_mesh.pose.position.x = t.x();
     car_mesh.pose.position.y = t.y();
     car_mesh.pose.position.z = t.z();
