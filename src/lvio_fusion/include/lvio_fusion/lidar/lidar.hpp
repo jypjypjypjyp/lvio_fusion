@@ -26,7 +26,7 @@ public:
 
     inline SE3d TransformMatrix(SE3d from_pose)
     {
-        return from_pose.inverse() * extrinsic.inverse();
+        return from_pose * extrinsic;
     }
 
     double resolution;

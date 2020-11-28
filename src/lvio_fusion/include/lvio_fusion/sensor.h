@@ -15,34 +15,34 @@ public:
     Sensor(const SE3d &extrinsic) : extrinsic(extrinsic) {}
 
     // coordinate transform: world, sensor
-    virtual Vector3d World2Sensor(const Vector3d &pw, const SE3d &Tcw)
+    virtual Vector3d World2Sensor(const Vector3d &pw, const SE3d &Twc)
     {
-        return extrinsic * Tcw * pw;
+        return extrinsic.inverse() * Twc.inverse() * pw;
     }
 
-    virtual Vector3d Sensor2World(const Vector3d &pc, const SE3d &Tcw)
+    virtual Vector3d Sensor2World(const Vector3d &pc, const SE3d &Twc)
     {
-        return Tcw.inverse() * extrinsic.inverse() * pc;
+        return Twc * extrinsic * pc;
     }
 
-    virtual Vector3d World2Robot(const Vector3d &pw, const SE3d &Tcw)
+    virtual Vector3d World2Robot(const Vector3d &pw, const SE3d &Twc)
     {
-        return Tcw * pw;
+        return Twc.inverse() * pw;
     }
 
-    virtual Vector3d Robot2World(const Vector3d &pc, const SE3d &Tcw)
+    virtual Vector3d Robot2World(const Vector3d &pc, const SE3d &Twc)
     {
-        return Tcw.inverse() * pc;
+        return Twc * pc;
     }
 
-    virtual Vector3d Robot2Sensor(const Vector3d &pw)
+    virtual Vector3d Robot2Sensor(const Vector3d &pb)
     {
-        return extrinsic * pw;
+        return extrinsic.inverse() * pb;
     }
 
     virtual Vector3d Sensor2Robot(const Vector3d &pc)
     {
-        return extrinsic.inverse() * pc;
+        return extrinsic * pc;
     }
 
     SE3d extrinsic;

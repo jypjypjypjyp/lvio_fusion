@@ -92,7 +92,7 @@ void Frontend::AddImu(double time, Vector3d acc, Vector3d gyr)
 
 bool Frontend::Track()
 {
-    current_frame->pose = relative_pose * last_frame_pose_cache_;
+    current_frame->pose = last_frame_pose_cache_ * relative_pose;
     TrackLastFrame();
     InitFramePoseByPnP();
     int inliers = current_frame->features_left.size();
@@ -138,7 +138,7 @@ bool Frontend::Track()
     {
         CreateKeyframe(false);
     }
-    relative_pose = current_frame->pose * last_frame_pose_cache_.inverse();
+    relative_pose = last_frame_pose_cache_.inverse() * current_frame->pose;
     return true;
 }
 
@@ -185,7 +185,7 @@ bool Frontend::InitFramePoseByPnP()
         cv::Rodrigues(rvec, cv_R);
         Matrix3d R;
         cv::cv2eigen(cv_R, R);
-        current_frame->pose = camera_left_->extrinsic.inverse() * SE3d(SO3d(R), Vector3d(tvec.at<double>(0, 0), tvec.at<double>(1, 0), tvec.at<double>(2, 0)));
+        current_frame->pose = SE3d(SO3d(R), Vector3d(tvec.at<double>(0, 0), tvec.at<double>(1, 0), tvec.at<double>(2, 0))) * camera_left_->extrinsic;
         return true;
     }
     return false;
@@ -297,12 +297,12 @@ int Frontend::DetectNewFeatures()
             // triangulation
             Vector2d kp_left = cv2eigen(kps_left[i]);
             Vector2d kp_right = cv2eigen(kps_right[i]);
-            Vector3d p_robot = Vector3d::Zero();
-            triangulate(camera_left_->extrinsic, camera_right_->extrinsic,
-                        camera_left_->Pixel2Sensor(kp_left), camera_right_->Pixel2Sensor(kp_right), p_robot);
-            if ((camera_left_->Robot2Pixel(p_robot) - kp_left).norm() < 0.5 && (camera_right_->Robot2Pixel(p_robot) - kp_right).norm() < 0.5)
+            Vector3d pb = Vector3d::Zero();
+            triangulate(camera_left_->extrinsic.inverse(), camera_right_->extrinsic.inverse(),
+                        camera_left_->Pixel2Sensor(kp_left), camera_right_->Pixel2Sensor(kp_right), pb);
+            if ((camera_left_->Robot2Pixel(pb) - kp_left).norm() < 0.5 && (camera_right_->Robot2Pixel(pb) - kp_right).norm() < 0.5)
             {
-                auto new_landmark = visual::Landmark::Create(p_robot, camera_left_);
+                auto new_landmark = visual::Landmark::Create(pb, camera_left_);
                 auto new_left_feature = visual::Feature::Create(current_frame, eigen2cv(kp_left), new_landmark);
                 auto new_right_feature = visual::Feature::Create(current_frame, eigen2cv(kp_right), new_landmark);
                 new_right_feature->is_on_left_image = false;
