@@ -8,6 +8,7 @@
 #include "lvio_fusion/visual/feature.h"
 #include "lvio_fusion/visual/landmark.h"
 #include "lvio_fusion/loop/loop_constraint.h"
+#include "lvio_fusion/adapt/weights.h"
 
 namespace lvio_fusion
 {
@@ -17,7 +18,7 @@ class Frame
 public:
     typedef std::shared_ptr<Frame> Ptr;
 
-    Frame():mTcw(Matrix4d::Zero()),mImuBias(Bias(0,0,0,0,0,0)),mVw(Vector3d::Zero()){ }
+      Frame():mTcw(Matrix4d::Zero()),mImuBias(Bias(0,0,0,0,0,0)),mVw(Vector3d::Zero()){ }//NEWADD
 
     void AddFeature(visual::Feature::Ptr feature);
 
@@ -39,9 +40,11 @@ public:
     imu::Preintegration::Ptr preintegration;    // imu pre integration
     cv::Mat descriptors;                        // orb descriptors
     loop::LoopConstraint::Ptr loop_constraint;  // loop constraint
+    Weights weights;
     SE3d pose;
 
-    Frame::Ptr mpLastKeyFrame;
+//NEWADD
+Frame::Ptr mpLastKeyFrame;
 
 //IMU
     Calib calib_;
@@ -68,13 +71,11 @@ public:
     Vector3d  GetImuPosition();
     void SetVelocity(const Vector3d  &Vw_);
     Bias GetImuBias();
-    Matrix4d GetPoseInverse();
     Vector3d GetVelocity();
-    void SetPose(const Matrix3d Rcw,const Vector3d tcw);
     void SetNewBias(const Bias &b);
     void SetImuPoseVelocity(const Matrix3d &Rwb,const Vector3d &twb, const Vector3d &Vwb);
     void UpdatePoseMatrices();
-
+//NEWADDEND
 private:
     //NOTE: semantic map
     LabelType GetLabelType(int x, int y);

@@ -170,7 +170,7 @@ for(Frames::iterator iter = KFs.begin(); iter != KFs.end(); iter++,ii++)
           auto V2=para_vs[ii];
 
           //ei p1,v1,g1,a1,p2,v2
-           ceres::CostFunction *cost_function = InertialError2::Create(current_frame->preintegration);
+           ceres::CostFunction *cost_function = InertialError::Create(current_frame->preintegration);
            problem.AddResidualBlock(cost_function, NULL, P1,V1,g1,a1,P2,V2);//7,3,3,3,7,3
 
      }
@@ -190,8 +190,8 @@ if(bInit){
 //solve
      ceres::Solver::Options options;
     options.linear_solver_type = ceres::DENSE_SCHUR;
-    options.function_tolerance = 1e-9;
-    options.max_solver_time_in_seconds = 7 * 0.6;
+    //options.function_tolerance = 1e-9;
+    options.max_solver_time_in_seconds = 5;
     options.num_threads = 4;
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);

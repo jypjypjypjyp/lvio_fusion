@@ -23,7 +23,7 @@ class Atlas
 public:
     void AddSubMap(double old_time, double start_time, double end_time);
 
-    std::map<double, SE3d> GetActiveSubMaps(Frames &active_kfs, double &old_time, double start_time, double end_time);
+    std::map<double, SE3d> GetActiveSubMaps(Frames &active_kfs, double &old_time, double start_time);
 
 private:
     std::map<double, SubMap> submaps_;

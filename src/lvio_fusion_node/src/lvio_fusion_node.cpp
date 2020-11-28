@@ -97,7 +97,7 @@ void write_result(Estimator::Ptr estimator, double time)
     foutC.precision(0);
     foutC << time * 1e9 << ",";
     foutC.precision(5);
-    SE3d pose = estimator->frontend->current_frame->pose.inverse();
+    SE3d pose = estimator->frontend->current_frame->pose;
     Vector3d T = pose.translation();
     Quaterniond R = pose.unit_quaternion();
     foutC << T.x() << ","
@@ -316,7 +316,7 @@ int main(int argc, char **argv)
     {
         cout << "lidar:" << LIDAR_TOPIC << endl;
         sub_lidar = n.subscribe(LIDAR_TOPIC, 100, lidar_callback);
-        pc_timer = n.createTimer(ros::Duration(5), pc_timer_callback);
+        pc_timer = n.createTimer(ros::Duration(10), pc_timer_callback);
     }
     if (use_navsat)
     {

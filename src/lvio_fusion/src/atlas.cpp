@@ -19,10 +19,9 @@ void Atlas::AddSubMap(double old_time, double start_time, double end_time)
  * @param active_kfs
  * @param old_time      time of the first frame
  * @param start_time    time of the first loop frame
- * @param end_time      the last frame
  * @return old frame of inner submaps; key is the first frame's time; value is the pose of the first frame
  */
-std::map<double, SE3d> Atlas::GetActiveSubMaps(Frames& active_kfs, double& old_time, double start_time, double end_time)
+std::map<double, SE3d> Atlas::GetActiveSubMaps(Frames& active_kfs, double& old_time, double start_time)
 {
     
     auto start_submaps = submaps_.lower_bound(old_time);

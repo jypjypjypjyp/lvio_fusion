@@ -20,10 +20,13 @@ Frontend::Frontend(int num_features, int init, int tracking, int tracking_bad, i
 bool Frontend::AddFrame(lvio_fusion::Frame::Ptr frame)
 {
     std::unique_lock<std::mutex> lock(mutex);
-    frame->calib_= ImuCalib_;//NEWADD
+    //NEWADD
+    frame->calib_= ImuCalib_;
     //frame->pose = relative_pose * last_frame_pose_cache_;
     frame->preintegration = imu::Preintegration::Create(frame->GetImuBias(), ImuCalib_,NULL);
+    //NEWADDEND
     current_frame = frame;
+
     switch (status)
     {
     case FrontendStatus::BUILDING:
@@ -58,7 +61,8 @@ bool Frontend::AddFrame(lvio_fusion::Frame::Ptr frame)
 
 void Frontend::AddImu(double time, Vector3d acc, Vector3d gyr)
 {
-      imuPoint imuMeas(acc,gyr,time);
+    //NEWADD
+  imuPoint imuMeas(acc,gyr,time);
       static bool first = true;
      if (current_frame)
     {
@@ -73,12 +77,14 @@ void Frontend::AddImu(double time, Vector3d acc, Vector3d gyr)
         }
 
     }
+    //NEWADDEND
 }
 
 bool Frontend::Track()
-{
-    current_frame->pose = relative_pose * last_frame_pose_cache_;
-    LOG(INFO)<<" FRAME ID: "<<current_frame->id<<"  pose: "<< current_frame->pose.translation()[0]<<" "<<current_frame->pose.translation()[1]<<" "<<current_frame->pose.translation()[2] ;
+{    
+    current_frame->pose = relative_i_j * last_frame_pose_cache_;
+    //NEWADD
+     LOG(INFO)<<" FRAME ID: "<<current_frame->id<<"  pose: "<< current_frame->pose.translation()[0]<<" "<<current_frame->pose.translation()[1]<<" "<<current_frame->pose.translation()[2] ;
     //LOG(INFO)<<" relative_pose"<<relative_pose.translation()[0]<<" "<<relative_pose.translation()[1]<<" "<<relative_pose.translation()[2];
     //LOG(INFO)<<" last_frame_pose_cache_"<<last_frame_pose_cache_.translation()[0]<<" "<<last_frame_pose_cache_.translation()[1]<<" "<<last_frame_pose_cache_.translation()[2];
      //如果有imu  预积分上一帧到当前帧的imu 
@@ -94,7 +100,7 @@ bool Frontend::Track()
             current_frame->SetNewBias(last_key_frame->GetImuBias());
        }
     }
-
+//NEWADDEND
     TrackLastFrame();
     InitFramePoseByPnP();
     int inliers = current_frame->features_left.size();
@@ -104,7 +110,6 @@ bool Frontend::Track()
     {
         if (inliers <= num_features_tracking_bad_)
         {
-            LOG(INFO)<<"inliers: "<<inliers;
             status = FrontendStatus::BUILDING;
         }
     }
@@ -141,14 +146,13 @@ bool Frontend::Track()
     {
         CreateKeyframe(false);
     }
-    relative_pose = current_frame->pose * last_frame_pose_cache_.inverse();
-
+    relative_i_j = current_frame->pose * last_frame_pose_cache_.inverse();
     return true;
 }
 
 void Frontend::CreateKeyframe(bool need_new_features)
 {
-    // //NEW
+        // //NEWADD
     if(imu_){    //如果有imu  预积分上一关键帧到当前帧的imu 
         // if(backend_.lock()->initializer_ ->bInitializing)//初始化时不能创建关键帧
         // {
@@ -156,6 +160,7 @@ void Frontend::CreateKeyframe(bool need_new_features)
         // }
         last_key_frame=current_key_frame;
         }
+        //NEWADDEND
     // first, add new observations of old points
     for (auto pair_feature : current_frame->features_left)
     {
@@ -171,8 +176,8 @@ void Frontend::CreateKeyframe(bool need_new_features)
     // insert!
     map_->InsertKeyFrame(current_frame);
     current_key_frame = current_frame;
-//NEW
 
+//NEWADD
     if(imu_&&last_key_frame&&last_key_frame->preintegration)
     {
         if(backend_.lock()->initializer_->bimu)
@@ -186,8 +191,9 @@ void Frontend::CreateKeyframe(bool need_new_features)
         current_key_frame->preintegration->PreintegrateIMU(last_key_frame->preintegration->imuData_buf,last_key_frame->time, current_key_frame->time);
     }
     reference_key_frame=current_key_frame;
+//NEWADDEND
 
- //   LOG(INFO) << "Add a keyframe " << current_frame->id;
+    LOG(INFO) << "Add a keyframe " << current_frame->id;
     // update backend because we have a new keyframe
     backend_.lock()->UpdateMap();
 }
@@ -213,7 +219,7 @@ bool Frontend::InitFramePoseByPnP()
         cv::Rodrigues(rvec, cv_R);
         Matrix3d R;
         cv::cv2eigen(cv_R, R);
-        current_frame->pose = camera_left_->extrinsic.inverse() * SE3d(SO3d(R), Vector3d(tvec.at<double>(0, 0), tvec.at<double>(1, 0), tvec.at<double>(2, 0)));
+        current_frame->pose = (camera_left_->extrinsic * SE3d(SO3d(R), Vector3d(tvec.at<double>(0, 0), tvec.at<double>(1, 0), tvec.at<double>(2, 0)))).inverse();
         return true;
     }
     return false;
@@ -262,7 +268,7 @@ int Frontend::TrackLastFrame()
     }
     cv::imshow("tracking", img_track);
     cv::waitKey(1);
- //   LOG(INFO) << "Find " << num_good_pts << " in the last image.";
+    LOG(INFO) << "Find " << num_good_pts << " in the last image.";
     return num_good_pts;
 }
 
@@ -284,7 +290,7 @@ bool Frontend::InitMap()
 
     // the first frame is a keyframe
     map_->InsertKeyFrame(current_frame);
-//    LOG(INFO) << "Initial map created with " << num_new_features << " map points";
+    LOG(INFO) << "Initial map created with " << num_new_features << " map points";
 
     // update backend and loop because we have a new keyframe
     backend_.lock()->UpdateMap();
@@ -300,7 +306,7 @@ int Frontend::DetectNewFeatures()
         cv::rectangle(mask, feature->keypoint - cv::Point2f(10, 10), feature->keypoint + cv::Point2f(10, 10), 0, cv::FILLED);
     }
 
-    std::vector<cv::Point2f> kps_left, kps_right;   // must be point2f
+    std::vector<cv::Point2f> kps_left, kps_right; // must be point2f
     cv::goodFeaturesToTrack(current_frame->image_left, kps_left, num_features_ - current_frame->features_left.size(), 0.01, 30, mask);
 
     // use LK flow to estimate points in the right image
@@ -314,7 +320,6 @@ int Frontend::DetectNewFeatures()
         cv::OPTFLOW_USE_INITIAL_FLOW);
 
     // triangulate new points
-    SE3d current_pose_Twc = current_frame->pose.inverse();
     int num_triangulated_pts = 0;
     int num_good_pts = 0;
     for (size_t i = 0; i < kps_left.size(); ++i)
@@ -325,12 +330,12 @@ int Frontend::DetectNewFeatures()
             // triangulation
             Vector2d kp_left = cv2eigen(kps_left[i]);
             Vector2d kp_right = cv2eigen(kps_right[i]);
-            Vector3d p_robot = Vector3d::Zero();
-            triangulate(camera_left_->extrinsic, camera_right_->extrinsic,
-                        camera_left_->Pixel2Sensor(kp_left), camera_right_->Pixel2Sensor(kp_right), p_robot);
-            if ((camera_left_->Robot2Pixel(p_robot) - kp_left).norm() < 0.5 && (camera_right_->Robot2Pixel(p_robot) - kp_right).norm() < 0.5)
+            Vector3d pb = Vector3d::Zero();
+            triangulate(camera_left_->extrinsic.inverse(), camera_right_->extrinsic.inverse(),
+                        camera_left_->Pixel2Sensor(kp_left), camera_right_->Pixel2Sensor(kp_right), pb);
+            if ((camera_left_->Robot2Pixel(pb) - kp_left).norm() < 0.5 && (camera_right_->Robot2Pixel(pb) - kp_right).norm() < 0.5)
             {
-                auto new_landmark = visual::Landmark::Create(p_robot, camera_left_);
+                auto new_landmark = visual::Landmark::Create(pb, camera_left_);
                 auto new_left_feature = visual::Feature::Create(current_frame, eigen2cv(kp_left), new_landmark);
                 auto new_right_feature = visual::Feature::Create(current_frame, eigen2cv(kp_right), new_landmark);
                 new_right_feature->is_on_left_image = false;
@@ -345,25 +350,26 @@ int Frontend::DetectNewFeatures()
         }
     }
 
-  //  LOG(INFO) << "Detect " << kps_left.size() << " new features";
-  //  LOG(INFO) << "Find " << num_good_pts << " in the right image.";
-  //  LOG(INFO) << "new landmarks: " << num_triangulated_pts;
+    LOG(INFO) << "Detect " << kps_left.size() << " new features";
+    LOG(INFO) << "Find " << num_good_pts << " in the right image.";
+    LOG(INFO) << "new landmarks: " << num_triangulated_pts;
     return num_triangulated_pts;
 }
 
+// TODO
 bool Frontend::Reset()
 {
     backend_.lock()->Pause();
     map_->Reset();
     backend_.lock()->Continue();
     status = FrontendStatus::BUILDING;
-
+//NEWADD
     current_frame=Frame::Create();
     last_frame=Frame::Create();
     last_key_frame=static_cast<Frame::Ptr>(NULL);
     current_key_frame=static_cast<Frame::Ptr>(NULL);
-
-   // LOG(INFO) << "Reset Succeed";
+//NEWADDEND
+    LOG(INFO) << "Reset Succeed";
     return true;
 }
 
@@ -378,6 +384,8 @@ void Frontend::UpdateCache()
     }
     last_frame_pose_cache_ = last_frame->pose;
 }
+
+//NEWADD
 void Frontend::UpdateFrameIMU(const double s, const Bias &b, Frame::Ptr pCurrentKeyFrame)
 {
     last_key_frame = pCurrentKeyFrame;
@@ -432,5 +440,5 @@ void Frontend::UpdateFrameIMU(const double s, const Bias &b, Frame::Ptr pCurrent
                                       Vwb1 + Gz*t12 + Rwb1*current_frame->preintegration->GetUpdatedDeltaVelocity());
     }
 }
-
+//NEWADDEND
 } // namespace lvio_fusion

@@ -55,11 +55,11 @@ void Backend::BackendLoop()
         Optimize();
         auto t2 = std::chrono::steady_clock::now();
         auto time_used = std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);
-  //      LOG(INFO) << "Backend cost time: " << time_used.count() << " seconds.";
+        LOG(INFO) << "Backend cost time: " << time_used.count() << " seconds.";
     }
 }
 
-void Backend::BuildProblem(Frames &active_kfs, ceres::Problem &problem,std::vector<double *> &para_gbs,std::vector<double *> &para_abs)
+void Backend::BuildProblem(Frames &active_kfs, ceres::Problem &problem,std::vector<double *> &para_gbs,std::vector<double *> &para_abs)//NEWADD
 {
     ceres::LossFunction *loss_function = new ceres::HuberLoss(1.0);
     ceres::LocalParameterization *local_parameterization = new ceres::ProductParameterization(
@@ -81,13 +81,13 @@ void Backend::BuildProblem(Frames &active_kfs, ceres::Problem &problem,std::vect
             ceres::CostFunction *cost_function;
             if (first_frame->time < start_time)
             {
-                cost_function = PoseOnlyReprojectionError::Create(cv2eigen(feature->keypoint), landmark->ToWorld(), camera_left_);
+                cost_function = PoseOnlyReprojectionError::Create(cv2eigen(feature->keypoint), landmark->ToWorld(), camera_left_, frame->weights.visual);
                 problem.AddResidualBlock(cost_function, loss_function, para_kf);
             }
             else if (first_frame != frame)
             {
                 double *para_fist_kf = first_frame->pose.data();
-                cost_function = TwoFrameReprojectionError::Create(landmark->position, cv2eigen(feature->keypoint), camera_left_);
+                cost_function = TwoFrameReprojectionError::Create(landmark->position, cv2eigen(feature->keypoint), camera_left_, frame->weights.visual);
                 problem.AddResidualBlock(cost_function, loss_function, para_fist_kf, para_kf);
             }
         }
@@ -107,12 +107,12 @@ void Backend::BuildProblem(Frames &active_kfs, ceres::Problem &problem,std::vect
             navsat_map->Transfrom(navsat_point);
             if (std::fabs(navsat_point.time - frame->time) < 1e-2)
             {
-                ceres::CostFunction *cost_function = NavsatError::Create(navsat_point.position);
+                ceres::CostFunction *cost_function = NavsatError::Create(navsat_point.position, frame->weights.navsat);
                 problem.AddResidualBlock(cost_function, navsat_loss_function, para_kf);
             }
         }
     }
-
+//NEWADD
     //  if (imu_ && initializer_->initialized)
     // {
     //     LOG(INFO)<<"BACKEND IMU OPTIMIZER  ===>";
@@ -154,16 +154,20 @@ void Backend::BuildProblem(Frames &active_kfs, ceres::Problem &problem,std::vect
     //     }
 
     //}
+    //NEWADDEND
 }
 
 double compute_reprojection_error(Vector2d ob, Vector3d pw, SE3d pose, Camera::Ptr camera)
 {
+    static double weights[2] = {1, 1};
     Vector2d error(0, 0);
-    PoseOnlyReprojectionError(ob, pw, camera)(pose.data(), error.data());
+    PoseOnlyReprojectionError(ob, pw, camera, weights)(pose.data(), error.data());
     return error.norm();
 }
 
-void Backend::Optimize(bool full){
+void Backend::Optimize(bool full)
+{
+    static double forward_head = 0;
     std::unique_lock<std::mutex> lock(mutex, std::defer_lock);
     if (!full)
     {
@@ -171,6 +175,7 @@ void Backend::Optimize(bool full){
     }
     Frames active_kfs = map_->GetKeyFrames(full ? 0 : head);
 
+//NEWADD
     // imu init
     if (imu_ && !initializer_->initialized)
     {
@@ -184,7 +189,7 @@ void Backend::Optimize(bool full){
              LOG(INFO)<<"Initialized---------------------------------";
         }
     }
-
+//NEWADDEND
     // navsat init
     auto navsat_map = map_->navsat_map;
     if (!full && map_->navsat_map && !navsat_map->initialized && map_->size() >= navsat_map->num_frames_init)
@@ -194,18 +199,20 @@ void Backend::Optimize(bool full){
         Optimize(true);
         return;
     }
+    //NEWADD
 std::vector<double *> para_gbs;
 std::vector<double *> para_abs;
 
     ceres::Problem problem;
    BuildProblem(active_kfs, problem,para_gbs,para_abs);
-
+//NEWADDEND
     ceres::Solver::Options options;
     options.linear_solver_type = ceres::DENSE_SCHUR;
-    options.max_solver_time_in_seconds = delay_ * 0.8;
+    options.max_solver_time_in_seconds = 0.6 * delay_;
     options.num_threads = 4;
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
+    //NEWADD
     // if(imu_&&initializer_->initialized)
     // {
     //     int i=0;
@@ -220,6 +227,12 @@ std::vector<double *> para_abs;
     //         i++;
     //     }
     // }
+    //NEWADDEND
+    if (!full && lidar_)
+    {
+        mapping_->Optimize(active_kfs);
+    }
+
     // reject outliers and clean the map
     for (auto pair_kf : active_kfs)
     {
@@ -243,9 +256,9 @@ std::vector<double *> para_abs;
     }
 
     // propagate to the last frame
-    double temp_head = (--active_kfs.end())->first + epsilon;
-    ForwardPropagate(temp_head);
-    head = temp_head - delay_;
+    forward_head = (--active_kfs.end())->first + epsilon;
+    ForwardPropagate(forward_head);
+    head = forward_head - delay_;
 }
 
 void Backend::ForwardPropagate(double time)
@@ -258,18 +271,19 @@ void Backend::ForwardPropagate(double time)
     {
         active_kfs[last_frame->time] = last_frame;
     }
+//NEWADD
 std::vector<double *> para_gbs;
 std::vector<double *> para_abs;
-
     ceres::Problem problem;
   BuildProblem(active_kfs, problem,para_gbs,para_abs);
-
+//NEWADDEND
     ceres::Solver::Options options;
     options.linear_solver_type = ceres::DENSE_SCHUR;
-    options.max_num_iterations = 3;
+    options.max_num_iterations = 1;
     options.num_threads = 4;
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
+    //NEWADD
     // if(imu_&&initializer_->initialized)
     // {
     //     int i=0;
@@ -284,6 +298,7 @@ std::vector<double *> para_abs;
     //         i++;
     //     }
     // }
+    //NEWADDEND
     frontend_.lock()->UpdateCache();
 }
 

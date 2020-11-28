@@ -1,4 +1,5 @@
 add_library(lvio_fusion SHARED
+        association.cpp
         atlas.cpp
         backend.cpp
         config.cpp
@@ -11,8 +12,8 @@ add_library(lvio_fusion SHARED
         mapping.cpp
         navsat.cpp
         preintegration.cpp
-        relocation.cpp
-        scan_registration.cpp)
+        projection.cpp
+        relocation.cpp)
 
 target_link_libraries(lvio_fusion ${THIRD_PARTY_LIBS})
 target_compile_features(lvio_fusion PRIVATE cxx_std_14)

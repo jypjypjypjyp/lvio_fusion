@@ -49,11 +49,11 @@ public:
     void SetMap(Map::Ptr map) { map_ = map; }
 
     void SetBackend(std::shared_ptr<Backend> backend) { backend_ = backend; }
-
+//NEWADD
     void SetCalib(Calib calib){ImuCalib_=calib;}
 
     void UpdateFrameIMU(const double s, const Bias &b, Frame::Ptr pCurrentKeyFrame);
-    
+//NEWADDEND
     void SetCameras(Camera::Ptr left, Camera::Ptr right)
     {
         camera_left_ = left;
@@ -72,9 +72,12 @@ public:
     Frame::Ptr current_frame;
     Frame::Ptr last_frame;
     Frame::Ptr current_key_frame;
+    SE3d relative_i_j;
+//NEWADD
     Frame::Ptr last_key_frame;
     Frame::Ptr reference_key_frame;
-    SE3d relative_pose;
+    Calib ImuCalib_;
+//NEWADDEND
     std::mutex mutex;
 
 private:
@@ -104,8 +107,6 @@ private:
     Camera::Ptr camera_right_;
     Imu::Ptr imu_;
 
-    Calib ImuCalib_;
-    
     // params
     int num_features_;
     int num_features_init_;

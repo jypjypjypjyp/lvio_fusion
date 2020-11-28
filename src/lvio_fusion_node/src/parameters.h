@@ -18,7 +18,6 @@ extern int use_loop;
 extern int is_semantic;
 extern int num_of_cam;
 
-
 void read_parameters(std::string config_file);
 
 #endif // lvio_fusion_PARAMETERS_H

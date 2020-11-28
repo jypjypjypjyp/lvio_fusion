@@ -271,7 +271,7 @@ public:
 
         const Vector3d er = LogSO3(dR.transpose()*Qi.transpose()*Qj);
         const Vector3d ev = Qi.transpose()*(Scale*(Vj - Vi) - g*dt) - dV;
-        const Vector3d ep = Qi.transpose()*(Scale*(Pj - Pj - Vi*dt) - g*dt*dt/2) - dP;
+        const Vector3d ep = Qi.transpose()*(Scale*(Pj - Pi - Vi*dt) - g*dt*dt/2) - dP;
         residuals[0]=er[0];
         residuals[1]=er[1];
         residuals[2]=er[2];

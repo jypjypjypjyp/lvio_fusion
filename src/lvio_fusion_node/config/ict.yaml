@@ -15,7 +15,7 @@ lidar_topic: '/lslidar_point_cloud'
 image0_topic: '/camera/infra1/image_rect_raw'
 image1_topic: '/camera/infra2/image_rect_raw'
 color_topic: '/camera/color/image_raw'
-result_path: '/home/jyp/Projects/lvio-fusion/result/result.csv'
+result_path: '/home/zoet/Projects.new/lvio-fusion/result/result.csv'
 
 # camera1 intrinsics
 camera1.fx: 385.7544860839844
@@ -31,8 +31,12 @@ camera2.cy: 236.7432098388672
 
 # lidar parameters
 num_scans: 32           # only for 16, 32, 64
+horizon_scan: 2000
+ang_res_y: 1
+ang_bottom: 16
+ground_rows: 16
 cycle_time: 0.1
-min_range: 1
+min_range: 0.2
 max_range: 10
 deskew: 0
 resolution: 0.1
@@ -44,35 +48,68 @@ acc_w: 0.00004          # accelerometer bias random work noise standard deviatio
 gyr_w: 2.0e-6           # gyroscope bias random work noise standard deviation.     #4.0e-5
 g_norm: 9.81007         # gravity magnitude
 
+# # body to camera0
+# base_to_cam0: !!opencv-matrix
+#    rows: 4
+#    cols: 4
+#    dt: d
+#    data: [1, 0, 0, 0,
+#           0, 1, 0, 0,
+#           0, 0, 1, 0,
+#           0, 0, 0, 1]
+
+# # body to camera1
+# base_to_cam1: !!opencv-matrix
+#    rows: 4
+#    cols: 4
+#    dt: d
+#    data: [1, 0, 0, -0.05,
+#           0, 1, 0, 0,
+#           0, 0, 1, 0,
+#           0, 0, 0, 1]
+
+# # body to lidar
+# base_to_lidar: !!opencv-matrix
+#    rows: 4
+#    cols: 4
+#    dt: d
+#    data: [  -1,          -0,          0  ,      0.062,
+#             0 ,          0 ,          -1 ,       0.149,
+#             0 ,          -1,          0  ,     0.0945,
+#             -0,           0,           -0,            1]
+
+
 # body to camera0
 base_to_cam0: !!opencv-matrix
    rows: 4
    cols: 4
    dt: d
-   data: [1, 0, 0, 0,
-          0, 1, 0, 0,
-          0, 0, 1, 0,
-          0, 0, 0, 1]
+   data: [  0 ,    -1,    0 ,           0,
+            0 ,    0 ,    -1,           0,
+            1 ,    0 ,    0 ,           0,
+            -0,    0 ,    -0,           1]
+
 
 # body to camera1
 base_to_cam1: !!opencv-matrix
    rows: 4
    cols: 4
    dt: d
-   data: [1, 0, 0, -0.05,
-          0, 1, 0, 0,
-          0, 0, 1, 0,
-          0, 0, 0, 1]
+   data: [    0 ,   -1 ,    0 ,-0.05,
+               0,     0,    -1,     0,
+               1,     0,     0,     0,
+               0,     0,     0,     1]
 
 # body to lidar
 base_to_lidar: !!opencv-matrix
    rows: 4
    cols: 4
    dt: d
-   data: [   -0.999999,  -0.00159265, -1.34228e-16,   -0.0642372,
-            1.26827e-06, -0.000796326,           -1,    -0.945118,
-            0.00159265,    -0.999998,  0.000796327,    -0.148145,
-             -0,            0,           -0,            1]
+   data: [      0,      1,      0,  -0.062,
+               -1,      0,      0,  -0.0945,
+                0,      0,      1, -0.149,
+                0,      0,      0,      1]
+
 
 # number of features
 num_features: 200
@@ -85,4 +122,4 @@ num_features_needed_for_keyframe: 120
 delay: 5
 
 # loop
-voc_path: '/home/jyp/Projects/lvio_fusion/misc/orbvoc.dbow3'
+voc_path: '/home/zoet/Projects.new/lvio_fusion/misc/orbvoc.dbow3'

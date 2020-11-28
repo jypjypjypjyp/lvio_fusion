@@ -10,7 +10,7 @@ unsigned long Frame::current_frame_id = 0;
 
 Frame::Ptr Frame::Create()
 {
-    Frame::Ptr new_frame(new Frame());
+    Frame::Ptr new_frame(new Frame);
     new_frame->id = current_frame_id + 1;
     return new_frame;
 }
@@ -55,6 +55,7 @@ void Frame::UpdateLabel()
         camera_point->label = GetLabelType(pair_feature.second->keypoint.x, pair_feature.second->keypoint.y);
     }
 }
+//NEWADD
 void Frame::SetVelocity(const Vector3d  &Vw_)
 {
     mVw=Vw_;
@@ -67,10 +68,6 @@ void Frame::SetNewBias(const Bias &b)
         preintegration->SetNewBias(b);
 }
 
-void Frame::SetPose(const Matrix3d Rcw,const Vector3d tcw)
-{
-    pose=SE3d(Rcw,tcw);
-}
 
 Vector3d Frame::GetVelocity()
 {
@@ -79,20 +76,15 @@ Vector3d Frame::GetVelocity()
 
 Matrix3d  Frame::GetImuRotation()
 {
-    Matrix4d Tcw_=pose.matrix();  
-    Matrix3d Rcw = Tcw_.block<3,3>(0,0);
-    Matrix3d Rwc = Rcw.transpose();
-    return Rwc;
+    Matrix4d Twb_=pose.matrix();  
+    Matrix3d Rwb = Twb_.block<3,3>(0,0);
+    return Rwb;
 }
 
 Vector3d Frame::GetImuPosition()
 {
-    Matrix4d Tcw_=pose.matrix();  
-    Matrix3d Rcw = Tcw_.block<3,3>(0,0);
-    Vector3d tcw = Tcw_.block<3,1>(0,3);
-    Matrix3d Rwc = Rcw.transpose();
-    Vector3d Ow=Rwc*tcw;
-    Owb =Ow; //imu position
+    Matrix4d Twb_=pose.matrix();  
+    Owb =Twb_.block<3,1>(0,3); //imu position
     return  Owb;
 }
 
@@ -108,19 +100,6 @@ Vector3d Frame::GetAccBias()
 Bias Frame::GetImuBias()
 {
     return mImuBias;
-}
-Matrix4d Frame::GetPoseInverse()
-{
-    Matrix4d Tcw_=pose.matrix();  
-    Matrix3d Rcw = Tcw_.block<3,3>(0,0);
-    Vector3d tcw = Tcw_.block<3,1>(0,3);
-    Matrix3d Rwc = Rcw.transpose();
-    Vector3d Ow=Rwc*tcw;
-
-    Matrix4d  Twc =  Matrix4d ::Identity();
-    Twc.block<3,3>(0,0)=Rwc;
-    Twc.block<3,1>(0,3)=Ow;
-    return Twc;
 }
 
 void Frame::SetImuPoseVelocity(const Matrix3d &Rwb,const Vector3d &twb, const Vector3d &Vwb)
@@ -141,4 +120,5 @@ void Frame::UpdatePoseMatrices()
     mtcw = mTcw.block<3,1>(0,3);
     mOw = -mRcw.transpose()*mtcw;
 }
+//NEWADDEND
 } // namespace lvio_fusion

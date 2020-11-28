@@ -1,7 +1,4 @@
 #include "lvio_fusion/estimator.h"
-#include "lvio_fusion/ceres/lidar_error.hpp"
-#include "lvio_fusion/ceres/navsat_error.hpp"
-#include "lvio_fusion/ceres/visual_error.hpp"
 #include "lvio_fusion/config.h"
 #include "lvio_fusion/frame.h"
 
@@ -11,10 +8,6 @@ double epsilon = 1e-3;
 
 namespace lvio_fusion
 {
-
-Matrix2d TwoFrameReprojectionError::sqrt_info = Matrix2d::Identity();
-Matrix2d PoseOnlyReprojectionError::sqrt_info = Matrix2d::Identity();
-Matrix3d NavsatError::sqrt_info = 10 * Matrix3d::Identity();
 
 Estimator::Estimator(std::string &config_path)
     : config_file_path_(config_path) {}
@@ -57,8 +50,8 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
                                    SE3d(q_base_to_cam1, t_base_to_cam1)));
     LOG(INFO) << "Camera 2"
               << " extrinsics: " << t_base_to_cam1.transpose();
-
-//read imu NEWADD
+// NEWADD
+//read imu
         double acc_n= Config::Get<double>("acc_n");
         double gyr_n= Config::Get<double>("gyr_n");
         double acc_w= Config::Get<double>("acc_w");
@@ -68,7 +61,6 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
        const double sf = sqrt(freq);
         Calib calib_=Calib(base_to_cam0,gyr_n*sf, acc_n*sf,gyr_w/sf,acc_w/sf,g_norm);
  //NEWADDEND
-
     // create components and links
     map = Map::Ptr(new Map());
 
@@ -113,14 +105,17 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
         Imu::Ptr imu(new Imu(SE3d()));
 
         initializer = Initializer::Ptr(new Initializer);
+        //NEWADD
         initializer->SetMap(map);
         initializer->SetFrontend(frontend);
-
+        //NEWADDEND
         backend->SetImu(imu);
         backend->SetInitializer(initializer);
 
-        frontend->SetImu(imu);
+        //NEWADD
         frontend->SetCalib(calib_);
+        //NEWADDEND
+        frontend->SetImu(imu);
         frontend->flags += Flag::IMU;
     }
 
@@ -137,27 +132,32 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
             SE3d(q_base_to_lidar, t_base_to_lidar),
             Config::Get<double>("resolution")));
 
-        scan_registration = ScanRegistration::Ptr(new ScanRegistration(
+        association = FeatureAssociation::Ptr(new FeatureAssociation(
             Config::Get<int>("num_scans"),
+            Config::Get<int>("horizon_scan"),
+            Config::Get<double>("ang_res_y"),
+            Config::Get<double>("ang_bottom"),
+            Config::Get<int>("ground_rows"),
             Config::Get<double>("cycle_time"),
             Config::Get<double>("min_range"),
             Config::Get<double>("max_range"),
             Config::Get<int>("deskew")));
-        scan_registration->SetLidar(lidar);
-        scan_registration->SetMap(map);
+        association->SetLidar(lidar);
+        association->SetMap(map);
 
         mapping = Mapping::Ptr(new Mapping());
         mapping->SetMap(map);
         mapping->SetCamera(camera1);
         mapping->SetLidar(lidar);
-        mapping->SetScanRegistration(scan_registration);
-        mapping->SetFrontend(frontend);
-        mapping->SetBackend(backend);
+        mapping->SetFeatureAssociation(association);
+        
+        backend->SetLidar(lidar);
+        backend->SetMapping(mapping);
 
         if (relocation)
         {
             relocation->SetLidar(lidar);
-            relocation->SetScanRegistration(scan_registration);
+            relocation->SetFeatureAssociation(association);
             relocation->SetMapping(mapping);
         }
 
@@ -180,18 +180,19 @@ void Estimator::InputImage(double time, cv::Mat &left_image, cv::Mat &right_imag
     new_frame->image_left = left_image;
     new_frame->image_right = right_image;
     new_frame->objects = objects;
+
     auto t1 = std::chrono::steady_clock::now();
     bool success = frontend->AddFrame(new_frame);
     auto t2 = std::chrono::steady_clock::now();
     auto time_used =
         std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);
- //   LOG(INFO) << "VO status:" << (success ? "success" : "failed") << ",VO cost time: " << time_used.count() << " seconds.";
+    LOG(INFO) << "VO status:" << (success ? "success" : "failed") << ",VO cost time: " << time_used.count() << " seconds.";
 }
 
 void Estimator::InputPointCloud(double time, Point3Cloud::Ptr point_cloud)
 {
     auto t1 = std::chrono::steady_clock::now();
-    scan_registration->AddScan(time, point_cloud);
+    association->AddScan(time, point_cloud);
     auto t2 = std::chrono::steady_clock::now();
     auto time_used =
         std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);

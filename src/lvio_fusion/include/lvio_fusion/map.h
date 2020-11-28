@@ -25,8 +25,7 @@ public:
     {
         return keyframes_;
     }
-    int GetAllKeyFramesSize(){return keyframes_.size();}
-   // void ApplyScaledRotation(const Matrix3d &R, const double s);
+   
     Frames GetKeyFrames(double start, double end = 0, int num = 0);
 
     void InsertKeyFrame(Frame::Ptr frame);
@@ -42,8 +41,10 @@ public:
         landmarks_.clear();
         keyframes_.clear();
     }
-
+//NEWADD
+     int GetAllKeyFramesSize(){return keyframes_.size();}
     Frame::Ptr current_frame;
+//NEWADDEND
     NavsatMap::Ptr navsat_map;
     std::mutex mutex_local_kfs;
     

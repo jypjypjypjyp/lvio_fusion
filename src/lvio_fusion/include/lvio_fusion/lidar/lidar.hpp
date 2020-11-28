@@ -24,9 +24,9 @@ public:
         out.intensity = in.intensity;
     }
 
-    inline SE3d TransformMatrix(SE3d from_pose, SE3d to_pose)
+    inline SE3d TransformMatrix(SE3d from_pose)
     {
-        return extrinsic * to_pose * from_pose.inverse() * extrinsic.inverse();
+        return from_pose * extrinsic;
     }
 
     double resolution;

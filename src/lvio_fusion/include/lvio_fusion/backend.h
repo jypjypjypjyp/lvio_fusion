@@ -5,6 +5,8 @@
 #include "lvio_fusion/frame.h"
 #include "lvio_fusion/imu/imu.hpp"
 #include "lvio_fusion/imu/initializer.h"
+#include "lvio_fusion/lidar/lidar.hpp"
+#include "lvio_fusion/lidar/mapping.h"
 #include "lvio_fusion/map.h"
 #include "lvio_fusion/visual/camera.hpp"
 
@@ -35,11 +37,15 @@ public:
         camera_right_ = right;
     }
 
+    void SetLidar(Lidar::Ptr lidar) { lidar_ = lidar; }
+
     void SetImu(Imu::Ptr imu) { imu_ = imu; }
 
     void SetMap(Map::Ptr map) { map_ = map; }
 
     void SetFrontend(std::shared_ptr<Frontend> frontend) { frontend_ = frontend; }
+
+    void SetMapping(Mapping::Ptr mapping) { mapping_ = mapping; }
 
     void SetInitializer(Initializer::Ptr initializer) { initializer_ = initializer; }
 
@@ -52,7 +58,8 @@ public:
     BackendStatus status = BackendStatus::RUNNING;
     std::mutex mutex;
     double head = 0;
-    Initializer::Ptr initializer_;
+    Initializer::Ptr initializer_;//NEWADD
+
 private:
     void BackendLoop();
 
@@ -62,10 +69,11 @@ private:
 
     void ForwardPropagate(double time);
 
-    void BuildProblem(Frames &active_kfs, ceres::Problem &problem,std::vector<double *> &para_gbs,std::vector<double *> &para_abs);
+   void BuildProblem(Frames &active_kfs, ceres::Problem &problem,std::vector<double *> &para_gbs,std::vector<double *> &para_abs);//NEWADD
 
     Map::Ptr map_;
     std::weak_ptr<Frontend> frontend_;
+    Mapping::Ptr mapping_;
 
 
     std::thread thread_;
@@ -77,6 +85,7 @@ private:
 
     Camera::Ptr camera_left_;
     Camera::Ptr camera_right_;
+    Lidar::Ptr lidar_;
     Imu::Ptr imu_;
 };
 

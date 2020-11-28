@@ -1,11 +1,9 @@
 #ifndef lvio_fusion_MAPPING_H
 #define lvio_fusion_MAPPING_H
 
-#include "lvio_fusion/backend.h"
 #include "lvio_fusion/common.h"
-#include "lvio_fusion/frontend.h"
+#include "lvio_fusion/lidar/association.h"
 #include "lvio_fusion/lidar/lidar.hpp"
-#include "lvio_fusion/lidar/scan_registration.h"
 #include "lvio_fusion/map.h"
 #include "lvio_fusion/visual/camera.hpp"
 
@@ -17,7 +15,7 @@ class Mapping
 public:
     typedef std::shared_ptr<Mapping> Ptr;
 
-    Mapping();
+    Mapping() {}
 
     void SetLidar(Lidar::Ptr lidar) { lidar_ = lidar; }
 
@@ -25,40 +23,29 @@ public:
 
     void SetMap(Map::Ptr map) { map_ = map; }
 
-    void SetScanRegistration(ScanRegistration::Ptr scan_registration) { scan_registration_ = scan_registration; }
-
-    void SetFrontend(Frontend::Ptr frontend) { frontend_ = frontend; }
-
-    void SetBackend(Backend::Ptr backend) { backend_ = backend; }
+    void SetFeatureAssociation(FeatureAssociation::Ptr association) { association_ = association; }
 
     void Optimize(Frames &active_kfs);
 
+    void BuildOldMapFrame(Frames old_frames, Frame::Ptr map_frame);
+
+    void MergeScan(const PointICloud &in, SE3d from_pose, PointICloud &out);
+
+    void AddToWorld(Frame::Ptr frame);
+
     PointRGBCloud GetGlobalMap();
 
-    double head = 0;
-    std::mutex mutex;
+    std::map<double, PointRGBCloud> pointclouds_color;
+    std::map<double, PointICloud> pointclouds_full;
 
 private:
-    void MappingLoop();
+    void BuildMapFrame(Frame::Ptr frame, Frame::Ptr map_frame);
 
-    void BuildProblem(Frames &active_kfs, ceres::Problem &problem);
-
-    void AddToWorld(const PointICloud &in, Frame::Ptr frame, PointRGBCloud &out);
-
-    void BuildGlobalMap(Frames &active_kfs);
+    void Color(const PointICloud &in, Frame::Ptr frame, PointRGBCloud &out);
 
     Map::Ptr map_;
-    ScanRegistration::Ptr scan_registration_;
-    Frontend::Ptr frontend_;
-    Backend::Ptr backend_;
+    FeatureAssociation::Ptr association_;
 
-    std::thread thread_;
-    std::mutex running_mutex_, pausing_mutex_;
-    std::condition_variable running_;
-    std::condition_variable pausing_;
-    std::condition_variable started_;
-    std::map<double, PointRGBCloud> pointclouds_;
-    
     Lidar::Ptr lidar_;
     Camera::Ptr camera_;
 };
