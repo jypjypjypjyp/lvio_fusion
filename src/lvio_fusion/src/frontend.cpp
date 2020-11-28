@@ -185,7 +185,7 @@ bool Frontend::InitFramePoseByPnP()
         cv::Rodrigues(rvec, cv_R);
         Matrix3d R;
         cv::cv2eigen(cv_R, R);
-        current_frame->pose = SE3d(SO3d(R), Vector3d(tvec.at<double>(0, 0), tvec.at<double>(1, 0), tvec.at<double>(2, 0))) * camera_left_->extrinsic;
+        current_frame->pose = (camera_left_->extrinsic * SE3d(SO3d(R), Vector3d(tvec.at<double>(0, 0), tvec.at<double>(1, 0), tvec.at<double>(2, 0)))).inverse();
         return true;
     }
     return false;
@@ -272,7 +272,7 @@ int Frontend::DetectNewFeatures()
         cv::rectangle(mask, feature->keypoint - cv::Point2f(10, 10), feature->keypoint + cv::Point2f(10, 10), 0, cv::FILLED);
     }
 
-    std::vector<cv::Point2f> kps_left, kps_right;   // must be point2f
+    std::vector<cv::Point2f> kps_left, kps_right; // must be point2f
     cv::goodFeaturesToTrack(current_frame->image_left, kps_left, num_features_ - current_frame->features_left.size(), 0.01, 30, mask);
 
     // use LK flow to estimate points in the right image
@@ -286,7 +286,6 @@ int Frontend::DetectNewFeatures()
         cv::OPTFLOW_USE_INITIAL_FLOW);
 
     // triangulate new points
-    SE3d current_pose_Twc = current_frame->pose.inverse();
     int num_triangulated_pts = 0;
     int num_good_pts = 0;
     for (size_t i = 0; i < kps_left.size(); ++i)
