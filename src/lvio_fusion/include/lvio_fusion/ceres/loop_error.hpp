@@ -12,15 +12,15 @@ class PoseGraphError
 public:
     PoseGraphError(SE3d last_frame, SE3d frame, double *weights) : weights_(weights)
     {
-        se32rpyxyz(last_frame * frame.inverse(), rpyxyz_);
+        se32rpyxyz(frame * last_frame.inverse(), rpyxyz_);
     }
 
     template <typename T>
-    bool operator()(const T *Tcw1, const T *Tcw2, T *residuals) const
+    bool operator()(const T *Twc1, const T *Twc2, T *residuals) const
     {
-        T relative_i_j[7], Tcw2_inverse[7], rpyxyz[6];
-        ceres::SE3Inverse(Tcw2, Tcw2_inverse);
-        ceres::SE3Product(Tcw1, Tcw2_inverse, relative_i_j);
+        T relative_i_j[7], Twc1_inverse[7], rpyxyz[6];
+        ceres::SE3Inverse(Twc1, Twc1_inverse);
+        ceres::SE3Product(Twc2, Twc1_inverse, relative_i_j);
         ceres::SE3ToRpyxyz(relative_i_j, rpyxyz);
         residuals[0] = T(weights_[0]) * (rpyxyz[0] - rpyxyz_[0]);
         residuals[1] = T(weights_[1]) * (rpyxyz[1] - rpyxyz_[1]);

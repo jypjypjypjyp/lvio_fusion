@@ -140,15 +140,15 @@ bool Relocation::DetectLoop(Frame::Ptr frame, Frame::Ptr &old_frame)
     double min_distance = 10;
     for (auto pair_kf : candidate_kfs)
     {
-        Vector3d vec = (pair_kf.second->pose.inverse().translation() - frame->pose.inverse().translation());
+        Vector3d vec = (pair_kf.second->pose.translation() - frame->pose.translation());
         vec.z() = 0;
         double distance = vec.norm();
         if (distance < min_distance)
         {
             Frame::Ptr prev_frame = map_->GetKeyFrames(0, frame->time, 1).begin()->second;
             Frame::Ptr subs_frame = map_->GetKeyFrames(frame->time, 0, 1).begin()->second;
-            Vector3d prev_vec = (pair_kf.second->pose.inverse().translation() - prev_frame->pose.inverse().translation());
-            Vector3d subs_vec = (pair_kf.second->pose.inverse().translation() - subs_frame->pose.inverse().translation());
+            Vector3d prev_vec = (pair_kf.second->pose.translation() - prev_frame->pose.translation());
+            Vector3d subs_vec = (pair_kf.second->pose.translation() - subs_frame->pose.translation());
             prev_vec.z() = 0;
             subs_vec.z() = 0;
             double prev_distance = prev_vec.norm();
@@ -211,7 +211,7 @@ bool Relocation::RelocateByImage(Frame::Ptr frame, Frame::Ptr old_frame)
         cv::Rodrigues(rvec, cv_R);
         Matrix3d R;
         cv::cv2eigen(cv_R, R);
-        frame->loop_constraint->relative_pose = camera_left_->extrinsic * SE3d(SO3d(R), Vector3d(tvec.at<double>(0, 0), tvec.at<double>(1, 0), tvec.at<double>(2, 0)));
+        frame->loop_constraint->relative_o_c = camera_left_->extrinsic * SE3d(SO3d(R), Vector3d(tvec.at<double>(0, 0), tvec.at<double>(1, 0), tvec.at<double>(2, 0)));
         return true;
     }
     return false;
@@ -227,9 +227,9 @@ bool Relocation::RelocateByPoints(Frame::Ptr frame, Frame::Ptr old_frame)
     // init relative pose
     Frame::Ptr clone_frame = Frame::Ptr(new Frame());
     *clone_frame = *frame;
-    SE3d relative_o_t = old_frame->pose * clone_frame->pose.inverse();
+    SE3d relative_o_t = clone_frame->pose * old_frame->pose.inverse();
     relative_o_t.translation().z() = 0;
-    clone_frame->pose = relative_o_t.inverse() * old_frame->pose;
+    clone_frame->pose = relative_o_t * old_frame->pose;
 
     // build two pointclouds
     Frame::Ptr old_frame_prev = map_->GetKeyFrames(0, old_frame->time, 1).begin()->second;
@@ -260,12 +260,12 @@ bool Relocation::RelocateByPoints(Frame::Ptr frame, Frame::Ptr old_frame)
     Vector3d t(0, 0, 0);
     t << transform_matrix(0, 3), transform_matrix(1, 3), transform_matrix(2, 3);
     SE3d transform(q, t);
-    clone_frame->pose = clone_frame->pose * transform;
+    clone_frame->pose = transform * clone_frame->pose;
 
     for (int i = 0; i < 2; i++)
     {
         double rpyxyz[6];
-        se32rpyxyz(map_frame->pose * clone_frame->pose.inverse(), rpyxyz); // relative_i_j
+        se32rpyxyz(clone_frame->pose * map_frame->pose.inverse(), rpyxyz); // relative_i_j
         {
             adapt::Problem problem;
             association_->ScanToMapWithGround(clone_frame, map_frame, rpyxyz, problem);
@@ -275,7 +275,7 @@ bool Relocation::RelocateByPoints(Frame::Ptr frame, Frame::Ptr old_frame)
             options.num_threads = 4;
             ceres::Solver::Summary summary;
             ceres::Solve(options, &problem, &summary);
-            clone_frame->pose = rpyxyz2se3(rpyxyz).inverse() * map_frame->pose;
+            clone_frame->pose = rpyxyz2se3(rpyxyz) * map_frame->pose;
         }
         {
             adapt::Problem problem;
@@ -286,11 +286,11 @@ bool Relocation::RelocateByPoints(Frame::Ptr frame, Frame::Ptr old_frame)
             options.num_threads = 4;
             ceres::Solver::Summary summary;
             ceres::Solve(options, &problem, &summary);
-            clone_frame->pose = rpyxyz2se3(rpyxyz).inverse() * map_frame->pose;
+            clone_frame->pose = rpyxyz2se3(rpyxyz) * map_frame->pose;
         }
     }
 
-    frame->loop_constraint->relative_pose = clone_frame->pose * old_frame->pose.inverse();
+    frame->loop_constraint->relative_o_c = clone_frame->pose * old_frame->pose.inverse();
     return true;
 }
 
@@ -317,7 +317,7 @@ int Relocation::Hamming(const BRIEF &a, const BRIEF &b)
     return dis;
 }
 
-void Relocation::BuildProblem(Frames &active_kfs, ceres::Problem &problem)
+void Relocation::BuildProblem(Frames &active_kfs, adapt::Problem &problem)
 {
     ceres::LossFunction *loss_function = new ceres::TrivialLoss();
     ceres::LocalParameterization *local_parameterization = new ceres::ProductParameterization(
@@ -326,7 +326,6 @@ void Relocation::BuildProblem(Frames &active_kfs, ceres::Problem &problem)
 
     double start_time = active_kfs.begin()->first;
     
-    double weights[6] = {10, 10, 10, 1, 1, 1};
     Frame::Ptr last_frame;
     for (auto pair_kf : active_kfs)
     {
@@ -337,8 +336,8 @@ void Relocation::BuildProblem(Frames &active_kfs, ceres::Problem &problem)
         {
             double *para_last_kf = last_frame->pose.data();
             ceres::CostFunction *cost_function;
-            cost_function = PoseGraphError::Create(last_frame->pose, frame->pose, weights);
-            problem.AddResidualBlock(cost_function, loss_function, para_last_kf, para_kf);
+            cost_function = PoseGraphError::Create(last_frame->pose, frame->pose, frame->weights.pose_graph);
+            problem.AddResidualBlock(ProblemType::Other, cost_function, loss_function, para_last_kf, para_kf);
         }
         last_frame = frame;
     }
@@ -373,7 +372,7 @@ void Relocation::CorrectLoop(double old_time, double start_time, double end_time
     SE3d old_pose = (--new_submap_kfs.end())->second->pose;
     {
         // build new submap pose graph
-        ceres::Problem problem;
+        adapt::Problem problem;
         BuildProblem(new_submap_kfs, problem);
 
         // update pose of new submap with loop constraints
@@ -382,12 +381,12 @@ void Relocation::CorrectLoop(double old_time, double start_time, double end_time
             Frame::Ptr frame = pair_kf.second;
             if (frame->loop_constraint->relocated)
             {
-                frame->pose = frame->loop_constraint->relative_pose * frame->loop_constraint->frame_old->pose;
+                frame->pose = frame->loop_constraint->relative_o_c * frame->loop_constraint->frame_old->pose;
             }
         }
 
         ceres::Solver::Options options;
-        options.linear_solver_type = ceres::DENSE_QR;
+        options.linear_solver_type = ceres::SPARSE_NORMAL_CHOLESKY;
         options.max_num_iterations = 5;
         options.num_threads = 1;
         ceres::Solver::Summary summary;
@@ -421,11 +420,11 @@ void Relocation::CorrectLoop(double old_time, double start_time, double end_time
     atlas_.AddSubMap(old_time, start_time, end_time);
 
     // optimize pose graph
-    ceres::Problem problem;
+    adapt::Problem problem;
     BuildProblem(active_kfs, problem);
 
     ceres::Solver::Options options;
-    options.linear_solver_type = ceres::DENSE_QR;
+    options.linear_solver_type = ceres::SPARSE_NORMAL_CHOLESKY;
     options.max_num_iterations = 5;
     options.num_threads = 1;
     ceres::Solver::Summary summary;

@@ -19,7 +19,7 @@ public:
 
     bool relocated = false;
     std::shared_ptr<Frame> frame_old;
-    SE3d relative_pose;
+    SE3d relative_o_c;
 };
 
 } // namespace loop

@@ -1,6 +1,7 @@
 #ifndef lvio_fusion_RELOCATION_H
 #define lvio_fusion_RELOCATION_H
 
+#include "lvio_fusion/adapt/problem.h"
 #include "lvio_fusion/backend.h"
 #include "lvio_fusion/common.h"
 #include "lvio_fusion/frame.h"
@@ -97,7 +98,7 @@ private:
 
     int Hamming(const BRIEF &a, const BRIEF &b);
 
-    void BuildProblem(Frames &active_kfs, ceres::Problem &problem);
+    void BuildProblem(Frames &active_kfs, adapt::Problem &problem);
 
     void CorrectLoop(double old_time, double start_time, double end_time);
 
