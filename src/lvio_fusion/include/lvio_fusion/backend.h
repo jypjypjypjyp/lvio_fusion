@@ -1,6 +1,7 @@
 #ifndef lvio_fusion_BACKEND_H
 #define lvio_fusion_BACKEND_H
 
+#include "lvio_fusion/adapt/problem.h"
 #include "lvio_fusion/common.h"
 #include "lvio_fusion/frame.h"
 #include "lvio_fusion/imu/imu.hpp"
@@ -68,7 +69,7 @@ private:
 
     void ForwardPropagate(double time);
 
-    void BuildProblem(Frames &active_kfs, ceres::Problem &problem);
+    void BuildProblem(Frames &active_kfs, adapt::Problem &problem);
 
     Map::Ptr map_;
     std::weak_ptr<Frontend> frontend_;

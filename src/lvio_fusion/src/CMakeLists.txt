@@ -1,4 +1,5 @@
 add_library(lvio_fusion SHARED
+        agent.cpp
         association.cpp
         atlas.cpp
         backend.cpp

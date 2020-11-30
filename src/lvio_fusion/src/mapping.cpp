@@ -1,4 +1,5 @@
 #include "lvio_fusion/lidar/mapping.h"
+#include "lvio_fusion/adapt/problem.h"
 #include "lvio_fusion/ceres/lidar_error.hpp"
 #include "lvio_fusion/utility.h"
 
@@ -59,6 +60,7 @@ void Mapping::BuildOldMapFrame(Frames old_frames, Frame::Ptr map_frame)
     voxel_filter.setLeafSize(lidar_->resolution, lidar_->resolution, lidar_->resolution);
     voxel_filter.filter(points_full_merged);
 
+    map_frame->id = old_frames.begin()->second->id;
     map_frame->time = old_frames.begin()->second->time;
     map_frame->pose = old_frames.begin()->second->pose;
     map_frame->feature_lidar = lidar::Feature::Create();
@@ -72,6 +74,7 @@ void Mapping::BuildMapFrame(Frame::Ptr frame, Frame::Ptr map_frame)
     Frames last_frames = map_->GetKeyFrames(0, start_time, num_last_frames);
     if (last_frames.empty())
         return;
+    map_frame->id = (--last_frames.end())->second->id;
     map_frame->time = (--last_frames.end())->second->time;
     map_frame->pose = (--last_frames.end())->second->pose;
     PointICloud points_full_merged;
@@ -101,9 +104,9 @@ void Mapping::Optimize(Frames &active_kfs)
         if (map_frame->feature_lidar && pair_kf.second->feature_lidar && !map_frame->feature_lidar->points_full.empty())
         {
             double rpyxyz[6];
-            se32rpyxyz(map_frame->pose * pair_kf.second->pose.inverse(), rpyxyz); // relative_i_j
+            se32rpyxyz(pair_kf.second->pose * map_frame->pose.inverse(), rpyxyz); // relative_i_j
             {
-                ceres::Problem problem;
+                adapt::Problem problem;
                 association_->ScanToMapWithGround(pair_kf.second, map_frame, rpyxyz, problem);
                 ceres::Solver::Options options;
                 options.linear_solver_type = ceres::DENSE_QR;
@@ -111,10 +114,10 @@ void Mapping::Optimize(Frames &active_kfs)
                 options.num_threads = 4;
                 ceres::Solver::Summary summary;
                 ceres::Solve(options, &problem, &summary);
-                pair_kf.second->pose = rpyxyz2se3(rpyxyz).inverse() * map_frame->pose;
+                pair_kf.second->pose = rpyxyz2se3(rpyxyz) * map_frame->pose;
             }
             {
-                ceres::Problem problem;
+                adapt::Problem problem;
                 association_->ScanToMapWithSegmented(pair_kf.second, map_frame, rpyxyz, problem);
                 ceres::Solver::Options options;
                 options.linear_solver_type = ceres::DENSE_QR;
@@ -122,7 +125,7 @@ void Mapping::Optimize(Frames &active_kfs)
                 options.num_threads = 4;
                 ceres::Solver::Summary summary;
                 ceres::Solve(options, &problem, &summary);
-                pair_kf.second->pose = rpyxyz2se3(rpyxyz).inverse() * map_frame->pose;
+                pair_kf.second->pose = rpyxyz2se3(rpyxyz) * map_frame->pose;
             }
         }
         AddToWorld(pair_kf.second);
@@ -133,9 +136,9 @@ void Mapping::Optimize(Frames &active_kfs)
     }
 }
 
-void Mapping::MergeScan(const PointICloud &in, SE3d from_pose, PointICloud &out)
+void Mapping::MergeScan(const PointICloud &in, SE3d Twc, PointICloud &out)
 {
-    Sophus::SE3f tf_se3 = lidar_->TransformMatrix(from_pose).cast<float>();
+    Sophus::SE3f tf_se3 = Twc.cast<float>();
     float *tf = tf_se3.data();
     for (auto point_in : in)
     {

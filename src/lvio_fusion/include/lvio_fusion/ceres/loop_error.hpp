@@ -45,19 +45,22 @@ private:
 class PoseErrorRPZ
 {
 public:
-    PoseErrorRPZ(const double *rpyxyz, double *weights) : weights_(weights)
+    PoseErrorRPZ(const double *rpyxyz, double *weights)
     {
         r_ = rpyxyz[1];
         p_ = rpyxyz[2];
         z_ = rpyxyz[5];
+        weights_[0] = weights[1];
+        weights_[1] = weights[2];
+        weights_[2] = weights[5];
     }
 
     template <typename T>
     bool operator()(const T *r, const T *p, const T *z, T *residuals) const
     {
-        residuals[0] = T(weights_[1]) * (r[0] - T(r_));
-        residuals[1] = T(weights_[2]) * (p[0] - T(p_));
-        residuals[2] = T(weights_[5]) * (z[0] - T(z_));
+        residuals[0] = T(weights_[0]) * (r[0] - T(r_));
+        residuals[1] = T(weights_[1]) * (p[0] - T(p_));
+        residuals[2] = T(weights_[2]) * (z[0] - T(z_));
         return true;
     }
 
@@ -69,25 +72,28 @@ public:
 
 private:
     double r_, p_, z_;
-    const double *weights_;
+    double weights_[3];
 };
 
 class PoseErrorYXY
 {
 public:
-    PoseErrorYXY(const double *rpyxyz, double *weights) : weights_(weights)
+    PoseErrorYXY(const double *rpyxyz, double *weights)
     {
         Y_ = rpyxyz[0];
         x_ = rpyxyz[3];
         y_ = rpyxyz[4];
+        weights_[0] = weights[0];
+        weights_[1] = weights[3];
+        weights_[2] = weights[4];
     }
 
     template <typename T>
     bool operator()(const T *Y, const T *x, const T *y, T *residuals) const
     {
         residuals[0] = T(weights_[0]) * (Y[0] - T(Y_));
-        residuals[1] = T(weights_[3]) * (x[0] - T(x_));
-        residuals[2] = T(weights_[4]) * (y[0] - T(y_));
+        residuals[1] = T(weights_[1]) * (x[0] - T(x_));
+        residuals[2] = T(weights_[2]) * (y[0] - T(y_));
         return true;
     }
 
@@ -99,7 +105,7 @@ public:
 
 private:
     double Y_, x_, y_;
-    const double *weights_;
+    double weights_[3];
 };
 
 } // namespace lvio_fusion

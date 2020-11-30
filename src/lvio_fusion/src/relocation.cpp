@@ -267,7 +267,7 @@ bool Relocation::RelocateByPoints(Frame::Ptr frame, Frame::Ptr old_frame)
         double rpyxyz[6];
         se32rpyxyz(map_frame->pose * clone_frame->pose.inverse(), rpyxyz); // relative_i_j
         {
-            ceres::Problem problem;
+            adapt::Problem problem;
             association_->ScanToMapWithGround(clone_frame, map_frame, rpyxyz, problem);
             ceres::Solver::Options options;
             options.linear_solver_type = ceres::DENSE_SCHUR;
@@ -278,7 +278,7 @@ bool Relocation::RelocateByPoints(Frame::Ptr frame, Frame::Ptr old_frame)
             clone_frame->pose = rpyxyz2se3(rpyxyz).inverse() * map_frame->pose;
         }
         {
-            ceres::Problem problem;
+            adapt::Problem problem;
             association_->ScanToMapWithSegmented(clone_frame, map_frame, rpyxyz, problem);
             ceres::Solver::Options options;
             options.linear_solver_type = ceres::DENSE_SCHUR;
@@ -473,7 +473,7 @@ void Relocation::RelocateByPoints(Frames frames)
             double rpyxyz[6];
             se32rpyxyz(map_frame->pose * pair_kf.second->pose.inverse(), rpyxyz); // relative_i_j
             {
-                ceres::Problem problem;
+                adapt::Problem problem;
                 association_->ScanToMapWithGround(pair_kf.second, map_frame, rpyxyz, problem);
                 ceres::Solver::Options options;
                 options.linear_solver_type = ceres::DENSE_QR;
@@ -484,7 +484,7 @@ void Relocation::RelocateByPoints(Frames frames)
                 pair_kf.second->pose = rpyxyz2se3(rpyxyz).inverse() * map_frame->pose;
             }
             {
-                ceres::Problem problem;
+                adapt::Problem problem;
                 association_->ScanToMapWithSegmented(pair_kf.second, map_frame, rpyxyz, problem);
                 ceres::Solver::Options options;
                 options.linear_solver_type = ceres::DENSE_QR;

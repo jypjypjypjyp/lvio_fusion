@@ -59,7 +59,7 @@ void Backend::BackendLoop()
     }
 }
 
-void Backend::BuildProblem(Frames &active_kfs, ceres::Problem &problem)
+void Backend::BuildProblem(Frames &active_kfs, adapt::Problem &problem)
 {
     ceres::LossFunction *loss_function = new ceres::HuberLoss(1.0);
     ceres::LocalParameterization *local_parameterization = new ceres::ProductParameterization(
@@ -82,36 +82,36 @@ void Backend::BuildProblem(Frames &active_kfs, ceres::Problem &problem)
             if (first_frame->time < start_time)
             {
                 cost_function = PoseOnlyReprojectionError::Create(cv2eigen(feature->keypoint), landmark->ToWorld(), camera_left_, frame->weights.visual);
-                problem.AddResidualBlock(cost_function, loss_function, para_kf);
+                problem.AddResidualBlock(ProblemType::PoseOnlyReprojectionError, cost_function, loss_function, para_kf);
             }
             else if (first_frame != frame)
             {
                 double *para_fist_kf = first_frame->pose.data();
                 cost_function = TwoFrameReprojectionError::Create(landmark->position, cv2eigen(feature->keypoint), camera_left_, frame->weights.visual);
-                problem.AddResidualBlock(cost_function, loss_function, para_fist_kf, para_kf);
+                problem.AddResidualBlock(ProblemType::TwoFrameReprojectionError, cost_function, loss_function, para_fist_kf, para_kf);
             }
         }
     }
 
     // navsat constraints
-    auto navsat_map = map_->navsat_map;
-    if (map_->navsat_map != nullptr && navsat_map->initialized)
-    {
-        ceres::LossFunction *navsat_loss_function = new ceres::TrivialLoss();
-        for (auto pair_kf : active_kfs)
-        {
-            auto frame = pair_kf.second;
-            auto para_kf = frame->pose.data();
-            auto np_iter = navsat_map->navsat_points.lower_bound(pair_kf.first);
-            auto navsat_point = np_iter->second;
-            navsat_map->Transfrom(navsat_point);
-            if (std::fabs(navsat_point.time - frame->time) < 1e-2)
-            {
-                ceres::CostFunction *cost_function = NavsatError::Create(navsat_point.position, frame->weights.navsat);
-                problem.AddResidualBlock(cost_function, navsat_loss_function, para_kf);
-            }
-        }
-    }
+    // auto navsat_map = map_->navsat_map;
+    // if (map_->navsat_map != nullptr && navsat_map->initialized)
+    // {
+    //     ceres::LossFunction *navsat_loss_function = new ceres::TrivialLoss();
+    //     for (auto pair_kf : active_kfs)
+    //     {
+    //         auto frame = pair_kf.second;
+    //         auto para_kf = frame->pose.data();
+    //         auto np_iter = navsat_map->navsat_points.lower_bound(pair_kf.first);
+    //         auto navsat_point = np_iter->second;
+    //         navsat_map->Transfrom(navsat_point);
+    //         if (std::fabs(navsat_point.time - frame->time) < 1e-2)
+    //         {
+    //             ceres::CostFunction *cost_function = NavsatError::Create(navsat_point.position, frame->weights.navsat);
+    //             problem.AddResidualBlock(cost_function, navsat_loss_function, para_kf);
+    //         }
+    //     }
+    // }
 
     // TODO
     // imu constraints
@@ -176,21 +176,21 @@ void Backend::Optimize(bool full)
     // }
 
     // navsat init
-    auto navsat_map = map_->navsat_map;
-    if (!full && map_->navsat_map && !navsat_map->initialized && map_->size() >= navsat_map->num_frames_init)
-    {
-        navsat_map->Initialize();
-        // TODO: full optimize
-        Optimize(true);
-        return;
-    }
+    // auto navsat_map = map_->navsat_map;
+    // if (!full && map_->navsat_map && !navsat_map->initialized && map_->size() >= navsat_map->num_frames_init)
+    // {
+    //     navsat_map->Initialize();
+    //     // TODO: full optimize
+    //     Optimize(true);
+    //     return;
+    // }
 
-    ceres::Problem problem;
+    adapt::Problem problem;
     BuildProblem(active_kfs, problem);
 
     ceres::Solver::Options options;
     options.linear_solver_type = ceres::DENSE_SCHUR;
-    options.max_solver_time_in_seconds = 0.6 * delay_;
+    options.max_solver_time_in_seconds = 5;
     options.num_threads = 4;
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
@@ -239,7 +239,7 @@ void Backend::ForwardPropagate(double time)
         active_kfs[last_frame->time] = last_frame;
     }
 
-    ceres::Problem problem;
+    adapt::Problem problem;
     BuildProblem(active_kfs, problem);
 
     ceres::Solver::Options options;
