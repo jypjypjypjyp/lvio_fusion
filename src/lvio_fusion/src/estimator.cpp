@@ -36,8 +36,8 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
                                    Config::Get<double>("camera1.cx"),
                                    Config::Get<double>("camera1.cy"),
                                    SE3d(q_base_to_cam0, t_base_to_cam0)));
-    LOG(INFO) << "Camera 1"
-              << " extrinsics: " << t_base_to_cam0.transpose();
+    //LOG(INFO) << "Camera 1"
+     //         << " extrinsics: " << t_base_to_cam0.transpose();
     // second camera
     Matrix3d R_base_to_cam1(base_to_cam1.block(0, 0, 3, 3));
     Quaterniond q_base_to_cam1(R_base_to_cam1);
@@ -48,8 +48,8 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
                                    Config::Get<double>("camera2.cx"),
                                    Config::Get<double>("camera2.cy"),
                                    SE3d(q_base_to_cam1, t_base_to_cam1)));
-    LOG(INFO) << "Camera 2"
-              << " extrinsics: " << t_base_to_cam1.transpose();
+    //LOG(INFO) << "Camera 2"
+   //           << " extrinsics: " << t_base_to_cam1.transpose();
 // NEWADD
 //read imu
         double acc_n= Config::Get<double>("acc_n");
@@ -186,7 +186,7 @@ void Estimator::InputImage(double time, cv::Mat &left_image, cv::Mat &right_imag
     auto t2 = std::chrono::steady_clock::now();
     auto time_used =
         std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);
-    LOG(INFO) << "VO status:" << (success ? "success" : "failed") << ",VO cost time: " << time_used.count() << " seconds.";
+    //LOG(INFO) << "VO status:" << (success ? "success" : "failed") << ",VO cost time: " << time_used.count() << " seconds.";
 }
 
 void Estimator::InputPointCloud(double time, Point3Cloud::Ptr point_cloud)
@@ -196,8 +196,8 @@ void Estimator::InputPointCloud(double time, Point3Cloud::Ptr point_cloud)
     auto t2 = std::chrono::steady_clock::now();
     auto time_used =
         std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);
-    if (time_used.count() > 1e-2)
-        LOG(INFO) << "Lidar Preprocessing cost time: " << time_used.count() << " seconds.";
+    //if (time_used.count() > 1e-2)
+        //LOG(INFO) << "Lidar Preprocessing cost time: " << time_used.count() << " seconds.";
 }
 
 void Estimator::InputIMU(double time, Vector3d acc, Vector3d gyr)

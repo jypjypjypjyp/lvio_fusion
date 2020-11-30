@@ -74,7 +74,7 @@ void InertialOptimization(unsigned long last_initialized_id,Map::Ptr pMap, Eigen
     options.max_solver_time_in_seconds = 7 * 0.6;
     options.num_threads = 4;
     ceres::Solver::Summary summary;
-    //ceres::Solve(options, &problem, &summary);
+    ceres::Solve(options, &problem, &summary);
      std::this_thread::sleep_for(std::chrono::seconds(3));
 
      Eigen::AngleAxisd rollAngle(AngleAxisd(rwg(0),Vector3d::UnitX()));
@@ -103,7 +103,7 @@ void InertialOptimization(unsigned long last_initialized_id,Map::Ptr pMap, Eigen
      }
 }
     
-void FullInertialBA(unsigned long last_initialized_id,Map::Ptr pMap, int its, const bool bFixLocal=false, const unsigned long nLoopKF=0, bool *pbStopFlag=NULL, bool bInit=false, double priorG = 1, double priorA=1e9, Eigen::VectorXd *vSingVal = NULL, bool *bHess=NULL)
+void FullInertialBA(unsigned long last_initialized_id,Matrix3d Rwg,Map::Ptr pMap, int its, const bool bFixLocal=false, const unsigned long nLoopKF=0, bool *pbStopFlag=NULL, bool bInit=false, double priorG = 1, double priorA=1e9, Eigen::VectorXd *vSingVal = NULL, bool *bHess=NULL)
 {
 Frames KFs=pMap->GetAllKeyFrames();
 ceres::Problem problem;
@@ -170,7 +170,7 @@ for(Frames::iterator iter = KFs.begin(); iter != KFs.end(); iter++,ii++)
           auto V2=para_vs[ii];
 
           //ei p1,v1,g1,a1,p2,v2
-           ceres::CostFunction *cost_function = InertialError::Create(current_frame->preintegration);
+           ceres::CostFunction *cost_function = InertialError::Create(current_frame->preintegration,Rwg);
            problem.AddResidualBlock(cost_function, NULL, P1,V1,g1,a1,P2,V2);//7,3,3,3,7,3
 
      }
@@ -212,7 +212,7 @@ for(Frames::iterator iter = KFs.begin(); iter != KFs.end(); iter++,iii++)
 
 void  Initializer::InitializeIMU(bool bFIBA)
 {
-     double priorA=1e4;
+     double priorA=1e3;
      double priorG=1;
     double minTime=1.0;  // 初始化需要的最小时间间隔
     int nMinKF=10;     // 初始化需要的最少关键帧数
@@ -321,7 +321,7 @@ void  Initializer::InitializeIMU(bool bFIBA)
 
     // Step 5: 进行完全惯性优化(包括MapPoints)
 LOG(INFO)<<"FullInertialBA+++++++++++++++++++++";
-  //  FullInertialBA(last_initialized_id,map_, 100, false, 0, NULL, true, priorG, priorA);
+    FullInertialBA(last_initialized_id,mRwg,map_, 100, false, 0, NULL, true, priorG, priorA);
 LOG(INFO)<<"FullInertialBA------------------------------";
 
     // Step 6: 设置当前map imu 已经初始化 

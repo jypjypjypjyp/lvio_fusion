@@ -55,7 +55,7 @@ void Backend::BackendLoop()
         Optimize();
         auto t2 = std::chrono::steady_clock::now();
         auto time_used = std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);
-        LOG(INFO) << "Backend cost time: " << time_used.count() << " seconds.";
+        //LOG(INFO) << "Backend cost time: " << time_used.count() << " seconds.";
     }
 }
 
@@ -146,14 +146,14 @@ void Backend::BuildProblem(Frames &active_kfs, ceres::Problem &problem,std::vect
     //             auto para_bg_last = last_frame->mImuBias.linearized_bg.data();//恢复
     //             Vector3d a2=last_frame->GetAccBias();
     //             auto para_ba_last =last_frame->mImuBias.linearized_ba.data();//恢复
-    //             ceres::CostFunction *cost_function = ImuError2::Create(current_frame->preintegration);
+    //             ceres::CostFunction *cost_function = ImuError::Create(current_frame->preintegration,initializer_->mRwg);
     //             problem.AddResidualBlock(cost_function, NULL, para_kf_last, para_v_last, para_ba_last, para_bg_last, para_kf, para_v, para_ba, para_bg);
     //          }
     //         last_frame = current_frame;
     //         i++;
     //     }
 
-    //}
+    // }
     //NEWADDEND
 }
 

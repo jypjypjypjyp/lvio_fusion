@@ -216,7 +216,7 @@ Bias Preintegration::GetDeltaBias(const Bias &b_)
 
 
 Matrix<double, 15, 1> Preintegration::Evaluate(const Vector3d &Pi, const Quaterniond &Qi, const Vector3d &Vi, const Vector3d &Bai, const Vector3d &Bgi,
-                                               const Vector3d &Pj, const Quaterniond &Qj, const Vector3d &Vj, const Vector3d &Baj, const Vector3d &Bgj)
+                                               const Vector3d &Pj, const Quaterniond &Qj, const Vector3d &Vj, const Vector3d &Baj, const Vector3d &Bgj,const Matrix3d Rwg)
 {
     Matrix<double, 15, 1> residuals;
     Matrix3d dp_dba=JPa;
@@ -235,9 +235,9 @@ Matrix<double, 15, 1> Preintegration::Evaluate(const Vector3d &Pi, const Quatern
     Quaterniond corrected_delta_q = delta_q * q_delta(dq_dbg * dbg);
     Vector3d corrected_delta_v = delta_v + dv_dba * dba + dv_dbg * dbg;
     Vector3d corrected_delta_p = delta_p + dp_dba * dba + dp_dbg * dbg;
-    residuals.block<3, 1>(O_T, 0) = Qi.inverse() * (0.5 * g * dT * dT + Pj - Pi - Vi * dT) - corrected_delta_p;
+    residuals.block<3, 1>(O_T, 0) = Qi.inverse() * (0.5 * Rwg*g * dT * dT + Pj - Pi - Vi * dT) - corrected_delta_p;
     residuals.block<3, 1>(O_R, 0) = 2 * (corrected_delta_q.inverse() * (Qi.inverse() * Qj)).vec();
-    residuals.block<3, 1>(O_V, 0) = Qi.inverse() * (g * dT + Vj - Vi) - corrected_delta_v;
+    residuals.block<3, 1>(O_V, 0) = Qi.inverse() * (Rwg*g * dT + Vj - Vi) - corrected_delta_v;
     residuals.block<3, 1>(O_BA, 0) = Baj - Bai;
     residuals.block<3, 1>(O_BG, 0) = Bgj - Bgi;
     return residuals;

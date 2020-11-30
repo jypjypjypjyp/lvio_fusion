@@ -60,12 +60,12 @@ void Relocation::RelocationLoop()
             {
                 if (Relocate(last_frame, last_old_frame))
                 {
-                    LOG(INFO) << "Detected new loop, and correct it now. old_time:" << old_time << ";start_time:" << start_time << ";end_time:" << last_frame->time;
+                   // LOG(INFO) << "Detected new loop, and correct it now. old_time:" << old_time << ";start_time:" << start_time << ";end_time:" << last_frame->time;
                     auto t1 = std::chrono::steady_clock::now();
                     CorrectLoop(old_time, start_time, last_frame->time);
                     auto t2 = std::chrono::steady_clock::now();
                     auto time_used = std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);
-                    LOG(INFO) << "Correct Loop cost time: " << time_used.count() << " seconds.";
+                    //LOG(INFO) << "Correct Loop cost time: " << time_used.count() << " seconds.";
                 }
                 old_time = DBL_MAX;
                 last_old_frame = last_frame = nullptr;
@@ -392,7 +392,7 @@ void Relocation::CorrectLoop(double old_time, double start_time, double end_time
         options.num_threads = 1;
         ceres::Solver::Summary summary;
         ceres::Solve(options, &problem, &summary);
-        LOG(INFO) << summary.FullReport();
+      //  LOG(INFO) << summary.FullReport();
     }
     SE3d new_pose = (--new_submap_kfs.end())->second->pose;
 

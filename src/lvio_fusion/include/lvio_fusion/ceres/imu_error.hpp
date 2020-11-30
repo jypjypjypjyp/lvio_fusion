@@ -14,7 +14,7 @@ const double G=9.81;
 class ImuError : public ceres::SizedCostFunction<15, 7, 3, 3, 3, 7, 3, 3, 3>
 {
 public:
-    ImuError(imu::Preintegration::Ptr preintegration) : preintegration_(preintegration) {}
+    ImuError(imu::Preintegration::Ptr preintegration,  Matrix3d Rwg_) : preintegration_(preintegration),Rwg(Rwg_) {}
 
     virtual bool Evaluate(double const *const *parameters, double *residuals, double **jacobians) const
     {
@@ -33,7 +33,7 @@ public:
         Vector3d Bgj(parameters[7][0], parameters[7][1], parameters[7][2]);
 
         Eigen::Map<Matrix<double, 15, 1>> residual(residuals);
-        residual = preintegration_->Evaluate(Pi, Qi, Vi, Bai, Bgi, Pj, Qj, Vj, Baj, Bgj);
+        residual = preintegration_->Evaluate(Pi, Qi, Vi, Bai, Bgi, Pj, Qj, Vj, Baj, Bgj,Rwg);
         Matrix<double, 15, 15> covariance=preintegration_->C;
         Matrix<double, 15, 15> sqrt_info = LLT<Matrix<double, 15, 15>>(covariance.inverse()).matrixL().transpose();
         residual = sqrt_info * residual;
@@ -123,19 +123,20 @@ public:
         return true;
     }
 
-    static ceres::CostFunction *Create(imu::Preintegration::Ptr preintegration)
+    static ceres::CostFunction *Create(imu::Preintegration::Ptr preintegration,  Matrix3d Rwg_)
     {
-        return new ImuError(preintegration);
+        return new ImuError(preintegration,Rwg_);
     }
 
 private:
+    Matrix3d Rwg;
     imu::Preintegration::Ptr preintegration_;
 };
 
 class ImuError2
 {
 public:
-    ImuError2(imu::Preintegration::Ptr preintegration) : preintegration_(preintegration) {}
+    ImuError2(imu::Preintegration::Ptr preintegration,  Matrix3d Rwg_) : preintegration_(preintegration),Rwg(Rwg_) {}
 
    bool operator()(const  double *  parameters0,const  double *  parameters1,const  double *  parameters2,const  double *  parameters3,const  double *  parameters4,const  double *  parameters5,const  double *  parameters6,const  double *  parameters7, double* residuals) const 
     {
@@ -154,19 +155,20 @@ public:
         Vector3d Bgj(parameters7[0], parameters7[1], parameters7[2]);
 
         Eigen::Map<Matrix<double, 15, 1>> residual(residuals);
-        residual = preintegration_->Evaluate(Pi, Qi, Vi, Bai, Bgi, Pj, Qj, Vj, Baj, Bgj);
+        residual = preintegration_->Evaluate(Pi, Qi, Vi, Bai, Bgi, Pj, Qj, Vj, Baj, Bgj,Rwg);
         Matrix<double, 15, 15> covariance=preintegration_->C;
         Matrix<double, 15, 15> sqrt_info = LLT<Matrix<double, 15, 15>>(covariance.inverse()).matrixL().transpose();
         residual = sqrt_info * residual;
         return true;
     }
 
-    static ceres::CostFunction *Create(imu::Preintegration::Ptr preintegration)
+    static ceres::CostFunction *Create(imu::Preintegration::Ptr preintegration,Matrix3d Rwg_)
     {
-         return new ceres::NumericDiffCostFunction<ImuError2,ceres::FORWARD,15, 7, 3, 3, 3, 7, 3, 3, 3>(new ImuError2(preintegration));
+         return new ceres::NumericDiffCostFunction<ImuError2,ceres::FORWARD,15, 7, 3, 3, 3, 7, 3, 3, 3>(new ImuError2(preintegration,Rwg_));
     }
 
 private:
+    Matrix3d Rwg;
     imu::Preintegration::Ptr preintegration_;
 };
 
@@ -180,7 +182,7 @@ public:
             residuals[0]=priorG*(bprior[0]-gyroBias[0]);
             residuals[1]=priorG*(bprior[1]-gyroBias[1]);
             residuals[2]=priorG*(bprior[2]-gyroBias[2]);
-  //                  LOG(INFO)<<" PriorGyroError: "<<residuals[0]<<" "<<residuals[1]<<" "<<residuals[2];
+                  //  LOG(INFO)<<" PriorGyroError: "<<residuals[0]<<" "<<residuals[1]<<" "<<residuals[2];
              if (jacobians)
             {
             if(jacobians[0])
@@ -212,7 +214,7 @@ public:
             residuals[0]=priorA*(bprior[0]-accBias[0]);
             residuals[1]=priorA*(bprior[1]-accBias[1]);
             residuals[2]=priorA*(bprior[2]-accBias[2]);
- //                   LOG(INFO)<<" PriorAccError: "<<residuals[0]<<" "<<residuals[1]<<" "<<residuals[2];
+                 //   LOG(INFO)<<" PriorAccError: "<<residuals[0]<<" "<<residuals[1]<<" "<<residuals[2];
             if (jacobians)
             {
                 if(jacobians[0])
@@ -281,6 +283,7 @@ public:
         residuals[6]=ep[0];
         residuals[7]=ep[1];
         residuals[8]=ep[2];
+      //  LOG(INFO)<<"InertialGSError2: "<<er<<" "<<ev<<" "<<ep;
         if (jacobians)
         {
             Bias db=mpInt->GetDeltaBias(b1);
@@ -406,9 +409,9 @@ private:
 class InertialError:public ceres::SizedCostFunction<9, 7,3,3,3,7,3>
 {
 public:
-    InertialError(imu::Preintegration::Ptr preintegration) : mpInt(preintegration),JRg( preintegration->JRg),
+    InertialError(imu::Preintegration::Ptr preintegration,Matrix3d Rwg_) : mpInt(preintegration),JRg( preintegration->JRg),
     JVg(  preintegration->JVg), JPg( preintegration->JPg), JVa(  preintegration->JVa),
-    JPa( preintegration->JPa) {}
+    JPa( preintegration->JPa) ,Rwg(Rwg_){}
 
     virtual bool Evaluate(double const *const *parameters, double *residuals, double **jacobians) const
     {
@@ -424,7 +427,8 @@ public:
         Vector3d Vj(parameters[5][0], parameters[5][1], parameters[5][2]);
         double dt=(mpInt->dT);
         Vector3d g;
-        g<< 0, 0, -G;
+         g<< 0, 0, -G;
+         g=Rwg*g;
         const Bias  b1(accBias(0,0),accBias(1,0),accBias(2,0),gyroBias(0,0),gyroBias(1,0),gyroBias(2,0));
         Matrix3d dR = mpInt->GetDeltaRotation(b1);
         Vector3d dV = mpInt->GetDeltaVelocity(b1);
@@ -501,17 +505,17 @@ public:
 
          return true;
     }
-    static ceres::CostFunction *Create(imu::Preintegration::Ptr preintegration)
+    static ceres::CostFunction *Create(imu::Preintegration::Ptr preintegration,Matrix3d Rwg_)
     {
-        return new InertialError(preintegration);
+        return new InertialError(preintegration,Rwg_);
     }
 private:
     imu::Preintegration::Ptr mpInt;
-    //Vector3d gl;
+    Matrix3d Rwg;
     Matrix3d JRg, JVg, JPg;
     Matrix3d JVa, JPa;
 };
-
+/*
 class InertialError2
 {
 public:
@@ -565,7 +569,7 @@ private:
     Matrix3d JRg, JVg, JPg;
     Matrix3d JVa, JPa;
 };
-
+*/
 } // namespace lvio_fusion
 
 #endif //lvio_fusion_IMU_ERROR_H

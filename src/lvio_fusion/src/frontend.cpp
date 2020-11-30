@@ -84,7 +84,7 @@ bool Frontend::Track()
 {    
     current_frame->pose = relative_i_j * last_frame_pose_cache_;
     //NEWADD
-     LOG(INFO)<<" FRAME ID: "<<current_frame->id<<"  pose: "<< current_frame->pose.translation()[0]<<" "<<current_frame->pose.translation()[1]<<" "<<current_frame->pose.translation()[2] ;
+     //LOG(INFO)<<" FRAME ID: "<<current_frame->id<<"  pose: "<< current_frame->pose.translation()[0]<<" "<<current_frame->pose.translation()[1]<<" "<<current_frame->pose.translation()[2] ;
     //LOG(INFO)<<" relative_pose"<<relative_pose.translation()[0]<<" "<<relative_pose.translation()[1]<<" "<<relative_pose.translation()[2];
     //LOG(INFO)<<" last_frame_pose_cache_"<<last_frame_pose_cache_.translation()[0]<<" "<<last_frame_pose_cache_.translation()[1]<<" "<<last_frame_pose_cache_.translation()[2];
      //如果有imu  预积分上一帧到当前帧的imu 
@@ -193,7 +193,7 @@ void Frontend::CreateKeyframe(bool need_new_features)
     reference_key_frame=current_key_frame;
 //NEWADDEND
 
-    LOG(INFO) << "Add a keyframe " << current_frame->id;
+    //LOG(INFO) << "Add a keyframe " << current_frame->id;
     // update backend because we have a new keyframe
     backend_.lock()->UpdateMap();
 }
@@ -268,7 +268,7 @@ int Frontend::TrackLastFrame()
     }
     cv::imshow("tracking", img_track);
     cv::waitKey(1);
-    LOG(INFO) << "Find " << num_good_pts << " in the last image.";
+    //LOG(INFO) << "Find " << num_good_pts << " in the last image.";
     return num_good_pts;
 }
 
@@ -290,7 +290,7 @@ bool Frontend::InitMap()
 
     // the first frame is a keyframe
     map_->InsertKeyFrame(current_frame);
-    LOG(INFO) << "Initial map created with " << num_new_features << " map points";
+    //LOG(INFO) << "Initial map created with " << num_new_features << " map points";
 
     // update backend and loop because we have a new keyframe
     backend_.lock()->UpdateMap();
@@ -350,9 +350,9 @@ int Frontend::DetectNewFeatures()
         }
     }
 
-    LOG(INFO) << "Detect " << kps_left.size() << " new features";
-    LOG(INFO) << "Find " << num_good_pts << " in the right image.";
-    LOG(INFO) << "new landmarks: " << num_triangulated_pts;
+    //LOG(INFO) << "Detect " << kps_left.size() << " new features";
+   // LOG(INFO) << "Find " << num_good_pts << " in the right image.";
+    //LOG(INFO) << "new landmarks: " << num_triangulated_pts;
     return num_triangulated_pts;
 }
 
@@ -369,7 +369,7 @@ bool Frontend::Reset()
     last_key_frame=static_cast<Frame::Ptr>(NULL);
     current_key_frame=static_cast<Frame::Ptr>(NULL);
 //NEWADDEND
-    LOG(INFO) << "Reset Succeed";
+    //LOG(INFO) << "Reset Succeed";
     return true;
 }
 
@@ -395,6 +395,7 @@ void Frontend::UpdateFrameIMU(const double s, const Bias &b, Frame::Ptr pCurrent
 
     Vector3d Gz ;
     Gz << 0, 0, -ImuCalib_.G_norm;
+    Gz =backend_.lock()->initializer_->mRwg*Gz;
 
     Vector3d twb1;
     Matrix3d Rwb1;
