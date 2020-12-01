@@ -250,6 +250,17 @@ inline void FeatureAssociation::SegmentGround(PointICloud &points_ground)
     extract.filter(points_ground);
 }
 
+inline double f(double x)
+{
+    if(x < 10)
+    {
+        return 1;
+    }else if(x < 30)
+    {
+        return 2;
+    }
+}
+
 void FeatureAssociation::ScanToMapWithGround(Frame::Ptr frame, Frame::Ptr map_frame, double *para, adapt::Problem &problem)
 {
     ceres::LossFunction *loss_function = new ceres::HuberLoss(0.1);
@@ -355,9 +366,10 @@ void FeatureAssociation::ScanToMapWithGround(Frame::Ptr frame, Frame::Ptr map_fr
                 Vector3d last_point_c(points_less_flat_last[closest_index3].x,
                                       points_less_flat_last[closest_index3].y,
                                       points_less_flat_last[closest_index3].z);
+                double weights[1] = {f(curr_point.norm())};
 
                 ceres::CostFunction *cost_function;
-                cost_function = LidarPlaneErrorRPZ::Create(curr_point, last_point_a, last_point_b, last_point_c, lidar_, map_frame->pose, para, frame->weights.lidar_ground);
+                cost_function = LidarPlaneErrorRPZ::Create(curr_point, last_point_a, last_point_b, last_point_c, lidar_, map_frame->pose, para, weights);
                 problem.AddResidualBlock(ProblemType::LidarPlaneErrorRPZ, cost_function, loss_function, para + 1, para + 2, para + 5);
             }
         }
@@ -480,8 +492,10 @@ void FeatureAssociation::ScanToMapWithSegmented(Frame::Ptr frame, Frame::Ptr map
                 Vector3d last_point_c(points_less_flat_last[closest_index3].x,
                                       points_less_flat_last[closest_index3].y,
                                       points_less_flat_last[closest_index3].z);
+                double weights[1] = {1};
+
                 ceres::CostFunction *cost_function;
-                cost_function = LidarPlaneErrorYXY::Create(curr_point, last_point_a, last_point_b, last_point_c, lidar_, map_frame->pose, para, frame->weights.lidar_surf);
+                cost_function = LidarPlaneErrorYXY::Create(curr_point, last_point_a, last_point_b, last_point_c, lidar_, map_frame->pose, para, weights);
                 problem.AddResidualBlock(ProblemType::LidarPlaneErrorYXY, cost_function, loss_function, para, para + 3, para + 4);
                 num_factors++;
             }

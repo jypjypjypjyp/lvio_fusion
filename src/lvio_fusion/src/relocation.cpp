@@ -173,10 +173,22 @@ bool Relocation::DetectLoop(Frame::Ptr frame, Frame::Ptr &old_frame)
 
 bool Relocation::Relocate(Frame::Ptr frame, Frame::Ptr old_frame)
 {
-    // RelocateByImage(frames, old_frames);
+    double rpyxyz_o[6], rpyxyz_i[6], rpy_o_i[3];
+    se32rpyxyz(frame->pose, rpyxyz_i);
+    se32rpyxyz(old_frame->pose, rpyxyz_o);
+    rpy_o_i[0] = rpyxyz_i[0] - rpyxyz_o[0];
+    rpy_o_i[1] = rpyxyz_i[1] - rpyxyz_o[1];
+    rpy_o_i[2] = rpyxyz_i[2] - rpyxyz_o[2];
+    if (Vector3d(rpy_o_i[0], rpy_o_i[1], rpy_o_i[2]).norm() < 0.1 && RelocateByImage(frame, old_frame))
+    {
+        frame->loop_constraint->relocated = true;
+    }
     if (!lidar_ || RelocateByPoints(frame, old_frame))
     {
         frame->loop_constraint->relocated = true;
+    }
+    if (frame->loop_constraint->relocated)
+    {
         return true;
     }
     frame->loop_constraint.reset();
@@ -211,7 +223,7 @@ bool Relocation::RelocateByImage(Frame::Ptr frame, Frame::Ptr old_frame)
         cv::Rodrigues(rvec, cv_R);
         Matrix3d R;
         cv::cv2eigen(cv_R, R);
-        frame->loop_constraint->relative_o_c = camera_left_->extrinsic * SE3d(SO3d(R), Vector3d(tvec.at<double>(0, 0), tvec.at<double>(1, 0), tvec.at<double>(2, 0)));
+        frame->loop_constraint->relative_o_c = SE3d(SO3d(R), Vector3d(tvec.at<double>(0, 0), tvec.at<double>(1, 0), tvec.at<double>(2, 0))).inverse() * camera_left_->extrinsic;
         return true;
     }
     return false;
@@ -227,9 +239,7 @@ bool Relocation::RelocateByPoints(Frame::Ptr frame, Frame::Ptr old_frame)
     // init relative pose
     Frame::Ptr clone_frame = Frame::Ptr(new Frame());
     *clone_frame = *frame;
-    SE3d relative_o_t = clone_frame->pose * old_frame->pose.inverse();
-    relative_o_t.translation().z() = 0;
-    clone_frame->pose = relative_o_t * old_frame->pose;
+    clone_frame->pose.translation().z() = old_frame->pose.translation().z();
 
     // build two pointclouds
     Frame::Ptr old_frame_prev = map_->GetKeyFrames(0, old_frame->time, 1).begin()->second;
@@ -240,15 +250,19 @@ bool Relocation::RelocateByPoints(Frame::Ptr frame, Frame::Ptr old_frame)
     PointICloud points_temp_frame_world;
     mapping_->MergeScan(clone_frame->feature_lidar->points_full, clone_frame->pose, points_temp_frame_world);
 
+    // save
+    pcl::io::savePCDFile("/home/jyp/Projects/lvio_fusion/result/" + std::to_string(frame->time) + ".pcd", points_temp_frame_world);
+    pcl::io::savePCDFile("/home/jyp/Projects/lvio_fusion/result/old_" + std::to_string(frame->time) + ".pcd", map_frame->feature_lidar->points_full);
+
     // icp
     pcl::IterativeClosestPoint<PointI, PointI> icp;
     icp.setInputSource(boost::make_shared<PointICloud>(points_temp_frame_world));
     icp.setInputTarget(boost::make_shared<PointICloud>(map_frame->feature_lidar->points_full));
     icp.setMaximumIterations(100);
-    icp.setMaxCorrespondenceDistance(1);
+    icp.setMaxCorrespondenceDistance(5);
     PointICloud::Ptr aligned(new PointICloud);
     icp.align(*aligned);
-    if (!icp.hasConverged()) // || icp.getFitnessScore() > 1)
+    if (!icp.hasConverged() || icp.getFitnessScore() > 10)
     {
         return false;
     }
@@ -262,7 +276,7 @@ bool Relocation::RelocateByPoints(Frame::Ptr frame, Frame::Ptr old_frame)
     SE3d transform(q, t);
     clone_frame->pose = transform * clone_frame->pose;
 
-    for (int i = 0; i < 2; i++)
+    for (int i = 0; i < 4; i++)
     {
         double rpyxyz[6];
         se32rpyxyz(clone_frame->pose * map_frame->pose.inverse(), rpyxyz); // relative_i_j
@@ -270,8 +284,8 @@ bool Relocation::RelocateByPoints(Frame::Ptr frame, Frame::Ptr old_frame)
             adapt::Problem problem;
             association_->ScanToMapWithGround(clone_frame, map_frame, rpyxyz, problem);
             ceres::Solver::Options options;
-            options.linear_solver_type = ceres::DENSE_SCHUR;
-            options.max_num_iterations = 4;
+            options.linear_solver_type = ceres::DENSE_QR;
+            options.max_num_iterations = 2;
             options.num_threads = 4;
             ceres::Solver::Summary summary;
             ceres::Solve(options, &problem, &summary);
@@ -281,8 +295,8 @@ bool Relocation::RelocateByPoints(Frame::Ptr frame, Frame::Ptr old_frame)
             adapt::Problem problem;
             association_->ScanToMapWithSegmented(clone_frame, map_frame, rpyxyz, problem);
             ceres::Solver::Options options;
-            options.linear_solver_type = ceres::DENSE_SCHUR;
-            options.max_num_iterations = 1;
+            options.linear_solver_type = ceres::DENSE_QR;
+            options.max_num_iterations = 2;
             options.num_threads = 4;
             ceres::Solver::Summary summary;
             ceres::Solve(options, &problem, &summary);
@@ -319,13 +333,12 @@ int Relocation::Hamming(const BRIEF &a, const BRIEF &b)
 
 void Relocation::BuildProblem(Frames &active_kfs, adapt::Problem &problem)
 {
-    ceres::LossFunction *loss_function = new ceres::TrivialLoss();
     ceres::LocalParameterization *local_parameterization = new ceres::ProductParameterization(
         new ceres::EigenQuaternionParameterization(),
         new ceres::IdentityParameterization(3));
 
     double start_time = active_kfs.begin()->first;
-    
+
     Frame::Ptr last_frame;
     for (auto pair_kf : active_kfs)
     {
@@ -337,7 +350,7 @@ void Relocation::BuildProblem(Frames &active_kfs, adapt::Problem &problem)
             double *para_last_kf = last_frame->pose.data();
             ceres::CostFunction *cost_function;
             cost_function = PoseGraphError::Create(last_frame->pose, frame->pose, frame->weights.pose_graph);
-            problem.AddResidualBlock(ProblemType::Other, cost_function, loss_function, para_last_kf, para_kf);
+            problem.AddResidualBlock(ProblemType::Other, cost_function, NULL, para_last_kf, para_kf);
         }
         last_frame = frame;
     }
@@ -364,7 +377,7 @@ void Relocation::BuildProblem(Frames &active_kfs, adapt::Problem &problem)
 void Relocation::CorrectLoop(double old_time, double start_time, double end_time)
 {
     // build the active submaps
-    Frames active_kfs = map_->GetKeyFrames(old_time, start_time - epsilon);
+    Frames active_kfs = map_->GetKeyFrames(old_time, start_time);
     Frames new_submap_kfs = map_->GetKeyFrames(start_time, end_time);
     Frames all_kfs = map_->GetKeyFrames(old_time, end_time);
 
@@ -391,7 +404,6 @@ void Relocation::CorrectLoop(double old_time, double start_time, double end_time
         options.num_threads = 1;
         ceres::Solver::Summary summary;
         ceres::Solve(options, &problem, &summary);
-        LOG(INFO) << summary.FullReport();
     }
     SE3d new_pose = (--new_submap_kfs.end())->second->pose;
 
@@ -429,6 +441,7 @@ void Relocation::CorrectLoop(double old_time, double start_time, double end_time
     options.num_threads = 1;
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
+    LOG(INFO) << summary.FullReport();
 
     // update pose of inner submaps
     for (auto pair_of : inner_submap_old_frames)
@@ -446,53 +459,13 @@ void Relocation::CorrectLoop(double old_time, double start_time, double end_time
     // mapping new submap frames
     if (lidar_)
     {
-        RelocateByPoints(new_submap_kfs);
+        for (auto pair_kf : new_submap_kfs)
+        {
+            RelocateByPoints(pair_kf.second, pair_kf.second->loop_constraint->frame_old);
+        }
         for (auto pair_kf : all_kfs)
         {
             mapping_->AddToWorld(pair_kf.second);
-        }
-    }
-}
-
-void Relocation::RelocateByPoints(Frames frames)
-{
-    Frame::Ptr map_frame = Frame::Ptr(new Frame());
-    Frames old_frames;
-    for (auto pair_kf : frames)
-    {
-        Frame::Ptr old_frame = pair_kf.second;
-        old_frames[old_frame->time] = old_frame;
-    }
-    mapping_->BuildOldMapFrame(old_frames, map_frame);
-
-    for (auto pair_kf : frames)
-    {
-        if (pair_kf.second->loop_constraint && !pair_kf.second->loop_constraint->relocated)
-        {
-            double rpyxyz[6];
-            se32rpyxyz(map_frame->pose * pair_kf.second->pose.inverse(), rpyxyz); // relative_i_j
-            {
-                adapt::Problem problem;
-                association_->ScanToMapWithGround(pair_kf.second, map_frame, rpyxyz, problem);
-                ceres::Solver::Options options;
-                options.linear_solver_type = ceres::DENSE_QR;
-                options.max_num_iterations = 4;
-                options.num_threads = 4;
-                ceres::Solver::Summary summary;
-                ceres::Solve(options, &problem, &summary);
-                pair_kf.second->pose = rpyxyz2se3(rpyxyz).inverse() * map_frame->pose;
-            }
-            {
-                adapt::Problem problem;
-                association_->ScanToMapWithSegmented(pair_kf.second, map_frame, rpyxyz, problem);
-                ceres::Solver::Options options;
-                options.linear_solver_type = ceres::DENSE_QR;
-                options.max_num_iterations = 1;
-                options.num_threads = 4;
-                ceres::Solver::Summary summary;
-                ceres::Solve(options, &problem, &summary);
-                pair_kf.second->pose = rpyxyz2se3(rpyxyz).inverse() * map_frame->pose;
-            }
         }
     }
 }

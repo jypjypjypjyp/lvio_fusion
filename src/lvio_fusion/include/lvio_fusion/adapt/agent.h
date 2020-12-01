@@ -28,12 +28,12 @@ public:
 
     void UpdateWeights(adapt::Problem &problem, Weights &weights)
     {
-        if (problem.num_types[ProblemType::LidarPlaneErrorRPZ] < 1000)
+        if (problem.num_types[ProblemType::LidarPlaneErrorRPZ] < 800)
         {
             weights.lidar_ground[0] *= 1000;
             weights.lidar_ground[1] *= 1000;
         }
-        if (problem.num_types[ProblemType::LidarPlaneErrorYXY] < 300)
+        if (problem.num_types[ProblemType::LidarPlaneErrorYXY] < 200)
         {
             weights.lidar_surf[0] *= 1000;
             weights.lidar_surf[1] *= 1000;
