@@ -18,6 +18,7 @@ public:
     typedef std::shared_ptr<LoopConstraint> Ptr;
 
     bool relocated = false;
+    double score = 0;
     std::shared_ptr<Frame> frame_old;
     SE3d relative_o_c;
 };

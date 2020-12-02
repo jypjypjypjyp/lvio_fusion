@@ -252,18 +252,24 @@ inline void FeatureAssociation::SegmentGround(PointICloud &points_ground)
 
 inline double f(double x)
 {
-    if(x < 10)
+    if (x < 10)
     {
-        return 1;
-    }else if(x < 30)
-    {
-        return 2;
+        return 0.8;
     }
+    else if (x < 20)
+    {
+        return 1.6;
+    }
+    else if (x < 30)
+    {
+        return 2.4;
+    }
+    return 0.4;
 }
 
 void FeatureAssociation::ScanToMapWithGround(Frame::Ptr frame, Frame::Ptr map_frame, double *para, adapt::Problem &problem)
 {
-    ceres::LossFunction *loss_function = new ceres::HuberLoss(0.1);
+    ceres::LossFunction *loss_function = new ceres::TrivialLoss();
     PointICloud &points_less_flat_last = map_frame->feature_lidar->points_full;
     problem.AddParameterBlock(para + 1, 1);
     problem.AddParameterBlock(para + 2, 1);
@@ -385,7 +391,7 @@ void FeatureAssociation::ScanToMapWithGround(Frame::Ptr frame, Frame::Ptr map_fr
 
 void FeatureAssociation::ScanToMapWithSegmented(Frame::Ptr frame, Frame::Ptr map_frame, double *para, adapt::Problem &problem)
 {
-    ceres::LossFunction *loss_function = new ceres::HuberLoss(1);
+    ceres::LossFunction *loss_function = new ceres::TrivialLoss();
     PointICloud &points_less_flat_last = map_frame->feature_lidar->points_full;
     problem.AddParameterBlock(para + 0, 1);
     problem.AddParameterBlock(para + 3, 1);
@@ -492,7 +498,7 @@ void FeatureAssociation::ScanToMapWithSegmented(Frame::Ptr frame, Frame::Ptr map
                 Vector3d last_point_c(points_less_flat_last[closest_index3].x,
                                       points_less_flat_last[closest_index3].y,
                                       points_less_flat_last[closest_index3].z);
-                double weights[1] = {1};
+                double weights[1] = {f(1)};
 
                 ceres::CostFunction *cost_function;
                 cost_function = LidarPlaneErrorYXY::Create(curr_point, last_point_a, last_point_b, last_point_c, lidar_, map_frame->pose, para, weights);

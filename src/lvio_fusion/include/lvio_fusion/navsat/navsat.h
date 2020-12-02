@@ -29,7 +29,9 @@ public:
 
     void AddPoint(NavsatPoint point)
     {
-        navsat_points[point.time] = point;
+        raw[point.time] = point;
+
+        // double head = (--pose_estimated.end());
     }
 
     void Transfrom(NavsatPoint &point)
@@ -40,12 +42,14 @@ public:
     void Initialize();
 
     bool initialized = false;
-    int num_frames_init = 40;
-    NavsatPoints navsat_points;
+    NavsatPoints raw;
+    std::map<double, SE3d> pose_estimated;
     SE3d tf;
 
 private:
     std::weak_ptr<Map> map_;
+
+    bool Check();
 };
 
 } // namespace lvio_fusion

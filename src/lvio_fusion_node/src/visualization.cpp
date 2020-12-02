@@ -57,7 +57,7 @@ void publish_navsat(Estimator::Ptr estimator, double time)
     {
         if (navsat_path.poses.size() == 0)
         {
-            for (auto pair_mp : estimator->map->navsat_map->navsat_points)
+            for (auto pair_mp : estimator->map->navsat_map->raw)
             {
                 NavsatPoint point = pair_mp.second;
                 geometry_msgs::PoseStamped pose_stamped;
@@ -72,7 +72,7 @@ void publish_navsat(Estimator::Ptr estimator, double time)
         else
         {
             geometry_msgs::PoseStamped pose_stamped;
-            NavsatPoint point = (--estimator->map->navsat_map->navsat_points.end())->second;
+            NavsatPoint point = (--estimator->map->navsat_map->raw.end())->second;
             pose_stamped.pose.position.x = point.position.x();
             pose_stamped.pose.position.y = point.position.y();
             pose_stamped.pose.position.z = point.position.z();

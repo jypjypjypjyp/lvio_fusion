@@ -43,13 +43,13 @@ void Relocation::RelocationLoop()
             // if last is loop and this is not loop, then correct all new loops
             if (DetectLoop(frame, old_frame))
             {
-                if (!last_old_frame && Relocate(frame, old_frame))
+                if (!last_old_frame)
                 {
                     // get all new loop frames [start_time, end_time]
                     start_time = pair_kf.first;
                     last_old_frame = old_frame;
                 }
-                if (last_old_frame)
+                else
                 {
                     last_frame = frame;
                     last_old_frame = old_frame;
@@ -58,15 +58,12 @@ void Relocation::RelocationLoop()
             }
             else if (last_old_frame)
             {
-                if (Relocate(last_frame, last_old_frame))
-                {
-                    LOG(INFO) << "Detected new loop, and correct it now. old_time:" << old_time << ";start_time:" << start_time << ";end_time:" << last_frame->time;
-                    auto t1 = std::chrono::steady_clock::now();
-                    CorrectLoop(old_time, start_time, last_frame->time);
-                    auto t2 = std::chrono::steady_clock::now();
-                    auto time_used = std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);
-                    LOG(INFO) << "Correct Loop cost time: " << time_used.count() << " seconds.";
-                }
+                LOG(INFO) << "Detected new loop, and correct it now. old_time:" << old_time << ";start_time:" << start_time << ";end_time:" << last_frame->time;
+                auto t1 = std::chrono::steady_clock::now();
+                CorrectLoop(old_time, start_time, last_frame->time);
+                auto t2 = std::chrono::steady_clock::now();
+                auto time_used = std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);
+                LOG(INFO) << "Correct Loop cost time: " << time_used.count() << " seconds.";
                 old_time = DBL_MAX;
                 last_old_frame = last_frame = nullptr;
             }
@@ -173,21 +170,22 @@ bool Relocation::DetectLoop(Frame::Ptr frame, Frame::Ptr &old_frame)
 
 bool Relocation::Relocate(Frame::Ptr frame, Frame::Ptr old_frame)
 {
+    frame->loop_constraint->score = 0;
     double rpyxyz_o[6], rpyxyz_i[6], rpy_o_i[3];
     se32rpyxyz(frame->pose, rpyxyz_i);
     se32rpyxyz(old_frame->pose, rpyxyz_o);
     rpy_o_i[0] = rpyxyz_i[0] - rpyxyz_o[0];
     rpy_o_i[1] = rpyxyz_i[1] - rpyxyz_o[1];
     rpy_o_i[2] = rpyxyz_i[2] - rpyxyz_o[2];
-    if (Vector3d(rpy_o_i[0], rpy_o_i[1], rpy_o_i[2]).norm() < 0.1 && RelocateByImage(frame, old_frame))
+    if (Vector3d(rpy_o_i[0], rpy_o_i[1], rpy_o_i[2]).norm() < 0.1)
     {
-        frame->loop_constraint->relocated = true;
+        RelocateByImage(frame, old_frame);
     }
-    if (!lidar_ || RelocateByPoints(frame, old_frame))
+    if (lidar_)
     {
-        frame->loop_constraint->relocated = true;
+        RelocateByPoints(frame, old_frame);
     }
-    if (frame->loop_constraint->relocated)
+    if (frame->loop_constraint->score > 0)
     {
         return true;
     }
@@ -223,7 +221,8 @@ bool Relocation::RelocateByImage(Frame::Ptr frame, Frame::Ptr old_frame)
         cv::Rodrigues(rvec, cv_R);
         Matrix3d R;
         cv::cv2eigen(cv_R, R);
-        frame->loop_constraint->relative_o_c = SE3d(SO3d(R), Vector3d(tvec.at<double>(0, 0), tvec.at<double>(1, 0), tvec.at<double>(2, 0))).inverse() * camera_left_->extrinsic;
+        frame->loop_constraint->relative_o_c = (camera_left_->extrinsic * SE3d(SO3d(R), Vector3d(tvec.at<double>(0, 0), tvec.at<double>(1, 0), tvec.at<double>(2, 0)))).inverse();
+        frame->loop_constraint->score = std::min((double)points_2d.size(), 50.0);
         return true;
     }
     return false;
@@ -239,7 +238,14 @@ bool Relocation::RelocateByPoints(Frame::Ptr frame, Frame::Ptr old_frame)
     // init relative pose
     Frame::Ptr clone_frame = Frame::Ptr(new Frame());
     *clone_frame = *frame;
-    clone_frame->pose.translation().z() = old_frame->pose.translation().z();
+    if (clone_frame->loop_constraint->score > 0)
+    {
+        clone_frame->pose = clone_frame->loop_constraint->relative_o_c * old_frame->pose;
+    }
+    else
+    {
+        clone_frame->pose.translation().z() = old_frame->pose.translation().z();
+    }
 
     // build two pointclouds
     Frame::Ptr old_frame_prev = map_->GetKeyFrames(0, old_frame->time, 1).begin()->second;
@@ -247,35 +253,33 @@ bool Relocation::RelocateByPoints(Frame::Ptr frame, Frame::Ptr old_frame)
     Frames old_frames = {{old_frame->time, old_frame}, {old_frame_prev->time, old_frame_prev}, {old_frame_subs->time, old_frame_subs}};
     Frame::Ptr map_frame = Frame::Ptr(new Frame());
     mapping_->BuildOldMapFrame(old_frames, map_frame);
-    PointICloud points_temp_frame_world;
-    mapping_->MergeScan(clone_frame->feature_lidar->points_full, clone_frame->pose, points_temp_frame_world);
-
-    // save
-    pcl::io::savePCDFile("/home/jyp/Projects/lvio_fusion/result/" + std::to_string(frame->time) + ".pcd", points_temp_frame_world);
-    pcl::io::savePCDFile("/home/jyp/Projects/lvio_fusion/result/old_" + std::to_string(frame->time) + ".pcd", map_frame->feature_lidar->points_full);
-
-    // icp
-    pcl::IterativeClosestPoint<PointI, PointI> icp;
-    icp.setInputSource(boost::make_shared<PointICloud>(points_temp_frame_world));
-    icp.setInputTarget(boost::make_shared<PointICloud>(map_frame->feature_lidar->points_full));
-    icp.setMaximumIterations(100);
-    icp.setMaxCorrespondenceDistance(5);
-    PointICloud::Ptr aligned(new PointICloud);
-    icp.align(*aligned);
-    if (!icp.hasConverged() || icp.getFitnessScore() > 10)
-    {
-        return false;
-    }
+    // PointICloud points_temp_frame_world;
+    // mapping_->MergeScan(clone_frame->feature_lidar->points_full, clone_frame->pose, points_temp_frame_world);
+    // // save
+    // pcl::io::savePCDFile("/home/jyp/Projects/lvio_fusion/result/" + std::to_string(frame->time) + ".pcd", points_temp_frame_world);
+    // pcl::io::savePCDFile("/home/jyp/Projects/lvio_fusion/result/old_" + std::to_string(frame->time) + ".pcd", map_frame->feature_lidar->points_full);
+    // // icp
+    // pcl::IterativeClosestPoint<PointI, PointI> icp;
+    // icp.setInputSource(boost::make_shared<PointICloud>(points_temp_frame_world));
+    // icp.setInputTarget(boost::make_shared<PointICloud>(map_frame->feature_lidar->points_full));
+    // icp.setMaximumIterations(100);
+    // icp.setMaxCorrespondenceDistance(5);
+    // PointICloud::Ptr aligned(new PointICloud);
+    // icp.align(*aligned);
+    // if (!icp.hasConverged() || icp.getFitnessScore() > 10)
+    // {
+    //     return false;
+    // }
+    // Matrix4d transform_matrix = icp.getFinalTransformation().cast<double>();
+    // Matrix3d R(transform_matrix.block(0, 0, 3, 3));
+    // Quaterniond q(R);
+    // Vector3d t(0, 0, 0);
+    // t << transform_matrix(0, 3), transform_matrix(1, 3), transform_matrix(2, 3);
+    // SE3d transform(q, t);
+    // clone_frame->pose = transform * clone_frame->pose;
 
     // optimize
-    Matrix4d transform_matrix = icp.getFinalTransformation().cast<double>();
-    Matrix3d R(transform_matrix.block(0, 0, 3, 3));
-    Quaterniond q(R);
-    Vector3d t(0, 0, 0);
-    t << transform_matrix(0, 3), transform_matrix(1, 3), transform_matrix(2, 3);
-    SE3d transform(q, t);
-    clone_frame->pose = transform * clone_frame->pose;
-
+    double score_ground, score_surf;
     for (int i = 0; i < 4; i++)
     {
         double rpyxyz[6];
@@ -290,6 +294,7 @@ bool Relocation::RelocateByPoints(Frame::Ptr frame, Frame::Ptr old_frame)
             ceres::Solver::Summary summary;
             ceres::Solve(options, &problem, &summary);
             clone_frame->pose = rpyxyz2se3(rpyxyz) * map_frame->pose;
+            score_ground = std::min((double)summary.num_residual_blocks_reduced / 40, 30.0);
         }
         {
             adapt::Problem problem;
@@ -301,10 +306,12 @@ bool Relocation::RelocateByPoints(Frame::Ptr frame, Frame::Ptr old_frame)
             ceres::Solver::Summary summary;
             ceres::Solve(options, &problem, &summary);
             clone_frame->pose = rpyxyz2se3(rpyxyz) * map_frame->pose;
+            score_ground = std::min((double)summary.num_residual_blocks_reduced / 20, 20.0);
         }
     }
 
     frame->loop_constraint->relative_o_c = clone_frame->pose * old_frame->pose.inverse();
+    frame->loop_constraint->score += score_ground + score_surf;
     return true;
 }
 
@@ -376,14 +383,33 @@ void Relocation::BuildProblem(Frames &active_kfs, adapt::Problem &problem)
 
 void Relocation::CorrectLoop(double old_time, double start_time, double end_time)
 {
-    // build the active submaps
-    Frames active_kfs = map_->GetKeyFrames(old_time, start_time);
+    // build the pose graph and submaps
+    Frames active_kfs = map_->GetKeyFrames(old_time, end_time);
     Frames new_submap_kfs = map_->GetKeyFrames(start_time, end_time);
-    Frames all_kfs = map_->GetKeyFrames(old_time, end_time);
+    Frames all_kfs = active_kfs;
+    std::map<double, SE3d> inner_submap_old_frames = atlas_.GetActiveSubMaps(active_kfs, old_time, start_time);
+    atlas_.AddSubMap(old_time, start_time, end_time);
+    adapt::Problem problem;
+    BuildProblem(active_kfs, problem);
 
     // update new submap frams
     SE3d old_pose = (--new_submap_kfs.end())->second->pose;
     {
+        // relocate new submaps
+        std::map<double, double> score_table;
+        for (auto pair_kf : new_submap_kfs)
+        {
+            Relocate(pair_kf.second, pair_kf.second->loop_constraint->frame_old);
+            score_table[-pair_kf.second->loop_constraint->score] = pair_kf.first;
+        }
+        int max_num_relocated = 3;
+        for (auto pair : score_table)
+        {
+            if (max_num_relocated-- == 0)
+                break;
+            new_submap_kfs[pair.second]->loop_constraint->relocated = true;
+        }
+
         // build new submap pose graph
         adapt::Problem problem;
         BuildProblem(new_submap_kfs, problem);
@@ -400,10 +426,10 @@ void Relocation::CorrectLoop(double old_time, double start_time, double end_time
 
         ceres::Solver::Options options;
         options.linear_solver_type = ceres::SPARSE_NORMAL_CHOLESKY;
-        options.max_num_iterations = 5;
         options.num_threads = 1;
         ceres::Solver::Summary summary;
         ceres::Solve(options, &problem, &summary);
+        LOG(INFO) << summary.FullReport();
     }
     SE3d new_pose = (--new_submap_kfs.end())->second->pose;
 
@@ -423,25 +449,20 @@ void Relocation::CorrectLoop(double old_time, double start_time, double end_time
         {
             pair_kf.second->pose = pair_kf.second->pose * transform;
             // TODO: Repropagate
+
+            if (lidar_)
+            {
+                mapping_->AddToWorld(pair_kf.second);
+            }
         }
         frontend_->UpdateCache();
     }
 
-    // add a submap
-    std::map<double, SE3d> inner_submap_old_frames = atlas_.GetActiveSubMaps(active_kfs, old_time, start_time);
-    atlas_.AddSubMap(old_time, start_time, end_time);
-
-    // optimize pose graph
-    adapt::Problem problem;
-    BuildProblem(active_kfs, problem);
-
     ceres::Solver::Options options;
     options.linear_solver_type = ceres::SPARSE_NORMAL_CHOLESKY;
-    options.max_num_iterations = 5;
     options.num_threads = 1;
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
-    LOG(INFO) << summary.FullReport();
 
     // update pose of inner submaps
     for (auto pair_of : inner_submap_old_frames)
@@ -456,13 +477,8 @@ void Relocation::CorrectLoop(double old_time, double start_time, double end_time
         }
     }
 
-    // mapping new submap frames
     if (lidar_)
     {
-        for (auto pair_kf : new_submap_kfs)
-        {
-            RelocateByPoints(pair_kf.second, pair_kf.second->loop_constraint->frame_old);
-        }
         for (auto pair_kf : all_kfs)
         {
             mapping_->AddToWorld(pair_kf.second);

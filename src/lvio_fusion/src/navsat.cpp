@@ -24,7 +24,7 @@ void NavsatMap::Initialize()
     for (auto pair_kf : keyframes)
     {
         auto kf_point = pair_kf.second->pose.inverse().translation();
-        auto pair_np = navsat_points.lower_bound(pair_kf.first);
+        auto pair_np = raw.lower_bound(pair_kf.first);
         if (std::fabs(pair_np->first - pair_kf.first) < 1e-1)
         {
             ceres::CostFunction *cost_function = NavsatInitError::Create(kf_point, pair_np->second.position);
@@ -33,8 +33,8 @@ void NavsatMap::Initialize()
     }
 
     ceres::Solver::Options options;
-    options.linear_solver_type = ceres::DENSE_NORMAL_CHOLESKY;
-    options.num_threads = 8;
+    options.linear_solver_type = ceres::DENSE_QR;
+    options.num_threads = 1;
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
 
