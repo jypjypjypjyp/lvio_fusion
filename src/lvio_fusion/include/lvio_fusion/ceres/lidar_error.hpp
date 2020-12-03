@@ -59,8 +59,11 @@ inline SE3d rpyxyz2se3(const double *rpyxyz)
 class LidarPlaneErrorRPZ
 {
 public:
-    LidarPlaneErrorRPZ(LidarPlaneError origin_error, SE3d Twc1, double *rpyxyz, double* weights)
-        : origin_error_(origin_error), Twc1_(Twc1), rpyxyz_(rpyxyz), weights_(weights) {}
+    LidarPlaneErrorRPZ(LidarPlaneError origin_error, SE3d Twc1, double *rpyxyz, double *weights)
+        : origin_error_(origin_error), Twc1_(Twc1), rpyxyz_(rpyxyz)
+    {
+        weights_[0] = weights[0];
+    }
 
     template <typename T>
     bool operator()(const T *pitch, const T *roll, const T *z, T *residual) const
@@ -79,7 +82,7 @@ public:
         return true;
     }
 
-    static ceres::CostFunction *Create(const Vector3d p, const Vector3d pa, const Vector3d pb, const Vector3d pc, const Lidar::Ptr lidar, const SE3d Twc1, double *rpyxyz, double* weights)
+    static ceres::CostFunction *Create(const Vector3d p, const Vector3d pa, const Vector3d pb, const Vector3d pc, const Lidar::Ptr lidar, const SE3d Twc1, double *rpyxyz, double *weights)
     {
         LidarPlaneError origin_error(p, pa, pb, pc, lidar);
         return (new ceres::AutoDiffCostFunction<LidarPlaneErrorRPZ, 1, 1, 1, 1>(new LidarPlaneErrorRPZ(origin_error, Twc1, rpyxyz, weights)));
@@ -89,14 +92,17 @@ private:
     LidarPlaneError origin_error_;
     SE3d Twc1_;
     double *rpyxyz_;
-    const double *weights_;
+    double weights_[1];
 };
 
 class LidarPlaneErrorYXY
 {
 public:
-    LidarPlaneErrorYXY(LidarPlaneError origin_error, SE3d Twc1, double *rpyxyz, double* weights)
-        : origin_error_(origin_error), Twc1_(Twc1), rpyxyz_(rpyxyz), weights_(weights) {}
+    LidarPlaneErrorYXY(LidarPlaneError origin_error, SE3d Twc1, double *rpyxyz, double *weights)
+        : origin_error_(origin_error), Twc1_(Twc1), rpyxyz_(rpyxyz)
+    {
+        weights_[0] = weights[1];
+    }
 
     template <typename T>
     bool operator()(const T *yaw, const T *x, const T *y, T *residual) const
@@ -115,7 +121,7 @@ public:
         return true;
     }
 
-    static ceres::CostFunction *Create(const Vector3d p, const Vector3d pa, const Vector3d pb, const Vector3d pc, const Lidar::Ptr lidar, const SE3d Twc1, double *rpyxyz, double* weights)
+    static ceres::CostFunction *Create(const Vector3d p, const Vector3d pa, const Vector3d pb, const Vector3d pc, const Lidar::Ptr lidar, const SE3d Twc1, double *rpyxyz, double *weights)
     {
         LidarPlaneError origin_error(p, pa, pb, pc, lidar);
         return (new ceres::AutoDiffCostFunction<LidarPlaneErrorYXY, 1, 1, 1, 1>(new LidarPlaneErrorYXY(origin_error, Twc1, rpyxyz, weights)));
@@ -125,7 +131,7 @@ private:
     LidarPlaneError origin_error_;
     SE3d Twc1_;
     double *rpyxyz_;
-    const double *weights_;
+    double weights_[1];
 };
 
 } // namespace lvio_fusion

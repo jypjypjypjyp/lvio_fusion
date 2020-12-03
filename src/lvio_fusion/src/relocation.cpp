@@ -177,10 +177,11 @@ bool Relocation::Relocate(Frame::Ptr frame, Frame::Ptr old_frame)
     rpy_o_i[0] = rpyxyz_i[0] - rpyxyz_o[0];
     rpy_o_i[1] = rpyxyz_i[1] - rpyxyz_o[1];
     rpy_o_i[2] = rpyxyz_i[2] - rpyxyz_o[2];
-    if (Vector3d(rpy_o_i[0], rpy_o_i[1], rpy_o_i[2]).norm() < 0.1)
-    {
-        RelocateByImage(frame, old_frame);
-    }
+    //TODO
+    // if (Vector3d(rpy_o_i[0], rpy_o_i[1], rpy_o_i[2]).norm() < 0.1)
+    // {
+    //     RelocateByImage(frame, old_frame);
+    // }
     if (lidar_)
     {
         RelocateByPoints(frame, old_frame);
@@ -387,6 +388,22 @@ void Relocation::CorrectLoop(double old_time, double start_time, double end_time
     Frames active_kfs = map_->GetKeyFrames(old_time, end_time);
     Frames new_submap_kfs = map_->GetKeyFrames(start_time, end_time);
     Frames all_kfs = active_kfs;
+
+    // relocate new submaps
+    std::map<double, double> score_table;
+    for (auto pair_kf : new_submap_kfs)
+    {
+        Relocate(pair_kf.second, pair_kf.second->loop_constraint->frame_old);
+        score_table[-pair_kf.second->loop_constraint->score] = pair_kf.first;
+    }
+    int max_num_relocated = 3;
+    for (auto pair : score_table)
+    {
+        if (max_num_relocated-- == 0)
+            break;
+        new_submap_kfs[pair.second]->loop_constraint->relocated = true;
+    }
+
     std::map<double, SE3d> inner_submap_old_frames = atlas_.GetActiveSubMaps(active_kfs, old_time, start_time);
     atlas_.AddSubMap(old_time, start_time, end_time);
     adapt::Problem problem;
@@ -395,21 +412,6 @@ void Relocation::CorrectLoop(double old_time, double start_time, double end_time
     // update new submap frams
     SE3d old_pose = (--new_submap_kfs.end())->second->pose;
     {
-        // relocate new submaps
-        std::map<double, double> score_table;
-        for (auto pair_kf : new_submap_kfs)
-        {
-            Relocate(pair_kf.second, pair_kf.second->loop_constraint->frame_old);
-            score_table[-pair_kf.second->loop_constraint->score] = pair_kf.first;
-        }
-        int max_num_relocated = 3;
-        for (auto pair : score_table)
-        {
-            if (max_num_relocated-- == 0)
-                break;
-            new_submap_kfs[pair.second]->loop_constraint->relocated = true;
-        }
-
         // build new submap pose graph
         adapt::Problem problem;
         BuildProblem(new_submap_kfs, problem);
@@ -430,6 +432,10 @@ void Relocation::CorrectLoop(double old_time, double start_time, double end_time
         ceres::Solver::Summary summary;
         ceres::Solve(options, &problem, &summary);
         LOG(INFO) << summary.FullReport();
+        for (auto pair_kf : new_submap_kfs)
+        {
+            pair_kf.second->loop_constraint->relocated = true;
+        }
     }
     SE3d new_pose = (--new_submap_kfs.end())->second->pose;
 

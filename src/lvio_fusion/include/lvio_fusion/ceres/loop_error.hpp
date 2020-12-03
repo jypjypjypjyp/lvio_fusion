@@ -10,9 +10,15 @@ namespace lvio_fusion
 class PoseGraphError
 {
 public:
-    PoseGraphError(SE3d last_frame, SE3d frame, double *weights) : weights_(weights)
+    PoseGraphError(SE3d last_frame, SE3d frame, double *weights)
     {
         se32rpyxyz(frame * last_frame.inverse(), rpyxyz_);
+        weights_[0] = weights[0];
+        weights_[1] = weights[1];
+        weights_[2] = weights[2];
+        weights_[3] = weights[3];
+        weights_[4] = weights[4];
+        weights_[5] = weights[5];
     }
 
     template <typename T>
@@ -39,7 +45,7 @@ public:
 
 private:
     double rpyxyz_[6];
-    const double *weights_;
+    double weights_[6];
 };
 
 class PoseErrorRPZ

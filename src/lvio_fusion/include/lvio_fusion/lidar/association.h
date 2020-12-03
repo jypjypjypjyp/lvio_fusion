@@ -40,7 +40,7 @@ public:
     void ScanToMapWithGround(Frame::Ptr frame, Frame::Ptr map_frame, double* para, adapt::Problem &problem);
 
     void ScanToMapWithSegmented(Frame::Ptr frame, Frame::Ptr map_frame, double* para, adapt::Problem &problem);
-
+    void SegmentGround(PointICloud& points_ground);
 private:
     void UndistortPoint(PointI &point, Frame::Ptr frame);
     void UndistortPointCloud(PointICloud &points, Frame::Ptr frame);
@@ -59,7 +59,7 @@ private:
 
     void ExtractFeatures(PointICloud &points_segmented, SegmentedInfo &segemented_info, Frame::Ptr frame);
 
-    void SegmentGround(PointICloud& points_ground);
+    
 
     void Sensor2Robot(PointICloud& in, PointICloud& out);
 

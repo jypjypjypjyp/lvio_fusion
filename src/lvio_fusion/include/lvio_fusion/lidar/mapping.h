@@ -37,6 +37,7 @@ public:
 
     std::map<double, PointRGBCloud> pointclouds_color;
     std::map<double, PointICloud> pointclouds_full;
+    std::map<double, PointICloud> pointclouds_ground;
 
 private:
     void BuildMapFrame(Frame::Ptr frame, Frame::Ptr map_frame);

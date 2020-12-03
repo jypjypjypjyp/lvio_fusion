@@ -11,10 +11,15 @@ namespace lvio_fusion
 struct NavsatPoint
 {
     NavsatPoint() {}
-    NavsatPoint(double time, double x, double y, double z)
-        : time(time), position(Vector3d(x, y, z)) {}
+    NavsatPoint(double time, NavsatPoint &last_point, Vector3d A, Vector3d B, Vector3d C, Vector3d position)
+        : time(time), position(position), A(A), B(B), C(C)
+    {
+        heading = position - last_point.position;
+    }
     double time;
     Vector3d position;
+    Vector3d A, B, C;
+    Vector3d heading;
 };
 
 class Map;
@@ -27,29 +32,22 @@ public:
 
     NavsatMap(std::shared_ptr<Map> map) : map_(map) {}
 
-    void AddPoint(NavsatPoint point)
-    {
-        raw[point.time] = point;
+    void AddPoint(double time, double x, double y, double z);
 
-        // double head = (--pose_estimated.end());
-    }
-
-    void Transfrom(NavsatPoint &point)
-    {
-        point.position = tf * point.position;
-    }
+    void Transfrom(NavsatPoint &point);
 
     void Initialize();
 
     bool initialized = false;
-    NavsatPoints raw;
-    std::map<double, SE3d> pose_estimated;
+    std::map<double, Vector3d> raw;
+    NavsatPoints points;
     SE3d tf;
 
 private:
-    std::weak_ptr<Map> map_;
-
     bool Check();
+
+    std::weak_ptr<Map> map_;
+    NavsatPoint A_;
 };
 
 } // namespace lvio_fusion

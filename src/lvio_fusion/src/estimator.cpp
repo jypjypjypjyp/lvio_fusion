@@ -191,8 +191,7 @@ void Estimator::InputIMU(double time, Vector3d acc, Vector3d gyr)
 
 void Estimator::InputNavSat(double time, double x, double y, double z, double posAccuracy)
 {
-    NavsatPoint new_point(time, x, y, z);
-    map->navsat_map->AddPoint(new_point);
+    map->navsat_map->AddPoint(time, x, y, z);
 }
 
 } // namespace lvio_fusion

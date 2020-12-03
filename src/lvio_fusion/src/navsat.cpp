@@ -1,12 +1,26 @@
+#include "lvio_fusion/navsat/navsat.h"
 #include "lvio_fusion/ceres/navsat_error.hpp"
 #include "lvio_fusion/map.h"
-#include "lvio_fusion/navsat/navsat.h"
 
 #include <ceres/ceres.h>
 
-
 namespace lvio_fusion
 {
+
+void NavsatMap::AddPoint(double time, double x, double y, double z)
+{
+    raw[time] = Vector3d(x, y, z);
+
+    static double head = 0;
+    Frames active_kfs = map_.lock()->GetKeyFrames(head);
+
+    head = (--points.end())->first + epsilon;
+}
+
+void NavsatMap::Transfrom(NavsatPoint &point)
+{
+    point.position = tf * point.position;
+}
 
 void NavsatMap::Initialize()
 {
@@ -27,7 +41,7 @@ void NavsatMap::Initialize()
         auto pair_np = raw.lower_bound(pair_kf.first);
         if (std::fabs(pair_np->first - pair_kf.first) < 1e-1)
         {
-            ceres::CostFunction *cost_function = NavsatInitError::Create(kf_point, pair_np->second.position);
+            ceres::CostFunction *cost_function = NavsatInitError::Create(kf_point, pair_np->second);
             problem.AddResidualBlock(cost_function, loss_function, tf.data());
         }
     }
