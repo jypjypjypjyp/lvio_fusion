@@ -285,6 +285,7 @@ bool Relocation::RelocateByPoints(Frame::Ptr frame, Frame::Ptr old_frame)
     {
         double rpyxyz[6];
         se32rpyxyz(clone_frame->pose * map_frame->pose.inverse(), rpyxyz); // relative_i_j
+        if (!map_frame->feature_lidar->points_ground.empty())
         {
             adapt::Problem problem;
             association_->ScanToMapWithGround(clone_frame, map_frame, rpyxyz, problem);
@@ -297,6 +298,7 @@ bool Relocation::RelocateByPoints(Frame::Ptr frame, Frame::Ptr old_frame)
             clone_frame->pose = rpyxyz2se3(rpyxyz) * map_frame->pose;
             score_ground = std::min((double)summary.num_residual_blocks_reduced / 40, 30.0);
         }
+        if (!map_frame->feature_lidar->points_surf.empty())
         {
             adapt::Problem problem;
             association_->ScanToMapWithSegmented(clone_frame, map_frame, rpyxyz, problem);

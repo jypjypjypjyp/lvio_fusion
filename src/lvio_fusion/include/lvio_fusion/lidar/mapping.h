@@ -36,7 +36,7 @@ public:
     PointRGBCloud GetGlobalMap();
 
     std::map<double, PointRGBCloud> pointclouds_color;
-    std::map<double, PointICloud> pointclouds_full;
+    std::map<double, PointICloud> pointclouds_surf;
     std::map<double, PointICloud> pointclouds_ground;
 
 private:

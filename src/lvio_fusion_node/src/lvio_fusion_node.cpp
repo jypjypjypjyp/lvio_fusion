@@ -154,7 +154,6 @@ void sync_process()
                 if (obj_buf != nullptr)
                 {
                     auto objects = get_objects_from_msg(obj_buf);
-                    obj_buf;
                     // DEBUG
                     // for (auto object : objects)
                     // {
