@@ -349,8 +349,6 @@ void Relocation::BuildProblem(Frames &active_kfs, adapt::Problem &problem)
         new ceres::EigenQuaternionParameterization(),
         new ceres::IdentityParameterization(3));
 
-    double start_time = active_kfs.begin()->first;
-
     Frame::Ptr last_frame;
     for (auto pair_kf : active_kfs)
     {
@@ -366,6 +364,15 @@ void Relocation::BuildProblem(Frames &active_kfs, adapt::Problem &problem)
         }
         last_frame = frame;
     }
+}
+
+void Relocation::BuildProblemWithLoop(Frames &active_kfs, adapt::Problem &problem)
+{
+    ceres::LocalParameterization *local_parameterization = new ceres::ProductParameterization(
+        new ceres::EigenQuaternionParameterization(),
+        new ceres::IdentityParameterization(3));
+
+    double start_time = active_kfs.begin()->first;
 
     // loop constraint
     for (auto pair_kf : active_kfs)
@@ -392,22 +399,6 @@ void Relocation::CorrectLoop(double old_time, double start_time, double end_time
     Frames active_kfs = map_->GetKeyFrames(old_time, end_time);
     Frames new_submap_kfs = map_->GetKeyFrames(start_time, end_time);
     Frames all_kfs = active_kfs;
-
-    // relocate new submaps
-    std::map<double, double> score_table;
-    for (auto pair_kf : new_submap_kfs)
-    {
-        Relocate(pair_kf.second, pair_kf.second->loop_constraint->frame_old);
-        score_table[-pair_kf.second->loop_constraint->score] = pair_kf.first;
-    }
-    int max_num_relocated = 1;
-    for (auto pair : score_table)
-    {
-        if (max_num_relocated-- == 0)
-            break;
-        new_submap_kfs[pair.second]->loop_constraint->relocated = true;
-    }
-
     std::map<double, SE3d> inner_submap_old_frames = atlas_.GetActiveSubMaps(active_kfs, old_time, start_time);
     atlas_.AddSubMap(old_time, start_time, end_time);
     adapt::Problem problem;
@@ -420,26 +411,35 @@ void Relocation::CorrectLoop(double old_time, double start_time, double end_time
         adapt::Problem problem;
         BuildProblem(new_submap_kfs, problem);
 
-        // update pose of new submap with loop constraints
+        // relocate new submaps
+        std::map<double, double> score_table;
         for (auto pair_kf : new_submap_kfs)
         {
-            Frame::Ptr frame = pair_kf.second;
-            if (frame->loop_constraint->relocated)
-            {
-                frame->pose = frame->loop_constraint->relative_o_c * frame->loop_constraint->frame_old->pose;
-            }
+            Relocate(pair_kf.second, pair_kf.second->loop_constraint->frame_old);
+            score_table[-pair_kf.second->loop_constraint->score] = pair_kf.first;
+        }
+        int max_num_relocated = 1;
+        for (auto pair : score_table)
+        {
+            if (max_num_relocated-- == 0)
+                break;
+            auto frame = new_submap_kfs[pair.second];
+            frame->loop_constraint->relocated = true;
+            frame->pose = frame->loop_constraint->relative_o_c * frame->loop_constraint->frame_old->pose;
         }
 
+        BuildProblemWithLoop(new_submap_kfs, problem);
         ceres::Solver::Options options;
         options.linear_solver_type = ceres::SPARSE_NORMAL_CHOLESKY;
         options.num_threads = 1;
         ceres::Solver::Summary summary;
         ceres::Solve(options, &problem, &summary);
-        LOG(INFO) << summary.FullReport();
+
         for (auto pair_kf : new_submap_kfs)
         {
-            pair_kf.second->loop_constraint->relocated = true;
             Relocate(pair_kf.second, pair_kf.second->loop_constraint->frame_old);
+            pair_kf.second->loop_constraint->relocated = true;
+            pair_kf.second->pose = pair_kf.second->loop_constraint->relative_o_c * pair_kf.second->loop_constraint->frame_old->pose;
         }
     }
     SE3d new_pose = (--new_submap_kfs.end())->second->pose;
@@ -469,6 +469,7 @@ void Relocation::CorrectLoop(double old_time, double start_time, double end_time
         frontend_->UpdateCache();
     }
 
+    BuildProblemWithLoop(active_kfs, problem);
     ceres::Solver::Options options;
     options.linear_solver_type = ceres::SPARSE_NORMAL_CHOLESKY;
     options.num_threads = 1;

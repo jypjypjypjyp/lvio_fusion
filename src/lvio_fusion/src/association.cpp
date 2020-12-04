@@ -327,7 +327,7 @@ void FeatureAssociation::ScanToMapWithSegmented(Frame::Ptr frame, Frame::Ptr map
     std::vector<int> points_index;
     std::vector<float> points_distance;
 
-    static const double distance_threshold = lidar_->resolution * lidar_->resolution * 25; // squared
+    static const double distance_threshold = lidar_->resolution * lidar_->resolution * 100; // squared
     int num_points_flat = frame->feature_lidar->points_surf.size();
     Sophus::SE3f tf_se3 = frame->pose.cast<float>();
     float *tf = tf_se3.data();

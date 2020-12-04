@@ -114,8 +114,6 @@ void Mapping::Optimize(Frames &active_kfs)
                 ceres::Solver::Summary summary;
                 ceres::Solve(options, &problem, &summary);
                 pair_kf.second->pose = rpyxyz2se3(rpyxyz) * map_frame->pose;
-                LOG(INFO) << "^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^";
-                LOG(INFO) << summary.FullReport();
             }
         }
         AddToWorld(pair_kf.second);
