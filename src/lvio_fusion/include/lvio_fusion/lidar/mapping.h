@@ -42,7 +42,7 @@ public:
 private:
     void BuildMapFrame(Frame::Ptr frame, Frame::Ptr map_frame);
 
-    void Color(const PointICloud &in, Frame::Ptr frame, PointRGBCloud &out);
+    void Color(const PointICloud &points_ground, const PointICloud &points_surf, Frame::Ptr frame, PointRGBCloud &out);
 
     Map::Ptr map_;
     FeatureAssociation::Ptr association_;

@@ -59,8 +59,6 @@ private:
 
     void ExtractFeatures(PointICloud &points_segmented, SegmentedInfo &segemented_info, Frame::Ptr frame);
 
-    
-
     void Sensor2Robot(PointICloud& in, PointICloud& out);
 
     Map::Ptr map_;

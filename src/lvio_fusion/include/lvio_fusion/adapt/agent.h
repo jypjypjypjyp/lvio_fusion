@@ -28,17 +28,17 @@ public:
 
     void UpdateWeights(adapt::Problem &problem, Weights &weights)
     {
-        // if (problem.num_types[ProblemType::LidarPlaneErrorRPZ] < 400)
-        // {
-        //     weights.lidar_ground[0] *= 1000;
-        //     weights.lidar_ground[1] *= 1000;
-        // }
-        // if (problem.num_types[ProblemType::LidarPlaneErrorYXY] < 200)
-        // {
-        //     weights.lidar_surf[0] *= 1000;
-        //     weights.lidar_surf[1] *= 1000;
-        //     weights.lidar_surf[2] *= 1000;
-        // }
+        if (problem.num_types[ProblemType::LidarPlaneErrorRPZ] < 200)
+        {
+            weights.lidar_ground[0] *= 1000;
+            weights.lidar_ground[1] *= 1000;
+        }
+        if (problem.num_types[ProblemType::LidarPlaneErrorYXY] < 200)
+        {
+            weights.lidar_surf[0] *= 1000;
+            weights.lidar_surf[1] *= 1000;
+            weights.lidar_surf[2] *= 1000;
+        }
         core_->UpdateWeights(problem, weights);
     }
 

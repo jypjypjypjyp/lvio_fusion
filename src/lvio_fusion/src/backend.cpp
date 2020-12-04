@@ -210,7 +210,7 @@ void Backend::Optimize(bool full)
             auto feature = pair_feature.second;
             auto landmark = feature->landmark.lock();
             auto first_frame = landmark->FirstFrame();
-            if (compute_reprojection_error(cv2eigen(feature->keypoint), landmark->ToWorld(), frame->pose, camera_left_) > 3)
+            if (compute_reprojection_error(cv2eigen(feature->keypoint), landmark->ToWorld(), frame->pose, camera_left_) > 10)
             {
                 landmark->RemoveObservation(feature);
                 frame->RemoveFeature(feature);

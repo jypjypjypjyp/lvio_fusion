@@ -291,12 +291,13 @@ bool Relocation::RelocateByPoints(Frame::Ptr frame, Frame::Ptr old_frame)
             association_->ScanToMapWithGround(clone_frame, map_frame, rpyxyz, problem);
             ceres::Solver::Options options;
             options.linear_solver_type = ceres::DENSE_QR;
-            options.max_num_iterations = 2;
+            options.max_num_iterations = 4;
             options.num_threads = 4;
             ceres::Solver::Summary summary;
             ceres::Solve(options, &problem, &summary);
             clone_frame->pose = rpyxyz2se3(rpyxyz) * map_frame->pose;
-            score_ground = std::min((double)summary.num_residual_blocks_reduced / 40, 30.0);
+            score_ground = std::min((double)summary.num_residual_blocks_reduced / 10, 20.0);
+            score_ground -= 2 * summary.final_cost / summary.num_residual_blocks_reduced;
         }
         if (!map_frame->feature_lidar->points_surf.empty())
         {
@@ -304,12 +305,13 @@ bool Relocation::RelocateByPoints(Frame::Ptr frame, Frame::Ptr old_frame)
             association_->ScanToMapWithSegmented(clone_frame, map_frame, rpyxyz, problem);
             ceres::Solver::Options options;
             options.linear_solver_type = ceres::DENSE_QR;
-            options.max_num_iterations = 2;
+            options.max_num_iterations = 4;
             options.num_threads = 4;
             ceres::Solver::Summary summary;
             ceres::Solve(options, &problem, &summary);
             clone_frame->pose = rpyxyz2se3(rpyxyz) * map_frame->pose;
-            score_ground = std::min((double)summary.num_residual_blocks_reduced / 20, 20.0);
+            score_surf = std::min((double)summary.num_residual_blocks_reduced / 10, 30.0);
+            score_surf -= 2 * summary.final_cost / summary.num_residual_blocks_reduced;
         }
     }
 
@@ -398,7 +400,7 @@ void Relocation::CorrectLoop(double old_time, double start_time, double end_time
         Relocate(pair_kf.second, pair_kf.second->loop_constraint->frame_old);
         score_table[-pair_kf.second->loop_constraint->score] = pair_kf.first;
     }
-    int max_num_relocated = 3;
+    int max_num_relocated = 1;
     for (auto pair : score_table)
     {
         if (max_num_relocated-- == 0)
@@ -437,6 +439,7 @@ void Relocation::CorrectLoop(double old_time, double start_time, double end_time
         for (auto pair_kf : new_submap_kfs)
         {
             pair_kf.second->loop_constraint->relocated = true;
+            Relocate(pair_kf.second, pair_kf.second->loop_constraint->frame_old);
         }
     }
     SE3d new_pose = (--new_submap_kfs.end())->second->pose;
