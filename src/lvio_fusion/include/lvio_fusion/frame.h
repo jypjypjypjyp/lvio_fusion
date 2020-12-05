@@ -1,14 +1,15 @@
 #ifndef lvio_fusion_FRAME_H
 #define lvio_fusion_FRAME_H
 
+#include "lvio_fusion/adapt/weights.h"
 #include "lvio_fusion/common.h"
 #include "lvio_fusion/imu/preintegration.h"
 #include "lvio_fusion/lidar/feature.h"
+#include "lvio_fusion/loop/loop_constraint.h"
+#include "lvio_fusion/navsat/feature.h"
 #include "lvio_fusion/semantic/detected_object.h"
 #include "lvio_fusion/visual/feature.h"
 #include "lvio_fusion/visual/landmark.h"
-#include "lvio_fusion/loop/loop_constraint.h"
-#include "lvio_fusion/adapt/weights.h"
 
 namespace lvio_fusion
 {
@@ -38,6 +39,7 @@ public:
     visual::Features features_right;            // corresponding features in right image, only for this frame
     lidar::Feature::Ptr feature_lidar;          // extracted features in lidar point cloud
     imu::Preintegration::Ptr preintegration;    // imu pre integration
+    navsat::Feature::Ptr feature_navsat;             // navsat point
     cv::Mat descriptors;                        // orb descriptors
     loop::LoopConstraint::Ptr loop_constraint;  // loop constraint
     Weights weights;

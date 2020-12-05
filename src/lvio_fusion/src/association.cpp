@@ -29,7 +29,7 @@ void FeatureAssociation::AddScan(double time, Point3Cloud::Ptr new_scan)
         if (AlignScan(pair_kf.first, point_cloud))
         {
             Process(point_cloud, pair_kf.second);
-            head = pair_kf.first;
+            head = pair_kf.first + epsilon;
         }
     }
 }

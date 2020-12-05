@@ -53,34 +53,36 @@ void publish_odometry(Estimator::Ptr estimator, double time)
 
 void publish_navsat(Estimator::Ptr estimator, double time)
 {
-    if (estimator->map->navsat_map->initialized)
+    auto navsat = estimator->map->navsat_map;
+    if (navsat->initialized)
     {
         if (navsat_path.poses.size() == 0)
         {
-            for (auto pair_mp : estimator->map->navsat_map->raw)
+            for (auto pair : navsat->raw)
             {
                 geometry_msgs::PoseStamped pose_stamped;
-                pose_stamped.header.stamp = ros::Time(pair_mp.first);
-                pose_stamped.header.frame_id = "navsat";
-                pose_stamped.pose.position.x = pair_mp.second.x();
-                pose_stamped.pose.position.y = pair_mp.second.y();
-                pose_stamped.pose.position.z = pair_mp.second.z();
+                Vector3d point = navsat->GetPoint(pair.first);
+                pose_stamped.header.stamp = ros::Time(pair.first);
+                pose_stamped.header.frame_id = "world";
+                pose_stamped.pose.position.x = point.x();
+                pose_stamped.pose.position.y = point.y();
+                pose_stamped.pose.position.z = point.z();
                 navsat_path.poses.push_back(pose_stamped);
             }
         }
         else
         {
             geometry_msgs::PoseStamped pose_stamped;
-            Vector3d point = (--estimator->map->navsat_map->raw.end())->second;
+            Vector3d point = navsat->GetPoint((--navsat->raw.end())->first);
             pose_stamped.header.stamp = ros::Time(time);
-            pose_stamped.header.frame_id = "navsat";
+            pose_stamped.header.frame_id = "world";
             pose_stamped.pose.position.x = point.x();
             pose_stamped.pose.position.y = point.y();
             pose_stamped.pose.position.z = point.z();
             navsat_path.poses.push_back(pose_stamped);
         }
         navsat_path.header.stamp = ros::Time(time);
-        navsat_path.header.frame_id = "navsat";
+        navsat_path.header.frame_id = "world";
         pub_navsat.publish(navsat_path);
     }
 }

@@ -9,8 +9,8 @@ namespace lvio_fusion
 class NavsatError
 {
 public:
-    NavsatError(Vector3d heading, Vector3d A, Vector3d B, Vector3d C, Vector3d p, double *weights)
-        : heading_(heading), A_(A), B_(B), C_(C), p_(p)
+    NavsatError(Vector3d p, Vector3d heading, Vector3d A, Vector3d B, Vector3d C, double *weights)
+        : p_(p), heading_(heading), A_(A), B_(B), C_(C)
     {
         heading_.normalize();
         abc_norm_ = (A_ - B_).cross(A_ - C_);
@@ -28,13 +28,13 @@ public:
     bool operator()(const T *Twc, T *residuals) const
     {
         T unit_x[3] = {T(1), T(0), T(0)}, axis_x[3];
-        T heading[3] = {T(heading_.x()), T(heading_.y()),T(heading_.z())};
+        T heading[3] = {T(heading_.x()), T(heading_.y()), T(heading_.z())};
         ceres::EigenQuaternionRotatePoint(Twc, unit_x, axis_x);
         ceres::Cast(heading_.data(), 3, heading);
 
         T unit_y[3] = {T(0), T(1), T(0)}, AP[3], axis_y[3];
-        T A[3] = {T(A_.x()), T(A_.y()),T(A_.z())};
-        T adc_norm[3] = {T(abc_norm_.x()), T(abc_norm_.y()),T(abc_norm_.z())};
+        T A[3] = {T(A_.x()), T(A_.y()), T(A_.z())};
+        T adc_norm[3] = {T(abc_norm_.x()), T(abc_norm_.y()), T(abc_norm_.z())};
         ceres::SE3TransformPoint(Twc, unit_y, axis_y);
         ceres::Minus(axis_y, A, AP);
 
@@ -51,9 +51,9 @@ public:
         return true;
     }
 
-    static ceres::CostFunction *Create(const Vector3d heading, const Vector3d A, const Vector3d B, const Vector3d C, const Vector3d p, double *weights)
+    static ceres::CostFunction *Create(const Vector3d p, const Vector3d heading, const Vector3d A, const Vector3d B, const Vector3d C, double *weights)
     {
-        return (new ceres::AutoDiffCostFunction<NavsatError, 7, 7>(new NavsatError(heading, A, B, C, p, weights)));
+        return (new ceres::AutoDiffCostFunction<NavsatError, 7, 7>(new NavsatError(p, heading, A, B, C, weights)));
     }
 
 private:

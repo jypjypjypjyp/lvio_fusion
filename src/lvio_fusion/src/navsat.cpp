@@ -1,5 +1,6 @@
 #include "lvio_fusion/navsat/navsat.h"
 #include "lvio_fusion/ceres/navsat_error.hpp"
+#include "lvio_fusion/frame.h"
 #include "lvio_fusion/map.h"
 
 #include <ceres/ceres.h>
@@ -11,24 +12,64 @@ void NavsatMap::AddPoint(double time, double x, double y, double z)
 {
     raw[time] = Vector3d(x, y, z);
 
-    static double head = 0;
-    Frames active_kfs = map_.lock()->GetKeyFrames(head);
+    if (!initialized && Check(time, raw[time]))
+    {
+        Initialize();
+    }
 
-    head = (--points.end())->first + epsilon;
+    if (initialized)
+    {
+        static double head = 0;
+        Frames new_kfs = map_.lock()->GetKeyFrames(head);
+        for (auto pair_kf : new_kfs)
+        {
+            auto this_iter = raw.lower_bound(pair_kf.first);
+            auto last_iter = --this_iter;
+            if (this_iter == raw.begin() || std::fabs(this_iter->first - pair_kf.first) > 1e-1)
+                continue;
+
+            pair_kf.second->feature_navsat = navsat::Feature::Ptr(new navsat::Feature(this_iter->first, last_iter->first, A_.first, B_.first, C_.first, this));
+            head = pair_kf.first + epsilon;
+        }
+    }
 }
 
-void NavsatMap::Transfrom(NavsatPoint &point)
+Vector3d NavsatMap::GetPoint(double time)
 {
-    point.position = tf * point.position;
+    return tf * raw[time];
+}
+
+bool NavsatMap::Check(double time, Vector3d position)
+{
+    auto iter = raw.lower_bound(0);
+
+    double max_height = 0, B_time = 0;
+    while ((++iter)->first < time)
+    {
+        auto AC = position - C_.second;
+        auto AB = iter->second - C_.second;
+        double height = AC.cross(AB).norm() / AC.norm();
+        if (height > max_height)
+        {
+            max_height = height;
+            B_time = iter->first;
+        }
+    }
+    if (max_height > 20)
+    {
+        A_ = C_;
+        B_ = std::make_pair(B_time, raw[B_time]);
+        C_ = std::make_pair(time, position);
+        return true;
+    }
+    return false;
 }
 
 void NavsatMap::Initialize()
 {
     Frames keyframes = map_.lock()->GetAllKeyFrames();
 
-    // initialized = false;
     ceres::Problem problem;
-    ceres::LossFunction *loss_function = new ceres::HuberLoss(1.0);
     ceres::LocalParameterization *local_parameterization = new ceres::ProductParameterization(
         new ceres::EigenQuaternionParameterization(),
         new ceres::IdentityParameterization(3));
@@ -37,12 +78,12 @@ void NavsatMap::Initialize()
 
     for (auto pair_kf : keyframes)
     {
-        auto kf_point = pair_kf.second->pose.inverse().translation();
+        auto position_kf = pair_kf.second->pose.translation();
         auto pair_np = raw.lower_bound(pair_kf.first);
         if (std::fabs(pair_np->first - pair_kf.first) < 1e-1)
         {
-            ceres::CostFunction *cost_function = NavsatInitError::Create(kf_point, pair_np->second);
-            problem.AddResidualBlock(cost_function, loss_function, tf.data());
+            ceres::CostFunction *cost_function = NavsatInitError::Create(position_kf, pair_np->second);
+            problem.AddResidualBlock(cost_function, NULL, tf.data());
         }
     }
 

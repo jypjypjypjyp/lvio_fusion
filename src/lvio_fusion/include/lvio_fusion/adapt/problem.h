@@ -14,6 +14,8 @@ enum class ProblemType
     TwoFrameReprojectionError,
     LidarPlaneErrorRPZ,
     LidarPlaneErrorYXY,
+    NavsatError,
+    IMUError,
     Other
 };
 
@@ -41,6 +43,8 @@ public:
         {ProblemType::TwoFrameReprojectionError, 0},
         {ProblemType::LidarPlaneErrorRPZ, 0},
         {ProblemType::LidarPlaneErrorYXY, 0},
+        {ProblemType::NavsatError, 0},
+        {ProblemType::IMUError, 0},
         {ProblemType::Other, 0}};
 };
 

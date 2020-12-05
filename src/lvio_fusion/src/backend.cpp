@@ -94,24 +94,22 @@ void Backend::BuildProblem(Frames &active_kfs, adapt::Problem &problem)
     }
 
     // navsat constraints
-    // auto navsat_map = map_->navsat_map;
-    // if (map_->navsat_map != nullptr && navsat_map->initialized)
-    // {
-    //     ceres::LossFunction *navsat_loss_function = new ceres::TrivialLoss();
-    //     for (auto pair_kf : active_kfs)
-    //     {
-    //         auto frame = pair_kf.second;
-    //         auto para_kf = frame->pose.data();
-    //         auto np_iter = navsat_map->navsat_points.lower_bound(pair_kf.first);
-    //         auto navsat_point = np_iter->second;
-    //         navsat_map->Transfrom(navsat_point);
-    //         if (std::fabs(navsat_point.time - frame->time) < 1e-2)
-    //         {
-    //             ceres::CostFunction *cost_function = NavsatError::Create(navsat_point.position, frame->weights.navsat);
-    //             problem.AddResidualBlock(cost_function, navsat_loss_function, para_kf);
-    //         }
-    //     }
-    // }
+    auto navsat_map = map_->navsat_map;
+    if (map_->navsat_map != nullptr && navsat_map->initialized)
+    {
+        ceres::LossFunction *navsat_loss_function = new ceres::TrivialLoss();
+        for (auto pair_kf : active_kfs)
+        {
+            auto frame = pair_kf.second;
+            if (frame->feature_navsat)
+            {
+                auto feature = frame->feature_navsat;
+                auto para_kf = frame->pose.data();
+                ceres::CostFunction *cost_function = NavsatError::Create(feature->Position(), feature->Heading(), feature->A(), feature->B(), feature->C(), frame->weights.navsat);
+                problem.AddResidualBlock(ProblemType::TwoFrameReprojectionError, cost_function, navsat_loss_function, para_kf);
+            }
+        }
+    }
 
     // TODO
     // imu constraints
@@ -173,16 +171,6 @@ void Backend::Optimize(bool full)
     //         imu_->initialized = initializer_->Initialize(frames_init);
     //         frontend_.lock()->status = FrontendStatus::TRACKING_GOOD;
     //     }
-    // }
-
-    // navsat init
-    // auto navsat_map = map_->navsat_map;
-    // if (!full && map_->navsat_map && !navsat_map->initialized && map_->size() >= navsat_map->num_frames_init)
-    // {
-    //     navsat_map->Initialize();
-    //     // TODO: full optimize
-    //     Optimize(true);
-    //     return;
     // }
 
     adapt::Problem problem;
