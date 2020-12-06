@@ -7,8 +7,8 @@
 #include "lvio_fusion/utility.h"
 
 #include <pcl/filters/extract_indices.h>
-#include <pcl/filters/voxel_grid.h>
 #include <pcl/filters/radius_outlier_removal.h>
+#include <pcl/filters/voxel_grid.h>
 #include <pcl/kdtree/kdtree_flann.h>
 #include <pcl/sample_consensus/method_types.h>
 #include <pcl/sample_consensus/model_types.h>
@@ -197,7 +197,7 @@ void FeatureAssociation::ExtractFeatures(PointICloud &points_segmented, Segmente
     pcl::copyPointCloud(points_surf, *temp);
     voxel_filter.setInputCloud(temp);
     voxel_filter.filter(points_surf);
-    
+
     pcl::RadiusOutlierRemoval<PointI> ror_filter;
     ror_filter.setRadiusSearch(4 * lidar_->resolution);
     ror_filter.setMinNeighborsInRadius(4);
@@ -241,7 +241,7 @@ inline void FeatureAssociation::SegmentGround(PointICloud &points_ground)
     seg.setModelType(pcl::SACMODEL_PLANE);
     seg.setMethodType(pcl::SAC_RANSAC);
     seg.setMaxIterations(100);
-    seg.setDistanceThreshold(0.1 * lidar_->resolution);
+    seg.setDistanceThreshold(0.05 * lidar_->resolution);
     seg.setInputCloud(pointcloud_seg);
     seg.segment(*inliers, coefficients);
     pcl::ExtractIndices<PointI> extract;
@@ -253,7 +253,7 @@ inline void FeatureAssociation::SegmentGround(PointICloud &points_ground)
 
 void FeatureAssociation::ScanToMapWithGround(Frame::Ptr frame, Frame::Ptr map_frame, double *para, adapt::Problem &problem)
 {
-    ceres::LossFunction *loss_function = new ceres::HuberLoss(0.1);
+    ceres::LossFunction *loss_function = new ceres::TrivialLoss();
     PointICloud &points_ground_last = map_frame->feature_lidar->points_ground;
     problem.AddParameterBlock(para + 1, 1);
     problem.AddParameterBlock(para + 2, 1);
@@ -266,7 +266,7 @@ void FeatureAssociation::ScanToMapWithGround(Frame::Ptr frame, Frame::Ptr map_fr
     std::vector<int> points_index;
     std::vector<float> points_distance;
 
-    static const double distance_threshold = lidar_->resolution * lidar_->resolution * 100; // squared
+    static const double distance_threshold = lidar_->resolution * lidar_->resolution * 4; // squared
     int num_points_flat = frame->feature_lidar->points_ground.size();
     Sophus::SE3f tf_se3 = frame->pose.cast<float>();
     float *tf = tf_se3.data();
@@ -296,8 +296,7 @@ void FeatureAssociation::ScanToMapWithGround(Frame::Ptr frame, Frame::Ptr map_fr
             Vector3d last_point_c(points_ground_last[points_index[2]].x,
                                   points_ground_last[points_index[2]].y,
                                   points_ground_last[points_index[2]].z);
-            double x = points_index[2] / (lidar_->resolution * lidar_->resolution);
-            double weights[1] = {x < 10 ? 1 : 0.1};
+            double weights[1] = {curr_point.norm() > 5 ? 10.0 : 1.0};
             ceres::CostFunction *cost_function;
             cost_function = LidarPlaneErrorRPZ::Create(curr_point, last_point_a, last_point_b, last_point_c, lidar_, map_frame->pose, para, weights);
             problem.AddResidualBlock(ProblemType::LidarPlaneErrorRPZ, cost_function, loss_function, para + 1, para + 2, para + 5);
@@ -327,7 +326,7 @@ void FeatureAssociation::ScanToMapWithSegmented(Frame::Ptr frame, Frame::Ptr map
     std::vector<int> points_index;
     std::vector<float> points_distance;
 
-    static const double distance_threshold = lidar_->resolution * lidar_->resolution * 100; // squared
+    static const double distance_threshold = lidar_->resolution * lidar_->resolution * 16; // squared
     int num_points_flat = frame->feature_lidar->points_surf.size();
     Sophus::SE3f tf_se3 = frame->pose.cast<float>();
     float *tf = tf_se3.data();

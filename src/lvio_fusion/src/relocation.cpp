@@ -45,18 +45,13 @@ void Relocation::RelocationLoop()
             {
                 if (!last_old_frame)
                 {
-                    // get all new loop frames [start_time, end_time]
                     start_time = pair_kf.first;
-                    last_old_frame = old_frame;
                 }
-                else
-                {
-                    last_frame = frame;
-                    last_old_frame = old_frame;
-                    old_time = std::min(old_time, old_frame->time);
-                }
+                old_time = std::min(old_time, old_frame->time);
+                last_frame = frame;
+                last_old_frame = old_frame;
             }
-            else if (last_old_frame)
+            else if (start_time != DBL_MAX)
             {
                 LOG(INFO) << "Detected new loop, and correct it now. old_time:" << old_time << ";start_time:" << start_time << ";end_time:" << last_frame->time;
                 auto t1 = std::chrono::steady_clock::now();
@@ -64,7 +59,7 @@ void Relocation::RelocationLoop()
                 auto t2 = std::chrono::steady_clock::now();
                 auto time_used = std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);
                 LOG(INFO) << "Correct Loop cost time: " << time_used.count() << " seconds.";
-                old_time = DBL_MAX;
+                start_time = old_time = DBL_MAX;
                 last_old_frame = last_frame = nullptr;
             }
         }
@@ -469,33 +464,33 @@ void Relocation::CorrectLoop(double old_time, double start_time, double end_time
         frontend_->UpdateCache();
     }
 
-    BuildProblemWithLoop(active_kfs, problem);
-    ceres::Solver::Options options;
-    options.linear_solver_type = ceres::SPARSE_NORMAL_CHOLESKY;
-    options.num_threads = 1;
-    ceres::Solver::Summary summary;
-    ceres::Solve(options, &problem, &summary);
+    // BuildProblemWithLoop(active_kfs, problem);
+    // ceres::Solver::Options options;
+    // options.linear_solver_type = ceres::SPARSE_NORMAL_CHOLESKY;
+    // options.num_threads = 1;
+    // ceres::Solver::Summary summary;
+    // ceres::Solve(options, &problem, &summary);
 
-    // update pose of inner submaps
-    for (auto pair_of : inner_submap_old_frames)
-    {
-        auto old_frame = active_kfs[pair_of.first];
-        // T2_new = T2 * T1.inverse() * T1_new
-        SE3d transform = pair_of.second.inverse() * old_frame->pose;
-        for (auto iter = ++all_kfs.find(pair_of.first); active_kfs.find(iter->first) == active_kfs.end(); iter++)
-        {
-            auto frame = iter->second;
-            frame->pose = frame->pose * transform;
-        }
-    }
+    // // update pose of inner submaps
+    // for (auto pair_of : inner_submap_old_frames)
+    // {
+    //     auto old_frame = active_kfs[pair_of.first];
+    //     // T2_new = T2 * T1.inverse() * T1_new
+    //     SE3d transform = pair_of.second.inverse() * old_frame->pose;
+    //     for (auto iter = ++all_kfs.find(pair_of.first); active_kfs.find(iter->first) == active_kfs.end(); iter++)
+    //     {
+    //         auto frame = iter->second;
+    //         frame->pose = frame->pose * transform;
+    //     }
+    // }
 
-    if (lidar_)
-    {
-        for (auto pair_kf : all_kfs)
-        {
-            mapping_->AddToWorld(pair_kf.second);
-        }
-    }
+    // if (lidar_)
+    // {
+    //     for (auto pair_kf : all_kfs)
+    //     {
+    //         mapping_->AddToWorld(pair_kf.second);
+    //     }
+    // }
 }
 
 } // namespace lvio_fusion
