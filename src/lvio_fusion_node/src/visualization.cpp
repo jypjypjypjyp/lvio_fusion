@@ -1,4 +1,6 @@
 #include "visualization.h"
+#include "lvio_fusion/map.h"
+
 #include <pcl_conversions/pcl_conversions.h>
 
 using namespace Eigen;
@@ -22,7 +24,7 @@ void publish_odometry(Estimator::Ptr estimator, double time)
     if (estimator->frontend->status == FrontendStatus::TRACKING_GOOD)
     {
         path.poses.clear();
-        for (auto frame : estimator->map->GetAllKeyFrames())
+        for (auto frame : lvio_fusion::Map::Instance().GetAllKeyFrames())
         {
             auto pose = frame.second->pose;
             geometry_msgs::PoseStamped pose_stamped;
@@ -57,7 +59,7 @@ void publish_odometry(Estimator::Ptr estimator, double time)
 
 void publish_navsat(Estimator::Ptr estimator, double time)
 {
-    auto navsat = estimator->map->navsat_map;
+    auto navsat = estimator->navsat;
     navsat_path.poses.clear();
     for (auto pair : navsat->raw)
     {
@@ -94,9 +96,9 @@ void publish_tf(Estimator::Ptr estimator, double time)
         br.sendTransform(tf::StampedTransform(transform, ros::Time(time), "world", "base_link"));
     }
     // navsat
-    if (estimator->map->navsat_map != nullptr && estimator->map->navsat_map->initialized)
+    if (estimator->navsat != nullptr && estimator->navsat->initialized)
     {
-        double *tf_data = estimator->map->navsat_map->tf.data();
+        double *tf_data = estimator->navsat->extrinsic.data();
         tf_q.setValue(tf_data[0], tf_data[1], tf_data[2], tf_data[3]);
         tf_t.setValue(tf_data[4], tf_data[5], tf_data[6]);
         transform.setOrigin(tf_t);

@@ -3,6 +3,7 @@
 #include "lvio_fusion/ceres/navsat_error.hpp"
 #include "lvio_fusion/ceres/visual_error.hpp"
 #include "lvio_fusion/frontend.h"
+#include "lvio_fusion/map.h"
 #include "lvio_fusion/utility.h"
 #include "lvio_fusion/visual/feature.h"
 #include "lvio_fusion/visual/landmark.h"
@@ -94,8 +95,7 @@ void Backend::BuildProblem(Frames &active_kfs, adapt::Problem &problem)
     }
 
     // navsat constraints
-    auto navsat_map = map_->navsat_map;
-    if (map_->navsat_map != nullptr && navsat_map->initialized)
+    if (navsat_ != nullptr && navsat_->initialized)
     {
         ceres::LossFunction *navsat_loss_function = new ceres::TrivialLoss();
         for (auto pair_kf : active_kfs)
@@ -159,13 +159,13 @@ void Backend::Optimize(bool full)
     {
         lock.lock();
     }
-    Frames active_kfs = map_->GetKeyFrames(full ? 0 : head);
+    Frames active_kfs = Map::Instance().GetKeyFrames(full ? 0 : head);
 
     // TODO: IMU
     // imu init
     // if (imu_ && !initializer_->initialized)
     // {
-    //     Frames frames_init = map_->GetKeyFrames(0, map_->local_map_head, initializer_->num_frames);
+    //     Frames frames_init = Map::Instance().GetKeyFrames(0, Map::Instance().local_map_head, initializer_->num_frames);
     //     if (frames_init.size() == initializer_->num_frames)
     //     {
     //         imu_->initialized = initializer_->Initialize(frames_init);
@@ -205,7 +205,7 @@ void Backend::Optimize(bool full)
             }
             if (landmark->observations.size() == 1 && frame->id != Frame::current_frame_id)
             {
-                map_->RemoveLandmark(landmark);
+                Map::Instance().RemoveLandmark(landmark);
             }
         }
     }
@@ -221,7 +221,7 @@ void Backend::ForwardPropagate(double time)
     std::unique_lock<std::mutex> lock(frontend_.lock()->mutex);
 
     Frame::Ptr last_frame = frontend_.lock()->last_frame;
-    Frames active_kfs = map_->GetKeyFrames(time);
+    Frames active_kfs = Map::Instance().GetKeyFrames(time);
     if (active_kfs.find(last_frame->time) == active_kfs.end())
     {
         active_kfs[last_frame->time] = last_frame;

@@ -157,7 +157,7 @@ void Frontend::CreateKeyframe(bool need_new_features)
         DetectNewFeatures();
     }
     // insert!
-    map_->InsertKeyFrame(current_frame);
+    Map::Instance().InsertKeyFrame(current_frame);
     current_key_frame = current_frame;
     LOG(INFO) << "Add a keyframe " << current_frame->id;
     // update backend because we have a new keyframe
@@ -255,7 +255,7 @@ bool Frontend::InitMap()
     }
 
     // the first frame is a keyframe
-    map_->InsertKeyFrame(current_frame);
+    Map::Instance().InsertKeyFrame(current_frame);
     LOG(INFO) << "Initial map created with " << num_new_features << " map points";
 
     // update backend and loop because we have a new keyframe
@@ -309,7 +309,7 @@ int Frontend::DetectNewFeatures()
                 new_landmark->AddObservation(new_right_feature);
                 current_frame->AddFeature(new_left_feature);
                 current_frame->AddFeature(new_right_feature);
-                map_->InsertLandmark(new_landmark);
+                Map::Instance().InsertLandmark(new_landmark);
                 position_cache_[new_landmark->id] = new_landmark->ToWorld();
                 num_triangulated_pts++;
             }
@@ -326,7 +326,7 @@ int Frontend::DetectNewFeatures()
 bool Frontend::Reset()
 {
     backend_.lock()->Pause();
-    map_->Reset();
+    Map::Instance().Reset();
     backend_.lock()->Continue();
     status = FrontendStatus::BUILDING;
     LOG(INFO) << "Reset Succeed";

@@ -5,7 +5,6 @@
 #include "lvio_fusion/frame.h"
 #include "lvio_fusion/imu/imu.hpp"
 #include "lvio_fusion/imu/initializer.h"
-#include "lvio_fusion/map.h"
 #include "lvio_fusion/visual/camera.hpp"
 
 namespace lvio_fusion
@@ -23,18 +22,6 @@ enum class FrontendStatus
     LOST
 };
 
-enum Flag
-{
-    None = 0,
-    Mono = 1,
-    Stereo = 1 << 1,
-    RGBD = 1 << 2,
-    IMU = 1 << 3,
-    Laser = 1 << 4,
-    GNSS = 1 << 5,
-    Semantic = 1 << 6,
-};
-
 class Frontend
 {
 public:
@@ -45,8 +32,6 @@ public:
     bool AddFrame(Frame::Ptr frame);
 
     void AddImu(double time, Vector3d acc, Vector3d gyr);
-
-    void SetMap(Map::Ptr map) { map_ = map; }
 
     void SetBackend(std::shared_ptr<Backend> backend) { backend_ = backend; }
 
@@ -63,7 +48,6 @@ public:
 
     void UpdateCache();
 
-    int flags = Flag::None;
     FrontendStatus status = FrontendStatus::BUILDING;
     Frame::Ptr current_frame;
     Frame::Ptr last_frame;
@@ -89,7 +73,6 @@ private:
     int TriangulateNewPoints();
 
     // data
-    Map::Ptr map_;
     std::weak_ptr<Backend> backend_;
     std::unordered_map<unsigned long, Vector3d> position_cache_;
     SE3d last_frame_pose_cache_;

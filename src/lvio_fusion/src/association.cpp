@@ -4,6 +4,7 @@
 #include "lvio_fusion/ceres/lidar_error.hpp"
 #include "lvio_fusion/ceres/loop_error.hpp"
 #include "lvio_fusion/lidar/feature.h"
+#include "lvio_fusion/map.h"
 #include "lvio_fusion/utility.h"
 
 #include <pcl/filters/extract_indices.h>
@@ -22,7 +23,7 @@ void FeatureAssociation::AddScan(double time, Point3Cloud::Ptr new_scan)
     static double head = 0;
     raw_point_clouds_[time] = new_scan;
 
-    Frames new_kfs = map_->GetKeyFrames(head, time);
+    Frames new_kfs = Map::Instance().GetKeyFrames(head, time);
     for (auto pair_kf : new_kfs)
     {
         PointICloud point_cloud;
@@ -63,7 +64,7 @@ void FeatureAssociation::UndistortPoint(PointI &point, Frame::Ptr frame)
 {
     double time_delta = (point.intensity - int(point.intensity));
     double time = frame->time - cycle_time_ * 0.5 + time_delta;
-    SE3d pose = map_->ComputePose(time);
+    SE3d pose = Map::Instance().ComputePose(time);
     auto p1 = lidar_->Sensor2World(Vector3d(point.x, point.y, point.z), pose);
     auto p2 = lidar_->World2Sensor(p1, frame->pose);
     point.x = p2.x();
@@ -241,7 +242,7 @@ inline void FeatureAssociation::SegmentGround(PointICloud &points_ground)
     seg.setModelType(pcl::SACMODEL_PLANE);
     seg.setMethodType(pcl::SAC_RANSAC);
     seg.setMaxIterations(100);
-    seg.setDistanceThreshold(0.05 * lidar_->resolution);
+    seg.setDistanceThreshold(0.1 * lidar_->resolution);
     seg.setInputCloud(pointcloud_seg);
     seg.segment(*inliers, coefficients);
     pcl::ExtractIndices<PointI> extract;
@@ -266,7 +267,7 @@ void FeatureAssociation::ScanToMapWithGround(Frame::Ptr frame, Frame::Ptr map_fr
     std::vector<int> points_index;
     std::vector<float> points_distance;
 
-    static const double distance_threshold = lidar_->resolution * lidar_->resolution * 4; // squared
+    static const double distance_threshold = lidar_->resolution * lidar_->resolution * 16; // squared
     int num_points_flat = frame->feature_lidar->points_ground.size();
     Sophus::SE3f tf_se3 = frame->pose.cast<float>();
     float *tf = tf_se3.data();

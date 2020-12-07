@@ -4,7 +4,6 @@
 #include "lvio_fusion/common.h"
 #include "lvio_fusion/lidar/association.h"
 #include "lvio_fusion/lidar/lidar.hpp"
-#include "lvio_fusion/map.h"
 #include "lvio_fusion/visual/camera.hpp"
 
 namespace lvio_fusion
@@ -20,8 +19,6 @@ public:
     void SetLidar(Lidar::Ptr lidar) { lidar_ = lidar; }
 
     void SetCamera(Camera::Ptr camera) { camera_ = camera; }
-
-    void SetMap(Map::Ptr map) { map_ = map; }
 
     void SetFeatureAssociation(FeatureAssociation::Ptr association) { association_ = association; }
 
@@ -44,7 +41,6 @@ private:
 
     void Color(const PointICloud &points_ground, const PointICloud &points_surf, Frame::Ptr frame, PointRGBCloud &out);
 
-    Map::Ptr map_;
     FeatureAssociation::Ptr association_;
 
     Lidar::Ptr lidar_;

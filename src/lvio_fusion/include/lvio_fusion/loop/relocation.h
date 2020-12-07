@@ -10,7 +10,6 @@
 #include "lvio_fusion/lidar/association.h"
 #include "lvio_fusion/loop/atlas.h"
 #include "lvio_fusion/loop/loop_constraint.h"
-#include "lvio_fusion/map.h"
 #include "lvio_fusion/visual/camera.hpp"
 
 #include <DBoW3/DBoW3.h>
@@ -69,8 +68,6 @@ public:
 
     void SetLidar(Lidar::Ptr lidar) { lidar_ = lidar; }
 
-    void SetMap(Map::Ptr map) { map_ = map; }
-
     void SetFeatureAssociation(FeatureAssociation::Ptr association) { association_ = association; }
 
     void SetMapping(Mapping::Ptr mapping) { mapping_ = mapping; }
@@ -108,7 +105,6 @@ private:
 
     DBoW3::Database db_;
     DBoW3::Vocabulary voc_;
-    Map::Ptr map_;
     Mapping::Ptr mapping_;
     Frontend::Ptr frontend_;
     Backend::Ptr backend_;

@@ -1,8 +1,4 @@
 #include "lvio_fusion/common.h"
-#include "lvio_fusion/frame.h"
-#include "lvio_fusion/lidar/feature.h"
-#include "lvio_fusion/lidar/lidar.hpp"
-#include "lvio_fusion/map.h"
 
 namespace lvio_fusion
 {

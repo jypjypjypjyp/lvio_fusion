@@ -8,7 +8,7 @@
 #include "lvio_fusion/imu/initializer.h"
 #include "lvio_fusion/lidar/lidar.hpp"
 #include "lvio_fusion/lidar/mapping.h"
-#include "lvio_fusion/map.h"
+#include "lvio_fusion/navsat/navsat.h"
 #include "lvio_fusion/visual/camera.hpp"
 
 #include <ceres/ceres.h>
@@ -42,7 +42,7 @@ public:
 
     void SetImu(Imu::Ptr imu) { imu_ = imu; }
 
-    void SetMap(Map::Ptr map) { map_ = map; }
+    void SetNavsat(NavsatMap::Ptr navsat) { navsat_ = navsat; }
 
     void SetFrontend(std::shared_ptr<Frontend> frontend) { frontend_ = frontend; }
 
@@ -71,7 +71,6 @@ private:
 
     void BuildProblem(Frames &active_kfs, adapt::Problem &problem);
 
-    Map::Ptr map_;
     std::weak_ptr<Frontend> frontend_;
     Mapping::Ptr mapping_;
     Initializer::Ptr initializer_;
@@ -87,6 +86,7 @@ private:
     Camera::Ptr camera_right_;
     Lidar::Ptr lidar_;
     Imu::Ptr imu_;
+    NavsatMap::Ptr navsat_;
 };
 
 } // namespace lvio_fusion

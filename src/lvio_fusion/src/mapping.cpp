@@ -1,6 +1,7 @@
 #include "lvio_fusion/lidar/mapping.h"
 #include "lvio_fusion/adapt/problem.h"
 #include "lvio_fusion/ceres/lidar_error.hpp"
+#include "lvio_fusion/map.h"
 #include "lvio_fusion/utility.h"
 
 #include <pcl/filters/voxel_grid.h>
@@ -58,7 +59,7 @@ void Mapping::BuildMapFrame(Frame::Ptr frame, Frame::Ptr map_frame)
 {
     double start_time = frame->time;
     static int num_last_frames = 3;
-    Frames last_frames = map_->GetKeyFrames(0, start_time, num_last_frames);
+    Frames last_frames = Map::Instance().GetKeyFrames(0, start_time, num_last_frames);
     if (last_frames.empty())
         return;
     PointICloud points_surf_merged;

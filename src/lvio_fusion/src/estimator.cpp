@@ -52,8 +52,6 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
               << " extrinsics: " << t_base_to_cam1.transpose();
 
     // create components and links
-    map = Map::Ptr(new Map());
-
     frontend = Frontend::Ptr(new Frontend(
         Config::Get<int>("num_features"),
         Config::Get<int>("num_features_init"),
@@ -65,11 +63,9 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
         Config::Get<double>("delay")));
 
     frontend->SetBackend(backend);
-    frontend->SetMap(map);
     frontend->SetCameras(camera1, camera2);
-    frontend->flags += Flag::Stereo;
+    flags += Flag::Stereo;
 
-    backend->SetMap(map);
     backend->SetCameras(camera1, camera2);
     backend->SetFrontend(frontend);
 
@@ -77,7 +73,6 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
     {
         relocation = Relocation::Ptr(new Relocation(
             Config::Get<std::string>("voc_path")));
-        relocation->SetMap(map);
         relocation->SetCameras(camera1, camera2);
         relocation->SetFrontend(frontend);
         relocation->SetBackend(backend);
@@ -85,9 +80,9 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
 
     if (use_navsat)
     {
-        NavsatMap::Ptr navsat_map(new NavsatMap(map));
-        map->navsat_map = navsat_map;
-        frontend->flags += Flag::GNSS;
+        NavsatMap::Ptr navsat_map(new NavsatMap);
+        backend->SetNavsat(navsat);
+        flags += Flag::GNSS;
     }
 
     if (use_imu)
@@ -100,7 +95,7 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
         backend->SetInitializer(initializer);
 
         frontend->SetImu(imu);
-        frontend->flags += Flag::IMU;
+        flags += Flag::IMU;
     }
 
     if (use_lidar)
@@ -127,14 +122,12 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
             Config::Get<double>("max_range"),
             Config::Get<int>("deskew")));
         association->SetLidar(lidar);
-        association->SetMap(map);
 
-        mapping = Mapping::Ptr(new Mapping());
-        mapping->SetMap(map);
+        mapping = Mapping::Ptr(new Mapping);
         mapping->SetCamera(camera1);
         mapping->SetLidar(lidar);
         mapping->SetFeatureAssociation(association);
-        
+
         backend->SetLidar(lidar);
         backend->SetMapping(mapping);
 
@@ -145,13 +138,13 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
             relocation->SetMapping(mapping);
         }
 
-        frontend->flags += Flag::Laser;
+        flags += Flag::Laser;
     }
 
     // semantic map
     if (is_semantic)
     {
-        frontend->flags += Flag::Semantic;
+        flags += Flag::Semantic;
     }
 
     return true;
@@ -191,7 +184,7 @@ void Estimator::InputIMU(double time, Vector3d acc, Vector3d gyr)
 
 void Estimator::InputNavSat(double time, double x, double y, double z, double posAccuracy)
 {
-    map->navsat_map->AddPoint(time, x, y, z);
+    navsat->AddPoint(time, x, y, z);
 }
 
 } // namespace lvio_fusion
