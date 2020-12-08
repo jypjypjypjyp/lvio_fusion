@@ -1,6 +1,7 @@
 #ifndef lvio_fusion_RELOCATION_H
 #define lvio_fusion_RELOCATION_H
 
+#include "lvio_fusion/adapt/problem.h"
 #include "lvio_fusion/backend.h"
 #include "lvio_fusion/common.h"
 #include "lvio_fusion/frame.h"
@@ -9,7 +10,6 @@
 #include "lvio_fusion/lidar/association.h"
 #include "lvio_fusion/loop/atlas.h"
 #include "lvio_fusion/loop/loop_constraint.h"
-#include "lvio_fusion/map.h"
 #include "lvio_fusion/visual/camera.hpp"
 
 #include <DBoW3/DBoW3.h>
@@ -68,8 +68,6 @@ public:
 
     void SetLidar(Lidar::Ptr lidar) { lidar_ = lidar; }
 
-    void SetMap(Map::Ptr map) { map_ = map; }
-
     void SetFeatureAssociation(FeatureAssociation::Ptr association) { association_ = association; }
 
     void SetMapping(Mapping::Ptr mapping) { mapping_ = mapping; }
@@ -97,7 +95,9 @@ private:
 
     int Hamming(const BRIEF &a, const BRIEF &b);
 
-    void BuildProblem(Frames &active_kfs, ceres::Problem &problem);
+    void BuildProblem(Frames &active_kfs, adapt::Problem &problem);
+
+    void BuildProblemWithLoop(Frames &active_kfs, adapt::Problem &problem);
 
     void CorrectLoop(double old_time, double start_time, double end_time);
 
@@ -105,7 +105,6 @@ private:
 
     DBoW3::Database db_;
     DBoW3::Vocabulary voc_;
-    Map::Ptr map_;
     Mapping::Ptr mapping_;
     Frontend::Ptr frontend_;
     Backend::Ptr backend_;

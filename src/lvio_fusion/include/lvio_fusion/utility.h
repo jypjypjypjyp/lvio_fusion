@@ -255,6 +255,7 @@ inline T normalize_angle(const T &angle_degrees)
         return angle_degrees +
                two_pi * std::floor((-angle_degrees + T(180)) / two_pi);
 };
+//NEWADD
 inline Eigen::Vector3d LogSO3(const Eigen::Matrix3d &R)
 {
     const double tr = R(0,0)+R(1,1)+R(2,2);
@@ -299,7 +300,7 @@ inline Matrix3d ExpSO3(const double &x, const double &y, const double &z)
    W << 0, -z, y,
             z, 0, -x,
             -y,  x, 0;
-    if(d<eps)
+    if(d<1e-4)
         return (I + W + 0.5f*W*W);
     else
         return (I + W*sin(d)/d + W*W*(1.0f-cos(d))/d2);
@@ -312,7 +313,11 @@ inline Matrix3d ExpSO3(const Vector3d &v)
 
 inline Matrix3d NormalizeRotation(const Matrix3d &R_)//todo!!
 { 
-    cv::Mat_<double> U,w,Vt;
+    // JacobiSVD<Matrix3d> svd(R_, ComputeThinU | ComputeThinV);
+    // Matrix3d U = svd.matrixU();
+    // Matrix3d V = svd.matrixV();
+    // return U*V;
+        cv::Mat_<double> U,w,Vt;
     cv::Mat_<double> R=(cv::Mat_<double>(3,3)<<R_(0,0),R_(0,1),R_(0,2),R_(1,0),R_(1,1),R_(1,2),R_(2,0),R_(2,1),R_(2,2));
     cv::SVDecomp(R,w,U,Vt,cv::SVD::FULL_UV);
     // assert(cv::determinant(U*Vt)>0);
@@ -342,6 +347,7 @@ inline Eigen::Matrix3d RightJacobianSO3(const Eigen::Vector3d &v)
     return RightJacobianSO3(v[0],v[1],v[2]);
 }
 
+//NEWADDEND
 } // namespace lvio_fusion
 
 #endif // lvio_fusion_UTILITY_H

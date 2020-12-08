@@ -1,4 +1,6 @@
 #include "visualization.h"
+#include "lvio_fusion/map.h"
+
 #include <pcl_conversions/pcl_conversions.h>
 
 using namespace Eigen;
@@ -22,15 +24,19 @@ void publish_odometry(Estimator::Ptr estimator, double time)
     if (estimator->frontend->status == FrontendStatus::TRACKING_GOOD)
     {
         path.poses.clear();
-        for (auto frame : estimator->map->GetAllKeyFrames())
+        for (auto frame : lvio_fusion::Map::Instance().GetAllKeyFrames())
         {
-            auto position = frame.second->pose.translation();
+            auto pose = frame.second->pose;
             geometry_msgs::PoseStamped pose_stamped;
             pose_stamped.header.stamp = ros::Time(frame.first);
             pose_stamped.header.frame_id = "world";
-            pose_stamped.pose.position.x = position.x();
-            pose_stamped.pose.position.y = position.y();
-            pose_stamped.pose.position.z = position.z();
+            pose_stamped.pose.position.x = pose.translation().x();
+            pose_stamped.pose.position.y = pose.translation().y();
+            pose_stamped.pose.position.z = pose.translation().z();
+            pose_stamped.pose.orientation.w = pose.unit_quaternion().w();
+            pose_stamped.pose.orientation.x = pose.unit_quaternion().x();
+            pose_stamped.pose.orientation.y = pose.unit_quaternion().y();
+            pose_stamped.pose.orientation.z = pose.unit_quaternion().z();
             path.poses.push_back(pose_stamped);
             if (frame.second->loop_constraint)
             {
@@ -53,35 +59,22 @@ void publish_odometry(Estimator::Ptr estimator, double time)
 
 void publish_navsat(Estimator::Ptr estimator, double time)
 {
-    if (estimator->map->navsat_map->initialized)
+    auto navsat = estimator->navsat;
+    navsat_path.poses.clear();
+    for (auto pair : navsat->raw)
     {
-        if (navsat_path.poses.size() == 0)
-        {
-            for (auto pair_mp : estimator->map->navsat_map->navsat_points)
-            {
-                NavsatPoint point = pair_mp.second;
-                geometry_msgs::PoseStamped pose_stamped;
-                pose_stamped.header.stamp = ros::Time(point.time);
-                pose_stamped.header.frame_id = "navsat";
-                pose_stamped.pose.position.x = point.position.x();
-                pose_stamped.pose.position.y = point.position.y();
-                pose_stamped.pose.position.z = point.position.z();
-                navsat_path.poses.push_back(pose_stamped);
-            }
-        }
-        else
-        {
-            geometry_msgs::PoseStamped pose_stamped;
-            NavsatPoint point = (--estimator->map->navsat_map->navsat_points.end())->second;
-            pose_stamped.pose.position.x = point.position.x();
-            pose_stamped.pose.position.y = point.position.y();
-            pose_stamped.pose.position.z = point.position.z();
-            navsat_path.poses.push_back(pose_stamped);
-        }
-        navsat_path.header.stamp = ros::Time(time);
-        navsat_path.header.frame_id = "navsat";
-        pub_navsat.publish(navsat_path);
+        geometry_msgs::PoseStamped pose_stamped;
+        Vector3d point = navsat->GetPoint(pair.first);
+        pose_stamped.header.stamp = ros::Time(pair.first);
+        pose_stamped.header.frame_id = "world";
+        pose_stamped.pose.position.x = point.x();
+        pose_stamped.pose.position.y = point.y();
+        pose_stamped.pose.position.z = point.z();
+        navsat_path.poses.push_back(pose_stamped);
     }
+    navsat_path.header.stamp = ros::Time(time);
+    navsat_path.header.frame_id = "world";
+    pub_navsat.publish(navsat_path);
 }
 
 void publish_tf(Estimator::Ptr estimator, double time)
@@ -103,9 +96,9 @@ void publish_tf(Estimator::Ptr estimator, double time)
         br.sendTransform(tf::StampedTransform(transform, ros::Time(time), "world", "base_link"));
     }
     // navsat
-    if (estimator->map->navsat_map != nullptr && estimator->map->navsat_map->initialized)
+    if (estimator->navsat != nullptr && estimator->navsat->initialized)
     {
-        double *tf_data = estimator->map->navsat_map->tf.data();
+        double *tf_data = estimator->navsat->extrinsic.data();
         tf_q.setValue(tf_data[0], tf_data[1], tf_data[2], tf_data[3]);
         tf_t.setValue(tf_data[4], tf_data[5], tf_data[6]);
         transform.setOrigin(tf_t);
@@ -131,7 +124,7 @@ void publish_car_model(Estimator::Ptr estimator, double time)
     car_mesh.type = visualization_msgs::Marker::MESH_RESOURCE;
     car_mesh.action = visualization_msgs::Marker::ADD;
     // car_mesh.mesh_resource = "package://lvio_fusion_node/models/car.dae";
-    car_mesh.mesh_resource = "file:///home/zoet/Projects.new/lvio_fusion/src/lvio_fusion_node/models/car.dae";
+    car_mesh.mesh_resource = "file:///home/zoet/Projects/lvio_fusion/src/lvio_fusion_node/models/car.dae";
     car_mesh.id = 0;
 
     SE3d pose = estimator->frontend->current_frame->pose;

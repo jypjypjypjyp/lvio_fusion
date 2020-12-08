@@ -5,7 +5,6 @@
 #include "lvio_fusion/frame.h"
 #include "lvio_fusion/imu/imu.hpp"
 #include "lvio_fusion/imu/initializer.h"
-#include "lvio_fusion/map.h"
 #include "lvio_fusion/visual/camera.hpp"
 
 namespace lvio_fusion
@@ -23,18 +22,6 @@ enum class FrontendStatus
     LOST
 };
 
-enum Flag
-{
-    None = 0,
-    Mono = 1,
-    Stereo = 1 << 1,
-    RGBD = 1 << 2,
-    IMU = 1 << 3,
-    Laser = 1 << 4,
-    GNSS = 1 << 5,
-    Semantic = 1 << 6,
-};
-
 class Frontend
 {
 public:
@@ -46,14 +33,14 @@ public:
 
     void AddImu(double time, Vector3d acc, Vector3d gyr);
 
-    void SetMap(Map::Ptr map) { map_ = map; }
-
     void SetBackend(std::shared_ptr<Backend> backend) { backend_ = backend; }
-//NEWADD
+    //NEWADD
     void SetCalib(Calib calib){ImuCalib_=calib;}
 
     void UpdateFrameIMU(const double s, const Bias &b, Frame::Ptr pCurrentKeyFrame);
-//NEWADDEND
+
+    void PredictVelocity();
+    //NEWADDEND
     void SetCameras(Camera::Ptr left, Camera::Ptr right)
     {
         camera_left_ = left;
@@ -67,17 +54,16 @@ public:
 
     void UpdateCache();
 
-    int flags = Flag::None;
     FrontendStatus status = FrontendStatus::BUILDING;
     Frame::Ptr current_frame;
     Frame::Ptr last_frame;
     Frame::Ptr current_key_frame;
     SE3d relative_i_j;
-//NEWADD
+    //NEWADD
     Frame::Ptr last_key_frame;
-    Frame::Ptr reference_key_frame;
     Calib ImuCalib_;
-//NEWADDEND
+    std::list<imuPoint> imuData_buf;
+    //NEWADDEND
     std::mutex mutex;
 
 private:
@@ -97,8 +83,30 @@ private:
 
     int TriangulateNewPoints();
 
+//NEWADD
+    void LocalBA();
+
+    // void SetMask();
+
+    // int MIN_DIST;
+    
+    // int row, col;
+    // cv::Mat imTrack;
+    // cv::Mat mask;
+    // cv::Mat fisheye_mask;
+    // cv::Mat prev_img, cur_img;
+    // std::vector<cv::Point2f> n_pts;
+    // std::vector<cv::Point2f> predict_pts;
+    // std::vector<cv::Point2f> predict_pts_debug;
+    // std::vector<cv::Point2f> prev_pts, cur_pts, cur_right_pts;
+    // std::vector<cv::Point2f> prev_un_pts, cur_un_pts, cur_un_right_pts;
+    // std::vector<cv::Point2f> pts_velocity, right_pts_velocity;
+    // std::vector<int> ids, ids_right;
+    // std::vector<int> track_cnt;
+
+    //NEWADDEND
     // data
-    Map::Ptr map_;
+    cv::Mat mask_;
     std::weak_ptr<Backend> backend_;
     std::unordered_map<unsigned long, Vector3d> position_cache_;
     SE3d last_frame_pose_cache_;

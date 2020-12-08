@@ -30,9 +30,9 @@ public:
         return Twc.inverse() * pw;
     }
 
-    virtual Vector3d Robot2World(const Vector3d &pc, const SE3d &Twc)
+    virtual Vector3d Robot2World(const Vector3d &pb, const SE3d &Twc)
     {
-        return Twc * pc;
+        return Twc * pb;
     }
 
     virtual Vector3d Robot2Sensor(const Vector3d &pb)

@@ -17,7 +17,6 @@ public:
     
    // bool Initialize(Frames kfs);
     void InitializeIMU( bool bFIBA);
-    void SetMap(Map::Ptr map) { map_ = map; }
     void SetFrontend(std::shared_ptr<Frontend>  frontend) { frontend_ = frontend; }
     std::weak_ptr<Frontend> frontend_;
     bool initialized = false;
@@ -67,7 +66,6 @@ private:
     // bool LinearAlignment(VectorXd &x);
 
     // bool VisualIMUAlignment(VectorXd &x);
-    Map::Ptr map_;
     Vector3d g_;
 };
 

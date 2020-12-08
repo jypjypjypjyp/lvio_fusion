@@ -7,6 +7,7 @@
 #include <sensor_msgs/NavSatFix.h>
 #include <sensor_msgs/PointCloud2.h>
 
+#include "lvio_fusion/adapt/agent.h"
 #include "lvio_fusion/common.h"
 #include "lvio_fusion/estimator.h"
 #include "object_detector/BoundingBoxes.h"
@@ -153,7 +154,6 @@ void sync_process()
                 if (obj_buf != nullptr)
                 {
                     auto objects = get_objects_from_msg(obj_buf);
-                    obj_buf;
                     // DEBUG
                     // for (auto object : objects)
                     // {
@@ -247,24 +247,6 @@ void navsat_timer_callback(const ros::TimerEvent &timer_event)
     publish_navsat(estimator, timer_event.current_real.toSec() - delta_time);
 }
 
-int get_flags()
-{
-    int flags = 0;
-    if (num_of_cam == 2)
-        flags += Flag::Stereo;
-    else if (num_of_cam == 1)
-        flags += Flag::Mono;
-    if (use_imu)
-        flags += Flag::IMU;
-    if (use_lidar)
-        flags += Flag::Laser;
-    if (use_navsat)
-        flags += Flag::GNSS;
-    if (is_semantic)
-        flags += Flag::Semantic;
-    return flags;
-}
-
 int main(int argc, char **argv)
 {
     ros::init(argc, argv, "lvio_fusion_node");
@@ -295,9 +277,9 @@ int main(int argc, char **argv)
         ROS_INFO("load config_file: %s\n", config_file.c_str());
     }
     read_parameters(config_file);
+    Agent::SetCore(new Core());
     estimator = Estimator::Ptr(new Estimator(config_file));
     assert(estimator->Init(use_imu, use_lidar, use_navsat, use_loop, is_semantic) == true);
-    estimator->frontend->flags = get_flags();
 
     ROS_WARN("waiting for images...");
 

@@ -1,10 +1,12 @@
 #ifndef lvio_fusion_REGISTRATION_H
 #define lvio_fusion_REGISTRATION_H
 
+#include "lvio_fusion/adapt/problem.h"
 #include "lvio_fusion/common.h"
+#include "lvio_fusion/frame.h"
 #include "lvio_fusion/lidar/lidar.hpp"
 #include "lvio_fusion/lidar/projection.h"
-#include "lvio_fusion/map.h"
+
 #include <ceres/ceres.h>
 
 namespace lvio_fusion
@@ -17,10 +19,10 @@ class FeatureAssociation
 public:
     typedef std::shared_ptr<FeatureAssociation> Ptr;
 
-    FeatureAssociation(int num_scans, int horizon_scan, double ang_res_y, double ang_bottom, int ground_rows,double cycle_time, double min_range, double max_range, double deskew)
+    FeatureAssociation(int num_scans, int horizon_scan, double ang_res_y, double ang_bottom, int ground_rows, double cycle_time, double min_range, double max_range, double deskew)
         : num_scans_(num_scans), cycle_time_(cycle_time), min_range_(min_range), max_range_(max_range), deskew_(deskew)
     {
-        curvatures = new float[num_scans*horizon_scan];
+        curvatures = new float[num_scans * horizon_scan];
         projection_ = ImageProjection::Ptr(new ImageProjection(num_scans, horizon_scan, ang_res_y, ang_bottom, ground_rows));
     }
 
@@ -29,16 +31,12 @@ public:
         lidar_ = lidar;
     }
 
-    void SetMap(Map::Ptr map)
-    {
-        map_ = map;
-    }
-
     void AddScan(double time, Point3Cloud::Ptr new_scan);
 
-    void ScanToMapWithGround(Frame::Ptr frame, Frame::Ptr map_frame, double* para, ceres::Problem &problem);
+    void ScanToMapWithGround(Frame::Ptr frame, Frame::Ptr map_frame, double *para, adapt::Problem &problem);
 
-    void ScanToMapWithSegmented(Frame::Ptr frame, Frame::Ptr map_frame, double* para, ceres::Problem &problem);
+    void ScanToMapWithSegmented(Frame::Ptr frame, Frame::Ptr map_frame, double *para, adapt::Problem &problem);
+    void SegmentGround(PointICloud &points_ground);
 
 private:
     void UndistortPoint(PointI &point, Frame::Ptr frame);
@@ -50,7 +48,7 @@ private:
 
     void Preprocess(PointICloud &points);
 
-    void Extract(PointICloud &points_segmented, SegmentedInfo& segemented_info, Frame::Ptr frame);
+    void Extract(PointICloud &points_segmented, SegmentedInfo &segemented_info, Frame::Ptr frame);
 
     void AdjustDistortion(PointICloud &points_segmented, SegmentedInfo &segemented_info);
 
@@ -58,9 +56,8 @@ private:
 
     void ExtractFeatures(PointICloud &points_segmented, SegmentedInfo &segemented_info, Frame::Ptr frame);
 
-    void SegmentGround(PointICloud& points_ground, PointICloud& points_surf);
+    void Sensor2Robot(PointICloud &in, PointICloud &out);
 
-    Map::Ptr map_;
     ImageProjection::Ptr projection_;
     std::map<double, Point3Cloud::Ptr> raw_point_clouds_;
     double head_ = 0; // header of the frames' time which already has a point cloud

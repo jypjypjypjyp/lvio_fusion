@@ -13,58 +13,69 @@ Vector3d g(0, 0, 9.8);
 void Preintegration::PreintegrateIMU(std::vector<imuPoint> measureFromLastFrame,double last_frame_time,double current_frame_time)
 {
     const int n = measureFromLastFrame.size()-1;
-
+    LOG(INFO)<<"";
+    //if(n>=0)LOG(INFO)<<" "<<measureFromLastFrame[0].t-last_frame_time<<" "<<current_frame_time-measureFromLastFrame[n-1].t;
     for(int i=0; i<n; i++)
     {
         double tstep;
         Vector3d acc, angVel;
-        // if((i==0) && (i<(n-1)))
-        // {
-        //     double tab = measureFromLastFrame[i+1].t-measureFromLastFrame[i].t;
-        //     double tini = measureFromLastFrame[i].t- last_frame_time;
-        //     acc = (measureFromLastFrame[i].a+measureFromLastFrame[i+1].a-
-        //             (measureFromLastFrame[i+1].a-measureFromLastFrame[i].a)*(tini/tab))*0.5f;
-        //     angVel = (measureFromLastFrame[i].w+measureFromLastFrame[i+1].w-
-        //             (measureFromLastFrame[i+1].w-measureFromLastFrame[i].w)*(tini/tab))*0.5f;
-        //     tstep = measureFromLastFrame[i+1].t- last_frame_time;
-        // }
-        // else if(i<(n-1))
-        // {
-        //     acc = (measureFromLastFrame[i].a+measureFromLastFrame[i+1].a)*0.5f;
-        //     angVel = (measureFromLastFrame[i].w+measureFromLastFrame[i+1].w)*0.5f;
-        //     tstep = measureFromLastFrame[i+1].t-measureFromLastFrame[i].t;
-        // }
-        // else if((i>0) && (i==(n-1)))
-        // {
-        //     double tab = measureFromLastFrame[i+1].t-measureFromLastFrame[i].t;
-        //     double tend = measureFromLastFrame[i+1].t-current_frame_time;
-        //     acc = (measureFromLastFrame[i].a+measureFromLastFrame[i+1].a-
-        //             (measureFromLastFrame[i+1].a-measureFromLastFrame[i].a)*(tend/tab))*0.5f;
-        //     angVel = (measureFromLastFrame[i].w+measureFromLastFrame[i+1].w-
-        //             (measureFromLastFrame[i+1].w-measureFromLastFrame[i].w)*(tend/tab))*0.5f;
-        //     tstep = current_frame_time-measureFromLastFrame[i].t;
-        // }
-        // else if((i==0) && (i==(n-1)))
-        // {
-        //     acc = measureFromLastFrame[i].a;
-        //     angVel = measureFromLastFrame[i].w;
-        //     tstep = current_frame_time-last_frame_time;
-        // }
-        if((i==0) && (i==(n-1)))
+        if((i==0) && (i<(n-1)))
+        {
+            double tab = measureFromLastFrame[i+1].t-measureFromLastFrame[i].t;
+            double tini = measureFromLastFrame[i].t- last_frame_time;
+            acc = (measureFromLastFrame[i].a+measureFromLastFrame[i+1].a-
+                    (measureFromLastFrame[i+1].a-measureFromLastFrame[i].a)*(tini/tab))*0.5f;
+            angVel = (measureFromLastFrame[i].w+measureFromLastFrame[i+1].w-
+                    (measureFromLastFrame[i+1].w-measureFromLastFrame[i].w)*(tini/tab))*0.5f;
+            tstep = measureFromLastFrame[i+1].t- last_frame_time;
+        }
+        else if(i<(n-1))
+        {
+            acc = (measureFromLastFrame[i].a+measureFromLastFrame[i+1].a)*0.5f;
+            angVel = (measureFromLastFrame[i].w+measureFromLastFrame[i+1].w)*0.5f;
+            tstep = measureFromLastFrame[i+1].t-measureFromLastFrame[i].t;
+        }
+        else if((i>0) && (i==(n-1)))
+        {
+            double tab = measureFromLastFrame[i+1].t-measureFromLastFrame[i].t;
+            double tend = measureFromLastFrame[i+1].t-current_frame_time;
+            acc = (measureFromLastFrame[i].a+measureFromLastFrame[i+1].a-
+                    (measureFromLastFrame[i+1].a-measureFromLastFrame[i].a)*(tend/tab))*0.5f;
+            angVel = (measureFromLastFrame[i].w+measureFromLastFrame[i+1].w-
+                    (measureFromLastFrame[i+1].w-measureFromLastFrame[i].w)*(tend/tab))*0.5f;
+            tstep = current_frame_time-measureFromLastFrame[i].t;
+        }
+        else if((i==0) && (i==(n-1)))
         {
             acc = measureFromLastFrame[i].a;
             angVel = measureFromLastFrame[i].w;
             tstep = current_frame_time-last_frame_time;
         }
-        else{
-            acc = (measureFromLastFrame[i].a+measureFromLastFrame[i+1].a)*0.5f;
-            angVel = (measureFromLastFrame[i].w+measureFromLastFrame[i+1].w)*0.5f;
-            tstep = measureFromLastFrame[i+1].t-measureFromLastFrame[i].t;
-        }
+        // if((i==0) && (i==(n-1)))
+        // {
+        //     acc = measureFromLastFrame[i].a;
+        //     angVel = measureFromLastFrame[i].w;
+        //     tstep = current_frame_time-last_frame_time;
+        // }
+        // else{
+        //     acc = (measureFromLastFrame[i].a+measureFromLastFrame[i+1].a)*0.5f;
+        //     angVel = (measureFromLastFrame[i].w+measureFromLastFrame[i+1].w)*0.5f;
+        //     tstep = measureFromLastFrame[i+1].t-measureFromLastFrame[i].t;
+        // }
 
        IntegrateNewMeasurement(acc,angVel,tstep);
     }
      isPreintegrated=true;
+    //  LOG(INFO)<<"       dR "<<dR;
+    //  LOG(INFO)<<"       dV "<<dV.transpose();
+    //  LOG(INFO)<<"       dP "<<dP.transpose();
+    //  LOG(INFO)<<"       c g "<<C.block<3,3>(9,9);
+    //  LOG(INFO)<<"       sc a "<<C.block<3,3>(12,12);
+    // LOG(INFO)<<"        t "<<dT;
+    // LOG(INFO)<<"        JPa "<<JPa;
+    // LOG(INFO)<<"        JPg "<<JPg;
+    // LOG(INFO)<<"        JVa "<<JVa;
+    // LOG(INFO)<<"        JVg "<<JVg;
 }
 
 
@@ -158,7 +169,14 @@ Matrix<double,3,1> Preintegration::GetUpdatedDeltaVelocity()
 {
     return dV + JVg*db.block<3,1>(0,0)+ JVa*db.block<3,1>(3,0);
 }
-
+Matrix3d Preintegration::GetUpdatedDeltaRotation()
+{
+    return NormalizeRotation(dR*ExpSO3(JRg*db.block<3,1>(0,0)));
+}
+Matrix<double,3,1> Preintegration::GetUpdatedDeltaPosition()
+{
+    return dP + JPg*db.block<3,1>(0,0) + JPa*db.block<3,1>(3,0);
+}
 void Preintegration::SetNewBias(const Bias &bu_)
 {
     bu = bu_;
@@ -170,16 +188,6 @@ void Preintegration::SetNewBias(const Bias &bu_)
     db(4) = bu_.linearized_bg[1]-b.linearized_bg[1];
     db(5) = bu_.linearized_bg[2]-b.linearized_bg[2];
 }
-
-Matrix3d Preintegration::GetUpdatedDeltaRotation()
-{
-    return NormalizeRotation(dR*ExpSO3(JRg*db.block<3,1>(0,0)));
-}
-Matrix<double,3,1> Preintegration::GetUpdatedDeltaPosition()
-{
-    return dP + JPg*db.block<3,1>(0,0) + JPa*db.block<3,1>(3,0);
-}
-
 
 // 过去更新bias后的delta_R
 Matrix3d Preintegration::GetDeltaRotation(const Bias &b_)
@@ -196,6 +204,8 @@ Vector3d Preintegration::GetDeltaVelocity(const Bias &b_)
     dbg << b_.linearized_bg[0]-b.linearized_bg[0],b_.linearized_bg[1]-b.linearized_bg[1],b_.linearized_bg[2]-b.linearized_bg[2];
     Vector3d dba;
     dba << b_.linearized_ba[0]-b.linearized_ba[0],b_.linearized_ba[1]-b.linearized_ba[1],b_.linearized_ba[2]-b.linearized_ba[2];
+    //LOG(INFO)<<"        b_ "<<b_.linearized_bg.transpose();
+    //LOG(INFO)<<"        b "<<b.linearized_bg.transpose();
     return dV + JVg*dbg + JVa*dba;
 }
 
@@ -224,8 +234,8 @@ Matrix<double, 15, 1> Preintegration::Evaluate(const Vector3d &Pi, const Quatern
     Matrix3d dq_dbg=JRg;
     Matrix3d dv_dba=JVa;
     Matrix3d dv_dbg=JVg;
-    Vector3d  linearized_ba(bu.linearized_ba[0],bu.linearized_ba[1],bu.linearized_ba[2]);
-    Vector3d  linearized_bg(bu.linearized_bg[0],bu.linearized_bg[1],bu.linearized_bg[2]);
+    Vector3d  linearized_ba=bu.linearized_ba;
+    Vector3d  linearized_bg=bu.linearized_bg;
     Vector3d dba = Bai - linearized_ba;
     Vector3d dbg = Bgi - linearized_bg;
     Quaterniond delta_q;
@@ -242,6 +252,33 @@ Matrix<double, 15, 1> Preintegration::Evaluate(const Vector3d &Pi, const Quatern
     residuals.block<3, 1>(O_BG, 0) = Bgj - Bgi;
     return residuals;
 }
+
+Matrix<double, 9, 1> Preintegration::Evaluate(const Vector3d &Pi, const Quaterniond &Qi, const Vector3d &Vi, const Vector3d &Bai, const Vector3d &Bgi,
+                                               const Vector3d &Pj, const Quaterniond &Qj, const Vector3d &Vj, const Matrix3d Rwg)
+{
+    Matrix<double, 9, 1> residuals;
+    Matrix3d dp_dba=JPa;
+    Matrix3d dp_dbg=JPg;
+    Matrix3d dq_dbg=JRg;
+    Matrix3d dv_dba=JVa;
+    Matrix3d dv_dbg=JVg;
+    Vector3d  linearized_ba=bu.linearized_ba;
+    Vector3d  linearized_bg=bu.linearized_bg;
+    Vector3d dba = Bai - linearized_ba;
+    Vector3d dbg = Bgi - linearized_bg;
+    Quaterniond delta_q;
+    delta_q=dR;
+    Vector3d delta_v=dV;
+    Vector3d delta_p=dP;
+    Quaterniond corrected_delta_q = delta_q * q_delta(dq_dbg * dbg);
+    Vector3d corrected_delta_v = delta_v + dv_dba * dba + dv_dbg * dbg;
+    Vector3d corrected_delta_p = delta_p + dp_dba * dba + dp_dbg * dbg;
+    residuals.block<3, 1>(O_T, 0) = Qi.inverse() * (0.5 * Rwg*g * dT * dT + Pj - Pi - Vi * dT) - corrected_delta_p;
+    residuals.block<3, 1>(O_R, 0) = 2 * (corrected_delta_q.inverse() * (Qi.inverse() * Qj)).vec();
+    residuals.block<3, 1>(O_V, 0) = Qi.inverse() * (Rwg*g * dT + Vj - Vi) - corrected_delta_v;
+    return residuals;
+}
+
 void Preintegration::Reintegrate()
 {
     std::vector<integrable> aux = mvMeasurements;

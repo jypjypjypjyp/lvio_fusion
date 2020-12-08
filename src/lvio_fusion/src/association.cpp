@@ -1,10 +1,14 @@
 #include "lvio_fusion/lidar/association.h"
+#include "lvio_fusion/adapt/agent.h"
+#include "lvio_fusion/adapt/problem.h"
 #include "lvio_fusion/ceres/lidar_error.hpp"
 #include "lvio_fusion/ceres/loop_error.hpp"
 #include "lvio_fusion/lidar/feature.h"
+#include "lvio_fusion/map.h"
 #include "lvio_fusion/utility.h"
 
 #include <pcl/filters/extract_indices.h>
+#include <pcl/filters/radius_outlier_removal.h>
 #include <pcl/filters/voxel_grid.h>
 #include <pcl/kdtree/kdtree_flann.h>
 #include <pcl/sample_consensus/method_types.h>
@@ -19,14 +23,14 @@ void FeatureAssociation::AddScan(double time, Point3Cloud::Ptr new_scan)
     static double head = 0;
     raw_point_clouds_[time] = new_scan;
 
-    Frames new_kfs = map_->GetKeyFrames(head, time);
+    Frames new_kfs = Map::Instance().GetKeyFrames(head, time);
     for (auto pair_kf : new_kfs)
     {
         PointICloud point_cloud;
         if (AlignScan(pair_kf.first, point_cloud))
         {
             Process(point_cloud, pair_kf.second);
-            head = pair_kf.first;
+            head = pair_kf.first + epsilon;
         }
     }
 }
@@ -60,7 +64,7 @@ void FeatureAssociation::UndistortPoint(PointI &point, Frame::Ptr frame)
 {
     double time_delta = (point.intensity - int(point.intensity));
     double time = frame->time - cycle_time_ * 0.5 + time_delta;
-    SE3d pose = map_->ComputePose(time);
+    SE3d pose = Map::Instance().ComputePose(time);
     auto p1 = lidar_->Sensor2World(Vector3d(point.x, point.y, point.z), pose);
     auto p2 = lidar_->World2Sensor(p1, frame->pose);
     point.x = p2.x();
@@ -162,8 +166,8 @@ void FeatureAssociation::CalculateSmoothness(PointICloud &points_segmented, Segm
 
 void FeatureAssociation::ExtractFeatures(PointICloud &points_segmented, SegmentedInfo &segemented_info, Frame::Ptr frame)
 {
+    PointICloud points_ground, points_surf; //, points_full;
     static const float threshold = 1;
-    lidar::Feature::Ptr feature = lidar::Feature::Create();
     for (int i = 0; i < num_scans_; i++)
     {
         // divide one scan into six segments
@@ -178,40 +182,57 @@ void FeatureAssociation::ExtractFeatures(PointICloud &points_segmented, Segmente
             {
                 if (segemented_info.ground_flag[k] == true)
                 {
-                    feature->points_ground.push_back(points_segmented[k]);
+                    points_ground.push_back(points_segmented[k]);
                 }
                 else if (curvatures[k] < threshold)
                 {
-                    feature->points_surf.push_back(points_segmented[k]);
+                    points_surf.push_back(points_segmented[k]);
                 }
-                feature->points_full.push_back(points_segmented[k]);
             }
         }
     }
 
     PointICloud::Ptr temp(new PointICloud());
     pcl::VoxelGrid<PointI> voxel_filter;
-    pcl::copyPointCloud(feature->points_full, *temp);
-    voxel_filter.setLeafSize(lidar_->resolution, lidar_->resolution, lidar_->resolution);
+    voxel_filter.setLeafSize(3 * lidar_->resolution, 3 * lidar_->resolution, 3 * lidar_->resolution);
+    pcl::copyPointCloud(points_surf, *temp);
     voxel_filter.setInputCloud(temp);
-    voxel_filter.filter(feature->points_full);
+    voxel_filter.filter(points_surf);
 
-    pcl::copyPointCloud(feature->points_surf, *temp);
+    pcl::RadiusOutlierRemoval<PointI> ror_filter;
+    ror_filter.setRadiusSearch(4 * lidar_->resolution);
+    ror_filter.setMinNeighborsInRadius(4);
+    pcl::copyPointCloud(points_surf, *temp);
+    ror_filter.setInputCloud(temp);
+    ror_filter.filter(points_surf);
+
+    pcl::copyPointCloud(points_ground, *temp);
     voxel_filter.setLeafSize(2 * lidar_->resolution, 2 * lidar_->resolution, 2 * lidar_->resolution);
     voxel_filter.setInputCloud(temp);
-    voxel_filter.filter(feature->points_surf);
+    voxel_filter.filter(points_ground);
 
-    pcl::copyPointCloud(feature->points_ground, *temp);
-    voxel_filter.setLeafSize(2 * lidar_->resolution, 2 * lidar_->resolution, 2 * lidar_->resolution);
-    voxel_filter.setInputCloud(temp);
-    voxel_filter.filter(feature->points_ground);
+    SegmentGround(points_ground);
 
-    SegmentGround(feature->points_ground, feature->points_surf);
-
+    lidar::Feature::Ptr feature = lidar::Feature::Create();
+    Sensor2Robot(points_ground, feature->points_ground);
+    Sensor2Robot(points_surf, feature->points_surf);
     frame->feature_lidar = feature;
 }
 
-inline void FeatureAssociation::SegmentGround(PointICloud &points_ground, PointICloud &points_surf)
+inline void FeatureAssociation::Sensor2Robot(PointICloud &in, PointICloud &out)
+{
+    Sophus::SE3f tf_se3 = lidar_->extrinsic.cast<float>();
+    float *tf = tf_se3.data();
+    for (auto point_in : in)
+    {
+        PointI point_out;
+        ceres::SE3TransformPoint(tf, point_in.data, point_out.data);
+        point_out.intensity = point_in.intensity;
+        out.push_back(point_out);
+    }
+}
+
+inline void FeatureAssociation::SegmentGround(PointICloud &points_ground)
 {
     PointICloud::Ptr pointcloud_seg(new PointICloud());
     pcl::copyPointCloud(points_ground, *pointcloud_seg);
@@ -222,7 +243,7 @@ inline void FeatureAssociation::SegmentGround(PointICloud &points_ground, PointI
     seg.setModelType(pcl::SACMODEL_PLANE);
     seg.setMethodType(pcl::SAC_RANSAC);
     seg.setMaxIterations(100);
-    seg.setDistanceThreshold(0.5 * lidar_->resolution);
+    seg.setDistanceThreshold(0.1 * lidar_->resolution);
     seg.setInputCloud(pointcloud_seg);
     seg.segment(*inliers, coefficients);
     pcl::ExtractIndices<PointI> extract;
@@ -232,247 +253,124 @@ inline void FeatureAssociation::SegmentGround(PointICloud &points_ground, PointI
     extract.filter(points_ground);
 }
 
-void FeatureAssociation::ScanToMapWithGround(Frame::Ptr frame, Frame::Ptr map_frame, double *para, ceres::Problem &problem)
+void FeatureAssociation::ScanToMapWithGround(Frame::Ptr frame, Frame::Ptr map_frame, double *para, adapt::Problem &problem)
 {
-    ceres::LossFunction *loss_function = new ceres::HuberLoss(0.1);
-    PointICloud &points_less_flat_last = map_frame->feature_lidar->points_full;
+    ceres::LossFunction *loss_function = new ceres::TrivialLoss();
+    PointICloud &points_ground_last = map_frame->feature_lidar->points_ground;
     problem.AddParameterBlock(para + 1, 1);
     problem.AddParameterBlock(para + 2, 1);
     problem.AddParameterBlock(para + 5, 1);
 
-    pcl::KdTreeFLANN<PointI> kdtree_flat_last;
-    kdtree_flat_last.setInputCloud(boost::make_shared<PointICloud>(points_less_flat_last));
+    pcl::KdTreeFLANN<PointI> kdtree_last;
+    kdtree_last.setInputCloud(boost::make_shared<PointICloud>(points_ground_last));
 
     PointI point;
     std::vector<int> points_index;
     std::vector<float> points_distance;
 
-    static const double distance_threshold = lidar_->resolution * lidar_->resolution * 100; // squared
-    static const double nearby_scan = 2;
+    static const double distance_threshold = lidar_->resolution * lidar_->resolution * 16; // squared
     int num_points_flat = frame->feature_lidar->points_ground.size();
-    Sophus::SE3f tf_se3 = lidar_->TransformMatrix(frame->pose).cast<float>();
+    Sophus::SE3f tf_se3 = frame->pose.cast<float>();
     float *tf = tf_se3.data();
-
-    double weights[10] = {10000, 10000, 10000, 1000, 1000, 1000};
-    ceres::CostFunction *cost_function = PoseErrorRPZ::Create(para, weights);
-    problem.AddResidualBlock(cost_function, loss_function, para + 1, para + 2, para + 5);
 
     // find correspondence for ground features
     for (int i = 0; i < num_points_flat; ++i)
     {
         //NOTE: Sophus is too slow
-        // lidar_->Transform(points_flat[i], current_frame->pose, last_frame->pose, point);
         ceres::SE3TransformPoint(tf, frame->feature_lidar->points_ground[i].data, point.data);
         point.intensity = frame->feature_lidar->points_ground[i].intensity;
-        kdtree_flat_last.nearestKSearch(point, 1, points_index, points_distance);
-        int closest_index = -1, closest_index2 = -1, closest_index3 = -1;
-        if (points_index[0] < points_less_flat_last.size() && points_distance[0] < distance_threshold)
+        kdtree_last.nearestKSearch(point, 3, points_index, points_distance);
+        // clang-format off
+        if (points_index[0] < points_ground_last.size() && points_distance[0] < distance_threshold 
+         && points_index[1] < points_ground_last.size() && points_distance[1] < distance_threshold 
+         && points_index[2] < points_ground_last.size() && points_distance[2] < distance_threshold)
+        // clang-format on
         {
-            closest_index = points_index[0];
-
-            // get closest point's scan ID
-            int scan_id = int(points_less_flat_last[closest_index].intensity);
-            double min_distance2 = distance_threshold, min_distance3 = distance_threshold;
-            // search in the direction of increasing scan line
-            for (int j = closest_index + 1; j < (int)points_less_flat_last.size(); ++j)
-            {
-                // if not in nearby scans, end the loop
-                if (int(points_less_flat_last[j].intensity) > (scan_id + nearby_scan))
-                    break;
-
-                double point_distance = (points_less_flat_last[j].x - point.x) *
-                                            (points_less_flat_last[j].x - point.x) +
-                                        (points_less_flat_last[j].y - point.y) *
-                                            (points_less_flat_last[j].y - point.y) +
-                                        (points_less_flat_last[j].z - point.z) *
-                                            (points_less_flat_last[j].z - point.z);
-
-                // if in the same or lower scan line
-                if (int(points_less_flat_last[j].intensity) <= scan_id && point_distance < min_distance2)
-                {
-                    min_distance2 = point_distance;
-                    closest_index2 = j;
-                }
-                // if in the higher scan line
-                else if (int(points_less_flat_last[j].intensity) > scan_id && point_distance < min_distance3)
-                {
-                    min_distance3 = point_distance;
-                    closest_index3 = j;
-                }
-            }
-            // search in the direction of decreasing scan line
-            for (int j = closest_index - 1; j >= 0; --j)
-            {
-                // if not in nearby scans, end the loop
-                if (int(points_less_flat_last[j].intensity) < (scan_id - nearby_scan))
-                    break;
-
-                double point_distance = (points_less_flat_last[j].x - point.x) *
-                                            (points_less_flat_last[j].x - point.x) +
-                                        (points_less_flat_last[j].y - point.y) *
-                                            (points_less_flat_last[j].y - point.y) +
-                                        (points_less_flat_last[j].z - point.z) *
-                                            (points_less_flat_last[j].z - point.z);
-
-                // if in the same or higher scan line
-                if (int(points_less_flat_last[j].intensity) >= scan_id && point_distance < min_distance2)
-                {
-                    min_distance2 = point_distance;
-                    closest_index2 = j;
-                }
-                else if (int(points_less_flat_last[j].intensity) < scan_id && point_distance < min_distance3)
-                {
-                    // find nearer point
-                    min_distance3 = point_distance;
-                    closest_index3 = j;
-                }
-            }
-            if (closest_index2 >= 0 && closest_index3 >= 0)
-            {
-
-                Vector3d curr_point(frame->feature_lidar->points_ground[i].x,
-                                    frame->feature_lidar->points_ground[i].y,
-                                    frame->feature_lidar->points_ground[i].z);
-                Vector3d last_point_a(points_less_flat_last[closest_index].x,
-                                      points_less_flat_last[closest_index].y,
-                                      points_less_flat_last[closest_index].z);
-                Vector3d last_point_b(points_less_flat_last[closest_index2].x,
-                                      points_less_flat_last[closest_index2].y,
-                                      points_less_flat_last[closest_index2].z);
-                Vector3d last_point_c(points_less_flat_last[closest_index3].x,
-                                      points_less_flat_last[closest_index3].y,
-                                      points_less_flat_last[closest_index3].z);
-
-                ceres::CostFunction *cost_function;
-                cost_function = LidarPlaneErrorRPZ::Create(curr_point, last_point_a, last_point_b, last_point_c, lidar_, map_frame->pose, para, frame->weights.lidar_ground);
-                problem.AddResidualBlock(cost_function, loss_function, para + 1, para + 2, para + 5);
-            }
+            Vector3d curr_point(frame->feature_lidar->points_ground[i].x,
+                                frame->feature_lidar->points_ground[i].y,
+                                frame->feature_lidar->points_ground[i].z);
+            Vector3d last_point_a(points_ground_last[points_index[0]].x,
+                                  points_ground_last[points_index[0]].y,
+                                  points_ground_last[points_index[0]].z);
+            Vector3d last_point_b(points_ground_last[points_index[1]].x,
+                                  points_ground_last[points_index[1]].y,
+                                  points_ground_last[points_index[1]].z);
+            Vector3d last_point_c(points_ground_last[points_index[2]].x,
+                                  points_ground_last[points_index[2]].y,
+                                  points_ground_last[points_index[2]].z);
+            double weights[1] = {curr_point.norm() > 5 ? 10.0 : 1.0};
+            ceres::CostFunction *cost_function;
+            cost_function = LidarPlaneErrorRPZ::Create(curr_point, last_point_a, last_point_b, last_point_c, lidar_, map_frame->pose, para, weights);
+            problem.AddResidualBlock(ProblemType::LidarPlaneErrorRPZ, cost_function, loss_function, para + 1, para + 2, para + 5);
         }
+    }
+
+    if (frame->id == map_frame->id + 1)
+    {
+        Agent::Instance()->UpdateWeights(problem, frame->weights);
+        ceres::CostFunction *cost_function = PoseErrorRPZ::Create(para, frame->weights.lidar_ground);
+        problem.AddResidualBlock(ProblemType::Other, cost_function, NULL, para + 1, para + 2, para + 5);
     }
 }
 
-void FeatureAssociation::ScanToMapWithSegmented(Frame::Ptr frame, Frame::Ptr map_frame, double *para, ceres::Problem &problem)
+void FeatureAssociation::ScanToMapWithSegmented(Frame::Ptr frame, Frame::Ptr map_frame, double *para, adapt::Problem &problem)
 {
-    ceres::LossFunction *loss_function = new ceres::HuberLoss(1);
-    // PointICloud &points_less_sharp_last = map_frame->feature_lidar->points_less_sharp;
-    PointICloud &points_less_flat_last = map_frame->feature_lidar->points_full;
+    ceres::LossFunction *loss_function = new ceres::HuberLoss(0.1);
+    PointICloud &points_surf_last = map_frame->feature_lidar->points_surf;
     problem.AddParameterBlock(para + 0, 1);
     problem.AddParameterBlock(para + 3, 1);
     problem.AddParameterBlock(para + 4, 1);
 
-    // pcl::KdTreeFLANN<PointI> kdtree_sharp_last;
-    pcl::KdTreeFLANN<PointI> kdtree_flat_last;
-    // kdtree_sharp_last.setInputCloud(boost::make_shared<PointICloud>(points_less_sharp_last));
-    kdtree_flat_last.setInputCloud(boost::make_shared<PointICloud>(points_less_flat_last));
+    pcl::KdTreeFLANN<PointI> kdtree_last;
+    kdtree_last.setInputCloud(boost::make_shared<PointICloud>(points_surf_last));
 
     PointI point;
     std::vector<int> points_index;
     std::vector<float> points_distance;
 
-    static const double distance_threshold = lidar_->resolution * lidar_->resolution * 25; // squared
-    static const double nearby_scan = 2;
-    // int num_points_sharp = frame->feature_lidar->points_sharp.size();
+    static const double distance_threshold = lidar_->resolution * lidar_->resolution * 16; // squared
     int num_points_flat = frame->feature_lidar->points_surf.size();
-    Sophus::SE3f tf_se3 = lidar_->TransformMatrix(frame->pose).cast<float>();
+    Sophus::SE3f tf_se3 = frame->pose.cast<float>();
     float *tf = tf_se3.data();
-
-    double weights[10] = {10000, 10000, 10000, 1000, 1000, 1000};
-    ceres::CostFunction *cost_function = PoseErrorRPZ::Create(para, weights);
-    problem.AddResidualBlock(cost_function, loss_function, para, para + 3, para + 4);
 
     // find correspondence for plane features
     for (int i = 0; i < num_points_flat; ++i)
     {
         //NOTE: Sophus is too slow
-        // lidar_->Transform(frame->feature_lidar->points_flat[i], current_frame->pose, last_frame->pose, point);
         ceres::SE3TransformPoint(tf, frame->feature_lidar->points_surf[i].data, point.data);
         point.intensity = frame->feature_lidar->points_surf[i].intensity;
-        kdtree_flat_last.nearestKSearch(point, 1, points_index, points_distance);
-        int closest_index = -1, closest_index2 = -1, closest_index3 = -1;
-        if (points_index[0] < points_less_flat_last.size() && points_distance[0] < distance_threshold)
+        kdtree_last.nearestKSearch(point, 3, points_index, points_distance);
+        // clang-format off
+        if (points_index[0] < points_surf_last.size() && points_distance[0] < distance_threshold 
+         && points_index[1] < points_surf_last.size() && points_distance[1] < distance_threshold 
+         && points_index[2] < points_surf_last.size() && points_distance[2] < distance_threshold)
+        // clang-format on
         {
-            closest_index = points_index[0];
-
-            // get closest point's scan ID
-            int scan_id = int(points_less_flat_last[closest_index].intensity);
-            double min_distance2 = distance_threshold, min_distance3 = distance_threshold;
-
-            // search in the direction of increasing scan line
-            for (int j = closest_index + 1; j < (int)points_less_flat_last.size(); ++j)
-            {
-                // if not in nearby scans, end the loop
-                if (int(points_less_flat_last[j].intensity) > (scan_id + nearby_scan))
-                    break;
-
-                double point_distance = (points_less_flat_last[j].x - point.x) *
-                                            (points_less_flat_last[j].x - point.x) +
-                                        (points_less_flat_last[j].y - point.y) *
-                                            (points_less_flat_last[j].y - point.y) +
-                                        (points_less_flat_last[j].z - point.z) *
-                                            (points_less_flat_last[j].z - point.z);
-
-                // if in the same or lower scan line
-                if (int(points_less_flat_last[j].intensity) <= scan_id && point_distance < min_distance2)
-                {
-                    min_distance2 = point_distance;
-                    closest_index2 = j;
-                }
-                // if in the higher scan line
-                else if (int(points_less_flat_last[j].intensity) > scan_id && point_distance < min_distance3)
-                {
-                    min_distance3 = point_distance;
-                    closest_index3 = j;
-                }
-            }
-
-            // search in the direction of decreasing scan line
-            for (int j = closest_index - 1; j >= 0; --j)
-            {
-                // if not in nearby scans, end the loop
-                if (int(points_less_flat_last[j].intensity) < (scan_id - nearby_scan))
-                    break;
-
-                double point_distance = (points_less_flat_last[j].x - point.x) *
-                                            (points_less_flat_last[j].x - point.x) +
-                                        (points_less_flat_last[j].y - point.y) *
-                                            (points_less_flat_last[j].y - point.y) +
-                                        (points_less_flat_last[j].z - point.z) *
-                                            (points_less_flat_last[j].z - point.z);
-
-                // if in the same or higher scan line
-                if (int(points_less_flat_last[j].intensity) >= scan_id && point_distance < min_distance2)
-                {
-                    min_distance2 = point_distance;
-                    closest_index2 = j;
-                }
-                else if (int(points_less_flat_last[j].intensity) < scan_id && point_distance < min_distance3)
-                {
-                    // find nearer point
-                    min_distance3 = point_distance;
-                    closest_index3 = j;
-                }
-            }
-
-            if (closest_index2 >= 0 && closest_index3 >= 0)
-            {
-
-                Vector3d curr_point(frame->feature_lidar->points_surf[i].x,
-                                    frame->feature_lidar->points_surf[i].y,
-                                    frame->feature_lidar->points_surf[i].z);
-                Vector3d last_point_a(points_less_flat_last[closest_index].x,
-                                      points_less_flat_last[closest_index].y,
-                                      points_less_flat_last[closest_index].z);
-                Vector3d last_point_b(points_less_flat_last[closest_index2].x,
-                                      points_less_flat_last[closest_index2].y,
-                                      points_less_flat_last[closest_index2].z);
-                Vector3d last_point_c(points_less_flat_last[closest_index3].x,
-                                      points_less_flat_last[closest_index3].y,
-                                      points_less_flat_last[closest_index3].z);
-                ceres::CostFunction *cost_function;
-                cost_function = LidarPlaneErrorYXY::Create(curr_point, last_point_a, last_point_b, last_point_c, lidar_, map_frame->pose, para, frame->weights.lidar_surf);
-                problem.AddResidualBlock(cost_function, loss_function, para, para + 3, para + 4);
-            }
+            Vector3d curr_point(frame->feature_lidar->points_surf[i].x,
+                                frame->feature_lidar->points_surf[i].y,
+                                frame->feature_lidar->points_surf[i].z);
+            Vector3d last_point_a(points_surf_last[points_index[0]].x,
+                                  points_surf_last[points_index[0]].y,
+                                  points_surf_last[points_index[0]].z);
+            Vector3d last_point_b(points_surf_last[points_index[1]].x,
+                                  points_surf_last[points_index[1]].y,
+                                  points_surf_last[points_index[1]].z);
+            Vector3d last_point_c(points_surf_last[points_index[2]].x,
+                                  points_surf_last[points_index[2]].y,
+                                  points_surf_last[points_index[2]].z);
+            double weights[1] = {1};
+            ceres::CostFunction *cost_function;
+            cost_function = LidarPlaneErrorYXY::Create(curr_point, last_point_a, last_point_b, last_point_c, lidar_, map_frame->pose, para, weights);
+            problem.AddResidualBlock(ProblemType::LidarPlaneErrorYXY, cost_function, loss_function, para, para + 3, para + 4);
         }
     }
+
+    if (frame->id == map_frame->id + 1)
+    {
+        Agent::Instance()->UpdateWeights(problem, frame->weights);
+        ceres::CostFunction *cost_function = PoseErrorYXY::Create(para, frame->weights.lidar_surf);
+        problem.AddResidualBlock(ProblemType::Other, cost_function, NULL, para, para + 3, para + 4);
+    }
 }
+
 } // namespace lvio_fusion

@@ -1,0 +1,94 @@
+%YAML:1.0
+
+# flags
+use_imu: 0
+use_lidar: 0
+use_navsat: 0
+use_loop: 0             # 0 for only odometry, 1 for whole system
+num_of_cam: 2
+is_semantic: 0
+
+# ros parameters
+imu_topic: "/imu0"
+#lidar_topic: '/kitti/velo/pointcloud'
+#navsat_topic: '/kitti/oxts/gps/fix'
+image0_topic: "/cam0/image_raw"
+image1_topic: "/cam1/image_raw"
+#color_topic: '/kitti/camera_color_left/image_raw'
+result_path: '/home/zoet/Projects.new/lvio-fusion/result/result.csv'
+
+# camera1 intrinsics
+camera1.fx: 4.6115862106007575e+02 #2.1387619122017772e+03
+camera1.fy: 4.5975286598073296e+02 # 2.1315886210259278e+03
+camera1.cx: 3.6265929181685937e+02 # 3.6119856633263799e+02
+camera1.cy: 2.4852105668448124e+02 # 2.4827644773395667e+02
+
+# camera2 intrinsics
+camera2.fx: 4.6009781682258682e+02 # 8.3406249735437791e+02
+camera2.fy: 4.5890983492218902e+02 # 8.3140606765916948e+02
+camera2.cx: 3.7314916359808268e+02 # 3.7432007355249738e+02
+camera2.cy: 2.5440734973672119e+02 # 2.5422391621480082e+02
+
+# lidar parameters
+num_scans: 64           # only for 16, 32, 64
+horizon_scan: 1800
+ang_res_y: 0.427
+ang_bottom: 24.9
+ground_rows: 60
+cycle_time: 0.1036
+min_range: 5
+max_range: 30
+deskew: 0
+resolution: 0.2
+
+#imu parameters
+acc_n: 0.1          # accelerometer measurement noise standard deviation. 
+gyr_n: 0.01         # gyroscope measurement noise standard deviation.     
+acc_w: 0.001        # accelerometer bias random work noise standard deviation.  
+gyr_w: 0.0001       # gyroscope bias random work noise standard deviation.     
+g_norm: 9.81007     # gravity magnitude
+frequency: 1  #NEWADD
+
+# body to camera0
+base_to_cam0: !!opencv-matrix
+   rows: 4
+   cols: 4
+   dt: d
+   data: [0.0148655429818, -0.999880929698, 0.00414029679422, -0.0216401454975,
+           0.999557249008, 0.0149672133247, 0.025715529948,  -0.064676986768,
+           -0.0257744366974, 0.00375618835797, 0.999660727178, 0.00981073058949,
+           0, 0, 0, 1]
+
+
+# body to camera1
+base_to_cam1: !!opencv-matrix
+   rows: 4
+   cols: 4
+   dt: d
+   data: [0.0125552670891, -0.999755099723, 0.0182237714554, -0.0198435579556,
+           0.999598781151, 0.0130119051815, 0.0251588363115, 0.0453689425024,
+          -0.0253898008918, 0.0179005838253, 0.999517347078, 0.00786212447038,
+          0, 0, 0, 1]
+
+# body to lidar
+base_to_lidar: !!opencv-matrix
+   rows: 4
+   cols: 4
+   dt: d
+   data: [  0.999998   ,       -0.000785403,      0.00202441,        0.810544,
+            0.000755307,       0.99989     ,      0.0148245 ,        -0.307054,
+            -0.00203583,       -0.014823   ,      0.999888  ,        0.802724,
+            0          ,       -0          ,      -0        ,        1]
+
+# number of features
+num_features: 200
+num_features_init: 80
+num_features_tracking: 150
+num_features_tracking_bad: 8
+num_features_needed_for_keyframe: 150
+
+# backend
+delay: 1
+
+# loop
+voc_path: '/home/zoet/Projects.new/lvio_fusion/misc/orbvoc.dbow3'

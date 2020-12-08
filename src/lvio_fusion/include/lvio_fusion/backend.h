@@ -1,13 +1,14 @@
 #ifndef lvio_fusion_BACKEND_H
 #define lvio_fusion_BACKEND_H
 
+#include "lvio_fusion/adapt/problem.h"
 #include "lvio_fusion/common.h"
 #include "lvio_fusion/frame.h"
 #include "lvio_fusion/imu/imu.hpp"
 #include "lvio_fusion/imu/initializer.h"
 #include "lvio_fusion/lidar/lidar.hpp"
 #include "lvio_fusion/lidar/mapping.h"
-#include "lvio_fusion/map.h"
+#include "lvio_fusion/navsat/navsat.h"
 #include "lvio_fusion/visual/camera.hpp"
 
 #include <ceres/ceres.h>
@@ -41,7 +42,7 @@ public:
 
     void SetImu(Imu::Ptr imu) { imu_ = imu; }
 
-    void SetMap(Map::Ptr map) { map_ = map; }
+    void SetNavsat(NavsatMap::Ptr navsat) { navsat_ = navsat; }
 
     void SetFrontend(std::shared_ptr<Frontend> frontend) { frontend_ = frontend; }
 
@@ -59,7 +60,7 @@ public:
     std::mutex mutex;
     double head = 0;
     Initializer::Ptr initializer_;//NEWADD
-
+    
 private:
     void BackendLoop();
 
@@ -69,9 +70,8 @@ private:
 
     void ForwardPropagate(double time);
 
-   void BuildProblem(Frames &active_kfs, ceres::Problem &problem,std::vector<double *> &para_gbs,std::vector<double *> &para_abs);//NEWADD
+    void BuildProblem(Frames &active_kfs, adapt::Problem &problem);
 
-    Map::Ptr map_;
     std::weak_ptr<Frontend> frontend_;
     Mapping::Ptr mapping_;
 
@@ -87,6 +87,7 @@ private:
     Camera::Ptr camera_right_;
     Lidar::Ptr lidar_;
     Imu::Ptr imu_;
+    NavsatMap::Ptr navsat_;
 };
 
 } // namespace lvio_fusion

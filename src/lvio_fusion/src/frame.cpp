@@ -102,23 +102,5 @@ Bias Frame::GetImuBias()
     return mImuBias;
 }
 
-void Frame::SetImuPoseVelocity(const Matrix3d &Rwb,const Vector3d &twb, const Vector3d &Vwb)
-{
-    mVw=Vwb;
-    Matrix3d Rbw = Rwb.transpose();
-    Vector3d tbw = -Rbw*twb;
-    Matrix4d Tbw = Matrix4d::Identity();
-    Tbw.block<3,3>(0,0)=Rbw;
-    Tbw.block<3,1>(0,3)=tbw;
-    //mTcw = calib_.Tcb*Tbw;
-   // UpdatePoseMatrices();
-}
-void Frame::UpdatePoseMatrices()
-{
-    mRcw = mTcw.block<3,3>(0,0);
-    mRwc = mRcw.transpose();
-    mtcw = mTcw.block<3,1>(0,3);
-    mOw = -mRcw.transpose()*mtcw;
-}
 //NEWADDEND
 } // namespace lvio_fusion

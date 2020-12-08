@@ -6,10 +6,10 @@
 #include <ceres/ceres.h>
 namespace lvio_fusion
 {
-void InertialOptimization(unsigned long last_initialized_id,Map::Ptr pMap, Eigen::Matrix3d &Rwg, double &scale, Eigen::Vector3d &bg, Eigen::Vector3d &ba, Eigen::MatrixXd  &covInertial, bool bFixedVel=false, bool bGauss=false, double priorG = 1, double priorA = 1e9)
+void InertialOptimization(unsigned long last_initialized_id, Eigen::Matrix3d &Rwg, double &scale, Eigen::Vector3d &bg, Eigen::Vector3d &ba, Eigen::MatrixXd  &covInertial, bool bFixedVel=false, bool bGauss=false, double priorG = 1, double priorA = 1e9)
 {
 
-     Frames vpKFs = pMap->GetAllKeyFrames();
+     Frames vpKFs = Map::Instance().GetAllKeyFrames();
      ceres::Problem problem;
      //    ceres::LocalParameterization *local_parameterization = new ceres::ProductParameterization(
      //    new ceres::EigenQuaternionParameterization(),
@@ -43,7 +43,7 @@ void InertialOptimization(unsigned long last_initialized_id,Map::Ptr pMap, Eigen
           current_frame_=iter->second;
           if(current_frame_->id>last_initialized_id)break;
           double timestamp=iter->first;
-          if (!current_frame_->preintegration||!current_frame_->mpLastKeyFrame)
+          if (!current_frame_->bImu||!current_frame_->mpLastKeyFrame)
           {
                 last_frame_=NULL;
                continue;
@@ -57,7 +57,7 @@ void InertialOptimization(unsigned long last_initialized_id,Map::Ptr pMap, Eigen
           // if (bFixedVel)
           //      problem.SetParameterBlockConstant(para_v);
 
-          if (last_frame_ && current_frame_->preintegration&&last_frame_->mpLastKeyFrame)
+          if (last_frame_ && current_frame_->bImu&&last_frame_->mpLastKeyFrame)
           {
                // auto para_kf_last = last_frame->pose.data();
                // problem.SetParameterBlockConstant(para_kf_last);
@@ -93,7 +93,7 @@ void InertialOptimization(unsigned long last_initialized_id,Map::Ptr pMap, Eigen
           if(dbg.norm() >0.01)
           {
                current_frame_->SetNewBias(bias_);
-               if (current_frame_->preintegration)
+               if (current_frame_->bImu)
                     current_frame_->preintegration->Reintegrate();
           }
           else
@@ -103,9 +103,9 @@ void InertialOptimization(unsigned long last_initialized_id,Map::Ptr pMap, Eigen
      }
 }
     
-void FullInertialBA(unsigned long last_initialized_id,Matrix3d Rwg,Map::Ptr pMap, int its, const bool bFixLocal=false, const unsigned long nLoopKF=0, bool *pbStopFlag=NULL, bool bInit=false, double priorG = 1, double priorA=1e9, Eigen::VectorXd *vSingVal = NULL, bool *bHess=NULL)
+void FullInertialBA(unsigned long last_initialized_id,Matrix3d Rwg, int its, const bool bFixLocal=false, const unsigned long nLoopKF=0, bool *pbStopFlag=NULL, bool bInit=false, double priorG = 1, double priorA=1e9, Eigen::VectorXd *vSingVal = NULL, bool *bHess=NULL)
 {
-Frames KFs=pMap->GetAllKeyFrames();
+Frames KFs=Map::Instance().GetAllKeyFrames();
 ceres::Problem problem;
  ceres::LocalParameterization *local_parameterization = new ceres::ProductParameterization(
         new ceres::EigenQuaternionParameterization(),
@@ -168,10 +168,11 @@ for(Frames::iterator iter = KFs.begin(); iter != KFs.end(); iter++,ii++)
           a1=para_accBias;
           auto P2=para_kfs[ii];
           auto V2=para_vs[ii];
-
+          
           //ei p1,v1,g1,a1,p2,v2
-           ceres::CostFunction *cost_function = InertialError::Create(current_frame->preintegration,Rwg);
-           problem.AddResidualBlock(cost_function, NULL, P1,V1,g1,a1,P2,V2);//7,3,3,3,7,3
+          // ceres::CostFunction *cost_function =InertialError::Create(current_frame->preintegration,Rwg);
+           ceres::CostFunction *cost_function =ImuError2::Create(current_frame->preintegration,Rwg);
+           problem.AddResidualBlock(cost_function, NULL, P1,V1,a1,g1,P2,V2);//7,3,3,3,7,3
 
      }
      last_frame = current_frame;
@@ -216,11 +217,11 @@ void  Initializer::InitializeIMU(bool bFIBA)
      double priorG=1;
     double minTime=1.0;  // 初始化需要的最小时间间隔
     int nMinKF=10;     // 初始化需要的最少关键帧数
-    if(map_->GetAllKeyFramesSize()<nMinKF)
+    if(Map::Instance().GetAllKeyFramesSize()<nMinKF)
         return;
    // Step 1:按时间顺序收集初始化imu使用的KF
     std::list< Frame::Ptr > lpKF;
-    Frames keyframes=map_->GetAllKeyFrames();
+    Frames keyframes=Map::Instance().GetAllKeyFrames();
     Frames::reverse_iterator   iter;
      for(iter = keyframes.rbegin(); iter != keyframes.rend(); iter++){
           lpKF.push_front(iter->second);
@@ -232,7 +233,7 @@ void  Initializer::InitializeIMU(bool bFIBA)
      LOG(INFO)<<"last_initialized_id"<<last_initialized_id;
        // imu计算初始时间
     mFirstTs=vpKF.front()->time;
-    if(map_->current_frame->time-mFirstTs<minTime)
+    if(Map::Instance().current_frame->time-mFirstTs<minTime)
         return;
 
     //bInitializing = true;   // 暂时未使用
@@ -275,13 +276,13 @@ void  Initializer::InitializeIMU(bool bFIBA)
         // 计算mRwg，与-Z旋转偏差
         Vector3d vzg = v*ang/nv;
         mRwg = ExpSO3(vzg);
-        mTinit = map_->current_frame->time-mFirstTs;
+        mTinit = Map::Instance().current_frame->time-mFirstTs;
     }
     else
     {
         mRwg = Eigen::Matrix3d::Identity();
-        mbg = map_->current_frame->GetGyroBias();
-        mba = map_->current_frame->GetAccBias();
+        mbg = Map::Instance().current_frame->GetGyroBias();
+        mba =Map::Instance().current_frame->GetAccBias();
     }
  
     mScale=1.0;
@@ -294,7 +295,7 @@ void  Initializer::InitializeIMU(bool bFIBA)
     // 使用camera初始地图frame的pose与预积分的差值优化
     Eigen::MatrixXd infoInertial=Eigen::MatrixXd::Zero(9,9);
     LOG(INFO)<<"InertialOptimization++++++++++++++";
-    InertialOptimization(last_initialized_id,map_, mRwg, mScale, mbg, mba,infoInertial , false, false, priorG, priorA);
+    InertialOptimization(last_initialized_id,mRwg, mScale, mbg, mba,infoInertial , false, false, priorG, priorA);
      LOG(INFO)<<"InertialOptimization-------------------";
 
     // 如果求解的scale过小，跳过，下次在优化
@@ -321,12 +322,12 @@ void  Initializer::InitializeIMU(bool bFIBA)
 
     // Step 5: 进行完全惯性优化(包括MapPoints)
 LOG(INFO)<<"FullInertialBA+++++++++++++++++++++";
-    FullInertialBA(last_initialized_id,mRwg,map_, 100, false, 0, NULL, true, priorG, priorA);
+    FullInertialBA(last_initialized_id,mRwg,100, false, 0, NULL, true, priorG, priorA);
 LOG(INFO)<<"FullInertialBA------------------------------";
 
     // Step 6: 设置当前map imu 已经初始化 
     // If initialization is OK
-   frontend_.lock()->UpdateFrameIMU(1.0,vpKF[0]->GetImuBias(),frontend_.lock()->current_key_frame);
+   frontend_.lock()->UpdateFrameIMU(1.0,vpKF[last_initialized_id-1]->GetImuBias(),frontend_.lock()->current_key_frame);
 
     frontend_.lock()->current_key_frame->bImu = true;
    // }
@@ -338,8 +339,6 @@ LOG(INFO)<<"FullInertialBA------------------------------";
     //bInitializing = false;
     bimu=true;
     return;
-
 }
-
 
 } // namespace lvio_fusion

@@ -36,8 +36,8 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
                                    Config::Get<double>("camera1.cx"),
                                    Config::Get<double>("camera1.cy"),
                                    SE3d(q_base_to_cam0, t_base_to_cam0)));
-    //LOG(INFO) << "Camera 1"
-     //         << " extrinsics: " << t_base_to_cam0.transpose();
+    LOG(INFO) << "Camera 1"
+              << " extrinsics: " << t_base_to_cam0.transpose();
     // second camera
     Matrix3d R_base_to_cam1(base_to_cam1.block(0, 0, 3, 3));
     Quaterniond q_base_to_cam1(R_base_to_cam1);
@@ -48,8 +48,8 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
                                    Config::Get<double>("camera2.cx"),
                                    Config::Get<double>("camera2.cy"),
                                    SE3d(q_base_to_cam1, t_base_to_cam1)));
-    //LOG(INFO) << "Camera 2"
-   //           << " extrinsics: " << t_base_to_cam1.transpose();
+    LOG(INFO) << "Camera 2"
+              << " extrinsics: " << t_base_to_cam1.transpose();
 // NEWADD
 //read imu
         double acc_n= Config::Get<double>("acc_n");
@@ -62,8 +62,6 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
         Calib calib_=Calib(base_to_cam0,gyr_n*sf, acc_n*sf,gyr_w/sf,acc_w/sf,g_norm);
  //NEWADDEND
     // create components and links
-    map = Map::Ptr(new Map());
-
     frontend = Frontend::Ptr(new Frontend(
         Config::Get<int>("num_features"),
         Config::Get<int>("num_features_init"),
@@ -75,11 +73,9 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
         Config::Get<double>("delay")));
 
     frontend->SetBackend(backend);
-    frontend->SetMap(map);
     frontend->SetCameras(camera1, camera2);
-    frontend->flags += Flag::Stereo;
+    flags += Flag::Stereo;
 
-    backend->SetMap(map);
     backend->SetCameras(camera1, camera2);
     backend->SetFrontend(frontend);
 
@@ -87,7 +83,6 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
     {
         relocation = Relocation::Ptr(new Relocation(
             Config::Get<std::string>("voc_path")));
-        relocation->SetMap(map);
         relocation->SetCameras(camera1, camera2);
         relocation->SetFrontend(frontend);
         relocation->SetBackend(backend);
@@ -95,9 +90,9 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
 
     if (use_navsat)
     {
-        NavsatMap::Ptr navsat_map(new NavsatMap(map));
-        map->navsat_map = navsat_map;
-        frontend->flags += Flag::GNSS;
+        NavsatMap::Ptr navsat_map(new NavsatMap);
+        backend->SetNavsat(navsat);
+        flags += Flag::GNSS;
     }
 
     if (use_imu)
@@ -106,7 +101,6 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
 
         initializer = Initializer::Ptr(new Initializer);
         //NEWADD
-        initializer->SetMap(map);
         initializer->SetFrontend(frontend);
         //NEWADDEND
         backend->SetImu(imu);
@@ -116,7 +110,7 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
         frontend->SetCalib(calib_);
         //NEWADDEND
         frontend->SetImu(imu);
-        frontend->flags += Flag::IMU;
+        flags += Flag::IMU;
     }
 
     if (use_lidar)
@@ -143,14 +137,12 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
             Config::Get<double>("max_range"),
             Config::Get<int>("deskew")));
         association->SetLidar(lidar);
-        association->SetMap(map);
 
-        mapping = Mapping::Ptr(new Mapping());
-        mapping->SetMap(map);
+        mapping = Mapping::Ptr(new Mapping);
         mapping->SetCamera(camera1);
         mapping->SetLidar(lidar);
         mapping->SetFeatureAssociation(association);
-        
+
         backend->SetLidar(lidar);
         backend->SetMapping(mapping);
 
@@ -161,13 +153,13 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
             relocation->SetMapping(mapping);
         }
 
-        frontend->flags += Flag::Laser;
+        flags += Flag::Laser;
     }
 
     // semantic map
     if (is_semantic)
     {
-        frontend->flags += Flag::Semantic;
+        flags += Flag::Semantic;
     }
 
     return true;
@@ -186,7 +178,7 @@ void Estimator::InputImage(double time, cv::Mat &left_image, cv::Mat &right_imag
     auto t2 = std::chrono::steady_clock::now();
     auto time_used =
         std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);
-    //LOG(INFO) << "VO status:" << (success ? "success" : "failed") << ",VO cost time: " << time_used.count() << " seconds.";
+    LOG(INFO) << "VO status:" << (success ? "success" : "failed") << ",VO cost time: " << time_used.count() << " seconds.";
 }
 
 void Estimator::InputPointCloud(double time, Point3Cloud::Ptr point_cloud)
@@ -196,8 +188,8 @@ void Estimator::InputPointCloud(double time, Point3Cloud::Ptr point_cloud)
     auto t2 = std::chrono::steady_clock::now();
     auto time_used =
         std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);
-    //if (time_used.count() > 1e-2)
-        //LOG(INFO) << "Lidar Preprocessing cost time: " << time_used.count() << " seconds.";
+    if (time_used.count() > 1e-2)
+        LOG(INFO) << "Lidar Preprocessing cost time: " << time_used.count() << " seconds.";
 }
 
 void Estimator::InputIMU(double time, Vector3d acc, Vector3d gyr)
@@ -207,8 +199,7 @@ void Estimator::InputIMU(double time, Vector3d acc, Vector3d gyr)
 
 void Estimator::InputNavSat(double time, double x, double y, double z, double posAccuracy)
 {
-    NavsatPoint new_point(time, x, y, z);
-    map->navsat_map->AddPoint(new_point);
+    navsat->AddPoint(time, x, y, z);
 }
 
 } // namespace lvio_fusion
