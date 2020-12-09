@@ -1,15 +1,15 @@
-#ifndef lvio_fusion_RELOCATION_H
-#define lvio_fusion_RELOCATION_H
+#ifndef lvio_fusion_LOOP_DETECTOR_H
+#define lvio_fusion_LOOP_DETECTOR_H
 
 #include "lvio_fusion/adapt/problem.h"
 #include "lvio_fusion/backend.h"
 #include "lvio_fusion/common.h"
 #include "lvio_fusion/frame.h"
 #include "lvio_fusion/frontend.h"
-#include "lvio_fusion/lidar/mapping.h"
 #include "lvio_fusion/lidar/association.h"
-#include "lvio_fusion/loop/atlas.h"
-#include "lvio_fusion/loop/loop_constraint.h"
+#include "lvio_fusion/lidar/mapping.h"
+#include "lvio_fusion/loop/loop.h"
+#include "lvio_fusion/loop/pose_graph.h"
 #include "lvio_fusion/visual/camera.hpp"
 
 #include <DBoW3/DBoW3.h>
@@ -46,19 +46,12 @@ inline std::map<unsigned long, BRIEF> mat2briefs(Frame::Ptr frame)
     return briefs;
 }
 
-enum class RelocationStatus
-{
-    RUNNING,
-    TO_PAUSE,
-    PAUSING
-};
-
-class Relocation
+class LoopDetector
 {
 public:
-    typedef std::shared_ptr<Relocation> Ptr;
+    typedef std::shared_ptr<LoopDetector> Ptr;
 
-    Relocation(std::string voc_path);
+    LoopDetector(std::string voc_path);
 
     void SetCameras(Camera::Ptr left, Camera::Ptr right)
     {
@@ -79,7 +72,7 @@ public:
     double head = 0;
 
 private:
-    void RelocationLoop();
+    void DetectorLoop();
 
     void AddKeyFrameIntoVoc(Frame::Ptr frame);
 
@@ -101,15 +94,13 @@ private:
 
     void CorrectLoop(double old_time, double start_time, double end_time);
 
-    void RelocateByPoints(Frames frames);
-
     DBoW3::Database db_;
     DBoW3::Vocabulary voc_;
     Mapping::Ptr mapping_;
     Frontend::Ptr frontend_;
     Backend::Ptr backend_;
     FeatureAssociation::Ptr association_;
-    loop::Atlas atlas_;
+    PoseGraph::Ptr pose_graph;
 
     std::thread thread_;
     cv::Ptr<cv::Feature2D> detector_;
@@ -123,4 +114,4 @@ private:
 
 } // namespace lvio_fusion
 
-#endif // lvio_fusion_BACKEND_H
+#endif // lvio_fusion_LOOP_DETECTOR_H
