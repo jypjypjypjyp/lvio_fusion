@@ -71,11 +71,11 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
 
     if (use_loop)
     {
-        relocation = Relocation::Ptr(new Relocation(
+        detector = Relocation::Ptr(new Relocation(
             Config::Get<std::string>("voc_path")));
-        relocation->SetCameras(camera1, camera2);
-        relocation->SetFrontend(frontend);
-        relocation->SetBackend(backend);
+        detector->SetCameras(camera1, camera2);
+        detector->SetFrontend(frontend);
+        detector->SetBackend(backend);
     }
 
     if (use_navsat)
@@ -131,11 +131,11 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
         backend->SetLidar(lidar);
         backend->SetMapping(mapping);
 
-        if (relocation)
+        if (detector)
         {
-            relocation->SetLidar(lidar);
-            relocation->SetFeatureAssociation(association);
-            relocation->SetMapping(mapping);
+            detector->SetLidar(lidar);
+            detector->SetFeatureAssociation(association);
+            detector->SetMapping(mapping);
         }
 
         flags += Flag::Laser;

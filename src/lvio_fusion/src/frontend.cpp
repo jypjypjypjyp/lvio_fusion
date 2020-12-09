@@ -191,6 +191,44 @@ bool Frontend::InitFramePoseByPnP()
     return false;
 }
 
+inline double distance(cv::Point2f &pt1, cv::Point2f &pt2)
+{
+    double dx = pt1.x - pt2.x;
+    double dy = pt1.y - pt2.y;
+    return sqrt(dx * dx + dy * dy);
+}
+
+inline void calcOpticalFlowPyrLK(cv::Mat &prevImg, cv::Mat &nextImg,
+                                 std::vector<cv::Point2f> &prevPts, std::vector<cv::Point2f> &nextPts,
+                                 std::vector<uchar> &status, cv::Mat &err)
+{
+    cv::calcOpticalFlowPyrLK(
+        prevImg, nextImg, prevPts, nextPts, status, err, cv::Size(11, 11), 3,
+        cv::TermCriteria(cv::TermCriteria::COUNT + cv::TermCriteria::EPS, 30, 0.01),
+        cv::OPTFLOW_USE_INITIAL_FLOW);
+
+    std::vector<uchar> reverse_status;
+    std::vector<cv::Point2f> reverse_pts = prevPts;
+    cv::calcOpticalFlowPyrLK(
+        nextImg, prevImg, nextPts, reverse_pts, reverse_status, err, cv::Size(21, 21), 1,
+        cv::TermCriteria(cv::TermCriteria::COUNT + cv::TermCriteria::EPS, 30, 0.01),
+        cv::OPTFLOW_USE_INITIAL_FLOW);
+
+    for (size_t i = 0; i < status.size(); i++)
+    {
+        // clang-format off
+        if (status[i] && reverse_status[i] && distance(prevPts[i], reverse_pts[i]) <= 0.5 
+        && nextPts[i].x >= 0 && nextPts[i].x < prevImg.cols 
+        && nextPts[i].y >= 0 && nextPts[i].y < prevImg.rows)
+        // clang-format on
+        {
+            status[i] = 1;
+        }
+        else
+            status[i] = 0;
+    }
+}
+
 int Frontend::TrackLastFrame()
 {
     // use LK flow to estimate points in the last image
@@ -209,26 +247,24 @@ int Frontend::TrackLastFrame()
 
     std::vector<uchar> status;
     cv::Mat error;
-    cv::calcOpticalFlowPyrLK(
-        last_frame->image_left, current_frame->image_left, kps_last,
-        kps_current, status, error, cv::Size(11, 11), 3,
-        cv::TermCriteria(cv::TermCriteria::COUNT + cv::TermCriteria::EPS, 30, 0.01),
-        cv::OPTFLOW_USE_INITIAL_FLOW);
+    calcOpticalFlowPyrLK(last_frame->image_left, current_frame->image_left, kps_last, kps_current, status, error);
 
     // NOTE: don‘t use, accuracy is very low
     // cv::findFundamentalMat(kps_current, kps_last, cv::FM_RANSAC, 3.0, 0.9, status);
 
-    int num_good_pts = 0;
     //DEBUG
+    int num_good_pts = 0;
+    mask_ = cv::Mat(current_frame->image_left.size(), CV_8UC1, cv::Scalar(255));
     cv::Mat img_track = current_frame->image_left;
     cv::cvtColor(img_track, img_track, cv::COLOR_GRAY2RGB);
     for (size_t i = 0; i < status.size(); ++i)
     {
-        if (status[i])
+        if (status[i] && mask_.at<uchar>(kps_current[i]) == 255)
         {
             cv::arrowedLine(img_track, kps_current[i], kps_last[i], cv::Scalar(0, 255, 0), 1, 8, 0, 0.2);
             auto feature = visual::Feature::Create(current_frame, kps_current[i], landmarks[i]);
             current_frame->AddFeature(feature);
+            cv::circle(mask_, feature->keypoint, 30, 0, cv::FILLED);
             num_good_pts++;
         }
     }
@@ -279,11 +315,7 @@ int Frontend::DetectNewFeatures()
     kps_right = kps_left;
     std::vector<uchar> status;
     cv::Mat error;
-    cv::calcOpticalFlowPyrLK(
-        current_frame->image_left, current_frame->image_right, kps_left,
-        kps_right, status, error, cv::Size(11, 11), 3,
-        cv::TermCriteria(cv::TermCriteria::COUNT + cv::TermCriteria::EPS, 30, 0.01),
-        cv::OPTFLOW_USE_INITIAL_FLOW);
+    calcOpticalFlowPyrLK(current_frame->image_left, current_frame->image_right, kps_left, kps_right, status, error);
 
     // triangulate new points
     int num_triangulated_pts = 0;

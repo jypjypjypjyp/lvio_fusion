@@ -2,8 +2,9 @@
 #define lvio_fusion_NAVSAT_H
 
 #include "lvio_fusion/common.h"
+#include "lvio_fusion/frame.h"
+#include "lvio_fusion/loop/pose_graph.h"
 #include "lvio_fusion/sensor.h"
-#include "lvio_fusion/utility.h"
 
 namespace lvio_fusion
 {
@@ -18,19 +19,27 @@ public:
         A_ = B_ = C_ = std::make_pair(0, Vector3d(0, 0, 0));
     }
 
+    void SetPoseGraph(PoseGraph::Ptr pose_graph)
+    {
+        pose_graph_ = pose_graph;
+    }
+
     void AddPoint(double time, double x, double y, double z);
 
     Vector3d GetPoint(double time);
+
+    void Optimize(Frames active_kfs);
 
     bool initialized = false;
     std::map<double, Vector3d> raw;
 
 private:
-    bool Check(double time, Vector3d position);
+    bool UpdateLevel(double time, Vector3d position);
 
     void Initialize();
 
-    std::pair<double, Vector3d> A_, B_, C_;
+    PoseGraph::Ptr pose_graph_;
+    std::pair<double, Vector3d> A_, B_, C_; // there points on the level
 };
 
 } // namespace lvio_fusion

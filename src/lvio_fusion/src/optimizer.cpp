@@ -1,17 +1,15 @@
-#include "lvio_fusion/loop/atlas.h"
+#include "lvio_fusion/loop/pose_graph.h"
 
 namespace lvio_fusion
 {
-namespace loop
-{
 
-void Atlas::AddSubMap(double old_time, double start_time, double end_time)
+void PoseGraph::AddSubMap(double old_time, double start_time, double end_time)
 {
-    SubMap new_submap;
+    Submap new_submap;
     new_submap.end_time = end_time;
     new_submap.start_time = start_time;
     new_submap.old_time = old_time;
-    submaps_[end_time] = new_submap;
+    altas_[end_time] = new_submap;
 }
 
 /**
@@ -21,14 +19,14 @@ void Atlas::AddSubMap(double old_time, double start_time, double end_time)
  * @param start_time    time of the first loop frame
  * @return old frame of inner submaps; key is the first frame's time; value is the pose of the first frame
  */
-std::map<double, SE3d> Atlas::GetActiveSubMaps(Frames& active_kfs, double& old_time, double start_time)
+std::map<double, SE3d> PoseGraph::GetActiveSubMaps(Frames& active_kfs, double& old_time, double start_time)
 {
     
-    auto start_submaps = submaps_.lower_bound(old_time);
-    auto end_submaps = submaps_.upper_bound(start_time);
-    if (start_submaps != submaps_.end())
+    auto start_iter = altas_.lower_bound(old_time);
+    auto end_iter = altas_.upper_bound(start_time);
+    if (start_iter != altas_.end())
     {
-        for (auto iter = start_submaps; iter != end_submaps; iter++)
+        for (auto iter = start_iter; iter != end_iter; iter++)
         {
             if (iter->second.old_time <= old_time)
             {
@@ -58,5 +56,24 @@ std::map<double, SE3d> Atlas::GetActiveSubMaps(Frames& active_kfs, double& old_t
     return inner_old_frames;
 }
 
-} // namespace loop
+
+
+void PoseGraph::UpdateSections(double time)
+{
+
+}
+
+Atlas PoseGraph::GetSections(Frames active_kfs)
+{
+    if(active_kfs.empty())
+        return Atlas();
+
+    double start_time = (active_kfs.begin())->first;
+    double end_time = (--active_kfs.end())->first;
+    UpdateSections(end_time);
+
+    auto start_iter = altas_.lower_bound(start_time);
+    auto end_iter = altas_.upper_bound(end_time);
+}
+
 } // namespace lvio_fusion

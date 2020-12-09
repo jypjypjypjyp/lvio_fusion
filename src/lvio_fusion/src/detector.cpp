@@ -1,4 +1,4 @@
-#include "lvio_fusion/loop/relocation.h"
+#include "lvio_fusion/loop/detector.h"
 #include "lvio_fusion/ceres/lidar_error.hpp"
 #include "lvio_fusion/ceres/loop_error.hpp"
 #include "lvio_fusion/map.h"
@@ -15,15 +15,15 @@
 namespace lvio_fusion
 {
 
-Relocation::Relocation(std::string voc_path)
+LoopDetector::LoopDetector(std::string voc_path)
 {
     detector_ = cv::ORB::create();
     voc_ = DBoW3::Vocabulary(voc_path);
     db_ = DBoW3::Database(voc_, false, 0);
-    thread_ = std::thread(std::bind(&Relocation::RelocationLoop, this));
+    thread_ = std::thread(std::bind(&LoopDetector::DetectorLoop, this));
 }
 
-void Relocation::RelocationLoop()
+void LoopDetector::DetectorLoop()
 {
     static double old_time = DBL_MAX;
     static double start_time = 0;
@@ -68,7 +68,7 @@ void Relocation::RelocationLoop()
     }
 }
 
-void Relocation::AddKeyFrameIntoVoc(Frame::Ptr frame)
+void LoopDetector::AddKeyFrameIntoVoc(Frame::Ptr frame)
 {
     // compute descriptors
     std::vector<cv::KeyPoint> keypoints;
@@ -95,7 +95,7 @@ void Relocation::AddKeyFrameIntoVoc(Frame::Ptr frame)
     }
 }
 
-bool Relocation::DetectLoop(Frame::Ptr frame, Frame::Ptr &old_frame)
+bool LoopDetector::DetectLoop(Frame::Ptr frame, Frame::Ptr &old_frame)
 {
     // NOTE: DBow3 is not good
     // //first query; then add this frame into database!
@@ -155,7 +155,7 @@ bool Relocation::DetectLoop(Frame::Ptr frame, Frame::Ptr &old_frame)
     }
     if (old_frame)
     {
-        loop::LoopConstraint::Ptr loop_constraint = loop::LoopConstraint::Ptr(new loop::LoopConstraint());
+        loop::LoopClosure::Ptr loop_constraint = loop::LoopClosure::Ptr(new loop::LoopClosure());
         loop_constraint->frame_old = old_frame;
         loop_constraint->relocated = false;
         frame->loop_constraint = loop_constraint;
@@ -164,7 +164,7 @@ bool Relocation::DetectLoop(Frame::Ptr frame, Frame::Ptr &old_frame)
     return false;
 }
 
-bool Relocation::Relocate(Frame::Ptr frame, Frame::Ptr old_frame)
+bool LoopDetector::Relocate(Frame::Ptr frame, Frame::Ptr old_frame)
 {
     frame->loop_constraint->score = 0;
     double rpyxyz_o[6], rpyxyz_i[6], rpy_o_i[3];
@@ -190,7 +190,7 @@ bool Relocation::Relocate(Frame::Ptr frame, Frame::Ptr old_frame)
     return false;
 }
 
-bool Relocation::RelocateByImage(Frame::Ptr frame, Frame::Ptr old_frame)
+bool LoopDetector::RelocateByImage(Frame::Ptr frame, Frame::Ptr old_frame)
 {
     std::vector<cv::Point3f> points_3d;
     std::vector<cv::Point2f> points_2d;
@@ -225,7 +225,7 @@ bool Relocation::RelocateByImage(Frame::Ptr frame, Frame::Ptr old_frame)
     return false;
 }
 
-bool Relocation::RelocateByPoints(Frame::Ptr frame, Frame::Ptr old_frame)
+bool LoopDetector::RelocateByPoints(Frame::Ptr frame, Frame::Ptr old_frame)
 {
     if (!frame->feature_lidar || !old_frame->feature_lidar)
     {
@@ -316,7 +316,7 @@ bool Relocation::RelocateByPoints(Frame::Ptr frame, Frame::Ptr old_frame)
     return true;
 }
 
-bool Relocation::SearchInAera(const BRIEF descriptor, const std::map<unsigned long, BRIEF> &descriptors_old, unsigned long &best_id)
+bool LoopDetector::SearchInAera(const BRIEF descriptor, const std::map<unsigned long, BRIEF> &descriptors_old, unsigned long &best_id)
 {
     cv::Point2f best_pt;
     int best_distance = 256;
@@ -332,14 +332,14 @@ bool Relocation::SearchInAera(const BRIEF descriptor, const std::map<unsigned lo
     return best_distance < 160;
 }
 
-int Relocation::Hamming(const BRIEF &a, const BRIEF &b)
+int LoopDetector::Hamming(const BRIEF &a, const BRIEF &b)
 {
     BRIEF xor_of_bitset = a ^ b;
     int dis = xor_of_bitset.count();
     return dis;
 }
 
-void Relocation::BuildProblem(Frames &active_kfs, adapt::Problem &problem)
+void LoopDetector::BuildProblem(Frames &active_kfs, adapt::Problem &problem)
 {
     ceres::LocalParameterization *local_parameterization = new ceres::ProductParameterization(
         new ceres::EigenQuaternionParameterization(),
@@ -362,7 +362,7 @@ void Relocation::BuildProblem(Frames &active_kfs, adapt::Problem &problem)
     }
 }
 
-void Relocation::BuildProblemWithLoop(Frames &active_kfs, adapt::Problem &problem)
+void LoopDetector::BuildProblemWithLoop(Frames &active_kfs, adapt::Problem &problem)
 {
     ceres::LocalParameterization *local_parameterization = new ceres::ProductParameterization(
         new ceres::EigenQuaternionParameterization(),
@@ -389,16 +389,16 @@ void Relocation::BuildProblemWithLoop(Frames &active_kfs, adapt::Problem &proble
     }
 }
 
-void Relocation::CorrectLoop(double old_time, double start_time, double end_time)
+void LoopDetector::CorrectLoop(double old_time, double start_time, double end_time)
 {
     // build the pose graph and submaps
     Frames active_kfs = Map::Instance().GetKeyFrames(old_time, end_time);
     Frames new_submap_kfs = Map::Instance().GetKeyFrames(start_time, end_time);
     Frames all_kfs = active_kfs;
-    std::map<double, SE3d> inner_submap_old_frames = atlas_.GetActiveSubMaps(active_kfs, old_time, start_time);
-    atlas_.AddSubMap(old_time, start_time, end_time);
-    adapt::Problem problem;
-    BuildProblem(active_kfs, problem);
+    // std::map<double, SE3d> inner_submap_old_frames = atlas_.GetActiveSubMaps(active_kfs, old_time, start_time);
+    // atlas_.AddSubMap(old_time, start_time, end_time);
+    // adapt::Problem problem;
+    // BuildProblem(active_kfs, problem);
 
     // update new submap frams
     SE3d old_pose = (--new_submap_kfs.end())->second->pose;
