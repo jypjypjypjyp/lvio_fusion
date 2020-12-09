@@ -20,7 +20,7 @@ void NavsatMap::AddPoint(double time, double x, double y, double z)
     if (initialized)
     {
         static double head = 0;
-        Frames new_kfs = map_.lock()->GetKeyFrames(head);
+        Frames new_kfs = Map::Instance().GetKeyFrames(head);
         for (auto pair_kf : new_kfs)
         {
             auto this_iter = raw.lower_bound(pair_kf.first);
@@ -36,7 +36,7 @@ void NavsatMap::AddPoint(double time, double x, double y, double z)
 
 Vector3d NavsatMap::GetPoint(double time)
 {
-    return tf * raw[time];
+    return extrinsic * raw[time];
 }
 
 bool NavsatMap::Check(double time, Vector3d position)
@@ -67,14 +67,14 @@ bool NavsatMap::Check(double time, Vector3d position)
 
 void NavsatMap::Initialize()
 {
-    Frames keyframes = map_.lock()->GetAllKeyFrames();
+    Frames keyframes = Map::Instance().GetAllKeyFrames();
 
     ceres::Problem problem;
     ceres::LocalParameterization *local_parameterization = new ceres::ProductParameterization(
         new ceres::EigenQuaternionParameterization(),
         new ceres::IdentityParameterization(3));
 
-    problem.AddParameterBlock(tf.data(), SE3d::num_parameters, local_parameterization);
+    problem.AddParameterBlock(extrinsic.data(), SE3d::num_parameters, local_parameterization);
 
     for (auto pair_kf : keyframes)
     {
@@ -83,7 +83,7 @@ void NavsatMap::Initialize()
         if (std::fabs(pair_np->first - pair_kf.first) < 1e-1)
         {
             ceres::CostFunction *cost_function = NavsatInitError::Create(position_kf, pair_np->second);
-            problem.AddResidualBlock(cost_function, NULL, tf.data());
+            problem.AddResidualBlock(cost_function, NULL, extrinsic.data());
         }
     }
 

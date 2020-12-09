@@ -1,5 +1,6 @@
 #include "lvio_fusion/imu/initializer.h"
 #include <lvio_fusion/utility.h>
+#include "lvio_fusion/map.h"
 
 namespace lvio_fusion
 {

@@ -9,10 +9,23 @@
 #include "lvio_fusion/lidar/association.h"
 #include "lvio_fusion/lidar/mapping.h"
 #include "lvio_fusion/loop/relocation.h"
+#include "lvio_fusion/navsat/navsat.h"
 #include "lvio_fusion/semantic/detected_object.h"
 
 namespace lvio_fusion
 {
+
+enum Flag
+{
+    None = 0,
+    Mono = 1,
+    Stereo = 1 << 1,
+    RGBD = 1 << 2,
+    IMU = 1 << 3,
+    Laser = 1 << 4,
+    GNSS = 1 << 5,
+    Semantic = 1 << 6,
+};
 
 class Estimator
 {
@@ -31,13 +44,15 @@ public:
 
     bool Init(int use_imu, int use_lidar, int use_navsat, int use_loop, int is_semantic);
 
-    Map::Ptr map;
     Frontend::Ptr frontend;
     Backend::Ptr backend;
     Relocation::Ptr relocation;
     FeatureAssociation::Ptr association;
     Mapping::Ptr mapping;
     Initializer::Ptr initializer;
+    NavsatMap::Ptr navsat;
+
+    int flags = Flag::None;
 
 private:
     std::string config_file_path_;

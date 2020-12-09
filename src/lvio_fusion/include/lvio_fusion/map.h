@@ -3,7 +3,6 @@
 
 #include "lvio_fusion/common.h"
 #include "lvio_fusion/frame.h"
-#include "lvio_fusion/navsat/navsat.h"
 #include "lvio_fusion/visual/landmark.h"
 
 namespace lvio_fusion
@@ -14,7 +13,11 @@ class Map
 public:
     typedef std::shared_ptr<Map> Ptr;
 
-    Map() {}
+    static Map &Instance()
+    {
+        static Map instance;
+        return instance;
+    }
 
     int size()
     {
@@ -42,11 +45,13 @@ public:
         keyframes_.clear();
     }
 
-    NavsatMap::Ptr navsat_map;
     std::mutex mutex_local_kfs;
-    
 
 private:
+    Map() {}
+    Map(const Map &);
+    Map &operator=(const Map &);
+
     visual::Landmarks landmarks_;
     Frames keyframes_;
 };

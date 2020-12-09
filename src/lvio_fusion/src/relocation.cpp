@@ -1,6 +1,7 @@
 #include "lvio_fusion/loop/relocation.h"
 #include "lvio_fusion/ceres/lidar_error.hpp"
 #include "lvio_fusion/ceres/loop_error.hpp"
+#include "lvio_fusion/map.h"
 #include "lvio_fusion/utility.h"
 #include "lvio_fusion/visual/feature.h"
 #include "lvio_fusion/visual/landmark.h"
@@ -31,7 +32,7 @@ void Relocation::RelocationLoop()
     while (true)
     {
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        auto new_kfs = map_->GetKeyFrames(head, backend_->head);
+        auto new_kfs = Map::Instance().GetKeyFrames(head, backend_->head);
         if (new_kfs.empty())
         {
             continue;
@@ -120,7 +121,7 @@ bool Relocation::DetectLoop(Frame::Ptr frame, Frame::Ptr &old_frame)
     //         if (max_index == -1 || (ret[i].Id > max_index && ret[i].Score > 0.015))
     //             max_index = ret[i].Id;
     //     }
-    //     old_frame = map_->GetAllKeyFrames()[map_dbow_to_frames_[max_index]];
+    //     old_frame = Map::Instance().GetAllKeyFrames()[map_dbow_to_frames_[max_index]];
     //     // check the distance
     //     if ((frame->pose.inverse().translation() - old_frame->pose.inverse().translation()).norm() < 20)
     //     {
@@ -128,7 +129,7 @@ bool Relocation::DetectLoop(Frame::Ptr frame, Frame::Ptr &old_frame)
     //     }
     // }
     // return false;
-    Frames candidate_kfs = map_->GetKeyFrames(0, backend_->head - 30);
+    Frames candidate_kfs = Map::Instance().GetKeyFrames(0, backend_->head - 30);
     double min_distance = 10;
     for (auto pair_kf : candidate_kfs)
     {
@@ -137,8 +138,8 @@ bool Relocation::DetectLoop(Frame::Ptr frame, Frame::Ptr &old_frame)
         double distance = vec.norm();
         if (distance < min_distance)
         {
-            Frame::Ptr prev_frame = map_->GetKeyFrames(0, frame->time, 1).begin()->second;
-            Frame::Ptr subs_frame = map_->GetKeyFrames(frame->time, 0, 1).begin()->second;
+            Frame::Ptr prev_frame = Map::Instance().GetKeyFrames(0, frame->time, 1).begin()->second;
+            Frame::Ptr subs_frame = Map::Instance().GetKeyFrames(frame->time, 0, 1).begin()->second;
             Vector3d prev_vec = (pair_kf.second->pose.translation() - prev_frame->pose.translation());
             Vector3d subs_vec = (pair_kf.second->pose.translation() - subs_frame->pose.translation());
             prev_vec.z() = 0;
@@ -244,8 +245,8 @@ bool Relocation::RelocateByPoints(Frame::Ptr frame, Frame::Ptr old_frame)
     }
 
     // build two pointclouds
-    Frame::Ptr old_frame_prev = map_->GetKeyFrames(0, old_frame->time, 1).begin()->second;
-    Frame::Ptr old_frame_subs = map_->GetKeyFrames(old_frame->time, 0, 1).begin()->second;
+    Frame::Ptr old_frame_prev = Map::Instance().GetKeyFrames(0, old_frame->time, 1).begin()->second;
+    Frame::Ptr old_frame_subs = Map::Instance().GetKeyFrames(old_frame->time, 0, 1).begin()->second;
     Frames old_frames = {{old_frame->time, old_frame}, {old_frame_prev->time, old_frame_prev}, {old_frame_subs->time, old_frame_subs}};
     Frame::Ptr map_frame = Frame::Ptr(new Frame());
     mapping_->BuildOldMapFrame(old_frames, map_frame);
@@ -391,8 +392,8 @@ void Relocation::BuildProblemWithLoop(Frames &active_kfs, adapt::Problem &proble
 void Relocation::CorrectLoop(double old_time, double start_time, double end_time)
 {
     // build the pose graph and submaps
-    Frames active_kfs = map_->GetKeyFrames(old_time, end_time);
-    Frames new_submap_kfs = map_->GetKeyFrames(start_time, end_time);
+    Frames active_kfs = Map::Instance().GetKeyFrames(old_time, end_time);
+    Frames new_submap_kfs = Map::Instance().GetKeyFrames(start_time, end_time);
     Frames all_kfs = active_kfs;
     std::map<double, SE3d> inner_submap_old_frames = atlas_.GetActiveSubMaps(active_kfs, old_time, start_time);
     atlas_.AddSubMap(old_time, start_time, end_time);
@@ -445,7 +446,7 @@ void Relocation::CorrectLoop(double old_time, double start_time, double end_time
         std::unique_lock<std::mutex> lock2(frontend_->mutex);
 
         Frame::Ptr last_frame = frontend_->last_frame;
-        Frames forward_kfs = map_->GetKeyFrames(end_time + epsilon);
+        Frames forward_kfs = Map::Instance().GetKeyFrames(end_time + epsilon);
         if (forward_kfs.find(last_frame->time) == forward_kfs.end())
         {
             forward_kfs[last_frame->time] = last_frame;
