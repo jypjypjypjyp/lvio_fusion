@@ -1,6 +1,5 @@
 #include "lvio_fusion/navsat/navsat.h"
 #include "lvio_fusion/ceres/navsat_error.hpp"
-#include "lvio_fusion/frame.h"
 #include "lvio_fusion/map.h"
 
 #include <ceres/ceres.h>
@@ -28,7 +27,7 @@ void NavsatMap::AddPoint(double time, double x, double y, double z)
             if (this_iter == raw.begin() || std::fabs(this_iter->first - pair_kf.first) > 1e-1)
                 continue;
 
-            pair_kf.second->feature_navsat = navsat::Feature::Ptr(new navsat::Feature(this_iter->first, last_iter->first, A_.first, B_.first, C_.first, this));
+            pair_kf.second->feature_navsat = navsat::Feature::Ptr(new navsat::Feature(this_iter->first, last_iter->first, A_.first, B_.first, C_.first));
             head = pair_kf.first + epsilon;
         }
     }

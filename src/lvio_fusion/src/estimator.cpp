@@ -71,7 +71,7 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
 
     if (use_loop)
     {
-        detector = Relocation::Ptr(new Relocation(
+        detector = LoopDetector::Ptr(new LoopDetector(
             Config::Get<std::string>("voc_path")));
         detector->SetCameras(camera1, camera2);
         detector->SetFrontend(frontend);

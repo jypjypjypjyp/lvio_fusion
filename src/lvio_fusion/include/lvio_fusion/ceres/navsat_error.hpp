@@ -9,9 +9,10 @@ namespace lvio_fusion
 class NavsatError
 {
 public:
-    NavsatError(Vector3d p, Vector3d heading, Vector3d A, Vector3d B, Vector3d C, double *weights)
-        : p_(p), heading_(heading), A_(A), B_(B), C_(C)
+    NavsatError(Vector3d p, Vector3d last, Vector3d A, Vector3d B, Vector3d C, double *weights)
+        : p_(p), A_(A), B_(B), C_(C)
     {
+        heading_ = (p - last);
         heading_.normalize();
         abc_norm_ = (A_ - B_).cross(A_ - C_);
         abc_norm_.normalize();

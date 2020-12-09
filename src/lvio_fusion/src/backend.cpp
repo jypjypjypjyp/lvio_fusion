@@ -105,7 +105,7 @@ void Backend::BuildProblem(Frames &active_kfs, adapt::Problem &problem)
             {
                 auto feature = frame->feature_navsat;
                 auto para_kf = frame->pose.data();
-                ceres::CostFunction *cost_function = NavsatError::Create(feature->Position(), feature->Heading(), feature->A(), feature->B(), feature->C(), frame->weights.navsat);
+                ceres::CostFunction *cost_function = NavsatError::Create(navsat_->GetPoint(feature->time), navsat_->GetPoint(feature->last), navsat_->GetPoint(feature->A), navsat_->GetPoint(feature->B), navsat_->GetPoint(feature->C), frame->weights.navsat);
                 problem.AddResidualBlock(ProblemType::TwoFrameReprojectionError, cost_function, navsat_loss_function, para_kf);
             }
         }
