@@ -21,12 +21,7 @@ public:
 
     int size()
     {
-        return keyframes_.size();
-    }
-
-    Frames &GetAllKeyFrames()
-    {
-        return keyframes_;
+        return keyframes.size();
     }
 
     Frames GetKeyFrames(double start, double end = 0, int num = 0);
@@ -41,19 +36,18 @@ public:
 
     void Reset()
     {
-        landmarks_.clear();
-        keyframes_.clear();
+        landmarks.clear();
+        keyframes.clear();
     }
 
     std::mutex mutex_local_kfs;
+    Frames keyframes;
+    visual::Landmarks landmarks;
 
 private:
     Map() {}
     Map(const Map &);
     Map &operator=(const Map &);
-
-    visual::Landmarks landmarks_;
-    Frames keyframes_;
 };
 } // namespace lvio_fusion
 

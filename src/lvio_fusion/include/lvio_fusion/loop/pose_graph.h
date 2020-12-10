@@ -8,15 +8,15 @@
 namespace lvio_fusion
 {
 
-// [old_time, start_time, end_time]]
-struct Submap
+// [A, B, C]
+struct Section
 {
-    double start_time; // time of before the first loop frame
-    double end_time;   // the last frame
-    double old_time;   // time of before the first frame
+    double A; // time of before the first frame
+    double B; // time of before the first loop frame
+    double C; // the last frame
 };
 
-typedef std::map<double, Submap> Atlas;
+typedef std::map<double, Section> Atlas;
 
 class PoseGraph
 {
@@ -27,14 +27,17 @@ public:
 
     std::map<double, SE3d> GetActiveSubMaps(Frames &active_kfs, double &old_time, double start_time);
 
-    Atlas GetSections(Frames active_kfs);
+    Atlas GetSections(double start, double end);
+
+    void BuildProblem(Atlas sections, adapt::Problem &problem);
+
+    void Optimize(adapt::Problem problem);
 
 private:
-
     void UpdateSections(double time);
 
-    Atlas altas_;  // submaps for loop
-    Atlas sections_; // submaps for pose graph optimizing
+    Atlas atlas_;    // loop altas
+    Atlas sections_; // sections
 };
 
 } // namespace lvio_fusion

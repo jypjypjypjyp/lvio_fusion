@@ -66,7 +66,7 @@ bool NavsatMap::UpdateLevel(double time, Vector3d position)
 
 void NavsatMap::Initialize()
 {
-    Frames keyframes = Map::Instance().GetAllKeyFrames();
+    Frames keyframes = Map::Instance().keyframes;
 
     ceres::Problem problem;
     ceres::LocalParameterization *local_parameterization = new ceres::ProductParameterization(
@@ -95,14 +95,101 @@ void NavsatMap::Initialize()
     initialized = true;
 }
 
-void NavsatMap::Optimize(Frames active_kfs)
+void NavsatMap::Optimize(double time)
 {
-    // // find Atlas
+    static double head = 0;
 
-    // // relocate Turning point
+    // find Atlas
+    auto sections = pose_graph_->GetSections(head, time);
+    adapt::Problem problem;
+    pose_graph_->BuildProblem(sections, problem);
 
-    // // relocate straight route
+    // relocate turning sections
+    std::map<double, SE3d> old_poses;
+    {
+        adapt::Problem problem;
+        ceres::LossFunction *navsat_loss_function = new ceres::TrivialLoss();
+        ceres::LocalParameterization *local_parameterization = new ceres::ProductParameterization(
+            new ceres::EigenQuaternionParameterization(),
+            new ceres::IdentityParameterization(3));
 
+        for (auto pair : sections)
+        {
+            Frames section_kfs = Map::Instance().GetKeyFrames(pair.second.A, pair.second.C);
+
+            {
+                Frame::Ptr A = section_kfs[pair.second.A];
+                double *para = A->pose.data();
+                auto feature = A->feature_navsat;
+                problem.AddParameterBlock(para, SE3d::num_parameters, local_parameterization);
+                ceres::CostFunction *cost_function = NavsatError::Create(GetPoint(feature->time), GetPoint(feature->last), GetPoint(feature->A), GetPoint(feature->B), GetPoint(feature->C), A->weights.navsat);
+                problem.AddResidualBlock(ProblemType::NavsatError, cost_function, navsat_loss_function, para);
+            }
+
+            {
+                Frame::Ptr B = section_kfs[pair.second.B];
+                Frames BC = Frames(section_kfs.upper_bound(pair.second.B), section_kfs.find(pair.second.C));
+                if (BC.size() < 5)
+                    continue;
+                old_poses[pair.second.C] = B->pose;
+                double *para = B->pose.data();
+                auto feature = B->feature_navsat;
+                problem.AddParameterBlock(para, SE3d::num_parameters, local_parameterization);
+                ceres::CostFunction *cost_function = NavsatError::Create(GetPoint(feature->time), GetPoint(feature->last), GetPoint(feature->A), GetPoint(feature->B), GetPoint(feature->C), B->weights.navsat);
+                problem.AddResidualBlock(ProblemType::NavsatError, cost_function, navsat_loss_function, para);
+
+                for (auto pair_kf : BC)
+                {
+                    auto frame = pair_kf.second;
+                    auto position = frame->pose.translation();
+                    auto feature = frame->feature_navsat;
+                    ceres::CostFunction *cost_function = NavsatInitError::Create(GetPoint(feature->time), frame->pose.inverse() * position);
+                    problem.AddResidualBlock(ProblemType::Other, cost_function, NULL, para);
+                }
+            }
+        }
+
+        ceres::Solver::Options options;
+        options.linear_solver_type = ceres::DENSE_QR;
+        options.num_threads = 1;
+        ceres::Solver::Summary summary;
+        ceres::Solve(options, &problem, &summary);
+    }
+
+    // relocate the straight sections && forward propogate
+    // {
+    //     for (auto pair : old_poses)
+    //     {
+    //         SE3d old_pose = pair.second;
+    //         SE3d new_pose = 
+    //         Frames forward_kfs = Map::Instance().GetKeyFrames(end_time + epsilon);
+    //         SE3d transform = old_pose.inverse() * new_pose;
+    //     }
+
+    //     std::unique_lock<std::mutex> lock1(backend_->mutex);
+    //     std::unique_lock<std::mutex> lock2(frontend_->mutex);
+
+    //     Frame::Ptr last_frame = frontend_->last_frame;
+    //     Frames forward_kfs = Map::Instance().GetKeyFrames(end_time + epsilon);
+    //     if (forward_kfs.find(last_frame->time) == forward_kfs.end())
+    //     {
+    //         forward_kfs[last_frame->time] = last_frame;
+    //     }
+    //     SE3d transform = old_pose.inverse() * new_pose;
+    //     for (auto pair_kf : forward_kfs)
+    //     {
+    //         pair_kf.second->pose = pair_kf.second->pose * transform;
+    //         // TODO: Repropagate
+
+    //         if (lidar_)
+    //         {
+    //             mapping_->AddToWorld(pair_kf.second);
+    //         }
+    //     }
+    //     frontend_->UpdateCache();
+    // }
+
+    head = time;
     // // build the pose graph and submaps
     // Frames active_kfs = Map::Instance().GetKeyFrames(old_time, end_time);
     // Frames new_submap_kfs = Map::Instance().GetKeyFrames(start_time, end_time);

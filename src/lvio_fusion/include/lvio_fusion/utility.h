@@ -256,6 +256,16 @@ inline T normalize_angle(const T &angle_degrees)
                two_pi * std::floor((-angle_degrees + T(180)) / two_pi);
 };
 
+inline double vectors_degree_angle(Vector3d v1, Vector3d v2)
+{
+    double radian_angle = atan2(v1.cross(v2).norm(), v1.transpose() * v2);
+    if (v1.cross(v2).z() < 0)
+    {
+        radian_angle = 2 * M_PI - radian_angle;
+    }
+    return radian_angle * 180 / M_PI;
+}
+
 } // namespace lvio_fusion
 
 #endif // lvio_fusion_UTILITY_H

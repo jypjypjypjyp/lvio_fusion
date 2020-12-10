@@ -24,7 +24,7 @@ void publish_odometry(Estimator::Ptr estimator, double time)
     if (estimator->frontend->status == FrontendStatus::TRACKING_GOOD)
     {
         path.poses.clear();
-        for (auto frame : lvio_fusion::Map::Instance().GetAllKeyFrames())
+        for (auto frame : lvio_fusion::Map::Instance().keyframes)
         {
             auto pose = frame.second->pose;
             geometry_msgs::PoseStamped pose_stamped;

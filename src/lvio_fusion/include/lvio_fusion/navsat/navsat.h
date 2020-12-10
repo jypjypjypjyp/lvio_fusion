@@ -28,7 +28,7 @@ public:
 
     Vector3d GetPoint(double time);
 
-    void Optimize(Frames active_kfs);
+    void Optimize(double time);
 
     bool initialized = false;
     std::map<double, Vector3d> raw;

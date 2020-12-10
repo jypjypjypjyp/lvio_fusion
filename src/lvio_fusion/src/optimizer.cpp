@@ -1,15 +1,18 @@
+#include "lvio_fusion/ceres/loop_error.hpp"
 #include "lvio_fusion/loop/pose_graph.h"
+#include "lvio_fusion/map.h"
+#include "lvio_fusion/utility.h"
 
 namespace lvio_fusion
 {
 
 void PoseGraph::AddSubMap(double old_time, double start_time, double end_time)
 {
-    Submap new_submap;
-    new_submap.end_time = end_time;
-    new_submap.start_time = start_time;
-    new_submap.old_time = old_time;
-    altas_[end_time] = new_submap;
+    Section new_submap;
+    new_submap.C = end_time;
+    new_submap.B = start_time;
+    new_submap.A = old_time;
+    atlas_[end_time] = new_submap;
 }
 
 /**
@@ -19,16 +22,16 @@ void PoseGraph::AddSubMap(double old_time, double start_time, double end_time)
  * @param start_time    time of the first loop frame
  * @return old frame of inner submaps; key is the first frame's time; value is the pose of the first frame
  */
-std::map<double, SE3d> PoseGraph::GetActiveSubMaps(Frames& active_kfs, double& old_time, double start_time)
+std::map<double, SE3d> PoseGraph::GetActiveSubMaps(Frames &active_kfs, double &old_time, double start_time)
 {
-    
-    auto start_iter = altas_.lower_bound(old_time);
-    auto end_iter = altas_.upper_bound(start_time);
-    if (start_iter != altas_.end())
+
+    auto start_iter = atlas_.lower_bound(old_time);
+    auto end_iter = atlas_.upper_bound(start_time);
+    if (start_iter != atlas_.end())
     {
         for (auto iter = start_iter; iter != end_iter; iter++)
         {
-            if (iter->second.old_time <= old_time)
+            if (iter->second.A <= old_time)
             {
                 // remove outer submap
                 auto new_old_iter = ++active_kfs.find(iter->first);
@@ -38,16 +41,16 @@ std::map<double, SE3d> PoseGraph::GetActiveSubMaps(Frames& active_kfs, double& o
             else
             {
                 // remove inner submap
-                active_kfs.erase(++active_kfs.find(iter->second.old_time), ++active_kfs.find(iter->first));
+                active_kfs.erase(++active_kfs.find(iter->second.A), ++active_kfs.find(iter->first));
             }
         }
     }
 
     std::map<double, SE3d> inner_old_frames;
     Frame::Ptr last_frame;
-    for(auto pair_kf : active_kfs)
+    for (auto pair_kf : active_kfs)
     {
-        if(last_frame && last_frame->id + 1 != pair_kf.second->id)
+        if (last_frame && last_frame->id + 1 != pair_kf.second->id)
         {
             inner_old_frames[last_frame->time] = last_frame->pose;
         }
@@ -56,24 +59,90 @@ std::map<double, SE3d> PoseGraph::GetActiveSubMaps(Frames& active_kfs, double& o
     return inner_old_frames;
 }
 
-
-
 void PoseGraph::UpdateSections(double time)
 {
+    static double head = 0;
 
+    Frames active_kfs = Map::Instance().GetKeyFrames(head, time);
+
+    Frame::Ptr last_frame;
+    Vector3d last_heading(1, 0, 0);
+    bool turning = false, first = true;
+    Section current_section;
+    for (auto pair_kf : active_kfs)
+    {
+        Vector3d heading = pair_kf.second->pose.so3() * last_heading;
+        if (last_frame)
+        {
+            double degree = vectors_degree_angle(last_heading, heading);
+            if (!turning && degree >= 10)
+            {
+                if (current_section.A != 0)
+                {
+                    current_section.C = pair_kf.first;
+                    sections_[current_section.C] = current_section;
+                }
+                current_section.A = pair_kf.first;
+            }
+            else if (turning && degree < 10)
+            {
+                current_section.B = pair_kf.first;
+            }
+        }
+        last_frame = pair_kf.second;
+        last_heading = heading;
+    }
 }
 
-Atlas PoseGraph::GetSections(Frames active_kfs)
+Atlas PoseGraph::GetSections(double start, double end)
 {
-    if(active_kfs.empty())
-        return Atlas();
+    UpdateSections(end);
 
-    double start_time = (active_kfs.begin())->first;
-    double end_time = (--active_kfs.end())->first;
-    UpdateSections(end_time);
+    auto start_iter = sections_.upper_bound(start);
+    auto end_iter = sections_.lower_bound(end);
+    return Atlas(start_iter, end_iter);
+}
 
-    auto start_iter = altas_.lower_bound(start_time);
-    auto end_iter = altas_.upper_bound(end_time);
+void PoseGraph::BuildProblem(Atlas sections, adapt::Problem &problem)
+{
+    for (auto pair : sections)
+    {
+        Frames active_kfs = Map::Instance().GetKeyFrames(pair.second.A, pair.second.B);
+        ceres::LocalParameterization *local_parameterization = new ceres::ProductParameterization(
+            new ceres::EigenQuaternionParameterization(),
+            new ceres::IdentityParameterization(3));
+
+        Frame::Ptr last_frame;
+        for (auto pair_kf : active_kfs)
+        {
+            auto frame = pair_kf.second;
+            double *para_kf = frame->pose.data();
+            problem.AddParameterBlock(para_kf, SE3d::num_parameters, local_parameterization);
+            if (last_frame)
+            {
+                double *para_last_kf = last_frame->pose.data();
+                ceres::CostFunction *cost_function;
+                cost_function = PoseGraphError::Create(last_frame->pose, frame->pose, frame->weights.pose_graph);
+                problem.AddResidualBlock(ProblemType::Other, cost_function, NULL, para_last_kf, para_kf);
+            }
+            else
+            {
+                problem.SetParameterBlockConstant(frame->pose.data());
+            }
+
+            last_frame = frame;
+        }
+        problem.SetParameterBlockConstant(last_frame->pose.data());
+    }
+}
+
+void PoseGraph::Optimize(adapt::Problem problem)
+{
+    ceres::Solver::Options options;
+    options.linear_solver_type = ceres::SPARSE_NORMAL_CHOLESKY;
+    options.num_threads = 1;
+    ceres::Solver::Summary summary;
+    ceres::Solve(options, &problem, &summary);
 }
 
 } // namespace lvio_fusion

@@ -121,7 +121,7 @@ bool LoopDetector::DetectLoop(Frame::Ptr frame, Frame::Ptr &old_frame)
     //         if (max_index == -1 || (ret[i].Id > max_index && ret[i].Score > 0.015))
     //             max_index = ret[i].Id;
     //     }
-    //     old_frame = Map::Instance().GetAllKeyFrames()[map_dbow_to_frames_[max_index]];
+    //     old_frame = Map::Instance().keyframes[map_dbow_to_frames_[max_index]];
     //     // check the distance
     //     if ((frame->pose.inverse().translation() - old_frame->pose.inverse().translation()).norm() < 20)
     //     {
