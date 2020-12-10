@@ -11,19 +11,12 @@ void InertialOptimization(unsigned long last_initialized_id, Eigen::Matrix3d &Rw
 
      Frames vpKFs = Map::Instance().GetAllKeyFrames();
      ceres::Problem problem;
-     //    ceres::LocalParameterization *local_parameterization = new ceres::ProductParameterization(
-     //    new ceres::EigenQuaternionParameterization(),
-     //    new ceres::IdentityParameterization(3));
      auto para_gyroBias=vpKFs.begin()->second->mImuBias.linearized_bg.data();
-     // Vector3d g=vpKFs.begin()->second->mImuBias.linearized_bg;
-     // auto para_gyroBias=g.data();
      problem.AddParameterBlock(para_gyroBias, 3);
      ceres::CostFunction *cost_function = PriorGyroError::Create(Vector3d::Zero(),priorG);
      problem.AddResidualBlock(cost_function,NULL,para_gyroBias);
 
      auto para_accBias=vpKFs.begin()->second->mImuBias.linearized_ba.data();
-     // Vector3d a =vpKFs.begin()->second->mImuBias.linearized_ba;
-     // auto para_accBias=a.data();
      problem.AddParameterBlock(para_accBias, 3);
      cost_function = PriorAccError::Create(Vector3d::Zero(),priorA);
      problem.AddResidualBlock(cost_function,NULL,para_accBias);
@@ -32,10 +25,6 @@ void InertialOptimization(unsigned long last_initialized_id, Eigen::Matrix3d &Rw
      Vector3d rwg=Rwg.eulerAngles(0,1,2);
       auto para_rwg=rwg.data();
      problem.AddParameterBlock(para_rwg, 3);
-     // problem.AddParameterBlock(&scale, 1);
-
-     // problem.SetParameterBlockConstant(&scale);
-
      Frame::Ptr last_frame_;
      Frame::Ptr current_frame_;
      for(Frames::iterator iter = vpKFs.begin(); iter != vpKFs.end(); iter++)
@@ -48,19 +37,11 @@ void InertialOptimization(unsigned long last_initialized_id, Eigen::Matrix3d &Rw
                 last_frame_=NULL;
                continue;
           }
-        //  auto para_kf = current_frame->pose.data();
           auto para_v = current_frame_->mVw.data();
-     
-        //  problem.AddParameterBlock(para_kf, SE3d::num_parameters, local_parameterization);
           problem.AddParameterBlock(para_v, 3);   
-        //  problem.SetParameterBlockConstant(para_kf);
-          // if (bFixedVel)
-          //      problem.SetParameterBlockConstant(para_v);
 
           if (last_frame_ && current_frame_->bImu&&last_frame_->mpLastKeyFrame)
           {
-               // auto para_kf_last = last_frame->pose.data();
-               // problem.SetParameterBlockConstant(para_kf_last);
                auto para_v_last = last_frame_->mVw.data();
                cost_function = InertialGSError::Create(current_frame_->preintegration,current_frame_->pose,last_frame_->pose);
                problem.AddResidualBlock(cost_function, NULL,para_v_last,  para_v,para_gyroBias,para_accBias,para_rwg);
@@ -70,8 +51,7 @@ void InertialOptimization(unsigned long last_initialized_id, Eigen::Matrix3d &Rw
 
      ceres::Solver::Options options;
     options.linear_solver_type = ceres::DENSE_SCHUR;
-//    options.function_tolerance = 1e-9;
-    options.max_solver_time_in_seconds = 7 * 0.6;
+    options.max_solver_time_in_seconds = 0.6;
     options.num_threads = 4;
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
@@ -110,30 +90,9 @@ ceres::Problem problem;
  ceres::LocalParameterization *local_parameterization = new ceres::ProductParameterization(
         new ceres::EigenQuaternionParameterization(),
         new ceres::IdentityParameterization(3));
-std::vector<double *> para_kfs;
-std::vector<double *> para_vs;
-para_kfs.reserve(KFs.size());
-para_vs.reserve(KFs.size());
 
 
-int nNonFixed = 0;
-Frame::Ptr pIncKF;
-int i=0;
-for(Frames::iterator iter = KFs.begin(); iter != KFs.end(); iter++,i++)
-{
-     Frame::Ptr KFi=iter->second;
-     if(KFi->id>last_initialized_id)break;
-     double* para_kf=KFi->pose.data();
-     problem.AddParameterBlock(para_kf, SE3d::num_parameters, local_parameterization);   
-     para_kfs[i]=para_kf;
-     pIncKF=KFi;
-     if(KFi->bImu)
-     {
-          auto para_v = KFi->mVw.data();
-          problem.AddParameterBlock(para_v, 3);   
-          para_vs[i]=para_v;
-     }
-}
+Frame::Ptr pIncKF=KFs.begin()->second;
 double* para_gyroBias;
 double* para_accBias;
 para_gyroBias=pIncKF->mImuBias.linearized_bg.data();
@@ -141,65 +100,52 @@ problem.AddParameterBlock(para_accBias, 3);
 para_accBias=pIncKF->mImuBias.linearized_ba.data();
 problem.AddParameterBlock(para_accBias, 3);   
 
-int ii=0;
 Frame::Ptr last_frame;
 Frame::Ptr current_frame;
-for(Frames::iterator iter = KFs.begin(); iter != KFs.end(); iter++,ii++)
+int i=KFs.size();
+for (auto kf_pair : KFs)
 {
-     current_frame=iter->second;
-     if(current_frame->id>last_initialized_id)break;
-     if(ii==0)
-     {
-          last_frame=current_frame;
-          continue;
-     }
-     if(current_frame->bImu && last_frame->bImu&&current_frame->preintegration)
-     {
-          if(!current_frame->mpLastKeyFrame||!last_frame->mpLastKeyFrame)
-          {
-               last_frame=current_frame;
-               continue;
-          }
-          current_frame->SetNewBias(last_frame->GetImuBias());
-          auto P1=para_kfs[ii-1];
-          auto V1=para_vs[ii-1];
-          double* g1,*a1;
-          g1=para_gyroBias;
-          a1=para_accBias;
-          auto P2=para_kfs[ii];
-          auto V2=para_vs[ii];
-          
-          //ei p1,v1,g1,a1,p2,v2
-          // ceres::CostFunction *cost_function =InertialError::Create(current_frame->preintegration,Rwg);
-           ceres::CostFunction *cost_function =ImuError2::Create(current_frame->preintegration,Rwg);
-           problem.AddResidualBlock(cost_function, NULL, P1,V1,a1,g1,P2,V2);//7,3,3,3,7,3
-
-     }
-     last_frame = current_frame;
-}
-
-//先验
-if(bInit){
+    i--;
+    current_frame = kf_pair.second;
+    if (!current_frame->bImu||!current_frame->mpLastKeyFrame)
+    {
+        last_frame=current_frame;
+        continue;
+    }
+            auto para_kf = current_frame->pose.data();
+            auto para_v = current_frame->mVw.data();
+            problem.AddParameterBlock(para_kf, SE3d::num_parameters, local_parameterization);
+            problem.AddParameterBlock(para_v, 3);
+        if (last_frame && last_frame->bImu&&last_frame->mpLastKeyFrame)
+        {
+                auto para_kf_last = last_frame->pose.data();
+                auto para_v_last = last_frame->mVw.data();
+                ceres::CostFunction *cost_function = ImuError2::Create(current_frame->preintegration,Rwg);
+                problem.AddResidualBlock(cost_function, NULL, para_kf_last, para_v_last, para_accBias, para_gyroBias, para_kf, para_v);
+                // LOG(INFO)<<"ckf: "<<current_frame->id<<"  lkf: "<<last_frame->id;
+                // LOG(INFO)<<"     current pose: "<<current_frame->pose.translation().transpose();
+                // LOG(INFO)<<"     last pose: "<<last_frame->pose.translation().transpose();
+                // LOG(INFO)<<"     current velocity: "<<current_frame->mVw.transpose();
+                // LOG(INFO)<<"     last  velocity: "<<last_frame->mVw.transpose();
+        }
+        last_frame = current_frame;
+    }
      //epa  para_accBias
      ceres::CostFunction *cost_function = PriorAccError::Create(Vector3d::Zero(),priorA);
      problem.AddResidualBlock(cost_function, NULL, para_accBias);//3
      //epg para_gyroBias
      cost_function = PriorGyroError::Create(Vector3d::Zero(),priorG);
      problem.AddResidualBlock(cost_function, NULL, para_gyroBias);//3
-}
 
 //solve
      ceres::Solver::Options options;
     options.linear_solver_type = ceres::DENSE_SCHUR;
-    //options.function_tolerance = 1e-9;
-    options.max_solver_time_in_seconds = 5;
+    options.max_solver_time_in_seconds = 0.8;
     options.num_threads = 4;
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
 //数据恢复
- int iii=0;
- current_frame;
-for(Frames::iterator iter = KFs.begin(); iter != KFs.end(); iter++,iii++)
+for(Frames::iterator iter = KFs.begin(); iter != KFs.end(); iter++)
 {
      current_frame=iter->second;
      if(current_frame->id>last_initialized_id)break;
@@ -256,7 +202,7 @@ void  Initializer::InitializeIMU(bool bFIBA)
             // 应该使用将 (*itKF)->mpLastKeyFrame速度偏差在此处忽略或当做噪声，因为后面会优化mRwg
             dirG -= (*itKF)->mpLastKeyFrame->GetImuRotation()*(*itKF)->preintegration->GetUpdatedDeltaVelocity();
             Vector3d _vel = ((*itKF)->GetImuPosition() - (*(itKF-1))->GetImuPosition())/(*itKF)->preintegration->dT;
-          if(!(*itKF)->preintegration->dT==0){
+          if((*itKF)->preintegration->dT!=0){
                (*itKF)->SetVelocity(_vel);
                (*itKF)->mpLastKeyFrame->SetVelocity(_vel);
             }

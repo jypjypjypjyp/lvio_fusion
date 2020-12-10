@@ -13,7 +13,7 @@ Vector3d g(0, 0, 9.8);
 void Preintegration::PreintegrateIMU(std::vector<imuPoint> measureFromLastFrame,double last_frame_time,double current_frame_time)
 {
     const int n = measureFromLastFrame.size()-1;
-    LOG(INFO)<<"";
+    //LOG(INFO)<<"";
     //if(n>=0)LOG(INFO)<<" "<<measureFromLastFrame[0].t-last_frame_time<<" "<<current_frame_time-measureFromLastFrame[n-1].t;
     for(int i=0; i<n; i++)
     {
@@ -250,6 +250,7 @@ Matrix<double, 15, 1> Preintegration::Evaluate(const Vector3d &Pi, const Quatern
     residuals.block<3, 1>(O_V, 0) = Qi.inverse() * (Rwg*g * dT + Vj - Vi) - corrected_delta_v;
     residuals.block<3, 1>(O_BA, 0) = Baj - Bai;
     residuals.block<3, 1>(O_BG, 0) = Bgj - Bgi;
+    assert(residuals[0]<5);
     return residuals;
 }
 

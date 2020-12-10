@@ -37,7 +37,9 @@ public:
         Matrix<double, 15, 15> covariance=preintegration_->C;
         Matrix<double, 15, 15> sqrt_info = LLT<Matrix<double, 15, 15>>(covariance.inverse()).matrixL().transpose();
         residual = sqrt_info * residual;
-       // LOG(INFO)<<"IMUError:  r "<<residual.transpose()<<"  "<<preintegration_->dT;
+        assert(residual[0]<5);
+        assert(residual[0]==NAN);
+        //LOG(INFO)<<"IMUError:  r "<<residual.transpose()<<"  "<<preintegration_->dT;
         // LOG(INFO)<<"                Pi "<<Pi.transpose()<<" Pj "<<Pj.transpose();
         // LOG(INFO)<<"                Vi "<<Vi.transpose()<<" Vj "<<Vj.transpose();
         // LOG(INFO)<<"                 Bai "<< Bai.transpose()<<"  Bgi "<<  Bgi.transpose();
@@ -162,11 +164,11 @@ public:
         Matrix<double, 15, 15> sqrt_info_ = LLT<Matrix<double, 15, 15>>(covariance.inverse()).matrixL().transpose();
         Matrix<double, 9,9> sqrt_info =sqrt_info_.block<9,9>(0,0);
         residual = sqrt_info * residual;
-        // LOG(INFO)<<"IMUError:  r "<<residual.transpose();
-        // LOG(INFO)<<"                Pi "<<Pi.transpose()<<" Pj "<<Pj.transpose();
-        // LOG(INFO)<<"                Vi "<<Vi.transpose()<<" Vj "<<Vj.transpose();
-        // LOG(INFO)<<"                 Bai "<< Bai.transpose()<<"  Bgi "<<  Bgi.transpose();
-        // LOG(INFO)<<"                 Baj "<< Baj.transpose()<<"  Bgj "<<  Bgj.transpose();
+        
+        LOG(INFO)<<"IMUError:  r "<<residual.transpose();
+        LOG(INFO)<<"                Pi "<<Pi.transpose()<<" Pj "<<Pj.transpose();
+        LOG(INFO)<<"                Vi "<<Vi.transpose()<<" Vj "<<Vj.transpose();
+        LOG(INFO)<<"                 Bai "<< Bai.transpose()<<"  Bgi "<<  Bgi.transpose();
         if (jacobians)
         {
             double sum_dt = preintegration_->dT;
@@ -613,7 +615,7 @@ public:
             residuals[2]=parameters[1][2]-parameters[0][2];
             Eigen::Map<Matrix<double, 3, 3, RowMajor>>  residual(residuals);
             residual = priorG * residual;
-           // LOG(INFO)<<" GyroRWError: "<<residuals[0]<<" "<<residuals[1]<<" "<<residuals[2]<<" priorG "<<priorG.block<1,1>(0,0);
+           LOG(INFO)<<" GyroRWError: "<<residuals[0]<<" "<<residuals[1]<<" "<<residuals[2]<<" priorG "<<priorG.block<1,1>(0,0);
             if (jacobians)
             {
                 if(jacobians[0])
@@ -629,6 +631,7 @@ public:
                     jacobian_pg2.block<3, 3>(0, 0) = priorG * Matrix3d::Identity();
                 }
             }
+            return true;
     }
     static ceres::CostFunction *Create(const Matrix3d &priorB_)
     {
@@ -649,7 +652,7 @@ public:
             residuals[2]=parameters[1][2]-parameters[0][2];
             Eigen::Map<Matrix<double, 3, 3, RowMajor>>  residual(residuals);
              residual = priorA * residual;
-           // LOG(INFO)<<" AccRWError: "<<residuals[0]<<" "<<residuals[1]<<" "<<residuals[2]<<" priorA "<<priorA.block<1,1>(0,0);
+           LOG(INFO)<<" AccRWError: "<<residuals[0]<<" "<<residuals[1]<<" "<<residuals[2]<<" priorA "<<priorA.block<1,1>(0,0);
             if (jacobians)
             {
                 if(jacobians[0])

@@ -20,6 +20,7 @@ bool Frontend::AddFrame(lvio_fusion::Frame::Ptr frame)
 {
     std::unique_lock<std::mutex> lock(mutex);
         //NEWADD
+  //      LOG(INFO)<<"  SIZE "<<frame->image_left.rows<<"  "<<frame->image_left.cols;
     frame->calib_= ImuCalib_;
     //frame->pose = relative_pose * last_frame_pose_cache_;
     if(last_frame)
@@ -238,7 +239,7 @@ LOG(INFO)<<"KeyFrame "<<current_key_frame->id<<"    :"<<current_key_frame->pose.
 
 //NEWADDEND
 
-    LOG(INFO) << "Add a keyframe " << current_frame->id;
+   // LOG(INFO) << "Add a keyframe " << current_frame->id;
     // update backend because we have a new keyframe
     backend_.lock()->UpdateMap();
 }
@@ -270,6 +271,7 @@ bool Frontend::InitFramePoseByPnP()
     return false;
 }
 
+//NEWADD
 inline double distance(cv::Point2f &pt1, cv::Point2f &pt2)
 {
     //printf("pt1: %f %f pt2: %f %f\n", pt1.x, pt1.y, pt2.x, pt2.y);
@@ -307,7 +309,7 @@ cv::calcOpticalFlowPyrLK(
         }
                                         }
 
-
+//NEWADDEND
 int Frontend::TrackLastFrame()
 {
     // use LK flow to estimate points in the last image
@@ -326,32 +328,33 @@ int Frontend::TrackLastFrame()
 
     std::vector<uchar> status;
     cv::Mat error;
+    //NEWADD
     mycalcOpticalFlowPyrLK(
         last_frame->image_left, current_frame->image_left, kps_last,
         kps_current, status, error);
-
+//NEWADDEND
     // NOTE: don‘t use, accuracy is very low
     // cv::findFundamentalMat(kps_current, kps_last, cv::FM_RANSAC, 3.0, 0.9, status);
 
     int num_good_pts = 0;
     //DEBUG
-    mask_ = cv::Mat(current_frame->image_left.size(), CV_8UC1, cv::Scalar(255));
+    mask_ = cv::Mat(current_frame->image_left.size(), CV_8UC1, cv::Scalar(255));//NEWADD
     cv::Mat img_track = current_frame->image_left;
     cv::cvtColor(img_track, img_track, cv::COLOR_GRAY2RGB);
     for (size_t i = 0; i < status.size(); ++i)
     {
-        if (status[i] &&mask_.at<uchar>(kps_current[i]) == 255 )
+        if (status[i] &&mask_.at<uchar>(kps_current[i]) == 255 )//NEWADD
         {
             cv::arrowedLine(img_track, kps_current[i], kps_last[i], cv::Scalar(0, 255, 0), 1, 8, 0, 0.2);
             auto feature = visual::Feature::Create(current_frame, kps_current[i], landmarks[i]);
             current_frame->AddFeature(feature);
-            cv::circle(mask_, feature->keypoint ,30, 0, cv::FILLED);
+            cv::circle(mask_, feature->keypoint ,30, 0, cv::FILLED);//NEWADD
             num_good_pts++;
         }
     }
     cv::imshow("tracking", img_track);
     cv::waitKey(1);
-    LOG(INFO) << "Find " << num_good_pts << " in the last image.";
+  //  LOG(INFO) << "Find " << num_good_pts << " in the last image.";
     return num_good_pts;
 }
 
@@ -390,16 +393,17 @@ int Frontend::DetectNewFeatures()
     // }
 
     std::vector<cv::Point2f> kps_left, kps_right; // must be point2f
-    cv::goodFeaturesToTrack(current_frame->image_left, kps_left, num_features_ - current_frame->features_left.size(), 0.01, 30, mask_);
+    cv::goodFeaturesToTrack(current_frame->image_left, kps_left, num_features_ - current_frame->features_left.size(), 0.01, 30, mask_);//NEWADD
 
     // use LK flow to estimate points in the right image
     kps_right = kps_left;
     std::vector<uchar> status;
     cv::Mat error;
+    //NEWADD
     mycalcOpticalFlowPyrLK(
         current_frame->image_left, current_frame->image_right, kps_left,
         kps_right, status, error);
-
+//NEWADDEND
     // triangulate new points
     int num_triangulated_pts = 0;
     int num_good_pts = 0;
@@ -431,9 +435,9 @@ int Frontend::DetectNewFeatures()
         }
     }
 
-    LOG(INFO) << "Detect " << kps_left.size() << " new features";
-    LOG(INFO) << "Find " << num_good_pts << " in the right image.";
-    LOG(INFO) << "new landmarks: " << num_triangulated_pts;
+    // LOG(INFO) << "Detect " << kps_left.size() << " new features";
+    // LOG(INFO) << "Find " << num_good_pts << " in the right image.";
+    // LOG(INFO) << "new landmarks: " << num_triangulated_pts;
     return num_triangulated_pts;
 }
 
