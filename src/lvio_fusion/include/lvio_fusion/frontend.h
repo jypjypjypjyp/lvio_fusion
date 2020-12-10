@@ -62,8 +62,6 @@ private:
 
     int TrackLastFrame();
 
-    bool InitFramePoseByPnP();
-
     void CreateKeyframe(bool need_new_features = true);
 
     bool InitMap();
@@ -76,7 +74,6 @@ private:
     std::weak_ptr<Backend> backend_;
     std::unordered_map<unsigned long, Vector3d> position_cache_;
     SE3d last_frame_pose_cache_;
-    cv::Mat mask_;
 
     Camera::Ptr camera_left_;
     Camera::Ptr camera_right_;

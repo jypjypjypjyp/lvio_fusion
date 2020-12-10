@@ -94,26 +94,25 @@ bool Frontend::Track()
 {
     current_frame->pose = relative_i_j * last_frame_pose_cache_;
     TrackLastFrame();
-    InitFramePoseByPnP();
-    int inliers = current_frame->features_left.size();
+    int num_inliers = current_frame->features_left.size();
 
     static int num_tries = 0;
     if (status == FrontendStatus::INITIALIZING)
     {
-        if (inliers <= num_features_tracking_bad_)
+        if (num_inliers <= num_features_tracking_bad_)
         {
             status = FrontendStatus::BUILDING;
         }
     }
     else
     {
-        if (inliers > num_features_tracking_)
+        if (num_inliers > num_features_tracking_)
         {
             // tracking good
             status = FrontendStatus::TRACKING_GOOD;
             num_tries = 0;
         }
-        else if (inliers > num_features_tracking_bad_)
+        else if (num_inliers > num_features_tracking_bad_)
         {
             // tracking bad
             status = FrontendStatus::TRACKING_BAD;
@@ -130,7 +129,7 @@ bool Frontend::Track()
     }
 
     // Add every frame during initializing
-    if (inliers < num_features_needed_for_keyframe_)
+    if (num_inliers < num_features_needed_for_keyframe_)
     {
         CreateKeyframe();
     }
@@ -164,33 +163,6 @@ void Frontend::CreateKeyframe(bool need_new_features)
     backend_.lock()->UpdateMap();
 }
 
-bool Frontend::InitFramePoseByPnP()
-{
-    std::vector<cv::Point3f> points_3d;
-    std::vector<cv::Point2f> points_2d;
-    for (auto pair_feature : current_frame->features_left)
-    {
-        auto feature = pair_feature.second;
-        auto camera_point = feature->landmark.lock();
-        points_2d.push_back(feature->keypoint);
-        Vector3d p = position_cache_[camera_point->id];
-        points_3d.push_back(cv::Point3f(p.x(), p.y(), p.z()));
-    }
-
-    cv::Mat K;
-    cv::eigen2cv(camera_left_->K(), K);
-    cv::Mat rvec, tvec, inliers, D, cv_R;
-    if (cv::solvePnPRansac(points_3d, points_2d, K, D, rvec, tvec, false, 100, 8.0F, 0.98, cv::noArray(), cv::SOLVEPNP_EPNP))
-    {
-        cv::Rodrigues(rvec, cv_R);
-        Matrix3d R;
-        cv::cv2eigen(cv_R, R);
-        current_frame->pose = (camera_left_->extrinsic * SE3d(SO3d(R), Vector3d(tvec.at<double>(0, 0), tvec.at<double>(1, 0), tvec.at<double>(2, 0)))).inverse();
-        return true;
-    }
-    return false;
-}
-
 inline double distance(cv::Point2f &pt1, cv::Point2f &pt2)
 {
     double dx = pt1.x - pt2.x;
@@ -210,15 +182,15 @@ inline void calcOpticalFlowPyrLK(cv::Mat &prevImg, cv::Mat &nextImg,
     std::vector<uchar> reverse_status;
     std::vector<cv::Point2f> reverse_pts = prevPts;
     cv::calcOpticalFlowPyrLK(
-        nextImg, prevImg, nextPts, reverse_pts, reverse_status, err, cv::Size(21, 21), 1,
+        nextImg, prevImg, nextPts, reverse_pts, reverse_status, err, cv::Size(11, 11), 1,
         cv::TermCriteria(cv::TermCriteria::COUNT + cv::TermCriteria::EPS, 30, 0.01),
         cv::OPTFLOW_USE_INITIAL_FLOW);
 
     for (size_t i = 0; i < status.size(); i++)
     {
         // clang-format off
-        if (status[i] && reverse_status[i] && distance(prevPts[i], reverse_pts[i]) <= 0.5 
-        && nextPts[i].x >= 0 && nextPts[i].x < prevImg.cols 
+        if (status[i] && reverse_status[i] && distance(prevPts[i], reverse_pts[i]) <= 0.5
+        && nextPts[i].x >= 0 && nextPts[i].x < prevImg.cols
         && nextPts[i].y >= 0 && nextPts[i].y < prevImg.rows)
         // clang-format on
         {
@@ -249,27 +221,48 @@ int Frontend::TrackLastFrame()
     cv::Mat error;
     calcOpticalFlowPyrLK(last_frame->image_left, current_frame->image_left, kps_last, kps_current, status, error);
 
-    // NOTE: don‘t use, accuracy is very low
-    // cv::findFundamentalMat(kps_current, kps_last, cv::FM_RANSAC, 3.0, 0.9, status);
-
-    //DEBUG
-    int num_good_pts = 0;
-    mask_ = cv::Mat(current_frame->image_left.size(), CV_8UC1, cv::Scalar(255));
-    cv::Mat img_track = current_frame->image_left;
-    cv::cvtColor(img_track, img_track, cv::COLOR_GRAY2RGB);
+    // Solve PnP
+    std::vector<cv::Point3f> points_3d;
+    std::vector<cv::Point2f> points_2d;
+    std::unordered_map<int, int> map;
     for (size_t i = 0; i < status.size(); ++i)
     {
-        if (status[i] && mask_.at<uchar>(kps_current[i]) == 255)
+        if (status[i])
         {
-            cv::arrowedLine(img_track, kps_current[i], kps_last[i], cv::Scalar(0, 255, 0), 1, 8, 0, 0.2);
-            auto feature = visual::Feature::Create(current_frame, kps_current[i], landmarks[i]);
-            current_frame->AddFeature(feature);
-            cv::circle(mask_, feature->keypoint, 30, 0, cv::FILLED);
-            num_good_pts++;
+            map[points_2d.size()] = i;
+            points_2d.push_back(kps_current[i]);
+            Vector3d p = position_cache_[landmarks[i]->id];
+            points_3d.push_back(cv::Point3f(p.x(), p.y(), p.z()));
         }
     }
-    cv::imshow("tracking", img_track);
-    cv::waitKey(1);
+
+    cv::Mat K;
+    cv::eigen2cv(camera_left_->K(), K);
+    cv::Mat rvec, tvec, inliers, D, cv_R;
+    int num_good_pts = 0;
+    if (cv::solvePnPRansac(points_3d, points_2d, K, D, rvec, tvec, false, 100, 8.0F, 0.98, inliers, cv::SOLVEPNP_EPNP))
+    {
+        //DEBUG
+        cv::Mat img_track = current_frame->image_left;
+        cv::cvtColor(img_track, img_track, cv::COLOR_GRAY2RGB);
+        for (int r = 0; r < inliers.rows; r++)
+        {
+            int i = map[inliers.at<int>(r)];
+            cv::arrowedLine(img_track, kps_current[i], kps_last[i], cv::Scalar(0, 255, 0), 1, 8, 0, 0.2);
+            cv::circle(img_track, kps_current[i], 2, cv::Scalar(255, 0, 0), cv::FILLED);
+            auto feature = visual::Feature::Create(current_frame, kps_current[i], landmarks[i]);
+            current_frame->AddFeature(feature);
+            num_good_pts++;
+        }
+        cv::imshow("tracking", img_track);
+        cv::waitKey(1);
+
+        cv::Rodrigues(rvec, cv_R);
+        Matrix3d R;
+        cv::cv2eigen(cv_R, R);
+        current_frame->pose = (camera_left_->extrinsic * SE3d(SO3d(R), Vector3d(tvec.at<double>(0, 0), tvec.at<double>(1, 0), tvec.at<double>(2, 0)))).inverse();
+    }
+
     LOG(INFO) << "Find " << num_good_pts << " in the last image.";
     return num_good_pts;
 }
@@ -301,54 +294,57 @@ bool Frontend::InitMap()
 
 int Frontend::DetectNewFeatures()
 {
-    cv::Mat mask(current_frame->image_left.size(), CV_8UC1, 255);
-    for (auto pair_feature : current_frame->features_left)
-    {
-        auto feature = pair_feature.second;
-        cv::rectangle(mask, feature->keypoint - cv::Point2f(10, 10), feature->keypoint + cv::Point2f(10, 10), 0, cv::FILLED);
-    }
-
-    std::vector<cv::Point2f> kps_left, kps_right; // must be point2f
-    cv::goodFeaturesToTrack(current_frame->image_left, kps_left, num_features_ - current_frame->features_left.size(), 0.01, 30, mask);
-
-    // use LK flow to estimate points in the right image
-    kps_right = kps_left;
-    std::vector<uchar> status;
-    cv::Mat error;
-    calcOpticalFlowPyrLK(current_frame->image_left, current_frame->image_right, kps_left, kps_right, status, error);
-
-    // triangulate new points
+    int num_times = 0;
     int num_triangulated_pts = 0;
     int num_good_pts = 0;
-    for (size_t i = 0; i < kps_left.size(); ++i)
+    while (num_times++ < 2 && current_frame->features_left.size() < 0.8 * num_features_)
     {
-        if (status[i])
+        cv::Mat mask(current_frame->image_left.size(), CV_8UC1, 255);
+        for (auto pair_feature : current_frame->features_left)
         {
-            num_good_pts++;
-            // triangulation
-            Vector2d kp_left = cv2eigen(kps_left[i]);
-            Vector2d kp_right = cv2eigen(kps_right[i]);
-            Vector3d pb = Vector3d::Zero();
-            triangulate(camera_left_->extrinsic.inverse(), camera_right_->extrinsic.inverse(),
-                        camera_left_->Pixel2Sensor(kp_left), camera_right_->Pixel2Sensor(kp_right), pb);
-            if ((camera_left_->Robot2Pixel(pb) - kp_left).norm() < 0.5 && (camera_right_->Robot2Pixel(pb) - kp_right).norm() < 0.5)
+            auto feature = pair_feature.second;
+            cv::circle(mask, feature->keypoint, 20, 0, cv::FILLED);
+        }
+
+        std::vector<cv::Point2f> kps_left, kps_right; // must be point2f
+        cv::goodFeaturesToTrack(current_frame->image_left, kps_left, num_features_ - current_frame->features_left.size(), 0.01, 20, mask);
+
+        // use LK flow to estimate points in the right image
+        kps_right = kps_left;
+        std::vector<uchar> status;
+        cv::Mat error;
+        calcOpticalFlowPyrLK(current_frame->image_left, current_frame->image_right, kps_left, kps_right, status, error);
+
+        // triangulate new points
+        for (size_t i = 0; i < kps_left.size(); ++i)
+        {
+            if (status[i])
             {
-                auto new_landmark = visual::Landmark::Create(pb, camera_left_);
-                auto new_left_feature = visual::Feature::Create(current_frame, eigen2cv(kp_left), new_landmark);
-                auto new_right_feature = visual::Feature::Create(current_frame, eigen2cv(kp_right), new_landmark);
-                new_right_feature->is_on_left_image = false;
-                new_landmark->AddObservation(new_left_feature);
-                new_landmark->AddObservation(new_right_feature);
-                current_frame->AddFeature(new_left_feature);
-                current_frame->AddFeature(new_right_feature);
-                Map::Instance().InsertLandmark(new_landmark);
-                position_cache_[new_landmark->id] = new_landmark->ToWorld();
-                num_triangulated_pts++;
+                num_good_pts++;
+                // triangulation
+                Vector2d kp_left = cv2eigen(kps_left[i]);
+                Vector2d kp_right = cv2eigen(kps_right[i]);
+                Vector3d pb = Vector3d::Zero();
+                triangulate(camera_left_->extrinsic.inverse(), camera_right_->extrinsic.inverse(),
+                            camera_left_->Pixel2Sensor(kp_left), camera_right_->Pixel2Sensor(kp_right), pb);
+                if ((camera_left_->Robot2Pixel(pb) - kp_left).norm() < 0.5 && (camera_right_->Robot2Pixel(pb) - kp_right).norm() < 0.5)
+                {
+                    auto new_landmark = visual::Landmark::Create(pb, camera_left_);
+                    auto new_left_feature = visual::Feature::Create(current_frame, eigen2cv(kp_left), new_landmark);
+                    auto new_right_feature = visual::Feature::Create(current_frame, eigen2cv(kp_right), new_landmark);
+                    new_right_feature->is_on_left_image = false;
+                    new_landmark->AddObservation(new_left_feature);
+                    new_landmark->AddObservation(new_right_feature);
+                    current_frame->AddFeature(new_left_feature);
+                    current_frame->AddFeature(new_right_feature);
+                    Map::Instance().InsertLandmark(new_landmark);
+                    position_cache_[new_landmark->id] = new_landmark->ToWorld();
+                    num_triangulated_pts++;
+                }
             }
         }
     }
 
-    LOG(INFO) << "Detect " << kps_left.size() << " new features";
     LOG(INFO) << "Find " << num_good_pts << " in the right image.";
     LOG(INFO) << "new landmarks: " << num_triangulated_pts;
     return num_triangulated_pts;

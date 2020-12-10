@@ -5,6 +5,10 @@
 #include "lvio_fusion/utility.h"
 
 #include <pcl/filters/voxel_grid.h>
+#include <pcl/io/pcd_io.h>
+#include <pcl/common/impl/io.hpp>
+#include <pcl/point_types.h>
+#include <pcl/point_cloud.h>
 
 namespace lvio_fusion
 {
@@ -104,7 +108,7 @@ void Mapping::Optimize(Frames &active_kfs)
                 ceres::Solve(options, &problem, &summary);
                 pair_kf.second->pose = rpyxyz2se3(rpyxyz) * map_frame->pose;
                 LOG(INFO) << "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!";
-                LOG(INFO) << summary.FullReport();
+                LOG(INFO) << summary.BriefReport();
             }
             if (!map_frame->feature_lidar->points_surf.empty())
             {
@@ -118,7 +122,7 @@ void Mapping::Optimize(Frames &active_kfs)
                 ceres::Solve(options, &problem, &summary);
                 pair_kf.second->pose = rpyxyz2se3(rpyxyz) * map_frame->pose;
                 LOG(INFO) << "^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^";
-                LOG(INFO) << summary.FullReport();
+                LOG(INFO) << summary.BriefReport();
             }
         }
         AddToWorld(pair_kf.second);
