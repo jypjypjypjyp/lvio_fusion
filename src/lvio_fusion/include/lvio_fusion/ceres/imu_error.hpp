@@ -34,12 +34,11 @@ public:
 
         Eigen::Map<Matrix<double, 15, 1>> residual(residuals);
         residual = preintegration_->Evaluate(Pi, Qi, Vi, Bai, Bgi, Pj, Qj, Vj, Baj, Bgj,Rwg);
+         LOG(INFO)<<"IMUError:  r "<<residual.transpose()<<"  "<<preintegration_->dT;
         Matrix<double, 15, 15> covariance=preintegration_->C;
         Matrix<double, 15, 15> sqrt_info = LLT<Matrix<double, 15, 15>>(covariance.inverse()).matrixL().transpose();
         residual = sqrt_info * residual;
-        assert(residual[0]<5);
-        assert(residual[0]==NAN);
-        //LOG(INFO)<<"IMUError:  r "<<residual.transpose()<<"  "<<preintegration_->dT;
+            LOG(INFO)<<"IMUError:  sr "<<residual.transpose();
         // LOG(INFO)<<"                Pi "<<Pi.transpose()<<" Pj "<<Pj.transpose();
         // LOG(INFO)<<"                Vi "<<Vi.transpose()<<" Vj "<<Vj.transpose();
         // LOG(INFO)<<"                 Bai "<< Bai.transpose()<<"  Bgi "<<  Bgi.transpose();
@@ -160,15 +159,15 @@ public:
     
         Eigen::Map<Matrix<double, 9, 1>> residual(residuals);
         residual = preintegration_->Evaluate(Pi, Qi, Vi, Bai, Bgi, Pj, Qj, Vj,Rwg);
+        LOG(INFO)<<"IMUError2:  r "<<residual.transpose();
         Matrix<double, 15, 15> covariance=preintegration_->C;
         Matrix<double, 15, 15> sqrt_info_ = LLT<Matrix<double, 15, 15>>(covariance.inverse()).matrixL().transpose();
         Matrix<double, 9,9> sqrt_info =sqrt_info_.block<9,9>(0,0);
         residual = sqrt_info * residual;
-        
-        LOG(INFO)<<"IMUError:  r "<<residual.transpose();
-        LOG(INFO)<<"                Pi "<<Pi.transpose()<<" Pj "<<Pj.transpose();
-        LOG(INFO)<<"                Vi "<<Vi.transpose()<<" Vj "<<Vj.transpose();
-        LOG(INFO)<<"                 Bai "<< Bai.transpose()<<"  Bgi "<<  Bgi.transpose();
+             LOG(INFO)<<"IMUError2:  sr "<<residual.transpose();
+        // LOG(INFO)<<"                Pi "<<Pi.transpose()<<" Pj "<<Pj.transpose();
+        // LOG(INFO)<<"                Vi "<<Vi.transpose()<<" Vj "<<Vj.transpose();
+        // LOG(INFO)<<"                 Bai "<< Bai.transpose()<<"  Bgi "<<  Bgi.transpose();
         if (jacobians)
         {
             double sum_dt = preintegration_->dT;
