@@ -188,7 +188,7 @@ void Backend::BuildProblem(Frames &active_kfs, adapt::Problem &problem)
         {
             i--;
             current_frame = kf_pair.second;
-            if (!current_frame->bImu||!current_frame->mpLastKeyFrame)
+            if (!current_frame->bImu||!current_frame->mpLastKeyFrame||!current_frame->preintegration->isPreintegrated)
             {
                 last_frame=current_frame;
                

@@ -165,6 +165,7 @@ public:
         Matrix<double, 9,9> sqrt_info =sqrt_info_.block<9,9>(0,0);
         residual = sqrt_info * residual;
              LOG(INFO)<<"IMUError2:  sr "<<residual.transpose();
+             assert(residual(0)<10000000);
         // LOG(INFO)<<"                Pi "<<Pi.transpose()<<" Pj "<<Pj.transpose();
         // LOG(INFO)<<"                Vi "<<Vi.transpose()<<" Vj "<<Vj.transpose();
         // LOG(INFO)<<"                 Bai "<< Bai.transpose()<<"  Bgi "<<  Bgi.transpose();
@@ -234,6 +235,8 @@ public:
         }
         return true;
     }
+
+
 
     static ceres::CostFunction *Create(imu::Preintegration::Ptr preintegration,  Matrix3d Rwg_)
     {

@@ -32,15 +32,15 @@ void InertialOptimization(unsigned long last_initialized_id, Eigen::Matrix3d &Rw
           current_frame_=iter->second;
           if(current_frame_->id>last_initialized_id)break;
           double timestamp=iter->first;
-          if (!current_frame_->bImu||!current_frame_->mpLastKeyFrame)
+          if (!current_frame_->bImu||!current_frame_->mpLastKeyFrame||!current_frame_->preintegration->isPreintegrated)
           {
-                last_frame_=NULL;
+                last_frame_=current_frame_;
                continue;
           }
           auto para_v = current_frame_->mVw.data();
           problem.AddParameterBlock(para_v, 3);   
 
-          if (last_frame_ && current_frame_->bImu&&last_frame_->mpLastKeyFrame)
+          if (last_frame_ && last_frame_->bImu&&last_frame_->mpLastKeyFrame)
           {
                auto para_v_last = last_frame_->mVw.data();
                cost_function = InertialGSError::Create(current_frame_->preintegration,current_frame_->pose,last_frame_->pose);
@@ -107,7 +107,7 @@ for (auto kf_pair : KFs)
 {
     i--;
     current_frame = kf_pair.second;
-    if (!current_frame->bImu||!current_frame->mpLastKeyFrame)
+    if (!current_frame->bImu||!current_frame->mpLastKeyFrame||!current_frame->preintegration->isPreintegrated)
     {
         last_frame=current_frame;
         continue;

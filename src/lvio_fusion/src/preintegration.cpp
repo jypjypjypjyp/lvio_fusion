@@ -70,7 +70,6 @@ void Preintegration::PreintegrateIMU(std::vector<imuPoint> measureFromLastFrame,
     C.block<3,3>(6,6)=c_.block<3,3>(0,0);
     C.block<3,3>(9,9)=c_.block<3,3>(12,12);
     C.block<3,3>(12,12)=c_.block<3,3>(9,9);
-     isPreintegrated=true;
     //  LOG(INFO)<<"       dR "<<dR;
     //  LOG(INFO)<<"       dV "<<dV.transpose();
     //  LOG(INFO)<<"       dP "<<dP.transpose();
@@ -86,6 +85,7 @@ void Preintegration::PreintegrateIMU(std::vector<imuPoint> measureFromLastFrame,
 
 void Preintegration::IntegrateNewMeasurement(const Vector3d &acceleration, const Vector3d &angVel, const double &dt)
 {
+    if(!isPreintegrated) isPreintegrated=true;
   assert( acceleration(0)<11);
 // 1.保存imu数据
  mvMeasurements.push_back(integrable(acceleration,angVel,dt));
