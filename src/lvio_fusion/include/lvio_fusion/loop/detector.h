@@ -10,7 +10,6 @@
 #include "lvio_fusion/lidar/mapping.h"
 #include "lvio_fusion/loop/loop.h"
 #include "lvio_fusion/loop/pose_graph.h"
-#include "lvio_fusion/visual/camera.hpp"
 
 #include <DBoW3/DBoW3.h>
 #include <DBoW3/Database.h>
@@ -53,14 +52,6 @@ public:
 
     LoopDetector(std::string voc_path);
 
-    void SetCameras(Camera::Ptr left, Camera::Ptr right)
-    {
-        camera_left_ = left;
-        camera_right_ = right;
-    }
-
-    void SetLidar(Lidar::Ptr lidar) { lidar_ = lidar; }
-
     void SetFeatureAssociation(FeatureAssociation::Ptr association) { association_ = association; }
 
     void SetMapping(Mapping::Ptr mapping) { mapping_ = mapping; }
@@ -68,6 +59,8 @@ public:
     void SetFrontend(Frontend::Ptr frontend) { frontend_ = frontend; }
 
     void SetBackend(Backend::Ptr backend) { backend_ = backend; }
+
+    void SetPoseGraph(PoseGraph::Ptr pose_graph) { pose_graph_ = pose_graph; }
 
     double head = 0;
 
@@ -100,16 +93,11 @@ private:
     Frontend::Ptr frontend_;
     Backend::Ptr backend_;
     FeatureAssociation::Ptr association_;
-    PoseGraph::Ptr pose_graph;
+    PoseGraph::Ptr pose_graph_;
 
     std::thread thread_;
     cv::Ptr<cv::Feature2D> detector_;
     std::map<DBoW3::EntryId, double> map_dbow_to_frames_;
-
-    Camera::Ptr camera_left_;
-    Camera::Ptr camera_right_;
-    Imu::Ptr imu_;
-    Lidar::Ptr lidar_;
 };
 
 } // namespace lvio_fusion

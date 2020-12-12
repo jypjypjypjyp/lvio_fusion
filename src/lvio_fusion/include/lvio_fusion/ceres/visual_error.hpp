@@ -2,7 +2,7 @@
 #define lvio_fusion_VISUAL_ERROR_H
 
 #include "lvio_fusion/ceres/base.hpp"
-#include "lvio_fusion/visual/camera.hpp"
+#include "lvio_fusion/visual/camera.h"
 
 namespace lvio_fusion
 {

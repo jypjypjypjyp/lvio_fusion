@@ -1,7 +1,6 @@
 #ifndef lvio_fusion_LANDMARK_H
 #define lvio_fusion_LANDMARK_H
 
-#include "lvio_fusion/visual/camera.hpp"
 #include "lvio_fusion/visual/feature.h"
 #include "lvio_fusion/semantic/detected_object.h"
 
@@ -24,11 +23,10 @@ public:
 
     void RemoveObservation(Feature::Ptr feature);
 
-    static Landmark::Ptr Create(Vector3d position, Camera::Ptr camera);
+    static Landmark::Ptr Create(Vector3d position);
 
     static unsigned long current_landmark_id;
     unsigned long id = 0;                   // ID
-    Camera::Ptr camera;           // observed by which sensor
     Vector3d position;                      // position in the first robot coordinate
     LabelType label = LabelType::None;      // Sematic Label
     Features observations;                  // only for left feature

@@ -3,6 +3,7 @@
 #include "lvio_fusion/ceres/navsat_error.hpp"
 #include "lvio_fusion/ceres/visual_error.hpp"
 #include "lvio_fusion/frontend.h"
+#include "lvio_fusion/manager.h"
 #include "lvio_fusion/map.h"
 #include "lvio_fusion/utility.h"
 #include "lvio_fusion/visual/feature.h"
@@ -82,31 +83,14 @@ void Backend::BuildProblem(Frames &active_kfs, adapt::Problem &problem)
             ceres::CostFunction *cost_function;
             if (first_frame->time < start_time)
             {
-                cost_function = PoseOnlyReprojectionError::Create(cv2eigen(feature->keypoint), landmark->ToWorld(), camera_left_, frame->weights.visual);
+                cost_function = PoseOnlyReprojectionError::Create(cv2eigen(feature->keypoint), landmark->ToWorld(), Camera::Get(), frame->weights.visual);
                 problem.AddResidualBlock(ProblemType::PoseOnlyReprojectionError, cost_function, loss_function, para_kf);
             }
             else if (first_frame != frame)
             {
                 double *para_fist_kf = first_frame->pose.data();
-                cost_function = TwoFrameReprojectionError::Create(landmark->position, cv2eigen(feature->keypoint), camera_left_, frame->weights.visual);
+                cost_function = TwoFrameReprojectionError::Create(landmark->position, cv2eigen(feature->keypoint), Camera::Get(), frame->weights.visual);
                 problem.AddResidualBlock(ProblemType::TwoFrameReprojectionError, cost_function, loss_function, para_fist_kf, para_kf);
-            }
-        }
-    }
-
-    // navsat constraints
-    if (navsat_ != nullptr && navsat_->initialized)
-    {
-        ceres::LossFunction *navsat_loss_function = new ceres::TrivialLoss();
-        for (auto pair_kf : active_kfs)
-        {
-            auto frame = pair_kf.second;
-            if (frame->feature_navsat)
-            {
-                auto feature = frame->feature_navsat;
-                auto para_kf = frame->pose.data();
-                ceres::CostFunction *cost_function = NavsatError::Create(navsat_->GetPoint(feature->time), navsat_->GetPoint(feature->last), navsat_->GetPoint(feature->A), navsat_->GetPoint(feature->B), navsat_->GetPoint(feature->C), frame->weights.navsat);
-                problem.AddResidualBlock(ProblemType::TwoFrameReprojectionError, cost_function, navsat_loss_function, para_kf);
             }
         }
     }
@@ -151,15 +135,11 @@ double compute_reprojection_error(Vector2d ob, Vector3d pw, SE3d pose, Camera::P
     return error.norm();
 }
 
-void Backend::Optimize(bool full)
+void Backend::Optimize()
 {
     static double forward_head = 0;
-    std::unique_lock<std::mutex> lock(mutex, std::defer_lock);
-    if (!full)
-    {
-        lock.lock();
-    }
-    Frames active_kfs = Map::Instance().GetKeyFrames(full ? 0 : head);
+    std::unique_lock<std::mutex> lock(mutex);
+    Frames active_kfs = Map::Instance().GetKeyFrames(head);
 
     // TODO: IMU
     // imu init
@@ -183,9 +163,26 @@ void Backend::Optimize(bool full)
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
 
-    if (!full && lidar_)
+    if (Lidar::Num())
     {
         mapping_->Optimize(active_kfs);
+    }
+
+    if (Navsat::Num() && Navsat::Get()->initialized)
+    {
+        Atlas sections = Navsat::Get()->Optimize((--active_kfs.end())->first);
+        // if (!sections.empty())
+        // {
+        //     auto last_section = (--sections.end())->second;
+        //     Frames forward_kfs = Map::Instance().GetKeyFrames(last_section.C + epsilon, (--active_kfs.end())->first);
+        //     SE3d old_pose = last_section.old_pose;
+        //     SE3d new_pose = Map::Instance().keyframes[last_section.B]->pose;
+        //     SE3d transform = old_pose.inverse() * new_pose;
+        //     for (auto pair_kf : forward_kfs)
+        //     {
+        //         pair_kf.second->pose = pair_kf.second->pose * transform;
+        //     }
+        // }
     }
 
     // reject outliers and clean the map
@@ -198,7 +195,7 @@ void Backend::Optimize(bool full)
             auto feature = pair_feature.second;
             auto landmark = feature->landmark.lock();
             auto first_frame = landmark->FirstFrame();
-            if (compute_reprojection_error(cv2eigen(feature->keypoint), landmark->ToWorld(), frame->pose, camera_left_) > 10)
+            if (compute_reprojection_error(cv2eigen(feature->keypoint), landmark->ToWorld(), frame->pose, Camera::Get()) > 10)
             {
                 landmark->RemoveObservation(feature);
                 frame->RemoveFeature(feature);

@@ -1,6 +1,7 @@
 #include "lvio_fusion/estimator.h"
 #include "lvio_fusion/config.h"
 #include "lvio_fusion/frame.h"
+#include "lvio_fusion/manager.h"
 
 #include <opencv2/core/eigen.hpp>
 
@@ -31,11 +32,11 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
     Quaterniond q_base_to_cam0(R_base_to_cam0);
     Vector3d t_base_to_cam0(0, 0, 0);
     t_base_to_cam0 << base_to_cam0(0, 3), base_to_cam0(1, 3), base_to_cam0(2, 3);
-    Camera::Ptr camera1(new Camera(Config::Get<double>("camera1.fx"),
-                                   Config::Get<double>("camera1.fy"),
-                                   Config::Get<double>("camera1.cx"),
-                                   Config::Get<double>("camera1.cy"),
-                                   SE3d(q_base_to_cam0, t_base_to_cam0)));
+    Camera::Create(Config::Get<double>("camera1.fx"),
+                   Config::Get<double>("camera1.fy"),
+                   Config::Get<double>("camera1.cx"),
+                   Config::Get<double>("camera1.cy"),
+                   SE3d(q_base_to_cam0, t_base_to_cam0));
     LOG(INFO) << "Camera 1"
               << " extrinsics: " << t_base_to_cam0.transpose();
     // second camera
@@ -43,11 +44,11 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
     Quaterniond q_base_to_cam1(R_base_to_cam1);
     Vector3d t_base_to_cam1(0, 0, 0);
     t_base_to_cam1 << base_to_cam1(0, 3), base_to_cam1(1, 3), base_to_cam1(2, 3);
-    Camera::Ptr camera2(new Camera(Config::Get<double>("camera2.fx"),
-                                   Config::Get<double>("camera2.fy"),
-                                   Config::Get<double>("camera2.cx"),
-                                   Config::Get<double>("camera2.cy"),
-                                   SE3d(q_base_to_cam1, t_base_to_cam1)));
+    Camera::Create(Config::Get<double>("camera2.fx"),
+                   Config::Get<double>("camera2.fy"),
+                   Config::Get<double>("camera2.cx"),
+                   Config::Get<double>("camera2.cy"),
+                   SE3d(q_base_to_cam1, t_base_to_cam1));
     LOG(INFO) << "Camera 2"
               << " extrinsics: " << t_base_to_cam1.transpose();
 
@@ -63,38 +64,39 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
         Config::Get<double>("delay")));
 
     frontend->SetBackend(backend);
-    frontend->SetCameras(camera1, camera2);
     flags += Flag::Stereo;
 
-    backend->SetCameras(camera1, camera2);
     backend->SetFrontend(frontend);
 
     if (use_loop)
     {
         detector = LoopDetector::Ptr(new LoopDetector(
             Config::Get<std::string>("voc_path")));
-        detector->SetCameras(camera1, camera2);
         detector->SetFrontend(frontend);
         detector->SetBackend(backend);
+        
+        pose_graph = PoseGraph::Ptr(new PoseGraph);
+        detector->SetPoseGraph(pose_graph);
     }
 
     if (use_navsat)
     {
-        NavsatMap::Ptr navsat_map(new NavsatMap);
-        backend->SetNavsat(navsat);
+        Navsat::Create();
+
+        if(!pose_graph)
+        {
+            pose_graph = PoseGraph::Ptr(new PoseGraph);
+        }
+        Navsat::Get()->SetPoseGraph(pose_graph);
+
         flags += Flag::GNSS;
     }
 
     if (use_imu)
     {
-        Imu::Ptr imu(new Imu(SE3d()));
-
+        Imu::Create(SE3d());
         initializer = Initializer::Ptr(new Initializer);
-
-        backend->SetImu(imu);
         backend->SetInitializer(initializer);
-
-        frontend->SetImu(imu);
         flags += Flag::IMU;
     }
 
@@ -107,9 +109,8 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
         Quaterniond q_base_to_lidar(R_base_to_lidar);
         Vector3d t_base_to_lidar(0, 0, 0);
         t_base_to_lidar << base_to_lidar(0, 3), base_to_lidar(1, 3), base_to_lidar(2, 3);
-        Lidar::Ptr lidar(new Lidar(
-            SE3d(q_base_to_lidar, t_base_to_lidar),
-            Config::Get<double>("resolution")));
+        Lidar::Create(Config::Get<double>("resolution"),
+                      SE3d(q_base_to_lidar, t_base_to_lidar));
 
         association = FeatureAssociation::Ptr(new FeatureAssociation(
             Config::Get<int>("num_scans"),
@@ -121,19 +122,14 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
             Config::Get<double>("min_range"),
             Config::Get<double>("max_range"),
             Config::Get<int>("deskew")));
-        association->SetLidar(lidar);
 
         mapping = Mapping::Ptr(new Mapping);
-        mapping->SetCamera(camera1);
-        mapping->SetLidar(lidar);
         mapping->SetFeatureAssociation(association);
 
-        backend->SetLidar(lidar);
         backend->SetMapping(mapping);
 
         if (detector)
         {
-            detector->SetLidar(lidar);
             detector->SetFeatureAssociation(association);
             detector->SetMapping(mapping);
         }
@@ -184,7 +180,7 @@ void Estimator::InputIMU(double time, Vector3d acc, Vector3d gyr)
 
 void Estimator::InputNavSat(double time, double x, double y, double z, double posAccuracy)
 {
-    navsat->AddPoint(time, x, y, z);
+    Navsat::Get()->AddPoint(time, x, y, z);
 }
 
 } // namespace lvio_fusion

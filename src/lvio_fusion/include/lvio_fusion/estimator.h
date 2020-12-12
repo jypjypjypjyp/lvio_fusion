@@ -9,6 +9,7 @@
 #include "lvio_fusion/lidar/association.h"
 #include "lvio_fusion/lidar/mapping.h"
 #include "lvio_fusion/loop/detector.h"
+#include "lvio_fusion/loop/pose_graph.h"
 #include "lvio_fusion/navsat/navsat.h"
 #include "lvio_fusion/semantic/detected_object.h"
 
@@ -50,7 +51,7 @@ public:
     FeatureAssociation::Ptr association;
     Mapping::Ptr mapping;
     Initializer::Ptr initializer;
-    NavsatMap::Ptr navsat;
+    PoseGraph::Ptr pose_graph;
 
     int flags = Flag::None;
 

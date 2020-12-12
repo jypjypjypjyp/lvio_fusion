@@ -1,5 +1,5 @@
-#ifndef MAP_H
-#define MAP_H
+#ifndef lvio_fusion_MAP_H
+#define lvio_fusion_MAP_H
 
 #include "lvio_fusion/common.h"
 #include "lvio_fusion/frame.h"
@@ -51,4 +51,4 @@ private:
 };
 } // namespace lvio_fusion
 
-#endif // MAP_H
+#endif // lvio_fusion_MAP_H

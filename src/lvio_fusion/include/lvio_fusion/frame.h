@@ -41,7 +41,7 @@ public:
     imu::Preintegration::Ptr preintegration; // imu pre integration
     navsat::Feature::Ptr feature_navsat;     // navsat point
     cv::Mat descriptors;                     // orb descriptors
-    loop::LoopClosure::Ptr loop_constraint;  // loop constraint
+    loop::LoopClosure::Ptr loop_closure;     // loop closure
     Weights weights;
     SE3d pose;
 

@@ -11,9 +11,10 @@ namespace lvio_fusion
 // [A, B, C]
 struct Section
 {
-    double A; // time of before the first frame
-    double B; // time of before the first loop frame
-    double C; // the last frame
+    double A = 0; // time of before the first frame
+    double B = 0; // time of before the first loop frame
+    double C = 0; // the last frame
+    SE3d old_pose;
 };
 
 typedef std::map<double, Section> Atlas;
@@ -29,9 +30,9 @@ public:
 
     Atlas GetSections(double start, double end);
 
-    void BuildProblem(Atlas sections, adapt::Problem &problem);
+    void BuildProblem(Atlas &sections, adapt::Problem &problem);
 
-    void Optimize(adapt::Problem problem);
+    void Optimize(Atlas &sections, adapt::Problem &problem);
 
 private:
     void UpdateSections(double time);

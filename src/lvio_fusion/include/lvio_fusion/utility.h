@@ -259,10 +259,6 @@ inline T normalize_angle(const T &angle_degrees)
 inline double vectors_degree_angle(Vector3d v1, Vector3d v2)
 {
     double radian_angle = atan2(v1.cross(v2).norm(), v1.transpose() * v2);
-    if (v1.cross(v2).z() < 0)
-    {
-        radian_angle = 2 * M_PI - radian_angle;
-    }
     return radian_angle * 180 / M_PI;
 }
 

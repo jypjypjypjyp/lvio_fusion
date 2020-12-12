@@ -3,6 +3,7 @@
 #include "lvio_fusion/ceres/loop_error.hpp"
 #include "lvio_fusion/map.h"
 #include "lvio_fusion/utility.h"
+#include "lvio_fusion/visual/camera.h"
 #include "lvio_fusion/visual/feature.h"
 #include "lvio_fusion/visual/landmark.h"
 
@@ -158,7 +159,7 @@ bool LoopDetector::DetectLoop(Frame::Ptr frame, Frame::Ptr &old_frame)
         loop::LoopClosure::Ptr loop_constraint = loop::LoopClosure::Ptr(new loop::LoopClosure());
         loop_constraint->frame_old = old_frame;
         loop_constraint->relocated = false;
-        frame->loop_constraint = loop_constraint;
+        frame->loop_closure = loop_constraint;
         return true;
     }
     return false;
@@ -166,7 +167,7 @@ bool LoopDetector::DetectLoop(Frame::Ptr frame, Frame::Ptr &old_frame)
 
 bool LoopDetector::Relocate(Frame::Ptr frame, Frame::Ptr old_frame)
 {
-    frame->loop_constraint->score = 0;
+    frame->loop_closure->score = 0;
     double rpyxyz_o[6], rpyxyz_i[6], rpy_o_i[3];
     se32rpyxyz(frame->pose, rpyxyz_i);
     se32rpyxyz(old_frame->pose, rpyxyz_o);
@@ -178,15 +179,15 @@ bool LoopDetector::Relocate(Frame::Ptr frame, Frame::Ptr old_frame)
     // {
     //     RelocateByImage(frame, old_frame);
     // }
-    if (lidar_)
+    if (mapping_)
     {
         RelocateByPoints(frame, old_frame);
     }
-    if (frame->loop_constraint->score > 0)
+    if (frame->loop_closure->score > 0)
     {
         return true;
     }
-    frame->loop_constraint.reset();
+    frame->loop_closure.reset();
     return false;
 }
 
@@ -211,15 +212,15 @@ bool LoopDetector::RelocateByImage(Frame::Ptr frame, Frame::Ptr old_frame)
     }
     // solve pnp ransca
     cv::Mat K;
-    cv::eigen2cv(camera_left_->K(), K);
+    cv::eigen2cv(Camera::Get()->K(), K);
     cv::Mat rvec, tvec, inliers, D, cv_R;
     if (points_2d.size() >= 20 && cv::solvePnPRansac(points_3d, points_2d, K, D, rvec, tvec, false, 100, 8.0F, 0.98, cv::noArray(), cv::SOLVEPNP_EPNP))
     {
         cv::Rodrigues(rvec, cv_R);
         Matrix3d R;
         cv::cv2eigen(cv_R, R);
-        frame->loop_constraint->relative_o_c = (camera_left_->extrinsic * SE3d(SO3d(R), Vector3d(tvec.at<double>(0, 0), tvec.at<double>(1, 0), tvec.at<double>(2, 0)))).inverse();
-        frame->loop_constraint->score = std::min((double)points_2d.size(), 50.0);
+        frame->loop_closure->relative_o_c = (Camera::Get()->extrinsic * SE3d(SO3d(R), Vector3d(tvec.at<double>(0, 0), tvec.at<double>(1, 0), tvec.at<double>(2, 0)))).inverse();
+        frame->loop_closure->score = std::min((double)points_2d.size(), 50.0);
         return true;
     }
     return false;
@@ -235,9 +236,9 @@ bool LoopDetector::RelocateByPoints(Frame::Ptr frame, Frame::Ptr old_frame)
     // init relative pose
     Frame::Ptr clone_frame = Frame::Ptr(new Frame());
     *clone_frame = *frame;
-    if (clone_frame->loop_constraint->score > 0)
+    if (clone_frame->loop_closure->score > 0)
     {
-        clone_frame->pose = clone_frame->loop_constraint->relative_o_c * old_frame->pose;
+        clone_frame->pose = clone_frame->loop_closure->relative_o_c * old_frame->pose;
     }
     else
     {
@@ -311,8 +312,8 @@ bool LoopDetector::RelocateByPoints(Frame::Ptr frame, Frame::Ptr old_frame)
         }
     }
 
-    frame->loop_constraint->relative_o_c = clone_frame->pose * old_frame->pose.inverse();
-    frame->loop_constraint->score += score_ground + score_surf;
+    frame->loop_closure->relative_o_c = clone_frame->pose * old_frame->pose.inverse();
+    frame->loop_closure->score += score_ground + score_surf;
     return true;
 }
 
@@ -374,12 +375,12 @@ void LoopDetector::BuildProblemWithLoop(Frames &active_kfs, adapt::Problem &prob
     for (auto pair_kf : active_kfs)
     {
         auto frame = pair_kf.second;
-        if (frame->loop_constraint && frame->loop_constraint->relocated)
+        if (frame->loop_closure && frame->loop_closure->relocated)
         {
             double *para_kf = frame->pose.data();
             problem.SetParameterBlockConstant(para_kf);
 
-            auto old_frame = frame->loop_constraint->frame_old;
+            auto old_frame = frame->loop_closure->frame_old;
             if (old_frame->time >= start_time)
             {
                 double *para_old_kf = old_frame->pose.data();
@@ -411,8 +412,8 @@ void LoopDetector::CorrectLoop(double old_time, double start_time, double end_ti
         std::map<double, double> score_table;
         for (auto pair_kf : new_submap_kfs)
         {
-            Relocate(pair_kf.second, pair_kf.second->loop_constraint->frame_old);
-            score_table[-pair_kf.second->loop_constraint->score] = pair_kf.first;
+            Relocate(pair_kf.second, pair_kf.second->loop_closure->frame_old);
+            score_table[-pair_kf.second->loop_closure->score] = pair_kf.first;
         }
         int max_num_relocated = 1;
         for (auto pair : score_table)
@@ -420,8 +421,8 @@ void LoopDetector::CorrectLoop(double old_time, double start_time, double end_ti
             if (max_num_relocated-- == 0)
                 break;
             auto frame = new_submap_kfs[pair.second];
-            frame->loop_constraint->relocated = true;
-            frame->pose = frame->loop_constraint->relative_o_c * frame->loop_constraint->frame_old->pose;
+            frame->loop_closure->relocated = true;
+            frame->pose = frame->loop_closure->relative_o_c * frame->loop_closure->frame_old->pose;
         }
 
         BuildProblemWithLoop(new_submap_kfs, problem);
@@ -433,9 +434,9 @@ void LoopDetector::CorrectLoop(double old_time, double start_time, double end_ti
 
         for (auto pair_kf : new_submap_kfs)
         {
-            Relocate(pair_kf.second, pair_kf.second->loop_constraint->frame_old);
-            pair_kf.second->loop_constraint->relocated = true;
-            pair_kf.second->pose = pair_kf.second->loop_constraint->relative_o_c * pair_kf.second->loop_constraint->frame_old->pose;
+            Relocate(pair_kf.second, pair_kf.second->loop_closure->frame_old);
+            pair_kf.second->loop_closure->relocated = true;
+            pair_kf.second->pose = pair_kf.second->loop_closure->relative_o_c * pair_kf.second->loop_closure->frame_old->pose;
         }
     }
     SE3d new_pose = (--new_submap_kfs.end())->second->pose;
@@ -457,9 +458,9 @@ void LoopDetector::CorrectLoop(double old_time, double start_time, double end_ti
             pair_kf.second->pose = pair_kf.second->pose * transform;
             // TODO: Repropagate
 
-            if (lidar_)
+            if (mapping_)
             {
-                mapping_->AddToWorld(pair_kf.second);
+                mapping_->ToWorld(pair_kf.second);
             }
         }
         frontend_->UpdateCache();
@@ -485,7 +486,7 @@ void LoopDetector::CorrectLoop(double old_time, double start_time, double end_ti
     //     }
     // }
 
-    // if (lidar_)
+    // if (mapping_)
     // {
     //     for (auto pair_kf : all_kfs)
     //     {

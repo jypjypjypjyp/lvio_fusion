@@ -38,9 +38,9 @@ void publish_odometry(Estimator::Ptr estimator, double time)
             pose_stamped.pose.orientation.y = pose.unit_quaternion().y();
             pose_stamped.pose.orientation.z = pose.unit_quaternion().z();
             path.poses.push_back(pose_stamped);
-            if (frame.second->loop_constraint)
+            if (frame.second->loop_closure)
             {
-                auto position = frame.second->loop_constraint->frame_old->pose.translation();
+                auto position = frame.second->loop_closure->frame_old->pose.translation();
                 geometry_msgs::PoseStamped pose_stamped_loop;
                 pose_stamped_loop.header.stamp = ros::Time(frame.first);
                 pose_stamped_loop.header.frame_id = "world";
@@ -59,7 +59,7 @@ void publish_odometry(Estimator::Ptr estimator, double time)
 
 void publish_navsat(Estimator::Ptr estimator, double time)
 {
-    auto navsat = estimator->navsat;
+    auto navsat = Navsat::Get();
     navsat_path.poses.clear();
     for (auto pair : navsat->raw)
     {
@@ -96,9 +96,9 @@ void publish_tf(Estimator::Ptr estimator, double time)
         br.sendTransform(tf::StampedTransform(transform, ros::Time(time), "world", "base_link"));
     }
     // navsat
-    if (estimator->navsat != nullptr && estimator->navsat->initialized)
+    if (Navsat::Get() != nullptr && Navsat::Get()->initialized)
     {
-        double *tf_data = estimator->navsat->extrinsic.data();
+        double *tf_data = Navsat::Get()->extrinsic.data();
         tf_q.setValue(tf_data[0], tf_data[1], tf_data[2], tf_data[3]);
         tf_t.setValue(tf_data[4], tf_data[5], tf_data[6]);
         transform.setOrigin(tf_t);

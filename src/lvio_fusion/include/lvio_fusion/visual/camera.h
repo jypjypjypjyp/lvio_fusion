@@ -13,8 +13,21 @@ class Camera : public Sensor
 public:
     typedef std::shared_ptr<Camera> Ptr;
 
-    Camera(double fx, double fy, double cx, double cy, const SE3d &extrinsic)
-        : fx(fx), fy(fy), cx(cx), cy(cy), Sensor(extrinsic) {}
+    static int Create(double fx, double fy, double cx, double cy, const SE3d &extrinsic)
+    {
+        devices_.push_back(Camera::Ptr(new Camera(fx, fy, cx, cy, extrinsic)));
+        return devices_.size() - 1;
+    }
+
+    static int Num()
+    {
+        return devices_.size();
+    }
+
+    static Camera::Ptr &Get(int id = 0)
+    {
+        return devices_[id];
+    }
 
     // return intrinsic matrix
     Matrix3d K() const
@@ -61,6 +74,14 @@ public:
     }
 
     double fx = 0, fy = 0, cx = 0, cy = 0; // Camera intrinsics
+
+private:
+    Camera(double fx, double fy, double cx, double cy, const SE3d &extrinsic)
+        : fx(fx), fy(fy), cx(cx), cy(cy), Sensor(extrinsic) {}
+    Camera(const Camera &);
+    Camera &operator=(const Camera &);
+
+    static std::vector<Camera::Ptr> devices_;
 };
 
 } // namespace lvio_fusion

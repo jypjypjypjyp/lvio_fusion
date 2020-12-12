@@ -4,7 +4,6 @@
 #include "lvio_fusion/adapt/problem.h"
 #include "lvio_fusion/common.h"
 #include "lvio_fusion/frame.h"
-#include "lvio_fusion/lidar/lidar.hpp"
 #include "lvio_fusion/lidar/projection.h"
 
 #include <ceres/ceres.h>
@@ -24,11 +23,6 @@ public:
     {
         curvatures = new float[num_scans * horizon_scan];
         projection_ = ImageProjection::Ptr(new ImageProjection(num_scans, horizon_scan, ang_res_y, ang_bottom, ground_rows));
-    }
-
-    void SetLidar(Lidar::Ptr lidar)
-    {
-        lidar_ = lidar;
     }
 
     void AddScan(double time, Point3Cloud::Ptr new_scan);
@@ -61,7 +55,6 @@ private:
     ImageProjection::Ptr projection_;
     std::map<double, Point3Cloud::Ptr> raw_point_clouds_;
     double head_ = 0; // header of the frames' time which already has a point cloud
-    Lidar::Ptr lidar_;
     float *curvatures;
 
     // params

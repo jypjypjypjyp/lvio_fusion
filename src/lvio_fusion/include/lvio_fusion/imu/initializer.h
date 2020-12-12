@@ -2,7 +2,7 @@
 #define lvio_fusion_INITIALIZER_H
 
 #include "lvio_fusion/common.h"
-#include "lvio_fusion/imu/imu.hpp"
+#include "lvio_fusion/imu/imu.h"
 #include "lvio_fusion/frame.h"
 
 namespace lvio_fusion

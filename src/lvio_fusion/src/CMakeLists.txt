@@ -9,6 +9,7 @@ add_library(lvio_fusion SHARED
         frontend.cpp
         initializer.cpp
         landmark.cpp
+        manager.cpp
         map.cpp
         mapping.cpp
         navsat.cpp

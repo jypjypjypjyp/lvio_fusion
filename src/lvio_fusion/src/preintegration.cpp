@@ -1,5 +1,6 @@
 #include "lvio_fusion/imu/preintegration.h"
 #include "lvio_fusion/frame.h"
+#include "lvio_fusion/imu/imu.h"
 #include "lvio_fusion/utility.h"
 
 namespace lvio_fusion
@@ -9,6 +10,22 @@ namespace imu
 //NOTE:translation,rotation,velocity,ba,bg,para_pose(rotation,translation)
 int O_T = 0, O_R = 3, O_V = 6, O_BA = 9, O_BG = 12, O_PR = 0, O_PT = 4;
 Vector3d g(0, 0, 9.8);
+
+Preintegration::Preintegration(const Vector3d &_acc_0, const Vector3d &_gyr_0, const Vector3d &_v0,
+                               const Vector3d &_linearized_ba, const Vector3d &_linearized_bg)
+    : acc0{_acc_0}, gyr0{_gyr_0}, v0(_v0), linearized_acc{_acc_0}, linearized_gyr{_gyr_0},
+      linearized_ba{_linearized_ba}, linearized_bg{_linearized_bg},
+      jacobian{Matrix<double, 15, 15>::Identity()}, covariance{Matrix<double, 15, 15>::Zero()},
+      sum_dt{0.0}, delta_p{Vector3d::Zero()}, delta_q{Quaterniond::Identity()}, delta_v{Vector3d::Zero()}
+{
+    noise = Matrix<double, 18, 18>::Zero();
+    noise.block<3, 3>(0, 0) = (Imu::Get()->ACC_N * Imu::Get()->ACC_N) * Matrix3d::Identity();
+    noise.block<3, 3>(3, 3) = (Imu::Get()->GYR_N * Imu::Get()->GYR_N) * Matrix3d::Identity();
+    noise.block<3, 3>(6, 6) = (Imu::Get()->ACC_N * Imu::Get()->ACC_N) * Matrix3d::Identity();
+    noise.block<3, 3>(9, 9) = (Imu::Get()->GYR_N * Imu::Get()->GYR_N) * Matrix3d::Identity();
+    noise.block<3, 3>(12, 12) = (Imu::Get()->ACC_W * Imu::Get()->ACC_W) * Matrix3d::Identity();
+    noise.block<3, 3>(15, 15) = (Imu::Get()->GYR_W * Imu::Get()->GYR_W) * Matrix3d::Identity();
+}
 
 void Preintegration::Repropagate(const Vector3d &_linearized_ba, const Vector3d &_linearized_bg)
 {

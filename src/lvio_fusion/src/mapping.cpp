@@ -1,14 +1,11 @@
 #include "lvio_fusion/lidar/mapping.h"
 #include "lvio_fusion/adapt/problem.h"
 #include "lvio_fusion/ceres/lidar_error.hpp"
+#include "lvio_fusion/lidar/lidar.h"
 #include "lvio_fusion/map.h"
 #include "lvio_fusion/utility.h"
 
 #include <pcl/filters/voxel_grid.h>
-#include <pcl/io/pcd_io.h>
-#include <pcl/common/impl/io.hpp>
-#include <pcl/point_types.h>
-#include <pcl/point_cloud.h>
 
 namespace lvio_fusion
 {
@@ -125,7 +122,7 @@ void Mapping::Optimize(Frames &active_kfs)
                 LOG(INFO) << summary.BriefReport();
             }
         }
-        AddToWorld(pair_kf.second);
+        ToWorld(pair_kf.second);
 
         auto t2 = std::chrono::steady_clock::now();
         auto time_used = std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);
@@ -146,7 +143,7 @@ void Mapping::MergeScan(const PointICloud &in, SE3d Twc, PointICloud &out)
     }
 }
 
-void Mapping::AddToWorld(Frame::Ptr frame)
+void Mapping::ToWorld(Frame::Ptr frame)
 {
     PointICloud pointcloud_surf;
     PointICloud pointcloud_ground;
@@ -176,7 +173,7 @@ PointRGBCloud Mapping::GetGlobalMap()
         pcl::VoxelGrid<PointRGB> voxel_filter;
         pcl::copyPointCloud(global_map, *temp);
         voxel_filter.setInputCloud(temp);
-        voxel_filter.setLeafSize(lidar_->resolution * 2, lidar_->resolution * 2, lidar_->resolution * 2);
+        voxel_filter.setLeafSize(Lidar::Get()->resolution * 2, Lidar::Get()->resolution * 2, Lidar::Get()->resolution * 2);
         voxel_filter.filter(global_map);
     }
     return global_map;

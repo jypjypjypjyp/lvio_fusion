@@ -3,6 +3,7 @@
 #include "lvio_fusion/config.h"
 #include "lvio_fusion/map.h"
 #include "lvio_fusion/utility.h"
+#include "lvio_fusion/visual/camera.h"
 #include "lvio_fusion/visual/feature.h"
 #include "lvio_fusion/visual/landmark.h"
 
@@ -78,7 +79,7 @@ void Frontend::AddImu(double time, Vector3d acc, Vector3d gyr)
                 bg = last_frame->preintegration->linearized_bg;
                 v0 = last_frame->preintegration->v0 + last_frame->preintegration->delta_v;
             }
-            current_frame->preintegration = imu::Preintegration::Create(acc0, gyr0, v0, ba, bg, imu_);
+            current_frame->preintegration = imu::Preintegration::Create(acc0, gyr0, v0, ba, bg);
         }
         current_frame->preintegration->Append(dt, acc, gyr);
         if (current_key_frame && current_key_frame->preintegration && current_key_frame != current_frame)
@@ -211,7 +212,7 @@ int Frontend::TrackLastFrame()
         // use project point
         auto feature = pair_feature.second;
         auto camera_point = feature->landmark.lock();
-        auto px = camera_left_->World2Pixel(position_cache_[camera_point->id], current_frame->pose);
+        auto px = Camera::Get()->World2Pixel(position_cache_[camera_point->id], current_frame->pose);
         landmarks.push_back(camera_point);
         kps_last.push_back(feature->keypoint);
         kps_current.push_back(cv::Point2f(px[0], px[1]));
@@ -237,7 +238,7 @@ int Frontend::TrackLastFrame()
     }
 
     cv::Mat K;
-    cv::eigen2cv(camera_left_->K(), K);
+    cv::eigen2cv(Camera::Get()->K(), K);
     cv::Mat rvec, tvec, inliers, D, cv_R;
     int num_good_pts = 0;
     if (cv::solvePnPRansac(points_3d, points_2d, K, D, rvec, tvec, false, 100, 8.0F, 0.98, inliers, cv::SOLVEPNP_EPNP))
@@ -260,7 +261,7 @@ int Frontend::TrackLastFrame()
         cv::Rodrigues(rvec, cv_R);
         Matrix3d R;
         cv::cv2eigen(cv_R, R);
-        current_frame->pose = (camera_left_->extrinsic * SE3d(SO3d(R), Vector3d(tvec.at<double>(0, 0), tvec.at<double>(1, 0), tvec.at<double>(2, 0)))).inverse();
+        current_frame->pose = (Camera::Get()->extrinsic * SE3d(SO3d(R), Vector3d(tvec.at<double>(0, 0), tvec.at<double>(1, 0), tvec.at<double>(2, 0)))).inverse();
     }
 
     LOG(INFO) << "Find " << num_good_pts << " in the last image.";
@@ -274,7 +275,7 @@ bool Frontend::InitMap()
     {
         return false;
     }
-    if (imu_)
+    if (Imu::Num())
     {
         status = FrontendStatus::INITIALIZING;
     }
@@ -325,11 +326,11 @@ int Frontend::DetectNewFeatures()
                 Vector2d kp_left = cv2eigen(kps_left[i]);
                 Vector2d kp_right = cv2eigen(kps_right[i]);
                 Vector3d pb = Vector3d::Zero();
-                triangulate(camera_left_->extrinsic.inverse(), camera_right_->extrinsic.inverse(),
-                            camera_left_->Pixel2Sensor(kp_left), camera_right_->Pixel2Sensor(kp_right), pb);
-                if ((camera_left_->Robot2Pixel(pb) - kp_left).norm() < 0.5 && (camera_right_->Robot2Pixel(pb) - kp_right).norm() < 0.5)
+                triangulate(Camera::Get()->extrinsic.inverse(), Camera::Get(1)->extrinsic.inverse(),
+                            Camera::Get()->Pixel2Sensor(kp_left), Camera::Get(1)->Pixel2Sensor(kp_right), pb);
+                if ((Camera::Get()->Robot2Pixel(pb) - kp_left).norm() < 0.5 && (Camera::Get(1)->Robot2Pixel(pb) - kp_right).norm() < 0.5)
                 {
-                    auto new_landmark = visual::Landmark::Create(pb, camera_left_);
+                    auto new_landmark = visual::Landmark::Create(pb);
                     auto new_left_feature = visual::Feature::Create(current_frame, eigen2cv(kp_left), new_landmark);
                     auto new_right_feature = visual::Feature::Create(current_frame, eigen2cv(kp_right), new_landmark);
                     new_right_feature->is_on_left_image = false;
