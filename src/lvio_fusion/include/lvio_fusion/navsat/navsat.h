@@ -42,19 +42,16 @@ public:
     std::map<double, Vector3d> raw;
 
 private:
-    Navsat() : Sensor(SE3d())
-    {
-        A_ = B_ = C_ = std::make_pair(0, Vector3d(0, 0, 0));
-    }
+    Navsat() : Sensor(SE3d()) {}
     Navsat(const Navsat &);
     Navsat &operator=(const Navsat &);
 
-    bool UpdateLevel(double time, Vector3d position);
+    bool UpdateLevel(double time);
 
     void Initialize();
 
     PoseGraph::Ptr pose_graph_;
-    std::pair<double, Vector3d> A_, B_, C_; // there points on the level
+    double A_, B_, C_; // three points on the level
     static std::vector<Navsat::Ptr> devices_;
 };
 

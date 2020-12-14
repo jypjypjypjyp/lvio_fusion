@@ -65,10 +65,10 @@ void PoseGraph::UpdateSections(double time)
     Frames active_kfs = Map::Instance().GetKeyFrames(head, time);
     head = time + epsilon;
 
-    Frame::Ptr last_frame;
-    Vector3d last_heading(1, 0, 0);
-    bool turning = false, first = true;
-    Section current_section;
+    static Frame::Ptr last_frame;
+    static Vector3d last_heading(1, 0, 0);
+    static bool turning = false;
+    static Section current_section;
     for (auto pair_kf : active_kfs)
     {
         Vector3d heading = pair_kf.second->pose.so3() * Vector3d::UnitX();
@@ -81,11 +81,12 @@ void PoseGraph::UpdateSections(double time)
                 {
                     current_section.C = pair_kf.first;
                     sections_[current_section.C] = current_section;
+                    LOG(INFO) << "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!";
                 }
                 current_section.A = pair_kf.first;
                 turning = true;
             }
-            else if (turning && degree < 20)
+            else if (turning && degree < 10)
             {
                 current_section.B = pair_kf.first;
                 turning = false;
@@ -101,7 +102,7 @@ Atlas PoseGraph::GetSections(double start, double end)
     UpdateSections(end);
 
     auto start_iter = sections_.upper_bound(start);
-    auto end_iter = sections_.lower_bound(end);
+    auto end_iter = sections_.upper_bound(end);
     return Atlas(start_iter, end_iter);
 }
 
