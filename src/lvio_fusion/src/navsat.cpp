@@ -1,5 +1,6 @@
 #include "lvio_fusion/navsat/navsat.h"
 #include "lvio_fusion/ceres/navsat_error.hpp"
+#include "lvio_fusion/ceres/loop_error.hpp"
 #include "lvio_fusion/map.h"
 
 #include <ceres/ceres.h>
@@ -133,6 +134,7 @@ Atlas Navsat::Optimize(double time)
                 A->loop_closure = loop::LoopClosure::Ptr(new loop::LoopClosure());
                 A->loop_closure->frame_old = A;
                 A->loop_closure->relocated = true;
+                LOG(INFO) << A;
             }
 
             {
@@ -147,21 +149,22 @@ Atlas Navsat::Optimize(double time)
                 ceres::CostFunction *cost_function = NavsatError::Create(GetPoint(feature->time), GetPoint(feature->last), GetPoint(feature->A), GetPoint(feature->B), GetPoint(feature->C), B->weights.navsat);
                 problem.AddResidualBlock(ProblemType::NavsatError, cost_function, navsat_loss_function, para);
 
-                for (auto pair_kf : BC)
-                {
-                    auto frame = pair_kf.second;
-                    auto position = frame->pose.translation();
-                    auto feature = frame->feature_navsat;
-                    if (feature)
-                    {
-                        ceres::CostFunction *cost_function = NavsatInitError::Create(GetPoint(feature->time), frame->pose.inverse() * position);
-                        problem.AddResidualBlock(ProblemType::Other, cost_function, NULL, para);
-                    }
-                }
+                // for (auto pair_kf : BC)
+                // {
+                //     auto frame = pair_kf.second;
+                //     auto position = frame->pose.translation();
+                //     auto feature = frame->feature_navsat;
+                //     if (feature)
+                //     {
+                //         ceres::CostFunction *cost_function = NavsatInitError::Create(GetPoint(feature->time), frame->pose.inverse() * position);
+                //         problem.AddResidualBlock(ProblemType::Other, cost_function, NULL, para);
+                //     }
+                // }
 
                 B->loop_closure = loop::LoopClosure::Ptr(new loop::LoopClosure());
                 B->loop_closure->frame_old = B;
                 B->loop_closure->relocated = true;
+                LOG(INFO) << B;
             }
         }
 
@@ -170,6 +173,7 @@ Atlas Navsat::Optimize(double time)
         options.num_threads = 1;
         ceres::Solver::Summary summary;
         ceres::Solve(options, &problem, &summary);
+        LOG(INFO) << summary.FullReport();
     }
 
     // optimize pose graph

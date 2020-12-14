@@ -147,6 +147,7 @@ void PoseGraph::Optimize(Atlas &sections, adapt::Problem &problem)
     options.num_threads = 1;
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
+    LOG(INFO) << summary.FullReport();
 
 //     for (auto pair : sections)
 //     {
