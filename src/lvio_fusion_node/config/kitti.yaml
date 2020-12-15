@@ -47,7 +47,7 @@ gyr_n: 0.01         # gyroscope measurement noise standard deviation.     #0.05 
 acc_w: 0.001         # accelerometer bias random work noise standard deviation.  #0.02
 gyr_w: 1.0e-4       # gyroscope bias random work noise standard deviation.     #4.0e-5
 g_norm: 9.81007     # gravity magnitude
-frequency: 1  #NEWADD
+
 
 # body to camera0
 base_to_cam0: !!opencv-matrix

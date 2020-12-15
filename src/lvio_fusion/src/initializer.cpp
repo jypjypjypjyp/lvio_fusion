@@ -27,6 +27,7 @@ void InertialOptimization(unsigned long last_initialized_id, Eigen::Matrix3d &Rw
      problem.AddParameterBlock(para_rwg, 3);
      Frame::Ptr last_frame_;
      Frame::Ptr current_frame_;
+     double *para_scale=&scale;
      for(Frames::iterator iter = vpKFs.begin(); iter != vpKFs.end(); iter++)
      {
           current_frame_=iter->second;
@@ -40,7 +41,7 @@ void InertialOptimization(unsigned long last_initialized_id, Eigen::Matrix3d &Rw
           auto para_v = current_frame_->mVw.data();
           problem.AddParameterBlock(para_v, 3);   
 
-          if (last_frame_ && last_frame_->bImu&&last_frame_->mpLastKeyFrame)
+          if (last_frame_ && current_frame_->bImu&&last_frame_->mpLastKeyFrame)
           {
                auto para_v_last = last_frame_->mVw.data();
                cost_function = InertialGSError::Create(current_frame_->preintegration,current_frame_->pose,last_frame_->pose);
@@ -51,7 +52,7 @@ void InertialOptimization(unsigned long last_initialized_id, Eigen::Matrix3d &Rw
 
      ceres::Solver::Options options;
     options.linear_solver_type = ceres::DENSE_SCHUR;
-    options.max_solver_time_in_seconds = 0.6;
+    options.max_solver_time_in_seconds = 0.1;
     options.num_threads = 4;
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
@@ -72,6 +73,7 @@ void InertialOptimization(unsigned long last_initialized_id, Eigen::Matrix3d &Rw
            Vector3d dbg=current_frame_->GetGyroBias()-bg;
           if(dbg.norm() >0.01)
           {
+              //LOG(INFO)<<"NewBias"<<current_frame_->id<<"  a "<<bias_.linearized_ba.transpose()<<" g "<<bias_.linearized_ba.transpose();
                current_frame_->SetNewBias(bias_);
                if (current_frame_->bImu)
                     current_frame_->preintegration->Reintegrate();
@@ -107,11 +109,11 @@ for (auto kf_pair : KFs)
 {
     i--;
     current_frame = kf_pair.second;
-    if (!current_frame->bImu||!current_frame->mpLastKeyFrame||!current_frame->preintegration->isPreintegrated)
-    {
-        last_frame=current_frame;
-        continue;
-    }
+          if (!current_frame->bImu||!current_frame->mpLastKeyFrame||!current_frame->preintegration->isPreintegrated)
+          {
+                last_frame=current_frame;
+               continue;
+          }
             auto para_kf = current_frame->pose.data();
             auto para_v = current_frame->mVw.data();
             problem.AddParameterBlock(para_kf, SE3d::num_parameters, local_parameterization);
@@ -120,8 +122,8 @@ for (auto kf_pair : KFs)
         {
                 auto para_kf_last = last_frame->pose.data();
                 auto para_v_last = last_frame->mVw.data();
-                ceres::CostFunction *cost_function = ImuError2::Create(current_frame->preintegration,Rwg);
-                problem.AddResidualBlock(cost_function, NULL, para_kf_last, para_v_last, para_accBias, para_gyroBias, para_kf, para_v);
+                ceres::CostFunction *cost_function =InertialError::Create(current_frame->preintegration,Rwg);
+                problem.AddResidualBlock(cost_function, NULL, para_kf_last, para_v_last,  para_gyroBias,para_accBias, para_kf, para_v);
                 // LOG(INFO)<<"ckf: "<<current_frame->id<<"  lkf: "<<last_frame->id;
                 // LOG(INFO)<<"     current pose: "<<current_frame->pose.translation().transpose();
                 // LOG(INFO)<<"     last pose: "<<last_frame->pose.translation().transpose();
@@ -140,7 +142,7 @@ for (auto kf_pair : KFs)
 //solve
      ceres::Solver::Options options;
     options.linear_solver_type = ceres::DENSE_SCHUR;
-    options.max_solver_time_in_seconds = 0.8;
+    options.max_solver_time_in_seconds = 0.1;
     options.num_threads = 4;
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
@@ -148,10 +150,10 @@ for (auto kf_pair : KFs)
 for(Frames::iterator iter = KFs.begin(); iter != KFs.end(); iter++)
 {
      current_frame=iter->second;
-     if(current_frame->id>last_initialized_id)break;
      if(current_frame->bImu&&current_frame->mpLastKeyFrame)
      {
           Bias b(para_accBias[0],para_accBias[1],para_accBias[2],para_gyroBias[0],para_gyroBias[1],para_gyroBias[2]);
+          //LOG(INFO)<<"NewBias"<<current_frame->id<<"  a "<<b.linearized_ba.transpose()<<" g "<<b.linearized_ba.transpose();
           current_frame->SetNewBias(b);
      }
 }
@@ -159,12 +161,9 @@ for(Frames::iterator iter = KFs.begin(); iter != KFs.end(); iter++)
 
 void  Initializer::InitializeIMU(bool bFIBA)
 {
-     double priorA=1e3;
-     double priorG=1;
+     double priorA=1e6;
+     double priorG=1e2;
     double minTime=1.0;  // 初始化需要的最小时间间隔
-    int nMinKF=10;     // 初始化需要的最少关键帧数
-    if(Map::Instance().GetAllKeyFramesSize()<nMinKF)
-        return;
    // Step 1:按时间顺序收集初始化imu使用的KF
     std::list< Frame::Ptr > lpKF;
     Frames keyframes=Map::Instance().GetAllKeyFrames();
@@ -173,8 +172,6 @@ void  Initializer::InitializeIMU(bool bFIBA)
           lpKF.push_front(iter->second);
      }
     std::vector< Frame::Ptr > vpKF(lpKF.begin(),lpKF.end());
-    if(vpKF.size()<nMinKF)
-        return;
      unsigned long last_initialized_id=vpKF.back()->id;
      LOG(INFO)<<"last_initialized_id"<<last_initialized_id;
        // imu计算初始时间
@@ -193,21 +190,25 @@ void  Initializer::InitializeIMU(bool bFIBA)
         Vector3d dirG = Vector3d::Zero();  // 重力方向
         for(std::vector<Frame::Ptr>::iterator itKF = vpKF.begin()+1; itKF!=vpKF.end(); itKF++) 
         {
-             if((*itKF)->id>last_initialized_id)break;
-            if (!(*itKF)->preintegration)
-                continue;
+            if (!(*itKF)->preintegration->isPreintegrated) 
+            continue;
             if(!(*itKF)->mpLastKeyFrame)
                continue;
             // 预积分中delta_V 用来表示:Rwb_i.transpose()*(V2 - V1 - g*dt),故此处获得 -(V_i - V_0 - (i-0)*(mRwg*gI)*dt)
             // 应该使用将 (*itKF)->mpLastKeyFrame速度偏差在此处忽略或当做噪声，因为后面会优化mRwg
-            dirG -= (*itKF)->mpLastKeyFrame->GetImuRotation()*(*itKF)->preintegration->GetUpdatedDeltaVelocity();
-            Vector3d _vel = ((*itKF)->GetImuPosition() - (*(itKF-1))->GetImuPosition())/(*itKF)->preintegration->dT;
-          if((*itKF)->preintegration->dT!=0){
-               (*itKF)->SetVelocity(_vel);
-               (*itKF)->mpLastKeyFrame->SetVelocity(_vel);
-            }
-        }
+           dirG -= (*itKF)->mpLastKeyFrame->GetImuRotation()*(*itKF)->preintegration->GetUpdatedDeltaVelocity();
+            if(!(*itKF)->mpLastKeyFrame->mpLastKeyFrame)
+               continue;
+            Vector3d _vel = ((*itKF)->GetImuPosition() - (*(itKF))->mpLastKeyFrame->mpLastKeyFrame->GetImuPosition())/((*itKF)->mpLastKeyFrame->preintegration->dT+ (*(itKF))->mpLastKeyFrame->mpLastKeyFrame->preintegration->dT);
+            //Vector3d _vel = ((*itKF)->GetImuPosition() - (*(itKF))->mpLastKeyFrame->GetImuPosition())/(*itKF)->preintegration->dT;
 
+              //(*itKF)->SetVelocity(_vel);
+               (*itKF)->mpLastKeyFrame->SetVelocity(_vel);
+                LOG(INFO)<<"(*itKF)->mpLastKeyFrame"<<(*itKF)->mpLastKeyFrame->mVw.transpose()<<"  c"<<(*itKF)->mpLastKeyFrame->id<<" "<<(*itKF)->GetImuPosition().transpose() <<" l"<<(*itKF)->id<<" "<<(*(itKF))->mpLastKeyFrame->GetImuPosition().transpose();
+                
+                //assert((*itKF)->mpLastKeyFrame->mVw[0]<1&&(*itKF)->mpLastKeyFrame->mVw[1]<1&&(*itKF)->mpLastKeyFrame->mVw[2]<1);
+            
+        }
         // Step 2.1:计算重力方向(与z轴偏差)，用轴角方式表示偏差
         dirG = dirG/dirG.norm();
          Vector3d  gI(0.0, 0.0, -1.0);//沿-z的归一化的重力数值
@@ -223,6 +224,16 @@ void  Initializer::InitializeIMU(bool bFIBA)
         Vector3d vzg = v*ang/nv;
         mRwg = ExpSO3(vzg);
         mTinit = Map::Instance().current_frame->time-mFirstTs;
+
+        Frame::Ptr current_frame=(*(--vpKF.end()));
+        Vector3d Gz ;
+        Gz << 0, 0, -9.81007;
+        Gz =mRwg*Gz;
+        double t12=current_frame->preintegration->dT;
+         Vector3d twb1=current_frame->mpLastKeyFrame->GetImuPosition();
+        Vector3d twb2=current_frame->GetImuPosition();
+        Vector3d Vwb2=current_frame->mpLastKeyFrame->mVw+t12*Gz+current_frame->preintegration->GetDeltaRotation(current_frame->GetImuBias())*current_frame->preintegration->GetDeltaVelocity(current_frame->GetImuBias());
+        current_frame->SetVelocity( Vwb2);
     }
     else
     {
@@ -242,8 +253,7 @@ void  Initializer::InitializeIMU(bool bFIBA)
     Eigen::MatrixXd infoInertial=Eigen::MatrixXd::Zero(9,9);
     LOG(INFO)<<"InertialOptimization++++++++++++++";
     InertialOptimization(last_initialized_id,mRwg, mScale, mbg, mba,infoInertial , false, false, priorG, priorA);
-     LOG(INFO)<<"InertialOptimization-------------------";
-
+     LOG(INFO)<<"InertialOptimization-------------------    Scale: "<<mScale;
     // 如果求解的scale过小，跳过，下次在优化
     if (mScale<1e-1)
     {
@@ -287,4 +297,4 @@ LOG(INFO)<<"FullInertialBA------------------------------";
     return;
 }
 
-} // namespace lvio_fusion
+} // namespace lvio_fusioni

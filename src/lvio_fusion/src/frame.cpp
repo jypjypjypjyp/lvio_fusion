@@ -60,6 +60,10 @@ void Frame::SetVelocity(const Vector3d  &Vw_)
 {
     mVw=Vw_;
 }
+void Frame::SetPose(const Matrix3d Rwb_,const Vector3d  &twb_)
+{
+    pose=SE3d(Rwb_,twb_);
+}
 
 void Frame::SetNewBias(const Bias &b)
 {

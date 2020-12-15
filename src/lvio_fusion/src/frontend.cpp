@@ -20,16 +20,15 @@ bool Frontend::AddFrame(lvio_fusion::Frame::Ptr frame)
 {
     std::unique_lock<std::mutex> lock(mutex);
         //NEWADD
-  //      LOG(INFO)<<"  SIZE "<<frame->image_left.rows<<"  "<<frame->image_left.cols;
-    frame->calib_= ImuCalib_;
-    //frame->pose = relative_pose * last_frame_pose_cache_;
-    if(last_frame)
-    {
-        frame->preintegration = imu::Preintegration::Create(last_frame->GetImuBias(), ImuCalib_,NULL);
-    }
-    else
-    {
-        frame->preintegration = imu::Preintegration::Create(frame->GetImuBias(), ImuCalib_,NULL);
+    if(imu_){
+        if(last_frame)
+        {
+            frame->preintegration = imu::Preintegration::Create(last_frame->GetImuBias(),imu_);
+        }
+        else
+        {
+            frame->preintegration = imu::Preintegration::Create(frame->GetImuBias(),imu_);
+        }
     }
     //NEWADDEND
     current_frame = frame;
@@ -80,37 +79,68 @@ void Frontend::AddImu(double time, Vector3d acc, Vector3d gyr)
 
 bool Frontend::Track()
 {
-    current_frame->pose = relative_i_j * last_frame_pose_cache_;
- //NEWADD
-     //LOG(INFO)<<" FRAME ID: "<<current_frame->id<<"  pose: "<< current_frame->pose.translation()[0]<<" "<<current_frame->pose.translation()[1]<<" "<<current_frame->pose.translation()[2] ;
-    //LOG(INFO)<<" relative_pose"<<relative_pose.translation()[0]<<" "<<relative_pose.translation()[1]<<" "<<relative_pose.translation()[2];
-    //LOG(INFO)<<" last_frame_pose_cache_"<<last_frame_pose_cache_.translation()[0]<<" "<<last_frame_pose_cache_.translation()[1]<<" "<<last_frame_pose_cache_.translation()[2];
-     //如果有imu  预积分上一帧到当前帧的imu
-    if(imu_&&last_frame&&last_frame->preintegration){
-        // if (!current_frame->preintegration)
-        // {
-        //     current_frame->preintegration = imu::Preintegration::Create(current_frame->GetImuBias(), ImuCalib_,imu_);
-        // }
-        // current_frame->preintegration->PreintegrateIMU( last_frame->preintegration->imuData_buf,last_frame->time, current_frame->time);//TODO 这个结果应该存在current_frame
-       if(last_key_frame)
+    
+    //NEWADD
+        if(imu_)
+    {
+        if(last_key_frame&&last_key_frame->preintegration)
+        {
+            if(backend_.lock()->initializer_->bimu)
+            {
+                current_frame->bImu=true;
+            }
+
+            std::vector<imuPoint> imuDatafromlastkeyframe;
+            while(true)
+            {
+                if(imuData_buf.empty()){
+                    usleep(500);
+                    continue;
+                }
+                imuPoint imudata = imuData_buf.front();
+                if(imudata.t<last_key_frame->time-0.001)
+                {
+                    imuData_buf.pop_front();
+                }
+                else if(imudata.t<current_frame->time-0.001)
+                {
+                    imuDatafromlastkeyframe.push_back(imudata);
+                    imuData_buf.pop_front();
+                }
+                else
+                {
+                    imuDatafromlastkeyframe.push_back(imudata);
+                    break;
+                }
+            }
+
+// LOG(INFO)<<"FRAMEID: "<< current_key_frame->id;
+// LOG(INFO)<<"                 pose: "<< current_key_frame->pose.translation().transpose();
+            current_frame->preintegration->PreintegrateIMU(imuDatafromlastkeyframe,last_key_frame->time, current_frame->time);
+            if(backend_.lock()->initializer_->initialized)
+            {
+                 PredictVelocity();
+            }
+        }
+    }
+        if(!imu_||!backend_.lock()->initializer_->initialized)
+        {
+            current_frame->pose = relative_i_j * last_frame_pose_cache_;
+        }
+
+    if(imu_){
+            if(current_key_frame)
        {
-            current_frame->mpLastKeyFrame = last_key_frame;
-            current_frame->SetNewBias(last_key_frame->GetImuBias());
+            current_frame->mpLastKeyFrame = current_key_frame;
+            current_frame->SetNewBias(current_key_frame->GetImuBias());
        }
     }
 
-
-
-
-    //SetMask();
-
-
     //NEWADDEND
     TrackLastFrame();
-    InitFramePoseByPnP();
-    //TODO: BA
-
-    // LocalBA();//NEWADD
+    //if(!imu_||!backend_.lock()->initializer_->initialized)
+        InitFramePoseByPnP();
+    //LocalBA();//NEWADD
 
     int inliers = current_frame->features_left.size();
 
@@ -187,55 +217,7 @@ void Frontend::CreateKeyframe(bool need_new_features)
     current_key_frame = current_frame;
 //NEWADD
 LOG(INFO)<<"KeyFrame "<<current_key_frame->id<<"    :"<<current_key_frame->pose.translation().transpose();
-    if(imu_)
-    {
-        if(last_key_frame&&last_key_frame->preintegration)
-        {
-            if(backend_.lock()->initializer_->bimu)
-            {
-                current_key_frame->bImu=true;
-            }
-            //  if (!current_key_frame->preintegration)
-            // {
-            //     current_key_frame->preintegration = imu::Preintegration::Create(current_key_frame->GetImuBias(), ImuCalib_,imu_);
-            // }
-            std::vector<imuPoint> imuDatafromlastkeyframe;
-            while(true)
-            {
-                if(imuData_buf.empty()){
-                    usleep(500);
-                    continue;
-                }
-                imuPoint imudata = imuData_buf.front();
-                if(imudata.t<last_key_frame->time-0.001)
-                {
-                    imuData_buf.pop_front();
-                }
-                else if(imudata.t<current_key_frame->time-0.001)
-                {
-                    imuDatafromlastkeyframe.push_back(imudata);
-                    imuData_buf.pop_front();
-                }
-                else
-                {
-                    imuDatafromlastkeyframe.push_back(imudata);
-                    break;
-                }
-            }
 
-//LOG(INFO)<<"FRAMEID: "<< current_key_frame->id;
-//LOG(INFO)<<"                 pose: "<< current_key_frame->pose.translation().transpose();
-            current_key_frame->preintegration->PreintegrateIMU(imuDatafromlastkeyframe,last_key_frame->time, current_key_frame->time);
-            if(backend_.lock()->initializer_->initialized)
-            {
-                PredictVelocity();
-                //LOG(INFO)<<current_key_frame->mVw.transpose();
-                //assert(current_key_frame->mVw[0]!=0||current_key_frame->mVw[1]!=0||current_key_frame->mVw[2]!=0);
-            }
-
-        }
-
-    }
 
 //NEWADDEND
 
@@ -307,7 +289,7 @@ cv::calcOpticalFlowPyrLK(
                     status[i] = 0;
             }
         }
-                                        }
+}
 
 //NEWADDEND
 int Frontend::TrackLastFrame()
@@ -435,9 +417,9 @@ int Frontend::DetectNewFeatures()
         }
     }
 
-    // LOG(INFO) << "Detect " << kps_left.size() << " new features";
-    // LOG(INFO) << "Find " << num_good_pts << " in the right image.";
-    // LOG(INFO) << "new landmarks: " << num_triangulated_pts;
+    LOG(INFO) << "Detect " << kps_left.size() << " new features";
+    LOG(INFO) << "Find " << num_good_pts << " in the right image.";
+    LOG(INFO) << "new landmarks: " << num_triangulated_pts;
     return num_triangulated_pts;
 }
 
@@ -478,7 +460,7 @@ void Frontend::UpdateFrameIMU(const double s, const Bias &b, Frame::Ptr pCurrent
     current_frame->SetNewBias(b);
 
     Vector3d Gz ;
-    Gz << 0, 0, -ImuCalib_.G_norm;
+    Gz << 0, 0, -imu_->G;
     Gz =backend_.lock()->initializer_->mRwg*Gz;
 
     Vector3d twb1;
@@ -496,51 +478,57 @@ void Frontend::UpdateFrameIMU(const double s, const Bias &b, Frame::Ptr pCurrent
     if(last_frame->mpLastKeyFrame){
         if(last_frame->id== last_frame->mpLastKeyFrame->id)
         {
+            last_frame->SetPose(last_frame->mpLastKeyFrame->GetImuRotation(),last_frame->mpLastKeyFrame->GetImuPosition());
             last_frame->SetVelocity(last_frame->mpLastKeyFrame->GetVelocity());
         }
         else
         {
+            twb1= last_frame->mpLastKeyFrame->GetImuPosition();
             Rwb1 = last_frame->mpLastKeyFrame->GetImuRotation();
             Vwb1 = last_frame->mpLastKeyFrame->GetVelocity();
             t12 = last_frame->preintegration->dT;
-
+            last_frame->SetPose(Rwb1*last_frame->preintegration->GetUpdatedDeltaRotation(),
+                                      twb1 + Vwb1*t12 + 0.5f*t12*t12*Gz+ Rwb1*last_frame->preintegration->GetUpdatedDeltaPosition());
             last_frame->SetVelocity(Vwb1 + Gz*t12 + Rwb1*last_frame->preintegration->GetUpdatedDeltaVelocity());
         }
     }
     // Step 2.2:更新currentFrame的pose velocity
     if (current_frame->preintegration&&current_frame->mpLastKeyFrame)
     {
+         twb1= current_frame->mpLastKeyFrame->GetImuPosition();
         Rwb1 = current_frame->mpLastKeyFrame->GetImuRotation();
         Vwb1 = current_frame->mpLastKeyFrame->GetVelocity();
         t12 = current_frame->preintegration->dT;
-
+        current_frame->SetPose(Rwb1*current_frame->preintegration->GetUpdatedDeltaRotation(),
+                                      twb1 + Vwb1*t12 + 0.5f*t12*t12*Gz+ Rwb1*current_frame->preintegration->GetUpdatedDeltaPosition());
         current_frame->SetVelocity( Vwb1 + Gz*t12 + Rwb1*current_frame->preintegration->GetUpdatedDeltaVelocity());
     }
 }
-
 
 void Frontend::PredictVelocity()
 {
     if(last_key_frame)
     {
-        Vector3d twb1=last_key_frame->GetImuPosition();
-        Vector3d twb2=current_key_frame->GetImuPosition();
-        double t12=current_key_frame->preintegration->dT;
-        Vector3d Vwb2;
-       if(t12==0)
-       {
-            Vwb2=last_key_frame->mVw;
-       }
-       else
-       {
-           Vwb2=(twb2-twb1)/t12;
-       }
-        // LOG(INFO)<<"FRAME ID: "<<current_key_frame->id;
-        // LOG(INFO)<<"    dt:"<<t12;
-        // LOG(INFO)<<"    twb1: "<<twb1[0]<<" "<<twb1[1]<<" "<<twb1[2];
+        Vector3d Gz ;
+        Gz << 0, 0, -imu_->G;
+        Gz =backend_.lock()->initializer_->mRwg*Gz;
+        double t12=current_frame->preintegration->dT;
+         Vector3d twb1=last_key_frame->GetImuPosition();
+        Matrix3d Rwb1=last_key_frame->GetImuRotation();
+        Vector3d Vwb1=last_key_frame->mVw;
+
+        Matrix3d Rwb2=NormalizeRotation(Rwb1*current_frame->preintegration->GetDeltaRotation(last_key_frame->GetImuBias()));
+        Vector3d twb2=twb1 + Vwb1*t12 + 0.5f*t12*t12*Gz+ Rwb1*current_frame->preintegration->GetDeltaPosition(last_key_frame->GetImuBias());
+        Vector3d Vwb2=Vwb1+t12*Gz+Rwb1*current_frame->preintegration->GetDeltaVelocity(current_frame->GetImuBias());
+    
+        // LOG(INFO)<<"FRAME ID: "<<current_frame->id;
+        //  LOG(INFO)<<"    dt:"<<t12;
+        //  LOG(INFO)<<"    twb1: "<<twb1[0]<<" "<<twb1[1]<<" "<<twb1[2];
         // LOG(INFO)<<"    twb2: "<<twb2[0]<<" "<<twb2[1]<<" "<<twb2[2];
+        // LOG(INFO)<<"    Vwb1: "<<last_key_frame->mVw.transpose();
         // LOG(INFO)<<"    Vwb2: "<<Vwb2[0]<<" "<<Vwb2[1]<<" "<<Vwb2[2];
-        current_key_frame->SetVelocity(Vwb2);
+        current_frame->SetVelocity(Vwb2);
+        current_frame->SetPose(Rwb2,twb2);
     }
 }
  void Frontend::LocalBA(){
@@ -560,7 +548,6 @@ void Frontend::PredictVelocity()
             cost_function = PoseOnlyReprojectionError::Create(cv2eigen(feature->keypoint),position_cache_[landmark->id], camera_left_, current_frame->weights.visual);
             problem.AddResidualBlock(ProblemType::PoseOnlyReprojectionError, cost_function, loss_function, para_kf);
         }
-
     ceres::Solver::Options options;
     options.linear_solver_type = ceres::DENSE_QR;
     options.max_num_iterations = 1;

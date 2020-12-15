@@ -112,73 +112,7 @@ void Backend::BuildProblem(Frames &active_kfs, adapt::Problem &problem)
     }
 
 //NEWADD
-    //  if (imu_ && initializer_->initialized)
-    // {
-    //     LOG(INFO)<<"BACKEND IMU OPTIMIZER  ===>"<<active_kfs.size();
-    //     Frame::Ptr last_frame=NULL;
-    //     Frame::Ptr current_frame;
-    //     int i=active_kfs.size();
-    //     i=i/2;
-    //     bool first=true;
-    //     for (auto kf_pair : active_kfs)
-    //     {
-    //         i--;
-    //         current_frame = kf_pair.second;
-    //         if (!current_frame->bImu||!current_frame->mpLastKeyFrame)
-    //         { 
-    //              first=false;
-    //             last_frame=current_frame;
-    //             continue;
-    //         }
-    //         auto para_kf = current_frame->pose.data();
-    //         auto para_v = current_frame->mVw.data();
-    //         auto para_bg = current_frame->mImuBias.linearized_bg.data();
-    //         auto para_ba = current_frame->mImuBias.linearized_ba.data();
-
-    //         problem.AddParameterBlock(para_v, 3);
-    //         problem.AddParameterBlock(para_ba, 3);
-    //         problem.AddParameterBlock(para_bg, 3);
-    //         //if(i>0)
-    //         // {
-    //         //     problem.SetParameterBlockConstant(para_v);
-    //         //     problem.SetParameterBlockConstant(para_ba);
-    //         //     problem.SetParameterBlockConstant(para_bg);
-    //         // }
-    //         if(first){
-    //             first=false;
-    //             last_frame = current_frame;
-    //             continue;
-    //         }
-    //         if (last_frame && last_frame->bImu&&last_frame->mpLastKeyFrame)
-    //         {
-    //             auto para_kf_last = last_frame->pose.data();
-    //             auto para_v_last = last_frame->mVw.data();
-    //             auto para_bg_last = last_frame->mImuBias.linearized_bg.data();//恢复
-    //             auto para_ba_last =last_frame->mImuBias.linearized_ba.data();//恢复
-    //            ceres::CostFunction *cost_function = InertialError::Create(current_frame->preintegration,initializer_->mRwg);
-    //             problem.AddResidualBlock(cost_function, NULL, para_kf_last, para_v_last,  para_bg_last,para_ba_last, para_kf, para_v);
-
-    //             ceres::CostFunction *cost_function_g = GyroRWError::Create(current_frame->preintegration->C.block<3,3>(9,9).inverse());
-    //             problem.AddResidualBlock(cost_function_g, NULL, para_bg_last,para_bg);
-    //              ceres::CostFunction *cost_function_a = AccRWError::Create(current_frame->preintegration->C.block<3,3>(12,12).inverse());
-    //             problem.AddResidualBlock(cost_function_a, NULL, para_ba_last,para_ba);
-                
-    //             //  LOG(INFO)<<current_frame->id<<": "<<current_frame->mImuBias.linearized_bg.transpose()<<"  "<<last_frame->mImuBias.linearized_bg.transpose();
-    //             // LOG(INFO)<<"ckf: "<<current_frame->id<<"  lkf: "<<last_frame->id;
-    //             // LOG(INFO)<<"     current pose: "<<current_frame->pose.translation().transpose(); 
-    //             // LOG(INFO)<<"     last pose: "<<last_frame->pose.translation().transpose();
-    //             // LOG(INFO)<<"     current velocity: "<<current_frame->mVw.transpose();
-    //             // LOG(INFO)<<"     last  velocity: "<<last_frame->mVw.transpose();
-    //             // LOG(INFO)<<"     current bg: "<<current_frame->mImuBias.linearized_bg.transpose(); 
-    //             // LOG(INFO)<<"     last bg: "<<last_frame->mImuBias.linearized_bg.transpose();
-    //             //  LOG(INFO)<<"     current ba: "<<current_frame->mImuBias.linearized_ba.transpose(); 
-    //             // LOG(INFO)<<"     last ba: "<<last_frame->mImuBias.linearized_ba.transpose();
-    //          }
-    //         last_frame = current_frame;
-    //     }
-    // }
-    
-     if (imu_ && initializer_->initialized)
+         if (imu_ && initializer_->initialized)
     {
         LOG(INFO)<<"BACKEND IMU OPTIMIZER  ===>"<<active_kfs.size();
         Frame::Ptr last_frame;
@@ -188,12 +122,11 @@ void Backend::BuildProblem(Frames &active_kfs, adapt::Problem &problem)
         {
             i--;
             current_frame = kf_pair.second;
-            if (!current_frame->bImu||!current_frame->mpLastKeyFrame||!current_frame->preintegration->isPreintegrated)
-            {
+          if (!current_frame->bImu||!current_frame->mpLastKeyFrame||!current_frame->preintegration->isPreintegrated)
+          {
                 last_frame=current_frame;
-               
-                continue;
-            }
+               continue;
+          }
             auto para_kf = current_frame->pose.data();
             auto para_v = current_frame->mVw.data();
             auto para_bg = current_frame->mImuBias.linearized_bg.data();
@@ -205,8 +138,8 @@ void Backend::BuildProblem(Frames &active_kfs, adapt::Problem &problem)
             // {
             //     problem.SetParameterBlockConstant(para_kf);
             //     problem.SetParameterBlockConstant(para_v);
-            //     problem.SetParameterBlockConstant(para_ba);
-            //     problem.SetParameterBlockConstant(para_bg);
+                //  problem.SetParameterBlockConstant(para_ba);
+                //  problem.SetParameterBlockConstant(para_bg);
             // }
             if (last_frame && last_frame->bImu&&last_frame->mpLastKeyFrame)
             {
@@ -214,9 +147,14 @@ void Backend::BuildProblem(Frames &active_kfs, adapt::Problem &problem)
                 auto para_v_last = last_frame->mVw.data();
                 auto para_bg_last = last_frame->mImuBias.linearized_bg.data();//恢复
                 auto para_ba_last =last_frame->mImuBias.linearized_ba.data();//恢复
-                ceres::CostFunction *cost_function = ImuError::Create(current_frame->preintegration,initializer_->mRwg);
-                problem.AddResidualBlock(ProblemType::IMUError,cost_function, NULL, para_kf_last, para_v_last, para_ba_last, para_bg_last, para_kf, para_v, para_ba, para_bg);
-                // LOG(INFO)<<"ckf: "<<current_frame->id<<"  lkf: "<<last_frame->id;
+                ceres::CostFunction *cost_function = InertialError::Create(current_frame->preintegration,initializer_->mRwg);
+                problem.AddResidualBlock(ProblemType::IMUError,cost_function, NULL, para_kf_last, para_v_last,  para_bg_last,para_ba_last, para_kf, para_v);
+
+                ceres::CostFunction *cost_function_g = GyroRWError::Create(current_frame->preintegration->C.block<3,3>(9,9).inverse());
+                problem.AddResidualBlock(ProblemType::IMUError,cost_function_g, NULL, para_bg_last,para_bg);
+                 ceres::CostFunction *cost_function_a = AccRWError::Create(current_frame->preintegration->C.block<3,3>(12,12).inverse());
+                problem.AddResidualBlock(ProblemType::IMUError,cost_function_a, NULL, para_ba_last,para_ba);
+                 // LOG(INFO)<<"ckf: "<<current_frame->id<<"  lkf: "<<last_frame->id;
                 // LOG(INFO)<<"     current pose: "<<current_frame->pose.translation().transpose();
                 // LOG(INFO)<<"     last pose: "<<last_frame->pose.translation().transpose();
                 // LOG(INFO)<<"     current velocity: "<<current_frame->mVw.transpose();
@@ -225,6 +163,54 @@ void Backend::BuildProblem(Frames &active_kfs, adapt::Problem &problem)
             last_frame = current_frame;
         }
     }
+    
+    //  if (imu_ && initializer_->initialized)
+    // {
+    //     LOG(INFO)<<"BACKEND IMU OPTIMIZER  ===>"<<active_kfs.size();
+    //     Frame::Ptr last_frame;
+    //     Frame::Ptr current_frame;
+    //     int i=active_kfs.size();
+    //     for (auto kf_pair : active_kfs)
+    //     {
+    //         i--;
+    //         current_frame = kf_pair.second;
+    //         if (!current_frame->bImu||!current_frame->mpLastKeyFrame)
+    //         {
+    //             last_frame=current_frame;
+               
+    //             continue;
+    //         }
+    //         auto para_kf = current_frame->pose.data();
+    //         auto para_v = current_frame->mVw.data();
+    //         auto para_bg = current_frame->mImuBias.linearized_bg.data();
+    //         auto para_ba = current_frame->mImuBias.linearized_ba.data();
+    //         problem.AddParameterBlock(para_v, 3);
+    //         problem.AddParameterBlock(para_ba, 3);
+    //         problem.AddParameterBlock(para_bg, 3);
+    //         // if(i>10)
+    //         // {
+    //         //     problem.SetParameterBlockConstant(para_kf);
+    //         //     problem.SetParameterBlockConstant(para_v);
+    //         //     problem.SetParameterBlockConstant(para_ba);
+    //         //     problem.SetParameterBlockConstant(para_bg);
+    //         // }
+    //         if (last_frame && last_frame->bImu&&last_frame->mpLastKeyFrame)
+    //         {
+    //             auto para_kf_last = last_frame->pose.data();
+    //             auto para_v_last = last_frame->mVw.data();
+    //             auto para_bg_last = last_frame->mImuBias.linearized_bg.data();//恢复
+    //             auto para_ba_last =last_frame->mImuBias.linearized_ba.data();//恢复
+    //             ceres::CostFunction *cost_function = ImuError::Create(current_frame->preintegration,initializer_->mRwg);
+    //             problem.AddResidualBlock(ProblemType::IMUError,cost_function, NULL, para_kf_last, para_v_last, para_ba_last, para_bg_last, para_kf, para_v, para_ba, para_bg);
+    //             // LOG(INFO)<<"ckf: "<<current_frame->id<<"  lkf: "<<last_frame->id;
+    //             // LOG(INFO)<<"     current pose: "<<current_frame->pose.translation().transpose();
+    //             // LOG(INFO)<<"     last pose: "<<last_frame->pose.translation().transpose();
+    //             // LOG(INFO)<<"     current velocity: "<<current_frame->mVw.transpose();
+    //             // LOG(INFO)<<"     last  velocity: "<<last_frame->mVw.transpose();
+    //          }
+    //         last_frame = current_frame;
+    //     }
+    // }
     
     //NEWADDEND
 }
@@ -251,7 +237,7 @@ void Backend::Optimize(bool full)
     // imu init
     if (imu_ && !initializer_->initialized)
     {
-        Frames frames_init = Map::Instance().GetKeyFrames(0,head, initializer_->num_frames);
+        Frames frames_init = Map::Instance().GetKeyFrames(0,head+delay_, initializer_->num_frames);
         if (frames_init.size() == initializer_->num_frames)
         {
              std::unique_lock<std::mutex> lock(frontend_.lock()->mutex);

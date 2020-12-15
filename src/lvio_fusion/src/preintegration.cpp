@@ -13,19 +13,17 @@ Vector3d g(0, 0, 9.8);
 void Preintegration::PreintegrateIMU(std::vector<imuPoint> measureFromLastFrame,double last_frame_time,double current_frame_time)
 {
     const int n = measureFromLastFrame.size()-1;
-    //LOG(INFO)<<"";
+    // LOG(INFO)<<"measureFromLastFrame.size():"<<measureFromLastFrame.size();
     //if(n>=0)LOG(INFO)<<" "<<measureFromLastFrame[0].t-last_frame_time<<" "<<current_frame_time-measureFromLastFrame[n-1].t;
     for(int i=0; i<n; i++)
     {
         double tstep;
-        Vector3d acc, angVel;
         double tab;
-        double tini;
-        double tend;
+        Vector3d acc, angVel;
         if((i==0) && (i<(n-1)))
         {
-            tab = measureFromLastFrame[i+1].t-measureFromLastFrame[i].t;
-            tini = measureFromLastFrame[i].t- last_frame_time;
+             tab = measureFromLastFrame[i+1].t-measureFromLastFrame[i].t;
+            double tini = measureFromLastFrame[i].t- last_frame_time;
             acc = (measureFromLastFrame[i].a+measureFromLastFrame[i+1].a-
                     (measureFromLastFrame[i+1].a-measureFromLastFrame[i].a)*(tini/tab))*0.5f;
             angVel = (measureFromLastFrame[i].w+measureFromLastFrame[i+1].w-
@@ -41,7 +39,7 @@ void Preintegration::PreintegrateIMU(std::vector<imuPoint> measureFromLastFrame,
         else if((i>0) && (i==(n-1)))
         {
             tab = measureFromLastFrame[i+1].t-measureFromLastFrame[i].t;
-            tend = measureFromLastFrame[i+1].t-current_frame_time;
+            double tend = measureFromLastFrame[i+1].t-current_frame_time;
             acc = (measureFromLastFrame[i].a+measureFromLastFrame[i+1].a-
                     (measureFromLastFrame[i+1].a-measureFromLastFrame[i].a)*(tend/tab))*0.5f;
             angVel = (measureFromLastFrame[i].w+measureFromLastFrame[i+1].w-
@@ -54,27 +52,14 @@ void Preintegration::PreintegrateIMU(std::vector<imuPoint> measureFromLastFrame,
             angVel = measureFromLastFrame[i].w;
             tstep = current_frame_time-last_frame_time;
         }
-        if(tab==0)continue;
+         if(tab==0)continue;
+
        IntegrateNewMeasurement(acc,angVel,tstep);
     }
-    Matrix<double,15,15> c_=C;
-    C.setZero();
-    C.block<3,3>(0,0)=c_.block<3,3>(3,3);
-    C.block<3,3>(3,0)=c_.block<3,3>(6,3);
-    C.block<3,3>(6,0)=c_.block<3,3>(0,3);
-    C.block<3,3>(0,3)=c_.block<3,3>(3,6);
-    C.block<3,3>(3,3)=c_.block<3,3>(6,6);
-    C.block<3,3>(6,3)=c_.block<3,3>(0,6);
-    C.block<3,3>(0,6)=c_.block<3,3>(3,0);
-    C.block<3,3>(3,6)=c_.block<3,3>(6,0);
-    C.block<3,3>(6,6)=c_.block<3,3>(0,0);
-    C.block<3,3>(9,9)=c_.block<3,3>(12,12);
-    C.block<3,3>(12,12)=c_.block<3,3>(9,9);
     //  LOG(INFO)<<"       dR "<<dR;
     //  LOG(INFO)<<"       dV "<<dV.transpose();
     //  LOG(INFO)<<"       dP "<<dP.transpose();
-    //  LOG(INFO)<<"       c g "<<C.block<3,3>(9,9);
-    //  LOG(INFO)<<"       sc a "<<C.block<3,3>(12,12);
+     // LOG(INFO)<<"       c  :\n"<<C.inverse();
     // LOG(INFO)<<"        t "<<dT;
     // LOG(INFO)<<"        JPa "<<JPa;
     // LOG(INFO)<<"        JPg "<<JPg;
@@ -85,8 +70,7 @@ void Preintegration::PreintegrateIMU(std::vector<imuPoint> measureFromLastFrame,
 
 void Preintegration::IntegrateNewMeasurement(const Vector3d &acceleration, const Vector3d &angVel, const double &dt)
 {
-    if(!isPreintegrated) isPreintegrated=true;
-  assert( acceleration(0)<11);
+ if(!isPreintegrated) isPreintegrated=true;
 // 1.保存imu数据
  mvMeasurements.push_back(integrable(acceleration,angVel,dt));
 
@@ -107,7 +91,7 @@ void Preintegration::IntegrateNewMeasurement(const Vector3d &acceleration, const
 
     dP = dP + dV*dt + 0.5f*dR*acc*dt*dt;
     dV = dV + dR*acc*dt;
- assert(dP(0,0)<10);
+
 
 // 4.计算delta_x 的线性矩阵 eq.(62)
 Matrix3d Wacc ;
@@ -140,7 +124,7 @@ Wacc << 0, -acc(2), acc(1),
     // 6.更新协方差
     C.block<9,9>(0,0) = A*C.block<9,9>(0,0)*A.transpose() + B*Nga*B.transpose();
     C.block<6,6>(9,9) = C.block<6,6>(9,9) + NgaWalk;
-
+    assert(C(0,0)<1);
     // Update rotation jacobian wrt bias correction
     JRg = dRi.deltaR.transpose()*JRg - dRi.rightJ*dt;
 

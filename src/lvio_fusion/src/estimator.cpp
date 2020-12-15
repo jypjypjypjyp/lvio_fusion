@@ -57,9 +57,7 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
         double acc_w= Config::Get<double>("acc_w");
         double gyr_w= Config::Get<double>("gyr_w");
         double g_norm= Config::Get<double>("g_norm");
-       double freq= Config::Get<double>("frequency");
-       const double sf = sqrt(freq);
-        Calib calib_=Calib(base_to_cam0,gyr_n*sf, acc_n*sf,gyr_w/sf,acc_w/sf,g_norm);
+
  //NEWADDEND
     // create components and links
     frontend = Frontend::Ptr(new Frontend(
@@ -97,7 +95,7 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
 
     if (use_imu)
     {
-        Imu::Ptr imu(new Imu(SE3d()));
+    Imu::Ptr imu(new Imu(SE3d(q_base_to_cam0, t_base_to_cam0),acc_n,acc_w,gyr_n,gyr_w,g_norm));//NEWADD
 
         initializer = Initializer::Ptr(new Initializer);
         //NEWADD
@@ -106,9 +104,6 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
         backend->SetImu(imu);
         backend->SetInitializer(initializer);
 
-        //NEWADD
-        frontend->SetCalib(calib_);
-        //NEWADDEND
         frontend->SetImu(imu);
         flags += Flag::IMU;
     }
@@ -178,7 +173,7 @@ void Estimator::InputImage(double time, cv::Mat &left_image, cv::Mat &right_imag
     auto t2 = std::chrono::steady_clock::now();
     auto time_used =
         std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);
-    //LOG(INFO) << "VO status:" << (success ? "success" : "failed") << ",VO cost time: " << time_used.count() << " seconds.";
+    LOG(INFO) << "VO status:" << (success ? "success" : "failed") << ",VO cost time: " << time_used.count() << " seconds.";
 }
 
 void Estimator::InputPointCloud(double time, Point3Cloud::Ptr point_cloud)

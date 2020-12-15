@@ -21,7 +21,7 @@ void register_pub(ros::NodeHandle &n)
 
 void publish_odometry(Estimator::Ptr estimator, double time)
 {
-    if (estimator->frontend->status == FrontendStatus::TRACKING_GOOD)
+    if (estimator->frontend->status == FrontendStatus::TRACKING_GOOD||estimator->frontend->status == FrontendStatus::TRACKING_BAD||estimator->frontend->status == FrontendStatus::TRACKING_TRY)
     {
         path.poses.clear();
         for (auto frame : lvio_fusion::Map::Instance().GetAllKeyFrames())
@@ -84,7 +84,7 @@ void publish_tf(Estimator::Ptr estimator, double time)
     tf::Quaternion tf_q;
     tf::Vector3 tf_t;
     // base_link
-    if (estimator->frontend->status == FrontendStatus::TRACKING_GOOD)
+    if (estimator->frontend->status == FrontendStatus::TRACKING_GOOD||estimator->frontend->status == FrontendStatus::TRACKING_BAD||estimator->frontend->status == FrontendStatus::TRACKING_TRY)
     {
         SE3d pose = estimator->frontend->current_frame->pose;
         Quaterniond pose_q = pose.unit_quaternion();

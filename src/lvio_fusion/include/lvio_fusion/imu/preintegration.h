@@ -20,9 +20,9 @@ class Preintegration
 public:
     typedef std::shared_ptr<Preintegration> Ptr;
 
-    static Preintegration::Ptr Create(Bias bias, Calib ImuCalib_,const Imu::Ptr imu)
+    static Preintegration::Ptr Create(Bias bias,const Imu::Ptr imu)
     {
-        Preintegration::Ptr new_preintegration(new Preintegration(bias, ImuCalib_,imu));
+        Preintegration::Ptr new_preintegration(new Preintegration(bias,imu));
         return new_preintegration;
     }
     Matrix<double, 15, 1> Evaluate(const Vector3d &Pi, const Quaterniond &Qi, const Vector3d &Vi, const Vector3d &Bai, const Vector3d &Bgi,
@@ -48,6 +48,16 @@ public:
     Bias GetDeltaBias(const Bias &b_);
     void Reintegrate();
 
+    // void MidPointIntegration(double _dt,
+    //                          const Vector3d &_acc_0, const Vector3d &_gyr_0,
+    //                          const Vector3d &_acc_1, const Vector3d &_gyr_1,
+    //                          const Vector3d &delta_p, const Quaterniond &delta_q, const Vector3d &delta_v,
+    //                          const Vector3d &linearized_ba, const Vector3d &linearized_bg,
+    //                          Vector3d &result_delta_p, Quaterniond &result_delta_q, Vector3d &result_delta_v,
+    //                          Vector3d &result_linearized_ba, Vector3d &result_linearized_bg, bool update_jacobian);
+
+    // void Propagate(double _dt, const Vector3d &_acc_1, const Vector3d &_gyr_1);
+
    std::vector<imuPoint> imuData_buf;
 
     std::vector<double> dt_buf;
@@ -59,6 +69,11 @@ public:
     double dT;
     Matrix<double,15,15> C;   //cov
     Matrix<double, 6, 6> Nga, NgaWalk;
+    // double dt;
+    // Vector3d acc0, gyr0;
+    // Vector3d acc1, gyr1;
+    // Matrix<double, 15, 15> jacobian, covariance;
+    //Matrix<double, 18, 18> noise;
 
     // Values for the original bias (when integration was computed)
     Bias b;
@@ -73,19 +88,21 @@ public:
     // Dif between original and updated bias
     // This is used to compute the updated values of the preintegration
    Matrix<double,6,1> db;
-   Calib calib;
 
    bool isPreintegrated;
 private:
     Preintegration(){Initialize(Bias(0,0,0,0,0,0));};
 
-    Preintegration(const Bias &b_,Calib ImuCalib_,const Imu::Ptr imu)
+    Preintegration(const Bias &b_,const Imu::Ptr imu)
 {
-    calib=ImuCalib_;
-    Nga =ImuCalib_.Cov;
-    NgaWalk = ImuCalib_.CovWalk;
-    Initialize(b_);
-    isPreintegrated=false;
+    Nga.setZero();
+    NgaWalk.setZero();
+        Nga.block<3,3>(0,0)= (imu->GYR_N * imu->GYR_N) * Matrix3d::Identity();
+        Nga.block<3,3>(3,3)= (imu->ACC_N * imu->ACC_N) * Matrix3d::Identity();
+        NgaWalk.block<3,3>(0,0)=(imu->GYR_W * imu->GYR_W) * Matrix3d::Identity();
+        NgaWalk.block<3,3>(3,3)= (imu->ACC_W * imu->ACC_W) * Matrix3d::Identity();
+        Initialize(b_);
+        isPreintegrated=false;
 }
 
     struct integrable

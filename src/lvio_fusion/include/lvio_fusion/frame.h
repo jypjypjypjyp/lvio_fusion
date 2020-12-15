@@ -49,7 +49,6 @@ public:
 Frame::Ptr mpLastKeyFrame;
 
 //IMU
-    Calib calib_;
     // Rotation, translation and camera center
     Matrix3d mRcw;
     Vector3d mtcw;
@@ -75,6 +74,7 @@ Frame::Ptr mpLastKeyFrame;
     Bias GetImuBias();
     Vector3d GetVelocity();
     void SetNewBias(const Bias &b);
+    void SetPose(const Matrix3d Rwb_,const Vector3d  &twb_);
 //NEWADDEND
 private:
     //NOTE: semantic map

@@ -1,7 +1,7 @@
 %YAML:1.0
 
 # flags
-use_imu: 0
+use_imu: 1
 use_lidar: 0
 use_navsat: 0
 use_loop: 0             # 0 for only odometry, 1 for whole system
@@ -47,7 +47,7 @@ gyr_n: 0.01         # gyroscope measurement noise standard deviation.
 acc_w: 0.001        # accelerometer bias random work noise standard deviation.  
 gyr_w: 0.0001       # gyroscope bias random work noise standard deviation.     
 g_norm: 9.81007     # gravity magnitude
-frequency: 1  #NEWADD
+
 
 # body to camera0
 base_to_cam0: !!opencv-matrix

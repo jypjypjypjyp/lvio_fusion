@@ -8,16 +8,21 @@
 namespace lvio_fusion
 {
 const double eps = 1e-4;
+//NEWADD
 class Imu : public Sensor
 {
 public:
     typedef std::shared_ptr<Imu> Ptr;
 
-    Imu(const SE3d &extrinsic) : Sensor(extrinsic) {}
+    Imu(const SE3d &extrinsic, double acc_n, double  acc_w, double gyr_n,double gyr_w,double g_norm) : Sensor(extrinsic),ACC_N(acc_n),ACC_W(acc_w),GYR_N(gyr_n),GYR_W(gyr_w), G(g_norm){}
+
 
     double ACC_N, ACC_W;
     double GYR_N, GYR_W;
+    double G;
+    bool initialized =false;
 };
+//NEWADDEND
 class  imuPoint
 {
 public:
@@ -84,94 +89,6 @@ public:
     Matrix3d deltaR; //integrated rotation
     Matrix3d rightJ; // right jacobian
 };
-
-class Calib
-{
-    template<class Archive>
-    void serializeMatrix(Archive &ar, cv::Mat& mat, const unsigned int version)
-    {
-        int cols, rows, type;
-        bool continuous;
-
-        if (Archive::is_saving::value) {
-            cols = mat.cols; rows = mat.rows; type = mat.type();
-            continuous = mat.isContinuous();
-        }
-
-        ar & cols & rows & type & continuous;
-        if (Archive::is_loading::value)
-            mat.create(rows, cols, type);
-
-        if (continuous) {
-            const unsigned int data_size = rows * cols * mat.elemSize();
-            ar & boost::serialization::make_array(mat.ptr(), data_size);
-        } else {
-            const unsigned int row_size = cols*mat.elemSize();
-            for (int i = 0; i < rows; i++) {
-                ar & boost::serialization::make_array(mat.ptr(i), row_size);
-            }
-        }
-    }
-
-    friend class boost::serialization::access;
-    template<class Archive>
-    void serialize(Archive & ar, const unsigned int version)
-    {
-        serializeMatrix(ar,Tcb,version);
-        serializeMatrix(ar,Tbc,version);
-        serializeMatrix(ar,Cov,version);
-        serializeMatrix(ar,CovWalk,version);
-    }
-
-public:
-    Calib(const Matrix4d &Tbc_, const double &ng, const double &na, const double &ngw, const double &naw,const double g_norm_)
-    {
-       G_norm=g_norm_;
-        Set(Tbc_,ng,na,ngw,naw);
-    }
-    Calib(const Calib &calib)
-    {
-    Tbc = calib.Tbc;
-    Tcb = calib.Tcb;
-    Cov = calib.Cov;
-    CovWalk = calib.CovWalk;
-    G_norm=calib.G_norm;
-    }
-    Calib(){}
-
-    void Set(const Matrix4d &Tbc_, const double &ng, const double &na, const double &ngw, const double &naw)
-    {
-    Tbc = Tbc_;
-    Tcb = Matrix4d::Identity();
-    Tcb.block<3, 3>(0,0) = Tbc.block<3, 3>(0,0).transpose();
-    Tcb.block<3, 1>(0,3) = -Tbc.block<3, 3>(0,0).transpose()*Tbc.block<3, 1>(0,3);
-    Cov = Matrix<double, 6, 6> ::Identity();
-    const double ng2 = ng*ng;
-    const double na2 = na*na;
-    Cov(0,0) = ng2;
-    Cov(1,1) = ng2;
-    Cov(2,2) = ng2;
-    Cov(3,3) = na2;
-    Cov(4,4) = na2;
-    Cov(5,5) = na2;
-    CovWalk = Matrix<double, 6, 6> ::Identity();
-    const double ngw2 = ngw*ngw;
-    const double naw2 = naw*naw;
-    CovWalk(0,0) = ngw2;
-    CovWalk(1,1) = ngw2;
-    CovWalk(2,2) = ngw2;
-    CovWalk(3,3) = naw2;
-    CovWalk(4,4) = naw2;
-    CovWalk(5,5) = naw2;
-    }
-    
-public:
-    Matrix4d Tcb;  //b to camera
-    Matrix4d Tbc;
-    Matrix<double, 6, 6> Cov, CovWalk; // imu协方差， 随机游走协方差
-    double G_norm;
-};
-
 
 } // namespace lvio_fusion
 #endif // lvio_fusion_IMU_H

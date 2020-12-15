@@ -35,7 +35,6 @@ public:
 
     void SetBackend(std::shared_ptr<Backend> backend) { backend_ = backend; }
     //NEWADD
-    void SetCalib(Calib calib){ImuCalib_=calib;}
 
     void UpdateFrameIMU(const double s, const Bias &b, Frame::Ptr pCurrentKeyFrame);
 
@@ -61,7 +60,6 @@ public:
     SE3d relative_i_j;
     //NEWADD
     Frame::Ptr last_key_frame;
-    Calib ImuCalib_;
     std::list<imuPoint> imuData_buf;
     //NEWADDEND
     std::mutex mutex;
@@ -85,7 +83,7 @@ private:
 
 //NEWADD
     void LocalBA();
-
+    //  bool chance;
     // void SetMask();
 
     // int MIN_DIST;
