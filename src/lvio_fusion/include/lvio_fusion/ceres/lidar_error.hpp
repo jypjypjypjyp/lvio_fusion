@@ -29,7 +29,7 @@ public:
         return true;
     }
 
-    static ceres::CostFunction *Create(const Vector3d p, const Vector3d pa, const Vector3d pb, const Vector3d pc)
+    static ceres::CostFunction *Create(Vector3d p, Vector3d pa, Vector3d pb, Vector3d pc)
     {
         return (new ceres::AutoDiffCostFunction<LidarPlaneError, 1, 7>(new LidarPlaneError(p, pa, pb, pc)));
     }
@@ -80,7 +80,7 @@ public:
         return true;
     }
 
-    static ceres::CostFunction *Create(const Vector3d p, const Vector3d pa, const Vector3d pb, const Vector3d pc, const SE3d Twc1, double *rpyxyz, double *weights)
+    static ceres::CostFunction *Create(Vector3d p, Vector3d pa, Vector3d pb, Vector3d pc, SE3d Twc1, double *rpyxyz, double *weights)
     {
         LidarPlaneError origin_error(p, pa, pb, pc);
         return (new ceres::AutoDiffCostFunction<LidarPlaneErrorRPZ, 1, 1, 1, 1>(new LidarPlaneErrorRPZ(origin_error, Twc1, rpyxyz, weights)));
@@ -119,7 +119,7 @@ public:
         return true;
     }
 
-    static ceres::CostFunction *Create(const Vector3d p, const Vector3d pa, const Vector3d pb, const Vector3d pc, const SE3d Twc1, double *rpyxyz, double *weights)
+    static ceres::CostFunction *Create(Vector3d p, Vector3d pa, Vector3d pb, Vector3d pc, SE3d Twc1, double *rpyxyz, double *weights)
     {
         LidarPlaneError origin_error(p, pa, pb, pc);
         return (new ceres::AutoDiffCostFunction<LidarPlaneErrorYXY, 1, 1, 1, 1>(new LidarPlaneErrorYXY(origin_error, Twc1, rpyxyz, weights)));

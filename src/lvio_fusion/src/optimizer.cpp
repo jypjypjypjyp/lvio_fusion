@@ -108,7 +108,7 @@ Atlas PoseGraph::GetSections(double start, double end)
 
 void PoseGraph::BuildProblem(Atlas &sections, adapt::Problem &problem)
 {
-    for (auto pair : sections)
+    for (auto &pair : sections)
     {
         Frames active_kfs = Map::Instance().GetKeyFrames(pair.second.A, pair.second.B);
         ceres::LocalParameterization *local_parameterization = new ceres::ProductParameterization(
@@ -142,24 +142,24 @@ void PoseGraph::BuildProblem(Atlas &sections, adapt::Problem &problem)
 
 void PoseGraph::Optimize(Atlas &sections, adapt::Problem &problem)
 {
-    ceres::Solver::Options options;
-    options.linear_solver_type = ceres::SPARSE_NORMAL_CHOLESKY;
-    options.num_threads = 1;
-    ceres::Solver::Summary summary;
-    ceres::Solve(options, &problem, &summary);
-    LOG(INFO) << summary.FullReport();
+    // ceres::Solver::Options options;
+    // options.linear_solver_type = ceres::SPARSE_NORMAL_CHOLESKY;
+    // options.num_threads = 1;
+    // ceres::Solver::Summary summary;
+    // ceres::Solve(options, &problem, &summary);
+    // LOG(INFO) << summary.FullReport();
 
-//     for (auto pair : sections)
-//     {
-//         Frames forward_kfs = Map::Instance().GetKeyFrames(pair.second.B + epsilon, pair.second.C - epsilon);
-//         SE3d old_pose = pair.second.old_pose;
-//         SE3d new_pose = Map::Instance().keyframes[pair.second.B]->pose;
-//         SE3d transform = old_pose.inverse() * new_pose;
-//         for (auto pair_kf : forward_kfs)
-//         {
-//             pair_kf.second->pose = pair_kf.second->pose * transform;
-//         }
-//     }
+    for (auto &pair : sections)
+    {
+        Frames forward_kfs = Map::Instance().GetKeyFrames(pair.second.B + epsilon, pair.second.C - epsilon);
+        SE3d old_pose = pair.second.old_pose;
+        SE3d new_pose = Map::Instance().keyframes[pair.second.B]->pose;
+        SE3d transform = old_pose.inverse() * new_pose;
+        for (auto pair_kf : forward_kfs)
+        {
+            pair_kf.second->pose = pair_kf.second->pose * transform;
+        }
+    }
 }
 
 } // namespace lvio_fusion

@@ -171,18 +171,18 @@ void Backend::Optimize()
     if (Navsat::Num() && Navsat::Get()->initialized)
     {
         Atlas sections = Navsat::Get()->Optimize((--active_kfs.end())->first);
-        // if (!sections.empty())
-        // {
-        //     auto last_section = (--sections.end())->second;
-        //     Frames forward_kfs = Map::Instance().GetKeyFrames(last_section.C + epsilon, (--active_kfs.end())->first);
-        //     SE3d old_pose = last_section.old_pose;
-        //     SE3d new_pose = Map::Instance().keyframes[last_section.B]->pose;
-        //     SE3d transform = old_pose.inverse() * new_pose;
-        //     for (auto pair_kf : forward_kfs)
-        //     {
-        //         pair_kf.second->pose = pair_kf.second->pose * transform;
-        //     }
-        // }
+        if (!sections.empty())
+        {
+            auto last_section = (--sections.end())->second;
+            Frames forward_kfs = Map::Instance().GetKeyFrames(last_section.C + epsilon, (--active_kfs.end())->first);
+            SE3d old_pose = last_section.old_pose;
+            SE3d new_pose = Map::Instance().keyframes[last_section.B]->pose;
+            SE3d transform = old_pose.inverse() * new_pose;
+            for (auto pair_kf : forward_kfs)
+            {
+                pair_kf.second->pose = pair_kf.second->pose * transform;
+            }
+        }
     }
 
     // reject outliers and clean the map

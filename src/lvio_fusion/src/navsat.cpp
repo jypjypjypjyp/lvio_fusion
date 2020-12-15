@@ -1,6 +1,6 @@
 #include "lvio_fusion/navsat/navsat.h"
-#include "lvio_fusion/ceres/navsat_error.hpp"
 #include "lvio_fusion/ceres/loop_error.hpp"
+#include "lvio_fusion/ceres/navsat_error.hpp"
 #include "lvio_fusion/map.h"
 
 #include <ceres/ceres.h>
@@ -12,25 +12,22 @@ void Navsat::AddPoint(double time, double x, double y, double z)
 {
     raw[time] = Vector3d(x, y, z);
 
-    if (!initialized && UpdateLevel(time))
+    static double head = 0;
+    Frames new_kfs = Map::Instance().GetKeyFrames(head);
+    for (auto pair_kf : new_kfs)
     {
-        Initialize();
+        auto this_iter = raw.lower_bound(pair_kf.first);
+        auto last_iter = --this_iter;
+        if (this_iter == raw.begin() || std::fabs(this_iter->first - pair_kf.first) > 1e-1)
+            continue;
+
+        pair_kf.second->feature_navsat = navsat::Feature::Ptr(new navsat::Feature(this_iter->first));
+        head = pair_kf.first + epsilon;
     }
 
-    if (initialized)
+    if (!initialized && !pose_graph_->GetSections(0, time).empty())
     {
-        static double head = 0;
-        Frames new_kfs = Map::Instance().GetKeyFrames(head);
-        for (auto pair_kf : new_kfs)
-        {
-            auto this_iter = raw.lower_bound(pair_kf.first);
-            auto last_iter = --this_iter;
-            if (this_iter == raw.begin() || std::fabs(this_iter->first - pair_kf.first) > 1e-1)
-                continue;
-
-            pair_kf.second->feature_navsat = navsat::Feature::Ptr(new navsat::Feature(this_iter->first, last_iter->first, A_, B_, C_));
-            head = pair_kf.first + epsilon;
-        }
+        Initialize();
     }
 }
 
@@ -129,12 +126,14 @@ Atlas Navsat::Optimize(double time)
                 double *para = A->pose.data();
                 auto feature = A->feature_navsat;
                 problem.AddParameterBlock(para, SE3d::num_parameters, local_parameterization);
-                ceres::CostFunction *cost_function = NavsatError::Create(GetPoint(feature->time), GetPoint(feature->last), GetPoint(feature->A), GetPoint(feature->B), GetPoint(feature->C), A->weights.navsat);
-                problem.AddResidualBlock(ProblemType::NavsatError, cost_function, navsat_loss_function, para);
+                ceres::CostFunction *cost_function1 = NavsatError::Create(GetPoint(feature->time), GetPoint(feature->last), GetPoint(feature->A), GetPoint(feature->B), GetPoint(feature->C), A->weights.navsat);
+                problem.AddResidualBlock(ProblemType::NavsatError, cost_function1, navsat_loss_function, para);
+                ceres::CostFunction *cost_function2 = PoseError::Create(para, A->weights.pose);
+                problem.AddResidualBlock(ProblemType::Other, cost_function2, NULL, para);
                 A->loop_closure = loop::LoopClosure::Ptr(new loop::LoopClosure());
                 A->loop_closure->frame_old = A;
                 A->loop_closure->relocated = true;
-                LOG(INFO) << A;
+                LOG(INFO) << A->pose.matrix3x4();
             }
 
             {
@@ -146,25 +145,27 @@ Atlas Navsat::Optimize(double time)
                 double *para = B->pose.data();
                 auto feature = B->feature_navsat;
                 problem.AddParameterBlock(para, SE3d::num_parameters, local_parameterization);
-                ceres::CostFunction *cost_function = NavsatError::Create(GetPoint(feature->time), GetPoint(feature->last), GetPoint(feature->A), GetPoint(feature->B), GetPoint(feature->C), B->weights.navsat);
-                problem.AddResidualBlock(ProblemType::NavsatError, cost_function, navsat_loss_function, para);
+                ceres::CostFunction *cost_function1 = NavsatError::Create(GetPoint(feature->time), GetPoint(feature->last), GetPoint(feature->A), GetPoint(feature->B), GetPoint(feature->C), B->weights.navsat);
+                problem.AddResidualBlock(ProblemType::NavsatError, cost_function1, navsat_loss_function, para);
+                ceres::CostFunction *cost_function2 = PoseError::Create(para, B->weights.pose);
+                problem.AddResidualBlock(ProblemType::Other, cost_function2, NULL, para);
 
-                // for (auto pair_kf : BC)
-                // {
-                //     auto frame = pair_kf.second;
-                //     auto position = frame->pose.translation();
-                //     auto feature = frame->feature_navsat;
-                //     if (feature)
-                //     {
-                //         ceres::CostFunction *cost_function = NavsatInitError::Create(GetPoint(feature->time), frame->pose.inverse() * position);
-                //         problem.AddResidualBlock(ProblemType::Other, cost_function, NULL, para);
-                //     }
-                // }
+                for (auto pair_kf : BC)
+                {
+                    auto frame = pair_kf.second;
+                    auto position = frame->pose.translation();
+                    auto feature = frame->feature_navsat;
+                    if (feature)
+                    {
+                        ceres::CostFunction *cost_function = NavsatInitError::Create(GetPoint(feature->time), B->pose.inverse() * position);
+                        problem.AddResidualBlock(ProblemType::Other, cost_function, NULL, para);
+                    }
+                }
 
                 B->loop_closure = loop::LoopClosure::Ptr(new loop::LoopClosure());
                 B->loop_closure->frame_old = B;
                 B->loop_closure->relocated = true;
-                LOG(INFO) << B;
+                LOG(INFO) << B->pose.matrix3x4();
             }
         }
 

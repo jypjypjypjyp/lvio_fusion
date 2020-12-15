@@ -52,7 +52,7 @@ public:
         return true;
     }
 
-    static ceres::CostFunction *Create(const Vector3d p, const Vector3d last, const Vector3d A, const Vector3d B, const Vector3d C, double *weights)
+    static ceres::CostFunction *Create(Vector3d p, Vector3d last, Vector3d A, Vector3d B, Vector3d C, double *weights)
     {
         return (new ceres::AutoDiffCostFunction<NavsatError, 7, 7>(new NavsatError(p, last, A, B, C, weights)));
     }
