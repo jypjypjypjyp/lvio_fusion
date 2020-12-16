@@ -19,7 +19,7 @@ class Frame
 public:
     typedef std::shared_ptr<Frame> Ptr;
 
-      Frame():mTcw(Matrix4d::Zero()),mImuBias(Bias(0,0,0,0,0,0)),mVw(Vector3d::Zero()){ }//NEWADD
+      Frame():ImuBias(Bias(0,0,0,0,0,0)),Vw(Vector3d::Zero()){ }//NEWADD
 
     void AddFeature(visual::Feature::Ptr feature);
 
@@ -45,26 +45,11 @@ public:
     Weights weights;
     SE3d pose;
 
-//NEWADD
-Frame::Ptr mpLastKeyFrame;
-
-//IMU
-    // Rotation, translation and camera center
-    Matrix3d mRcw;
-    Vector3d mtcw;
-    Matrix3d mRwc;
-    Vector3d mOw;
-
-    // IMU linear velocity
-    Vector3d mVw;
-
-    // Camera pose.
-    Matrix4d  mTcw;  //? world to camera 
-
-    Bias mImuBias;
+    //NEWADD
+    Frame::Ptr last_keyframe;
+    Vector3d Vw;// IMU linear velocity
+    Bias ImuBias;
     bool bImu;  //是否经过imu尺度优化
-    // IMU position
-    Vector3d Owb;
 
     Vector3d GetGyroBias();
     Vector3d GetAccBias();
@@ -73,9 +58,9 @@ Frame::Ptr mpLastKeyFrame;
     void SetVelocity(const Vector3d  &Vw_);
     Bias GetImuBias();
     Vector3d GetVelocity();
-    void SetNewBias(const Bias &b);
+    void SetNewBias(const Bias &bias_);
     void SetPose(const Matrix3d Rwb_,const Vector3d  &twb_);
-//NEWADDEND
+    //NEWADDEND
 private:
     //NOTE: semantic map
     LabelType GetLabelType(int x, int y);

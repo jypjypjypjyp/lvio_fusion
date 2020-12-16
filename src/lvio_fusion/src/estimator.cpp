@@ -50,15 +50,15 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
                                    SE3d(q_base_to_cam1, t_base_to_cam1)));
     LOG(INFO) << "Camera 2"
               << " extrinsics: " << t_base_to_cam1.transpose();
-// NEWADD
-//read imu
+    // NEWADD
+    //read imu
         double acc_n= Config::Get<double>("acc_n");
         double gyr_n= Config::Get<double>("gyr_n");
         double acc_w= Config::Get<double>("acc_w");
         double gyr_w= Config::Get<double>("gyr_w");
         double g_norm= Config::Get<double>("g_norm");
 
- //NEWADDEND
+    //NEWADDEND
     // create components and links
     frontend = Frontend::Ptr(new Frontend(
         Config::Get<int>("num_features"),

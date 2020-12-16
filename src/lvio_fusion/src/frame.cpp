@@ -58,24 +58,24 @@ void Frame::UpdateLabel()
 //NEWADD
 void Frame::SetVelocity(const Vector3d  &Vw_)
 {
-    mVw=Vw_;
+    Vw=Vw_;
 }
 void Frame::SetPose(const Matrix3d Rwb_,const Vector3d  &twb_)
 {
     pose=SE3d(Rwb_,twb_);
 }
 
-void Frame::SetNewBias(const Bias &b)
+void Frame::SetNewBias(const Bias &bias_)
 {
-    mImuBias = b;
+    ImuBias = bias_;
     if(preintegration)
-        preintegration->SetNewBias(b);
+        preintegration->SetNewBias(bias_);
 }
 
 
 Vector3d Frame::GetVelocity()
 {
-    return mVw;
+    return Vw;
 }
 
 Matrix3d  Frame::GetImuRotation()
@@ -88,22 +88,22 @@ Matrix3d  Frame::GetImuRotation()
 Vector3d Frame::GetImuPosition()
 {
     Matrix4d Twb_=pose.matrix();  
-    Owb =Twb_.block<3,1>(0,3); //imu position
+    Vector3d Owb =Twb_.block<3,1>(0,3); //imu position
     return  Owb;
 }
 
 Vector3d Frame::GetGyroBias()
 {
-    return mImuBias.linearized_bg;
+    return ImuBias.linearized_bg;
 }
 
 Vector3d Frame::GetAccBias()
 {
-    return mImuBias.linearized_ba;
+    return ImuBias.linearized_ba;
 }
 Bias Frame::GetImuBias()
 {
-    return mImuBias;
+    return ImuBias;
 }
 
 //NEWADDEND

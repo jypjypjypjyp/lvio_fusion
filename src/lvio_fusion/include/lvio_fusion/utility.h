@@ -276,7 +276,6 @@ inline Eigen::Matrix3d InverseRightJacobianSO3(const double x, const double y, c
 {
     const double d2 = x*x+y*y+z*z;
     const double d = sqrt(d2);
-
     Eigen::Matrix3d W;
     W << 0.0, -z, y,z, 0.0, -x,-y,  x, 0.0;
     if(d<1e-5)
@@ -311,16 +310,11 @@ inline Matrix3d ExpSO3(const Vector3d &v)
     return ExpSO3(v(0),v(1),v(2));
 }
 
-inline Matrix3d NormalizeRotation(const Matrix3d &R_)//todo!!
+inline Matrix3d NormalizeRotation(const Matrix3d &R_)
 { 
-    // JacobiSVD<Matrix3d> svd(R_, ComputeThinU | ComputeThinV);
-    // Matrix3d U = svd.matrixU();
-    // Matrix3d V = svd.matrixV();
-    // return U*V;
-        cv::Mat_<double> U,w,Vt;
+    cv::Mat_<double> U,w,Vt;
     cv::Mat_<double> R=(cv::Mat_<double>(3,3)<<R_(0,0),R_(0,1),R_(0,2),R_(1,0),R_(1,1),R_(1,2),R_(2,0),R_(2,1),R_(2,2));
     cv::SVDecomp(R,w,U,Vt,cv::SVD::FULL_UV);
-    // assert(cv::determinant(U*Vt)>0);
     Matrix3d uvt;
     cv::cv2eigen(U*Vt,uvt);
     return uvt;
@@ -342,6 +336,7 @@ inline Eigen::Matrix3d RightJacobianSO3(const double x, const double y, const do
         return Eigen::Matrix3d::Identity() - W*(1.0-cos(d))/d2 + W*W*(d-sin(d))/(d2*d);
     }
 }
+
 inline Eigen::Matrix3d RightJacobianSO3(const Eigen::Vector3d &v)
 {
     return RightJacobianSO3(v[0],v[1],v[2]);

@@ -36,7 +36,7 @@ public:
     void SetBackend(std::shared_ptr<Backend> backend) { backend_ = backend; }
     //NEWADD
 
-    void UpdateFrameIMU(const double s, const Bias &b, Frame::Ptr pCurrentKeyFrame);
+    void UpdateFrameIMU(const double s, const Bias &bias_, Frame::Ptr CurrentKeyFrame);
 
     void PredictVelocity();
     //NEWADDEND
@@ -66,43 +66,15 @@ public:
 
 private:
     bool Track();
-
     bool Reset();
-
     int TrackLastFrame();
-
     bool InitFramePoseByPnP();
-
     void CreateKeyframe(bool need_new_features = true);
-
     bool InitMap();
-
     int DetectNewFeatures();
-
     int TriangulateNewPoints();
+    //void LocalBA();
 
-//NEWADD
-    void LocalBA();
-    //  bool chance;
-    // void SetMask();
-
-    // int MIN_DIST;
-    
-    // int row, col;
-    // cv::Mat imTrack;
-    // cv::Mat mask;
-    // cv::Mat fisheye_mask;
-    // cv::Mat prev_img, cur_img;
-    // std::vector<cv::Point2f> n_pts;
-    // std::vector<cv::Point2f> predict_pts;
-    // std::vector<cv::Point2f> predict_pts_debug;
-    // std::vector<cv::Point2f> prev_pts, cur_pts, cur_right_pts;
-    // std::vector<cv::Point2f> prev_un_pts, cur_un_pts, cur_un_right_pts;
-    // std::vector<cv::Point2f> pts_velocity, right_pts_velocity;
-    // std::vector<int> ids, ids_right;
-    // std::vector<int> track_cnt;
-
-    //NEWADDEND
     // data
     cv::Mat mask_;
     std::weak_ptr<Backend> backend_;

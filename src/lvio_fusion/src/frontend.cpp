@@ -19,16 +19,13 @@ Frontend::Frontend(int num_features, int init, int tracking, int tracking_bad, i
 bool Frontend::AddFrame(lvio_fusion::Frame::Ptr frame)
 {
     std::unique_lock<std::mutex> lock(mutex);
-        //NEWADD
-    if(imu_){
+    //NEWADD
+    if(imu_)
+    {
         if(last_frame)
-        {
             frame->preintegration = imu::Preintegration::Create(last_frame->GetImuBias(),imu_);
-        }
         else
-        {
             frame->preintegration = imu::Preintegration::Create(frame->GetImuBias(),imu_);
-        }
     }
     //NEWADDEND
     current_frame = frame;
@@ -67,10 +64,10 @@ bool Frontend::AddFrame(lvio_fusion::Frame::Ptr frame)
 
 void Frontend::AddImu(double time, Vector3d acc, Vector3d gyr)
 {
-//NEWADD
-  imuPoint imuMeas(acc,gyr,time);
-      static bool first = true;
-     if (current_frame)
+    //NEWADD
+    imuPoint imuMeas(acc,gyr,time);
+    static bool first = true;
+    if (current_frame)
     {
         imuData_buf.push_back(imuMeas);
     }
@@ -81,7 +78,7 @@ bool Frontend::Track()
 {
     
     //NEWADD
-        if(imu_)
+    if(imu_)
     {
         if(last_key_frame&&last_key_frame->preintegration)
         {
@@ -89,11 +86,11 @@ bool Frontend::Track()
             {
                 current_frame->bImu=true;
             }
-
             std::vector<imuPoint> imuDatafromlastkeyframe;
             while(true)
             {
-                if(imuData_buf.empty()){
+                if(imuData_buf.empty())
+                {
                     usleep(500);
                     continue;
                 }
@@ -113,9 +110,6 @@ bool Frontend::Track()
                     break;
                 }
             }
-
-// LOG(INFO)<<"FRAMEID: "<< current_key_frame->id;
-// LOG(INFO)<<"                 pose: "<< current_key_frame->pose.translation().transpose();
             current_frame->preintegration->PreintegrateIMU(imuDatafromlastkeyframe,last_key_frame->time, current_frame->time);
             if(backend_.lock()->initializer_->initialized)
             {
@@ -123,25 +117,24 @@ bool Frontend::Track()
             }
         }
     }
-        if(!imu_||!backend_.lock()->initializer_->initialized)
-        {
-            current_frame->pose = relative_i_j * last_frame_pose_cache_;
-        }
+    if(!imu_||!backend_.lock()->initializer_->initialized)
+    {
+        current_frame->pose = relative_i_j * last_frame_pose_cache_;
+    }
 
-    if(imu_){
-            if(current_key_frame)
+    if(imu_)
+    {
+        if(current_key_frame)
        {
-            current_frame->mpLastKeyFrame = current_key_frame;
+            current_frame->last_keyframe = current_key_frame;
             current_frame->SetNewBias(current_key_frame->GetImuBias());
        }
     }
 
     //NEWADDEND
     TrackLastFrame();
-    //if(!imu_||!backend_.lock()->initializer_->initialized)
-        InitFramePoseByPnP();
-    //LocalBA();//NEWADD
-
+    InitFramePoseByPnP();
+    //LocalBA();
     int inliers = current_frame->features_left.size();
 
     static int num_tries = 0;
@@ -191,15 +184,12 @@ bool Frontend::Track()
 
 void Frontend::CreateKeyframe(bool need_new_features)
 {
-      // //NEWADD
-    if(imu_){    //如果有imu  预积分上一关键帧到当前帧的imu
-        // if(backend_.lock()->initializer_ ->bInitializing)//初始化时不能创建关键帧
-        // {
-        //     return;
-        // }
+    //NEWADD
+    if(imu_)
+    { 
         last_key_frame=current_key_frame;
-        }
-        //NEWADDEND
+    }
+    //NEWADDEND
     // first, add new observations of old points
     for (auto pair_feature : current_frame->features_left)
     {
@@ -215,11 +205,11 @@ void Frontend::CreateKeyframe(bool need_new_features)
     // insert!
     Map::Instance().InsertKeyFrame(current_frame);
     current_key_frame = current_frame;
-//NEWADD
-LOG(INFO)<<"KeyFrame "<<current_key_frame->id<<"    :"<<current_key_frame->pose.translation().transpose();
+    //NEWADD
+    LOG(INFO)<<"KeyFrame "<<current_key_frame->id<<"    :"<<current_key_frame->pose.translation().transpose();
 
 
-//NEWADDEND
+    //NEWADDEND
 
    // LOG(INFO) << "Add a keyframe " << current_frame->id;
     // update backend because we have a new keyframe
@@ -314,7 +304,7 @@ int Frontend::TrackLastFrame()
     mycalcOpticalFlowPyrLK(
         last_frame->image_left, current_frame->image_left, kps_last,
         kps_current, status, error);
-//NEWADDEND
+    //NEWADDEND
     // NOTE: don‘t use, accuracy is very low
     // cv::findFundamentalMat(kps_current, kps_last, cv::FM_RANSAC, 3.0, 0.9, status);
 
@@ -385,7 +375,7 @@ int Frontend::DetectNewFeatures()
     mycalcOpticalFlowPyrLK(
         current_frame->image_left, current_frame->image_right, kps_left,
         kps_right, status, error);
-//NEWADDEND
+    //NEWADDEND
     // triangulate new points
     int num_triangulated_pts = 0;
     int num_good_pts = 0;
@@ -435,7 +425,7 @@ bool Frontend::Reset()
     last_frame=Frame::Create();
     last_key_frame=static_cast<Frame::Ptr>(NULL);
     current_key_frame=static_cast<Frame::Ptr>(NULL);
-//NEWADDEND
+    //NEWADDEND
     LOG(INFO) << "Reset Succeed";
     return true;
 }
@@ -452,16 +442,16 @@ void Frontend::UpdateCache()
     last_frame_pose_cache_ = last_frame->pose;
 }
 //NEWADD
-void Frontend::UpdateFrameIMU(const double s, const Bias &b, Frame::Ptr pCurrentKeyFrame)
+void Frontend::UpdateFrameIMU(const double s, const Bias &bias_, Frame::Ptr CurrentKeyFrame)
 {
-    last_key_frame = pCurrentKeyFrame;
+    last_key_frame = CurrentKeyFrame;
 
-    last_frame->SetNewBias(b);
-    current_frame->SetNewBias(b);
+    last_frame->SetNewBias(bias_);
+    current_frame->SetNewBias(bias_);
 
     Vector3d Gz ;
     Gz << 0, 0, -imu_->G;
-    Gz =backend_.lock()->initializer_->mRwg*Gz;
+    Gz =backend_.lock()->initializer_->Rwg*Gz;
 
     Vector3d twb1;
     Matrix3d Rwb1;
@@ -475,17 +465,17 @@ void Frontend::UpdateFrameIMU(const double s, const Bias &b, Frame::Ptr pCurrent
 
     // Step 2:更新Frame的pose velocity
     // Step 2.1:更新lastFrame的pose velocity
-    if(last_frame->mpLastKeyFrame){
-        if(last_frame->id== last_frame->mpLastKeyFrame->id)
+    if(last_frame->last_keyframe){
+        if(last_frame->id== last_frame->last_keyframe->id)
         {
-            last_frame->SetPose(last_frame->mpLastKeyFrame->GetImuRotation(),last_frame->mpLastKeyFrame->GetImuPosition());
-            last_frame->SetVelocity(last_frame->mpLastKeyFrame->GetVelocity());
+            last_frame->SetPose(last_frame->last_keyframe->GetImuRotation(),last_frame->last_keyframe->GetImuPosition());
+            last_frame->SetVelocity(last_frame->last_keyframe->GetVelocity());
         }
         else
         {
-            twb1= last_frame->mpLastKeyFrame->GetImuPosition();
-            Rwb1 = last_frame->mpLastKeyFrame->GetImuRotation();
-            Vwb1 = last_frame->mpLastKeyFrame->GetVelocity();
+            twb1= last_frame->last_keyframe->GetImuPosition();
+            Rwb1 = last_frame->last_keyframe->GetImuRotation();
+            Vwb1 = last_frame->last_keyframe->GetVelocity();
             t12 = last_frame->preintegration->dT;
             last_frame->SetPose(Rwb1*last_frame->preintegration->GetUpdatedDeltaRotation(),
                                       twb1 + Vwb1*t12 + 0.5f*t12*t12*Gz+ Rwb1*last_frame->preintegration->GetUpdatedDeltaPosition());
@@ -493,11 +483,11 @@ void Frontend::UpdateFrameIMU(const double s, const Bias &b, Frame::Ptr pCurrent
         }
     }
     // Step 2.2:更新currentFrame的pose velocity
-    if (current_frame->preintegration&&current_frame->mpLastKeyFrame)
+    if (current_frame->preintegration&&current_frame->last_keyframe)
     {
-         twb1= current_frame->mpLastKeyFrame->GetImuPosition();
-        Rwb1 = current_frame->mpLastKeyFrame->GetImuRotation();
-        Vwb1 = current_frame->mpLastKeyFrame->GetVelocity();
+         twb1= current_frame->last_keyframe->GetImuPosition();
+        Rwb1 = current_frame->last_keyframe->GetImuRotation();
+        Vwb1 = current_frame->last_keyframe->GetVelocity();
         t12 = current_frame->preintegration->dT;
         current_frame->SetPose(Rwb1*current_frame->preintegration->GetUpdatedDeltaRotation(),
                                       twb1 + Vwb1*t12 + 0.5f*t12*t12*Gz+ Rwb1*current_frame->preintegration->GetUpdatedDeltaPosition());
@@ -511,83 +501,44 @@ void Frontend::PredictVelocity()
     {
         Vector3d Gz ;
         Gz << 0, 0, -imu_->G;
-        Gz =backend_.lock()->initializer_->mRwg*Gz;
+        Gz =backend_.lock()->initializer_->Rwg*Gz;
         double t12=current_frame->preintegration->dT;
          Vector3d twb1=last_key_frame->GetImuPosition();
         Matrix3d Rwb1=last_key_frame->GetImuRotation();
-        Vector3d Vwb1=last_key_frame->mVw;
+        Vector3d Vwb1=last_key_frame->Vw;
 
         Matrix3d Rwb2=NormalizeRotation(Rwb1*current_frame->preintegration->GetDeltaRotation(last_key_frame->GetImuBias()));
         Vector3d twb2=twb1 + Vwb1*t12 + 0.5f*t12*t12*Gz+ Rwb1*current_frame->preintegration->GetDeltaPosition(last_key_frame->GetImuBias());
         Vector3d Vwb2=Vwb1+t12*Gz+Rwb1*current_frame->preintegration->GetDeltaVelocity(current_frame->GetImuBias());
     
-        // LOG(INFO)<<"FRAME ID: "<<current_frame->id;
-        //  LOG(INFO)<<"    dt:"<<t12;
-        //  LOG(INFO)<<"    twb1: "<<twb1[0]<<" "<<twb1[1]<<" "<<twb1[2];
-        // LOG(INFO)<<"    twb2: "<<twb2[0]<<" "<<twb2[1]<<" "<<twb2[2];
-        // LOG(INFO)<<"    Vwb1: "<<last_key_frame->mVw.transpose();
-        // LOG(INFO)<<"    Vwb2: "<<Vwb2[0]<<" "<<Vwb2[1]<<" "<<Vwb2[2];
         current_frame->SetVelocity(Vwb2);
         current_frame->SetPose(Rwb2,twb2);
     }
 }
- void Frontend::LocalBA(){
-     adapt::Problem problem;
-      ceres::LossFunction *loss_function = new ceres::HuberLoss(1.0);
-          ceres::LocalParameterization *local_parameterization = new ceres::ProductParameterization(
-        new ceres::EigenQuaternionParameterization(),
-        new ceres::IdentityParameterization(3));
-      auto para_kf=current_frame->pose.data();
-      problem.AddParameterBlock(para_kf, SE3d::num_parameters, local_parameterization);
-      for (auto pair_feature : current_frame->features_left)
-        {
-            auto feature = pair_feature.second;
-            auto landmark = feature->landmark.lock();
-            auto first_frame = landmark->FirstFrame().lock();
-            ceres::CostFunction *cost_function;
-            cost_function = PoseOnlyReprojectionError::Create(cv2eigen(feature->keypoint),position_cache_[landmark->id], camera_left_, current_frame->weights.visual);
-            problem.AddResidualBlock(ProblemType::PoseOnlyReprojectionError, cost_function, loss_function, para_kf);
-        }
-    ceres::Solver::Options options;
-    options.linear_solver_type = ceres::DENSE_QR;
-    options.max_num_iterations = 1;
-    options.num_threads = 1;
-    ceres::Solver::Summary summary;
-    ceres::Solve(options, &problem, &summary);
- }
-
-// void Frontend::SetMask(){
-//     row=current_frame->image_left.rows;
-//     col=current_frame->image_left.cols;
-//     mask = cv::Mat(row, col, CV_8UC1, cv::Scalar(255));
-
-//     // prefer to keep features that are tracked for long time
-//     std::vector<std::pair<int, std::pair<cv::Point2f, int>>> cnt_pts_id;
-
-//     for (unsigned int i = 0; i < cur_pts.size(); i++)
-//         cnt_pts_id.push_back(std::make_pair(track_cnt[i], std::make_pair(cur_pts[i], ids[i])));
-
-//     sort(cnt_pts_id.begin(), cnt_pts_id.end(), [](const std::pair<int, std::pair<cv::Point2f, int>> &a, const std::pair<int, std::pair<cv::Point2f, int>> &b)
-//          {
-//             return a.first > b.first;
-//          });
-
-//     cur_pts.clear();
-//     ids.clear();
-//     track_cnt.clear();
-
-//     for (auto &it : cnt_pts_id)
-//     {
-//         if (mask.at<uchar>(it.second.first) == 255)
+//  void Frontend::LocalBA(){
+//      adapt::Problem problem;
+//       ceres::LossFunction *loss_function = new ceres::HuberLoss(1.0);
+//           ceres::LocalParameterization *local_parameterization = new ceres::ProductParameterization(
+//         new ceres::EigenQuaternionParameterization(),
+//         new ceres::IdentityParameterization(3));
+//       auto para_kf=current_frame->pose.data();
+//       problem.AddParameterBlock(para_kf, SE3d::num_parameters, local_parameterization);
+//       for (auto pair_feature : current_frame->features_left)
 //         {
-//             cur_pts.push_back(it.second.first);
-//             ids.push_back(it.second.second);
-//             track_cnt.push_back(it.first);
-//             cv::circle(mask, it.second.first, MIN_DIST, 0, -1);
+//             auto feature = pair_feature.second;
+//             auto landmark = feature->landmark.lock();
+//             auto first_frame = landmark->FirstFrame().lock();
+//             ceres::CostFunction *cost_function;
+//             cost_function = PoseOnlyReprojectionError::Create(cv2eigen(feature->keypoint),position_cache_[landmark->id], camera_left_, current_frame->weights.visual);
+//             problem.AddResidualBlock(ProblemType::PoseOnlyReprojectionError, cost_function, loss_function, para_kf);
 //         }
-//     }
+//     ceres::Solver::Options options;
+//     options.linear_solver_type = ceres::DENSE_QR;
+//     options.max_num_iterations = 1;
+//     options.num_threads = 1;
+//     ceres::Solver::Summary summary;
+//     ceres::Solve(options, &problem, &summary);
+//  }
 
-
-// }
 //NEWADDEND
 } // namespace lvio_fusion
