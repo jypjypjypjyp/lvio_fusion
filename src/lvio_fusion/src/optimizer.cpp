@@ -167,7 +167,7 @@ void PoseGraph::Optimize(Atlas &sections, adapt::Problem &problem)
 void PoseGraph::ForwardPropagate(SE3d transfrom, double start_time)
 {
     std::unique_lock<std::mutex> lock(frontend_->mutex);
-    Frames forward_kfs = Map::Instance().GetKeyFrames(start_time + epsilon);
+    Frames forward_kfs = Map::Instance().GetKeyFrames(start_time);
     Frame::Ptr last_frame = frontend_->last_frame;
     if (forward_kfs.find(last_frame->time) == forward_kfs.end())
     {

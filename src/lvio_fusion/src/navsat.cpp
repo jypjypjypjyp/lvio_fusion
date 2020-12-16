@@ -96,7 +96,7 @@ double Navsat::Optimize(double time)
         Vector3d now = Map::Instance().keyframes[time]->pose.translation();
         double height = vectors_height(A - B, A - now);
         if(height < 20)
-            return sections.begin()->second.A;
+            break;
 
         SE3d old_pose = frame_A->pose;
         // optimize point A of sections
@@ -107,17 +107,6 @@ double Navsat::Optimize(double time)
 
         double *para = frame_A->pose.data();
         problem.AddParameterBlock(para, SE3d::num_parameters, local_parameterization);
-        // ceres::CostFunction *cost_function = PoseError::Create(para, frame_A->weights.pose);
-        // problem.AddResidualBlock(ProblemType::PoseError, cost_function, NULL, para);
-        if (frame_A->feature_navsat)
-        {
-            auto p = GetPoint(frame_A->feature_navsat->time);
-            auto A = GetAroundPoint(A_);
-            auto B = GetAroundPoint(B_);
-            auto C = GetAroundPoint(C_);
-            ceres::CostFunction *cost_function = NavsatError::Create(p, A, B, C, frame_A->weights.navsat);
-            problem.AddResidualBlock(ProblemType::NavsatError, cost_function, NULL, para);
-        }
 
         for (auto pair_kf : active_kfs)
         {
@@ -150,7 +139,7 @@ double Navsat::Optimize(double time)
     }
 
     // forward propagate
-    pose_graph_->ForwardPropagate(transform, (--sections.end())->first);
+    pose_graph_->ForwardPropagate(transform, head);
     return sections.begin()->second.A;
 }
 
