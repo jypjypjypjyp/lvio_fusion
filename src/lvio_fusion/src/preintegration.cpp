@@ -66,13 +66,12 @@ void Preintegration::IntegrateNewMeasurement(const Vector3d &acceleration, const
     Matrix<double,9,6> B =MatrixXd::Zero(9,6);
     // 矫正加速度、角速度
     Matrix<double,3,1> acc ;
-    acc<< acceleration[0]-first_bias.linearized_ba[0],acceleration[1]-first_bias.linearized_ba[1], acceleration[2]-first_bias.linearized_ba[2];
+    acc<< acceleration[0]-b.linearized_ba[0],acceleration[1]-b.linearized_ba[1], acceleration[2]-b.linearized_ba[2];
     Matrix<double,3,1> accW;
-    accW<< angVel[0]-first_bias.linearized_bg[0], angVel[1]-first_bias.linearized_bg[1], angVel[2]-first_bias.linearized_bg[2];
+    accW<< angVel[0]-b.linearized_bg[0], angVel[1]-b.linearized_bg[1], angVel[2]-b.linearized_bg[2];
     avgA = (dT*avgA + dR*acc*dt)/(dT+dt);
     avgW = (dT*avgW + accW*dt)/(dT+dt);
 
-    // 更新dP，dV
     dP = dP + dV*dt + 0.5f*dR*acc*dt*dt;
     dV = dV + dR*acc*dt;
     // 计算delta_x 的线性矩阵 eq.(62)
@@ -85,13 +84,13 @@ void Preintegration::IntegrateNewMeasurement(const Vector3d &acceleration, const
     A.block<3,3>(6,3) = Matrix3d::Identity()*dt;
     B.block<3,3>(3,3)= dR*dt;
     B.block<3,3>(6,3) = 0.5f*dR*dt*dt;
-    // 更新bias雅克比 APPENDIX-A
+    //更新bias雅克比 
     JPa = JPa + JVa*dt -0.5f*dR*dt*dt;
     JPg = JPg + JVg*dt -0.5f*dR*dt*dt*Wacc*JRg;
     JVa = JVa - dR*dt;
     JVg = JVg - dR*dt*Wacc*JRg;
 
-    IntegratedRotation dRi( angVel,first_bias,dt);
+    IntegratedRotation dRi( angVel,b,dt);
     dR = NormalizeRotation(dR*dRi.deltaR);
 
     A.block<3,3>(0,0) = dRi.deltaR.transpose();
@@ -104,7 +103,7 @@ void Preintegration::IntegrateNewMeasurement(const Vector3d &acceleration, const
 
     dT += dt;
 }
-void Preintegration::Initialize(const Bias &bias_)
+void Preintegration::Initialize(const Bias &b_)
 {
     // R,V,P delta状态
     dR = Matrix3d::Identity();
@@ -117,10 +116,9 @@ void Preintegration::Initialize(const Bias &bias_)
     JPg = Matrix3d::Zero();
     JPa = Matrix3d::Zero();
     C =  Matrix<double,15,15>::Zero();
-    // ba bg
     delta_bias =  Matrix<double,6,1>::Zero();
-    first_bias=bias_;
-    current_bias=bias_;
+    b=b_;
+    bu=b_;
     avgA = Vector3d::Zero();
     avgW = Vector3d::Zero();
     dT=0;
@@ -141,55 +139,52 @@ Vector3d Preintegration::GetUpdatedDeltaPosition()
 }
 void Preintegration::SetNewBias(const Bias &bu_)
 {
-    current_bias = bu_;
+    bu = bu_;
 
-    delta_bias(0) = bu_.linearized_bg[0]-first_bias.linearized_bg[0];
-    delta_bias(1) = bu_.linearized_bg[1]-first_bias.linearized_bg[1];
-    delta_bias(2) = bu_.linearized_bg[2]-first_bias.linearized_bg[2];
-    delta_bias(3) = bu_.linearized_ba[0]-first_bias.linearized_ba[0];
-    delta_bias(4) = bu_.linearized_bg[1]-first_bias.linearized_bg[1];
-    delta_bias(5) = bu_.linearized_bg[2]-first_bias.linearized_bg[2];
+    delta_bias(0) = bu_.linearized_bg[0]-b.linearized_bg[0];
+    delta_bias(1) = bu_.linearized_bg[1]-b.linearized_bg[1];
+    delta_bias(2) = bu_.linearized_bg[2]-b.linearized_bg[2];
+    delta_bias(3) = bu_.linearized_ba[0]-b.linearized_ba[0];
+    delta_bias(4) = bu_.linearized_bg[1]-b.linearized_bg[1];
+    delta_bias(5) = bu_.linearized_bg[2]-b.linearized_bg[2];
 }
 
 // 过去更新bias后的delta_R
-Matrix3d Preintegration::GetDeltaRotation(const Bias &bias_)
+Matrix3d Preintegration::GetDeltaRotation(const Bias &b_)
 {
     Vector3d dbg;
-    dbg << bias_.linearized_bg[0]-first_bias.linearized_bg[0],bias_.linearized_bg[1]-first_bias.linearized_bg[1],bias_.linearized_bg[2]-first_bias.linearized_bg[2];
+    dbg << b_.linearized_bg[0]-b.linearized_bg[0],b_.linearized_bg[1]-b.linearized_bg[1],b_.linearized_bg[2]-b.linearized_bg[2];
     return NormalizeRotation(dR*ExpSO3(JRg*dbg));
 }
 
-Vector3d Preintegration::GetDeltaVelocity(const Bias &bias_)
+Vector3d Preintegration::GetDeltaVelocity(const Bias &b_)
 {
 
     Vector3d dbg ;
-    dbg << bias_.linearized_bg[0]-first_bias.linearized_bg[0],bias_.linearized_bg[1]-first_bias.linearized_bg[1],bias_.linearized_bg[2]-first_bias.linearized_bg[2];
+    dbg << b_.linearized_bg[0]-b.linearized_bg[0],b_.linearized_bg[1]-b.linearized_bg[1],b_.linearized_bg[2]-b.linearized_bg[2];
     Vector3d dba;
-    dba << bias_.linearized_ba[0]-first_bias.linearized_ba[0],bias_.linearized_ba[1]-first_bias.linearized_ba[1],bias_.linearized_ba[2]-first_bias.linearized_ba[2];
-    //LOG(INFO)<<"        bias_ "<<bias_.linearized_bg.transpose();
-    //LOG(INFO)<<"        first_bias "<<first_bias.linearized_bg.transpose();
+    dba << b_.linearized_ba[0]-b.linearized_ba[0],b_.linearized_ba[1]-b.linearized_ba[1],b_.linearized_ba[2]-b.linearized_ba[2];
     return dV + JVg*dbg + JVa*dba;
 }
 
-Vector3d Preintegration::GetDeltaPosition(const Bias &bias_)
+Vector3d Preintegration::GetDeltaPosition(const Bias &b_)
 {
     Vector3d dbg ;
-    dbg <<bias_.linearized_bg[0]-first_bias.linearized_bg[0],bias_.linearized_bg[1]-first_bias.linearized_bg[1],bias_.linearized_bg[2]-first_bias.linearized_bg[2];
+    dbg <<b_.linearized_bg[0]-b.linearized_bg[0],b_.linearized_bg[1]-b.linearized_bg[1],b_.linearized_bg[2]-b.linearized_bg[2];
     Vector3d dba;
-    dba <<bias_.linearized_ba[0]-first_bias.linearized_ba[0],bias_.linearized_ba[1]-first_bias.linearized_ba[1],bias_.linearized_ba[2]-first_bias.linearized_ba[2];
+    dba <<b_.linearized_ba[0]-b.linearized_ba[0],b_.linearized_ba[1]-b.linearized_ba[1],b_.linearized_ba[2]-b.linearized_ba[2];
     return dP + JPg*dbg + JPa*dba;
 }
 
-Bias Preintegration::GetDeltaBias(const Bias &bias_)
+Bias Preintegration::GetDeltaBias(const Bias &b_)
 {
-    return Bias(bias_.linearized_ba[0]-first_bias.linearized_ba[0],bias_.linearized_ba[1]-first_bias.linearized_ba[1],bias_.linearized_ba[2]-first_bias.linearized_ba[2] ,bias_.linearized_bg[0]-first_bias.linearized_bg[0],bias_.linearized_bg[1]-first_bias.linearized_bg[1],bias_.linearized_bg[2]-first_bias.linearized_bg[2]);
+    return Bias(b_.linearized_ba[0]-b.linearized_ba[0],b_.linearized_ba[1]-b.linearized_ba[1],b_.linearized_ba[2]-b.linearized_ba[2] ,b_.linearized_bg[0]-b.linearized_bg[0],b_.linearized_bg[1]-b.linearized_bg[1],b_.linearized_bg[2]-b.linearized_bg[2]);
 }
-
 
 void Preintegration::Reintegrate()
 {
     std::vector<integrable> aux = mvMeasurements;
-    Initialize(current_bias);
+    Initialize(bu);
     for(size_t i=0;i<aux.size();i++)
         IntegrateNewMeasurement(aux[i].a,aux[i].w,aux[i].t);
 }

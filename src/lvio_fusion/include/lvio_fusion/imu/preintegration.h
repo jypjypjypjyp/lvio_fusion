@@ -25,7 +25,6 @@ public:
         Preintegration::Ptr new_preintegration(new Preintegration(bias,imu));
         return new_preintegration;
     }
-
     void Appendimu(imuPoint imuMeasure)
     {
         imuData_buf.push_back(imuMeasure);
@@ -33,38 +32,41 @@ public:
 
     void PreintegrateIMU(std::vector<imuPoint> measureFromLastFrame,double last_frame_time,double current_frame_time);
     void IntegrateNewMeasurement(const Vector3d &acceleration, const Vector3d  &angVel, const double &dt);
-    void Initialize(const Bias &bias_);
+    void Initialize(const Bias &b_);
     Vector3d GetUpdatedDeltaVelocity();
     void SetNewBias(const Bias &bu_);
     Matrix3d GetUpdatedDeltaRotation();
     Vector3d GetUpdatedDeltaPosition();
-    Matrix3d GetDeltaRotation(const Bias &bias_);
-    Vector3d GetDeltaVelocity(const Bias &bias_);
-    Vector3d  GetDeltaPosition(const Bias &bias_);
-    Bias GetDeltaBias(const Bias &bias_);
+    Matrix3d GetDeltaRotation(const Bias &b_);
+    Vector3d GetDeltaVelocity(const Bias &b_);
+    Vector3d  GetDeltaPosition(const Bias &b_);
+    Bias GetDeltaBias(const Bias &b_);
     void Reintegrate();
 
     std::vector<imuPoint> imuData_buf;
     std::vector<double> dt_buf;
     std::vector<Vector3d> acc_buf;
     std::vector<Vector3d> gyr_buf;
+
+
+
     double dT;
     Matrix<double,15,15> C;   //cov
     Matrix<double, 6, 6> Nga, NgaWalk;
-    Bias first_bias;
+    Bias b;
     Matrix3d dR;
     Vector3d dV, dP;
     Matrix3d JRg, JVg, JVa, JPg, JPa; 
     Vector3d avgA;
     Vector3d avgW;
-    Bias current_bias;
+    Bias bu;
     Matrix<double,6,1> delta_bias;
 
     bool isPreintegrated;
 private:
     Preintegration(){Initialize(Bias(0,0,0,0,0,0));};
 
-    Preintegration(const Bias &bias_,const Imu::Ptr imu)
+    Preintegration(const Bias &b_,const Imu::Ptr imu)
     {
         Nga.setZero();
         NgaWalk.setZero();
@@ -72,7 +74,7 @@ private:
         Nga.block<3,3>(3,3)= (imu->ACC_N * imu->ACC_N) * Matrix3d::Identity();
         NgaWalk.block<3,3>(0,0)=(imu->GYR_W * imu->GYR_W) * Matrix3d::Identity();
         NgaWalk.block<3,3>(3,3)= (imu->ACC_W * imu->ACC_W) * Matrix3d::Identity();
-        Initialize(bias_);
+        Initialize(b_);
         isPreintegrated=false;
     }
 
