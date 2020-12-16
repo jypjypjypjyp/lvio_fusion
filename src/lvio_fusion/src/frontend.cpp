@@ -133,7 +133,8 @@ bool Frontend::Track()
 
     //NEWADDEND
     TrackLastFrame();
-    InitFramePoseByPnP();
+    //if(!imu_||!backend_.lock()->initializer_->initialized)
+        InitFramePoseByPnP();
     //LocalBA();
     int inliers = current_frame->features_left.size();
 
@@ -207,12 +208,8 @@ void Frontend::CreateKeyframe(bool need_new_features)
     current_key_frame = current_frame;
     //NEWADD
     LOG(INFO)<<"KeyFrame "<<current_key_frame->id<<"    :"<<current_key_frame->pose.translation().transpose();
-
-
     //NEWADDEND
 
-   // LOG(INFO) << "Add a keyframe " << current_frame->id;
-    // update backend because we have a new keyframe
     backend_.lock()->UpdateMap();
 }
 

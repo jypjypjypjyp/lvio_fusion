@@ -33,7 +33,6 @@ void InertialOptimization(Eigen::Matrix3d &Rwg, double &scale, Eigen::Vector3d &
     for(Frames::iterator iter = key_frames.begin(); iter != key_frames.end(); iter++)
     {
         current_frame=iter->second;
-        double timestamp=iter->first;
         if (!current_frame->bImu||!current_frame->last_keyframe||!current_frame->preintegration->isPreintegrated)
         {
             last_frame=current_frame;

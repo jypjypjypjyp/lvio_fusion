@@ -67,8 +67,7 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
         Config::Get<int>("num_features_tracking_bad"),
         Config::Get<int>("num_features_needed_for_keyframe")));
 
-    backend = Backend::Ptr(new Backend(
-        Config::Get<double>("delay")));
+    backend = Backend::Ptr(new Backend(Config::Get<double>("delay")));
 
     frontend->SetBackend(backend);
     frontend->SetCameras(camera1, camera2);
@@ -95,7 +94,7 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
 
     if (use_imu)
     {
-    Imu::Ptr imu(new Imu(SE3d(q_base_to_cam0, t_base_to_cam0),acc_n,acc_w,gyr_n,gyr_w,g_norm));//NEWADD
+        Imu::Ptr imu(new Imu(SE3d(q_base_to_cam0, t_base_to_cam0),acc_n,acc_w,gyr_n,gyr_w,g_norm));//NEWADD
 
         initializer = Initializer::Ptr(new Initializer);
         //NEWADD
