@@ -178,7 +178,11 @@ Vector3d Preintegration::GetDeltaPosition(const Bias &b_)
 
 Bias Preintegration::GetDeltaBias(const Bias &b_)
 {
-    return Bias(b_.linearized_ba[0]-b.linearized_ba[0],b_.linearized_ba[1]-b.linearized_ba[1],b_.linearized_ba[2]-b.linearized_ba[2] ,b_.linearized_bg[0]-b.linearized_bg[0],b_.linearized_bg[1]-b.linearized_bg[1],b_.linearized_bg[2]-b.linearized_bg[2]);
+    Vector3d dbg ;
+    dbg <<b_.linearized_bg[0]-b.linearized_bg[0],b_.linearized_bg[1]-b.linearized_bg[1],b_.linearized_bg[2]-b.linearized_bg[2];
+    Vector3d dba;
+    dba <<b_.linearized_ba[0]-b.linearized_ba[0],b_.linearized_ba[1]-b.linearized_ba[1],b_.linearized_ba[2]-b.linearized_ba[2];
+    return Bias(dba,dbg);
 }
 
 void Preintegration::Reintegrate()

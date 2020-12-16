@@ -149,29 +149,8 @@ void FullInertialBA(Matrix3d Rwg, double priorG = 1, double priorA=1e9)
     }
 }
 
-void  Initializer::InitializeIMU(bool bFIBA)
+void  Initializer::estimate_Vel_Rwg(std::vector< Frame::Ptr > Key_frames)
 {
-    double priorA=1e6;
-    double priorG=1e2;
-    double minTime=1.0;  // 初始化需要的最小时间间隔
-    // 按时间顺序收集初始化imu使用的KF
-    std::list< Frame::Ptr > KeyFrames_list;
-    Frames keyframes=Map::Instance().GetAllKeyFrames();
-    Frames::reverse_iterator   iter;
-    for(iter = keyframes.rbegin(); iter != keyframes.rend(); iter++)
-    {
-        KeyFrames_list.push_front(iter->second);
-    }
-    std::vector< Frame::Ptr > Key_frames(KeyFrames_list.begin(),KeyFrames_list.end());
-    unsigned long last_initialized_id=Key_frames.back()->id;
-    // imu计算初始时间
-    FirstTs=Key_frames.front()->time;
-    if(Map::Instance().current_frame->time-FirstTs<minTime)
-        return;
-
-    const int N = Key_frames.size();  // 待处理的关键帧数目
-
-    // 估计KF速度和重力方向
     if (!initialized)
     {
         Vector3d dirG = Vector3d::Zero();
@@ -204,7 +183,6 @@ void  Initializer::InitializeIMU(bool bFIBA)
         // 计算mRwg，与-Z旋转偏差
         Vector3d vzg = v*ang/nv;
         Rwg = ExpSO3(vzg);
-
         Frame::Ptr current_frame=(*(--Key_frames.end()));
         Vector3d Gz ;
         Gz << 0, 0, -9.81007;
@@ -220,9 +198,36 @@ void  Initializer::InitializeIMU(bool bFIBA)
         bg = Map::Instance().current_frame->GetGyroBias();
         ba =Map::Instance().current_frame->GetAccBias();
     }
- 
-    Scale=1.0;
+}
 
+
+void  Initializer::InitializeIMU(bool bFIBA)
+{
+    double priorA=1e6;
+    double priorG=1e2;
+    double minTime=1.0;  // 初始化需要的最小时间间隔
+    // 按时间顺序收集初始化imu使用的KF
+    std::list< Frame::Ptr > KeyFrames_list;
+    Frames keyframes=Map::Instance().GetAllKeyFrames();
+    Frames::reverse_iterator   iter;
+    for(iter = keyframes.rbegin(); iter != keyframes.rend(); iter++)
+    {
+        KeyFrames_list.push_front(iter->second);
+    }
+    std::vector< Frame::Ptr > Key_frames(KeyFrames_list.begin(),KeyFrames_list.end());
+    unsigned long last_initialized_id=Key_frames.back()->id;
+    // imu计算初始时间
+    FirstTs=Key_frames.front()->time;
+    if(Map::Instance().current_frame->time-FirstTs<minTime)
+        return;
+
+    const int N = Key_frames.size();  // 待处理的关键帧数目
+
+    // 估计KF速度和重力方向
+    estimate_Vel_Rwg(Key_frames);
+ 
+    // KF速度和重力方向优化
+    Scale=1.0;
     InertialOptimization(Rwg, Scale, bg, ba, priorG, priorA);
     if (Scale<1e-1)
     {
@@ -235,6 +240,7 @@ void  Initializer::InitializeIMU(bool bFIBA)
         Frame::Ptr pKF2 = Key_frames[i];
         pKF2->bImu = true;
     }
+
     // 进行完全惯性优化
     FullInertialBA(Rwg, priorG, priorA);
     frontend_.lock()->UpdateFrameIMU(1.0,Key_frames[last_initialized_id-1]->GetImuBias(),frontend_.lock()->current_key_frame);

@@ -15,6 +15,7 @@ class Initializer
 public:
     typedef std::shared_ptr<Initializer> Ptr;
 
+    void  estimate_Vel_Rwg(std::vector< Frame::Ptr > Key_frames);
     void InitializeIMU( bool bFIBA);
     void SetFrontend(std::shared_ptr<Frontend>  frontend) { frontend_ = frontend; }
     std::weak_ptr<Frontend> frontend_;

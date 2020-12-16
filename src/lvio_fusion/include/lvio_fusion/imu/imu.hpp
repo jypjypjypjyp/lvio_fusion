@@ -43,6 +43,7 @@ class Bias
 {
 public:
     Bias():linearized_ba(Vector3d::Zero()),linearized_bg(Vector3d::Zero()){}
+    Bias(Vector3d linearized_ba_,Vector3d linearized_bg_ ):linearized_ba(linearized_ba_),linearized_bg(linearized_bg_){}
     Bias(double b_acc_x, double b_acc_y,double b_acc_z,
             double b_ang_vel_x, double b_ang_vel_y, double b_ang_vel_z)
             {
