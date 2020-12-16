@@ -60,21 +60,30 @@ void publish_odometry(Estimator::Ptr estimator, double time)
 void publish_navsat(Estimator::Ptr estimator, double time)
 {
     auto navsat = Navsat::Get();
-    navsat_path.poses.clear();
-    for (auto pair : navsat->raw)
+    static double head = 0;
+    static int i = 0;
+    if (navsat->initialized)
     {
-        geometry_msgs::PoseStamped pose_stamped;
-        Vector3d point = navsat->GetPoint(pair.first);
-        pose_stamped.header.stamp = ros::Time(pair.first);
-        pose_stamped.header.frame_id = "world";
-        pose_stamped.pose.position.x = point.x();
-        pose_stamped.pose.position.y = point.y();
-        pose_stamped.pose.position.z = point.z();
-        navsat_path.poses.push_back(pose_stamped);
+        auto iter = navsat->raw.lower_bound(head);
+        while (++iter != navsat->raw.end())
+        {
+            if (++i % 100 == 0)
+            {
+                geometry_msgs::PoseStamped pose_stamped;
+                Vector3d point = navsat->GetPoint(iter->first);
+                pose_stamped.header.stamp = ros::Time(iter->first);
+                pose_stamped.header.frame_id = "world";
+                pose_stamped.pose.position.x = point.x();
+                pose_stamped.pose.position.y = point.y();
+                pose_stamped.pose.position.z = point.z();
+                navsat_path.poses.push_back(pose_stamped);
+            }
+        }
+        head = (--iter)->first;
+        navsat_path.header.stamp = ros::Time(time);
+        navsat_path.header.frame_id = "world";
+        pub_navsat.publish(navsat_path);
     }
-    navsat_path.header.stamp = ros::Time(time);
-    navsat_path.header.frame_id = "world";
-    pub_navsat.publish(navsat_path);
 }
 
 void publish_tf(Estimator::Ptr estimator, double time)

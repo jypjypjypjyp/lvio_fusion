@@ -67,7 +67,7 @@ void PoseGraph::UpdateSections(double time)
 
     static Frame::Ptr last_frame;
     static Vector3d last_heading(1, 0, 0);
-    static bool turning = false;
+    static bool turning = true;
     static Section current_section;
     for (auto pair_kf : active_kfs)
     {
@@ -75,21 +75,20 @@ void PoseGraph::UpdateSections(double time)
         if (last_frame && pair_kf.second->feature_navsat)
         {
             double degree = vectors_degree_angle(last_heading, heading);
-            if (!turning && degree >= 10)
+            if (turning && degree < 10)
             {
                 if (current_section.A != 0)
                 {
                     current_section.C = pair_kf.first;
                     sections_[current_section.C] = current_section;
-                    LOG(INFO) << "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!";
                 }
                 current_section.A = pair_kf.first;
-                turning = true;
+                turning = false;
             }
-            else if (turning && degree < 10)
+            else if (!turning && degree >= 10)
             {
                 current_section.B = pair_kf.first;
-                turning = false;
+                turning = true;
             }
         }
         last_frame = pair_kf.second;
@@ -136,7 +135,6 @@ void PoseGraph::BuildProblem(Atlas &sections, adapt::Problem &problem)
             last_frame = frame;
         }
         problem.SetParameterBlockConstant(last_frame->pose.data());
-        pair.second.old_pose = last_frame->pose;
     }
 }
 
@@ -148,17 +146,32 @@ void PoseGraph::Optimize(Atlas &sections, adapt::Problem &problem)
     // ceres::Solver::Summary summary;
     // ceres::Solve(options, &problem, &summary);
     // LOG(INFO) << summary.FullReport();
+}
 
-    for (auto &pair : sections)
+// end_time = 0 means full forward propagate
+void PoseGraph::ForwardPropagate(SE3d transfrom, double start_time)
+{
+    std::unique_lock<std::mutex> lock(frontend_->mutex);
+    Frames forward_kfs = Map::Instance().GetKeyFrames(start_time + epsilon);
+    Frame::Ptr last_frame = frontend_->last_frame;
+    if (forward_kfs.find(last_frame->time) == forward_kfs.end())
     {
-        Frames forward_kfs = Map::Instance().GetKeyFrames(pair.second.B + epsilon, pair.second.C - epsilon);
-        SE3d old_pose = pair.second.old_pose;
-        SE3d new_pose = Map::Instance().keyframes[pair.second.B]->pose;
-        SE3d transform = old_pose.inverse() * new_pose;
-        for (auto pair_kf : forward_kfs)
-        {
-            pair_kf.second->pose = pair_kf.second->pose * transform;
-        }
+        forward_kfs[last_frame->time] = last_frame;
+    }
+
+    for (auto pair_kf : forward_kfs)
+    {
+        pair_kf.second->pose = pair_kf.second->pose * transfrom;
+    }
+
+    frontend_->UpdateCache();
+}
+
+void PoseGraph::ForwardPropagate(SE3d transfrom, const Frames &forward_kfs)
+{
+    for (auto pair_kf : forward_kfs)
+    {
+        pair_kf.second->pose = pair_kf.second->pose * transfrom;
     }
 }
 

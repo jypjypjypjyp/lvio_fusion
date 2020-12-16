@@ -68,27 +68,22 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
 
     backend->SetFrontend(frontend);
 
+    pose_graph = PoseGraph::Ptr(new PoseGraph);
+    pose_graph->SetFrontend(frontend);
+
     if (use_loop)
     {
         detector = LoopDetector::Ptr(new LoopDetector(
             Config::Get<std::string>("voc_path")));
         detector->SetFrontend(frontend);
         detector->SetBackend(backend);
-        
-        pose_graph = PoseGraph::Ptr(new PoseGraph);
         detector->SetPoseGraph(pose_graph);
     }
 
     if (use_navsat)
     {
         Navsat::Create();
-
-        if(!pose_graph)
-        {
-            pose_graph = PoseGraph::Ptr(new PoseGraph);
-        }
         Navsat::Get()->SetPoseGraph(pose_graph);
-
         flags += Flag::GNSS;
     }
 

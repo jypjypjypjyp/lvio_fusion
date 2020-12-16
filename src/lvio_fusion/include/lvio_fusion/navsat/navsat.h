@@ -36,7 +36,7 @@ public:
 
     Vector3d GetPoint(double time);
 
-    Atlas Optimize(double time);
+    double Optimize(double time);
 
     bool initialized = false;
     std::map<double, Vector3d> raw;
@@ -46,11 +46,10 @@ private:
     Navsat(const Navsat &);
     Navsat &operator=(const Navsat &);
 
-    bool UpdateLevel(double time);
-
     void Initialize();
 
     PoseGraph::Ptr pose_graph_;
+
     double A_, B_, C_; // three points on the level
     static std::vector<Navsat::Ptr> devices_;
 };

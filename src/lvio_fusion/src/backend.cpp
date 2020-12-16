@@ -170,17 +170,13 @@ void Backend::Optimize()
 
     if (Navsat::Num() && Navsat::Get()->initialized)
     {
-        Atlas sections = Navsat::Get()->Optimize((--active_kfs.end())->first);
-        if (!sections.empty())
+        double start_time = Navsat::Get()->Optimize((--active_kfs.end())->first);
+        if (start_time && Lidar::Num())
         {
-            auto last_section = (--sections.end())->second;
-            Frames forward_kfs = Map::Instance().GetKeyFrames(last_section.C + epsilon, (--active_kfs.end())->first);
-            SE3d old_pose = last_section.old_pose;
-            SE3d new_pose = Map::Instance().keyframes[last_section.B]->pose;
-            SE3d transform = old_pose.inverse() * new_pose;
-            for (auto pair_kf : forward_kfs)
+            Frames mapping_kfs = Map::Instance().GetKeyFrames(start_time);
+            for (auto pair : mapping_kfs)
             {
-                pair_kf.second->pose = pair_kf.second->pose * transform;
+                mapping_->ToWorld(pair.second);
             }
         }
     }

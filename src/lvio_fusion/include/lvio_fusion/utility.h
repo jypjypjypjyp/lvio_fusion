@@ -262,6 +262,11 @@ inline double vectors_degree_angle(Vector3d v1, Vector3d v2)
     return radian_angle * 180 / M_PI;
 }
 
+inline double vectors_height(Vector3d v1, Vector3d v2)
+{
+    return v1.cross(v2).norm() / v1.norm();
+}
+
 } // namespace lvio_fusion
 
 #endif // lvio_fusion_UTILITY_H
