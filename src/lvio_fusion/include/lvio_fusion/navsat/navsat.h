@@ -36,6 +36,8 @@ public:
 
     Vector3d GetPoint(double time);
 
+    Vector3d GetAroundPoint(double time);
+
     double Optimize(double time);
 
     bool initialized = false;
@@ -50,7 +52,7 @@ private:
 
     PoseGraph::Ptr pose_graph_;
 
-    double A_, B_, C_; // three points on the level
+    double A_, B_, C_; // three points on the ground level
     static std::vector<Navsat::Ptr> devices_;
 };
 

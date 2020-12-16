@@ -62,6 +62,8 @@ std::map<double, SE3d> PoseGraph::GetActiveSubMaps(Frames &active_kfs, double &o
 void PoseGraph::UpdateSections(double time)
 {
     static double head = 0;
+    if (time <= head)
+        return;
     Frames active_kfs = Map::Instance().GetKeyFrames(head, time);
     head = time + epsilon;
 
@@ -77,7 +79,7 @@ void PoseGraph::UpdateSections(double time)
             double degree = vectors_degree_angle(last_heading, heading);
             if (!turning && degree >= 5)
             {
-                if (current_section.A != 0)
+                if (current_section.A != 0 && pair_kf.first - current_section.A > 10)
                 {
                     current_section.C = pair_kf.first;
                     sections_[current_section.C] = current_section;
@@ -85,10 +87,24 @@ void PoseGraph::UpdateSections(double time)
                 current_section.A = pair_kf.first;
                 turning = true;
             }
-            else if (turning && degree < 5)
+            else if (turning)
             {
-                current_section.B = pair_kf.first;
-                turning = false;
+                if (pair_kf.first - current_section.A > 20)
+                {
+                    current_section.B = pair_kf.first;
+                    if (current_section.A != 0)
+                    {
+                        current_section.C = pair_kf.first;
+                        sections_[current_section.C] = current_section;
+                    }
+                    current_section.A = pair_kf.first;
+                    turning = true;
+                }
+                else if (degree < 1)
+                {
+                    current_section.B = pair_kf.first;
+                    turning = false;
+                }
             }
         }
         last_frame = pair_kf.second;
@@ -96,12 +112,13 @@ void PoseGraph::UpdateSections(double time)
     }
 }
 
+// end = 0 -> all sections from start
 Atlas PoseGraph::GetSections(double start, double end)
 {
     UpdateSections(end);
 
     auto start_iter = sections_.upper_bound(start);
-    auto end_iter = sections_.upper_bound(end);
+    auto end_iter = end == 0 ? sections_.end() : sections_.upper_bound(end);
     return Atlas(start_iter, end_iter);
 }
 

@@ -9,30 +9,35 @@ namespace lvio_fusion
 class NavsatError
 {
 public:
-    NavsatError(Vector3d p, double *weights) : p_(p)
+    NavsatError(Vector3d A, Vector3d B, Vector3d C, double *weights)
+        : A_(A)
     {
+        abc_norm_ = (A_ - B).cross(A_ - C);
+        abc_norm_.normalize();
         weights_[0] = weights[0];
-        weights_[1] = weights[1];
-        weights_[2] = weights[2];
     }
 
     template <typename T>
     bool operator()(const T *Twc, T *residuals) const
     {
-        residuals[0] = T(weights_[0]) * (Twc[4] - T(p_[0]));
-        residuals[1] = T(weights_[1]) * (Twc[5] - T(p_[1]));
-        residuals[2] = T(weights_[2]) * (Twc[6] - T(p_[2]));
+        T unit_x[3] = {T(100), T(100), T(0)}, AP[3], axis_x[3];
+        T A[3] = {T(A_.x()), T(A_.y()), T(A_.z())};
+        T adc_norm[3] = {T(abc_norm_.x()), T(abc_norm_.y()), T(abc_norm_.z())};
+        ceres::SE3TransformPoint(Twc, unit_x, axis_x);
+        ceres::Minus(axis_x, A, AP);
+
+        residuals[0] = T(weights_[0]) * ceres::DotProduct(AP, adc_norm);
         return true;
     }
 
-    static ceres::CostFunction *Create(Vector3d p, double *weights)
+    static ceres::CostFunction *Create(Vector3d A, Vector3d B, Vector3d C, double *weights)
     {
-        return (new ceres::AutoDiffCostFunction<NavsatError, 3, 7>(new NavsatError(p, weights)));
+        return (new ceres::AutoDiffCostFunction<NavsatError, 1, 7>(new NavsatError(A, B, C, weights)));
     }
 
 private:
-    Vector3d p_; //position
-    double weights_[3];
+    Vector3d A_, abc_norm_; // ground level (ABC)
+    double weights_[1];
 };
 
 class NavsatInitError
