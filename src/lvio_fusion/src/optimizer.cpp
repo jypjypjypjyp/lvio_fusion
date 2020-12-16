@@ -67,7 +67,7 @@ void PoseGraph::UpdateSections(double time)
 
     static Frame::Ptr last_frame;
     static Vector3d last_heading(1, 0, 0);
-    static bool turning = true;
+    static bool turning = false;
     static Section current_section;
     for (auto pair_kf : active_kfs)
     {
@@ -75,7 +75,7 @@ void PoseGraph::UpdateSections(double time)
         if (last_frame && pair_kf.second->feature_navsat)
         {
             double degree = vectors_degree_angle(last_heading, heading);
-            if (turning && degree < 10)
+            if (!turning && degree >= 5)
             {
                 if (current_section.A != 0)
                 {
@@ -83,12 +83,12 @@ void PoseGraph::UpdateSections(double time)
                     sections_[current_section.C] = current_section;
                 }
                 current_section.A = pair_kf.first;
-                turning = false;
+                turning = true;
             }
-            else if (!turning && degree >= 10)
+            else if (turning && degree < 5)
             {
                 current_section.B = pair_kf.first;
-                turning = true;
+                turning = false;
             }
         }
         last_frame = pair_kf.second;
@@ -161,7 +161,7 @@ void PoseGraph::ForwardPropagate(SE3d transfrom, double start_time)
 
     for (auto pair_kf : forward_kfs)
     {
-        pair_kf.second->pose = pair_kf.second->pose * transfrom;
+        pair_kf.second->pose = transfrom * pair_kf.second->pose;
     }
 
     frontend_->UpdateCache();
@@ -171,7 +171,7 @@ void PoseGraph::ForwardPropagate(SE3d transfrom, const Frames &forward_kfs)
 {
     for (auto pair_kf : forward_kfs)
     {
-        pair_kf.second->pose = pair_kf.second->pose * transfrom;
+        pair_kf.second->pose = transfrom * pair_kf.second->pose;
     }
 }
 

@@ -52,11 +52,10 @@ void Navsat::Initialize()
 
     for (auto pair_kf : keyframes)
     {
-        auto position_kf = pair_kf.second->pose.translation();
-        auto pair_raw = raw.lower_bound(pair_kf.first);
-        if (std::fabs(pair_raw->first - pair_kf.first) < 1e-1)
+        auto position = pair_kf.second->pose.translation();
+        if (pair_kf.second->feature_navsat)
         {
-            ceres::CostFunction *cost_function = NavsatInitError::Create(position_kf, pair_raw->second);
+            ceres::CostFunction *cost_function = NavsatInitError::Create(position, GetPoint(pair_kf.second->feature_navsat->time));
             problem.AddResidualBlock(cost_function, NULL, extrinsic.data());
         }
     }
@@ -84,7 +83,7 @@ double Navsat::Optimize(double time)
     for (auto pair : sections)
     {
         Frames section_kfs = Map::Instance().GetKeyFrames(pair.second.A, pair.second.C);
-        Frame::Ptr A = section_kfs[pair.second.B];
+        Frame::Ptr A = section_kfs[pair.second.A];
         SE3d old_pose = A->pose;
         // optimize point A of sections
         adapt::Problem problem;
@@ -95,13 +94,6 @@ double Navsat::Optimize(double time)
 
         double *para = A->pose.data();
         problem.AddParameterBlock(para, SE3d::num_parameters, local_parameterization);
-        // ceres::CostFunction *cost_function = PoseError::Create(para, A->weights.pose);
-        // problem.AddResidualBlock(ProblemType::PoseError, cost_function, NULL, para);
-        // if (A->feature_navsat)
-        // {
-        //     ceres::CostFunction *cost_function = NavsatError::Create(GetPoint(A->feature_navsat->time), A->weights.navsat);
-        //     problem.AddResidualBlock(ProblemType::NavsatError, cost_function, navsat_loss_function, para);
-        // }
 
         for (auto pair_kf : section_kfs)
         {
@@ -127,13 +119,13 @@ double Navsat::Optimize(double time)
 
         // forward propagate
         SE3d new_pose = A->pose;
-        transform = old_pose.inverse() * new_pose;
+        transform = new_pose * old_pose.inverse();
         section_kfs.erase(pair.second.A);
         pose_graph_->ForwardPropagate(transform, section_kfs);
     }
 
     // forward propagate
-    pose_graph_->ForwardPropagate(transform, (--sections.end())->first);
+    // pose_graph_->ForwardPropagate(transform, (--sections.end())->first);
 
     return sections.begin()->second.A;
 }
