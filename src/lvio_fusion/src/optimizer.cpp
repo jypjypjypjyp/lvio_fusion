@@ -70,6 +70,7 @@ void PoseGraph::UpdateSections(double time)
     static Frame::Ptr last_frame;
     static Vector3d last_heading(1, 0, 0);
     static bool turning = false;
+    static int A_id = 0;
     static Section current_section;
     for (auto pair_kf : active_kfs)
     {
@@ -79,26 +80,23 @@ void PoseGraph::UpdateSections(double time)
             double degree = vectors_degree_angle(last_heading, heading);
             if (!turning && degree >= 5)
             {
-                if (current_section.A != 0 && pair_kf.first - current_section.A > 10)
+                if (current_section.A != 0 && pair_kf.second->id - A_id > 5)
                 {
                     current_section.C = pair_kf.first;
                     sections_[current_section.C] = current_section;
                 }
                 current_section.A = pair_kf.first;
+                A_id = pair_kf.second->id;
                 turning = true;
             }
             else if (turning)
             {
-                if (pair_kf.first - current_section.A > 20)
+                if (pair_kf.second->id - A_id > 20)
                 {
                     current_section.B = pair_kf.first;
-                    if (current_section.A != 0)
-                    {
-                        current_section.C = pair_kf.first;
-                        sections_[current_section.C] = current_section;
-                    }
+                    current_section.C = pair_kf.first;
+                    sections_[current_section.C] = current_section;
                     current_section.A = pair_kf.first;
-                    turning = true;
                 }
                 else if (degree < 1)
                 {

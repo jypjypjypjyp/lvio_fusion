@@ -10,9 +10,9 @@ class LidarPlaneError
 {
 public:
     LidarPlaneError(Vector3d p, Vector3d pa, Vector3d pb, Vector3d pc)
-        : p_(p), pa_(pa), pb_(pb), pc_(pc)
+        : p_(p), pa_(pa)
     {
-        abc_norm_ = (pa_ - pb_).cross(pa_ - pc_);
+        abc_norm_ = (pa_ - pb).cross(pa_ - pc);
         abc_norm_.normalize();
     }
 
@@ -35,8 +35,7 @@ public:
     }
 
 private:
-    Vector3d p_, pa_, pb_, pc_;
-    Vector3d abc_norm_;
+    Vector3d p_, pa_, abc_norm_;
 };
 
 inline void se32rpyxyz(const SE3d relatice_i_j, double *rpyxyz)

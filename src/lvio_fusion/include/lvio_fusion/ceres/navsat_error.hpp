@@ -9,35 +9,37 @@ namespace lvio_fusion
 class NavsatError
 {
 public:
-    NavsatError(Vector3d A, Vector3d B, Vector3d C, double *weights)
-        : A_(A)
+    NavsatError(Vector3d p, Vector3d A, Vector3d B, Vector3d C, double *weights) : p_(p)
     {
-        abc_norm_ = (A_ - B).cross(A_ - C);
+        abc_norm_ = (A - B).cross(A - C);
         abc_norm_.normalize();
         weights_[0] = weights[0];
+        weights_[1] = weights[1];
+        weights_[2] = weights[2];
+        weights_[3] = weights[3];
     }
 
     template <typename T>
     bool operator()(const T *Twc, T *residuals) const
     {
-        T unit_x[3] = {T(100), T(100), T(0)}, AP[3], axis_x[3];
-        T A[3] = {T(A_.x()), T(A_.y()), T(A_.z())};
+        T unit[3] = {T(100), T(100), T(0)}, axis[3];
+        ceres::EigenQuaternionRotatePoint(Twc, unit, axis);
         T adc_norm[3] = {T(abc_norm_.x()), T(abc_norm_.y()), T(abc_norm_.z())};
-        ceres::SE3TransformPoint(Twc, unit_x, axis_x);
-        ceres::Minus(axis_x, A, AP);
-
-        residuals[0] = T(weights_[0]) * ceres::DotProduct(AP, adc_norm);
+        residuals[0] = T(weights_[0]) * ceres::DotProduct(axis, adc_norm);
+        residuals[1] = T(weights_[1]) * (Twc[4] - T(p_[0]));
+        residuals[2] = T(weights_[2]) * (Twc[5] - T(p_[1]));
+        residuals[3] = T(weights_[3]) * (Twc[6] - T(p_[2]));
         return true;
     }
 
-    static ceres::CostFunction *Create(Vector3d A, Vector3d B, Vector3d C, double *weights)
+    static ceres::CostFunction *Create(Vector3d p, Vector3d A, Vector3d B, Vector3d C, double *weights)
     {
-        return (new ceres::AutoDiffCostFunction<NavsatError, 1, 7>(new NavsatError(A, B, C, weights)));
+        return (new ceres::AutoDiffCostFunction<NavsatError, 4, 7>(new NavsatError(p, A, B, C, weights)));
     }
 
 private:
-    Vector3d A_, abc_norm_; // ground level (ABC)
-    double weights_[1];
+    Vector3d p_, abc_norm_; // ground level (ABC)
+    double weights_[4];
 };
 
 class NavsatInitError

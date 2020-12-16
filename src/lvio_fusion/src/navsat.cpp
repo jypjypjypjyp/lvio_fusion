@@ -18,7 +18,6 @@ void Navsat::AddPoint(double time, double x, double y, double z)
     for (auto pair_kf : new_kfs)
     {
         auto this_iter = raw.lower_bound(pair_kf.first);
-        auto last_iter = --this_iter;
         if (this_iter == raw.begin() || std::fabs(this_iter->first - pair_kf.first) > 1e-1)
             continue;
 
@@ -81,18 +80,24 @@ void Navsat::Initialize()
 double Navsat::Optimize(double time)
 {
     static double head = 0;
-
     // get secions
     auto sections = pose_graph_->GetSections(head, time);
-    head = time + epsilon;
     if (sections.empty())
         return 0;
 
     SE3d transform;
     for (auto pair : sections)
     {
-        Frames section_kfs = Map::Instance().GetKeyFrames(pair.second.A, pair.second.C);
-        Frame::Ptr frame_A = section_kfs[pair.second.A];
+        Frames active_kfs = Map::Instance().GetKeyFrames(pair.second.A, time);
+        Frame::Ptr frame_A = Map::Instance().keyframes[pair.second.A];
+        // check
+        Vector3d A = frame_A->pose.translation();
+        Vector3d B = Map::Instance().keyframes[pair.second.B]->pose.translation();
+        Vector3d now = Map::Instance().keyframes[time]->pose.translation();
+        double height = vectors_height(A - B, A - now);
+        if(height < 20)
+            return sections.begin()->second.A;
+
         SE3d old_pose = frame_A->pose;
         // optimize point A of sections
         adapt::Problem problem;
@@ -102,13 +107,19 @@ double Navsat::Optimize(double time)
 
         double *para = frame_A->pose.data();
         problem.AddParameterBlock(para, SE3d::num_parameters, local_parameterization);
+        // ceres::CostFunction *cost_function = PoseError::Create(para, frame_A->weights.pose);
+        // problem.AddResidualBlock(ProblemType::PoseError, cost_function, NULL, para);
         if (frame_A->feature_navsat)
         {
-            ceres::CostFunction *cost_function = NavsatError::Create(GetAroundPoint(A_), GetAroundPoint(B_), GetAroundPoint(C_), frame_A->weights.navsat);
+            auto p = GetPoint(frame_A->feature_navsat->time);
+            auto A = GetAroundPoint(A_);
+            auto B = GetAroundPoint(B_);
+            auto C = GetAroundPoint(C_);
+            ceres::CostFunction *cost_function = NavsatError::Create(p, A, B, C, frame_A->weights.navsat);
             problem.AddResidualBlock(ProblemType::NavsatError, cost_function, NULL, para);
         }
 
-        for (auto pair_kf : section_kfs)
+        for (auto pair_kf : active_kfs)
         {
             auto frame = pair_kf.second;
             auto position = frame->pose.translation();
@@ -124,6 +135,7 @@ double Navsat::Optimize(double time)
         options.num_threads = 1;
         ceres::Solver::Summary summary;
         ceres::Solve(options, &problem, &summary);
+        LOG(INFO) << summary.FullReport();
 
         frame_A->loop_closure = loop::LoopClosure::Ptr(new loop::LoopClosure());
         frame_A->loop_closure->frame_old = frame_A;
@@ -132,13 +144,13 @@ double Navsat::Optimize(double time)
         // forward propagate
         SE3d new_pose = frame_A->pose;
         transform = new_pose * old_pose.inverse();
-        section_kfs.erase(pair.second.A);
-        pose_graph_->ForwardPropagate(transform, section_kfs);
+        pose_graph_->ForwardPropagate(transform, Map::Instance().GetKeyFrames(pair.second.A + epsilon, pair.second.C));
+
+        head = pair.second.C + epsilon;
     }
 
     // forward propagate
     pose_graph_->ForwardPropagate(transform, (--sections.end())->first);
-
     return sections.begin()->second.A;
 }
 
