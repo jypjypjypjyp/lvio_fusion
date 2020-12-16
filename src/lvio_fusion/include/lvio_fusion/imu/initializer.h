@@ -26,8 +26,8 @@ public:
     Eigen::Matrix3d Rwg;       //重力方向
     Eigen::Vector3d bg;
     Eigen::Vector3d ba;
-    double scale;                  //尺度
-    double mFirstTs;   /// 用于imu初始化第一个可用关键帧的时间
+    double Scale;                  //尺度
+    double FirstTs;   /// 用于imu初始化第一个可用关键帧的时间
 
 private:
     Vector3d g_;
