@@ -85,7 +85,7 @@ private:
         Vector3d w;
         double t;
     };
-    std::vector<integrable> mvMeasurements;
+    std::vector<integrable> Measurements;
 
 };
 

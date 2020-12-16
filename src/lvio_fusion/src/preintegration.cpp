@@ -60,7 +60,7 @@ void Preintegration::PreintegrateIMU(std::vector<imuPoint> measureFromLastFrame,
 void Preintegration::IntegrateNewMeasurement(const Vector3d &acceleration, const Vector3d &angVel, const double &dt)
 {
     if(!isPreintegrated) isPreintegrated=true;
-    mvMeasurements.push_back(integrable(acceleration,angVel,dt));
+    Measurements.push_back(integrable(acceleration,angVel,dt));
 
     Matrix<double,9,9> A = Matrix<double,9,9>::Identity();
     Matrix<double,9,6> B =MatrixXd::Zero(9,6);
@@ -122,7 +122,7 @@ void Preintegration::Initialize(const Bias &b_)
     avgA = Vector3d::Zero();
     avgW = Vector3d::Zero();
     dT=0;
-    mvMeasurements.clear();
+    Measurements.clear();
 }
 
 Vector3d Preintegration::GetUpdatedDeltaVelocity()
@@ -183,7 +183,7 @@ Bias Preintegration::GetDeltaBias(const Bias &b_)
 
 void Preintegration::Reintegrate()
 {
-    std::vector<integrable> aux = mvMeasurements;
+    std::vector<integrable> aux = Measurements;
     Initialize(bu);
     for(size_t i=0;i<aux.size();i++)
         IntegrateNewMeasurement(aux[i].a,aux[i].w,aux[i].t);
