@@ -1,3 +1,11 @@
+#include "lvio_fusion/adapt/agent.h"
+#include "lvio_fusion/common.h"
+#include "lvio_fusion/estimator.h"
+#include "lvio_fusion/map.h"
+#include "object_detector/BoundingBoxes.h"
+#include "parameters.h"
+#include "visualization.h"
+
 #include <GeographicLib/LocalCartesian.hpp>
 #include <cv_bridge/cv_bridge.h>
 #include <opencv2/opencv.hpp>
@@ -6,13 +14,7 @@
 #include <sensor_msgs/Image.h>
 #include <sensor_msgs/NavSatFix.h>
 #include <sensor_msgs/PointCloud2.h>
-
-#include "lvio_fusion/adapt/agent.h"
-#include "lvio_fusion/common.h"
-#include "lvio_fusion/estimator.h"
-#include "object_detector/BoundingBoxes.h"
-#include "parameters.h"
-#include "visualization.h"
+#include <termios.h>
 
 using namespace std;
 
@@ -91,31 +93,11 @@ vector<DetectedObject> get_objects_from_msg(const object_detector::BoundingBoxes
     return objects;
 }
 
-void write_result(Estimator::Ptr estimator, double time)
-{
-    ofstream foutC(result_path, ios::app);
-    foutC.setf(ios::fixed, ios::floatfield);
-    foutC.precision(0);
-    foutC << time * 1e9 << ",";
-    foutC.precision(5);
-    SE3d pose = estimator->frontend->current_frame->pose;
-    Vector3d T = pose.translation();
-    Quaterniond R = pose.unit_quaternion();
-    foutC << T.x() << ","
-          << T.y() << ","
-          << T.z() << ","
-          << R.w() << ","
-          << R.x() << ","
-          << R.y() << ","
-          << R.z() << endl;
-    foutC.close();
-}
-
 // extract images with same timestamp from two topics
 void sync_process()
 {
     int n = 0;
-    while (1)
+    while (ros::ok())
     {
         cv::Mat image0, image1;
         std_msgs::Header header;
@@ -247,6 +229,78 @@ void navsat_timer_callback(const ros::TimerEvent &timer_event)
     publish_navsat(estimator, timer_event.current_real.toSec() - delta_time);
 }
 
+// For non-blocking keyboard inputs
+int getch(void)
+{
+    int ch;
+    struct termios oldt;
+    struct termios newt;
+
+    // Store old settings, and copy to new settings
+    tcgetattr(STDIN_FILENO, &oldt);
+    newt = oldt;
+
+    // Make required changes and apply the settings
+    newt.c_lflag &= ~(ICANON | ECHO);
+    newt.c_iflag |= IGNBRK;
+    newt.c_iflag &= ~(INLCR | ICRNL | IXON | IXOFF);
+    newt.c_lflag &= ~(ICANON | ECHO | ECHOK | ECHOE | ECHONL | ISIG | IEXTEN);
+    newt.c_cc[VMIN] = 1;
+    newt.c_cc[VTIME] = 0;
+    tcsetattr(fileno(stdin), TCSANOW, &newt);
+
+    // Get the current character
+    ch = getchar();
+
+    // Reapply old settings
+    tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
+
+    return ch;
+}
+
+void write_result(Estimator::Ptr estimator)
+{
+    ofstream of(result_path, ios::out);
+    of.setf(ios::fixed, ios::floatfield);
+    of.precision(0);
+    for (auto pair : lvio_fusion::Map::Instance().keyframes)
+    {
+        of << pair.first * 1e9 << ",";
+        of.precision(5);
+        SE3d pose = pair.second->pose;
+        Vector3d T = pose.translation();
+        Quaterniond R = pose.unit_quaternion();
+        of << T.x() << ","
+           << T.y() << ","
+           << T.z() << ","
+           << R.x() << ","
+           << R.y() << ","
+           << R.z() << ","
+           << R.w() << endl;
+    }
+    of.close();
+}
+
+void keyboard_process()
+{
+    char key;
+    while (ros::ok())
+    {
+        key = getch();
+        switch (key)
+        {
+        case 's':
+            ROS_WARN("Writing result file: %s", result_path.c_str());
+            write_result(estimator);
+            ROS_WARN("Finished!!!");
+            ros::shutdown();
+            break;
+        default:
+            break;
+        }
+    }
+}
+
 int main(int argc, char **argv)
 {
     ros::init(argc, argv, "lvio_fusion_node");
@@ -271,10 +325,10 @@ int main(int argc, char **argv)
     {
         if (!n.getParam("config_file", config_file))
         {
-            ROS_INFO("Error: %s\n", config_file.c_str());
+            ROS_INFO("Error: %s", config_file.c_str());
             return 1;
         }
-        ROS_INFO("load config_file: %s\n", config_file.c_str());
+        ROS_INFO("load config_file: %s", config_file.c_str());
     }
     read_parameters(config_file);
     Agent::SetCore(new Core());
@@ -319,6 +373,9 @@ int main(int argc, char **argv)
         pub_detector = n.advertise<sensor_msgs::Image>("/object_detector/image_raw", 10);
     }
     thread sync_thread{sync_process};
+    thread control_thread{keyboard_process};
     ros::spin();
+    sync_thread.join();
+    control_thread.join();
     return 0;
 }

@@ -163,7 +163,7 @@ void Backend::Optimize()
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
 
-    if (Lidar::Num())
+    if (mapping_)
     {
         mapping_->Optimize(active_kfs);
     }
@@ -171,7 +171,7 @@ void Backend::Optimize()
     if (Navsat::Num() && Navsat::Get()->initialized)
     {
         double start_time = Navsat::Get()->Optimize((--active_kfs.end())->first);
-        if (start_time && Lidar::Num())
+        if (start_time && mapping_)
         {
             Frames mapping_kfs = Map::Instance().GetKeyFrames(start_time);
             for (auto pair : mapping_kfs)

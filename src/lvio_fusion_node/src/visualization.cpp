@@ -3,8 +3,6 @@
 
 #include <pcl_conversions/pcl_conversions.h>
 
-using namespace Eigen;
-
 ros::Publisher pub_path;
 ros::Publisher pub_navsat;
 ros::Publisher pub_points_cloud;
@@ -105,7 +103,7 @@ void publish_tf(Estimator::Ptr estimator, double time)
         br.sendTransform(tf::StampedTransform(transform, ros::Time(time), "world", "base_link"));
     }
     // navsat
-    if (Navsat::Get() != nullptr && Navsat::Get()->initialized)
+    if (Navsat::Num() && Navsat::Get()->initialized)
     {
         double *tf_data = Navsat::Get()->extrinsic.data();
         tf_q.setValue(tf_data[0], tf_data[1], tf_data[2], tf_data[3]);

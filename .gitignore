@@ -5,5 +5,4 @@ notes
 .vscode
 *.weights
 result
-src/adaptive_fusion
 src/CMakeLists.txt
