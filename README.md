@@ -32,5 +32,5 @@ roslaunch lvio_fusion_node kitti.launch
 ## Result
 
 kitti:
-![](./misc/kitti-result.png)
+![](misc/kitti-result.png)
 
