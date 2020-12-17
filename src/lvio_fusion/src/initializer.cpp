@@ -169,8 +169,9 @@ void  Initializer::estimate_Vel_Rwg(std::vector< Frame::Ptr > Key_frames)
             {
                 continue;
             }
-            Vector3d velocity = ((*iter_keyframe)->GetImuPosition() - (*(iter_keyframe))->last_keyframe->last_keyframe->GetImuPosition())/((*iter_keyframe)->last_keyframe->preintegration->dT+ (*(iter_keyframe))->last_keyframe->last_keyframe->preintegration->dT);
+            Vector3d velocity = ((*iter_keyframe)->GetImuPosition() - (*(iter_keyframe))->last_keyframe->last_keyframe->GetImuPosition())/((*iter_keyframe)->last_keyframe->preintegration->dT+ (*(iter_keyframe))->preintegration->dT);
             (*iter_keyframe)->last_keyframe->SetVelocity(velocity);
+            LOG(INFO)<< (*iter_keyframe)->id<<"V "<<velocity.transpose();
         }
         dirG = dirG/dirG.norm();
         Vector3d  gI(0.0, 0.0, -1.0);//沿-z的归一化的重力数值

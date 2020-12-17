@@ -172,7 +172,7 @@ void Backend::Optimize(bool full)
     }
     Frames active_kfs = Map::Instance().GetKeyFrames(full ? 0 : head);
 
-  //NEWADD
+    //NEWADD
     // imu init
     if (imu_ && !initializer_->initialized)
     {
@@ -187,14 +187,14 @@ void Backend::Optimize(bool full)
              LOG(INFO)<<"Initializer Finished";
         }
     }
-//NEWADDEND
+    //NEWADDEND
 
     adapt::Problem problem;
     BuildProblem(active_kfs, problem);
 
     ceres::Solver::Options options;
     options.linear_solver_type = ceres::DENSE_SCHUR;
-    options.max_solver_time_in_seconds = 0.6 * delay_;
+    options.max_num_iterations = 1;
     options.num_threads = 4;
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
@@ -260,8 +260,7 @@ void Backend::ForwardPropagate(double time)
 
     ceres::Solver::Options options;
     options.linear_solver_type = ceres::DENSE_SCHUR;
-    //options.max_num_iterations = 1;
-    options.max_solver_time_in_seconds = 0.8 * delay_;
+    options.max_num_iterations = 1;
     options.num_threads = 4;
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);

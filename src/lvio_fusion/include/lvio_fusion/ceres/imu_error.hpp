@@ -257,9 +257,9 @@ public:
 
         Matrix<double, 9,9> sqrt_info =LLT<Matrix<double, 9, 9>>( Info.inverse()).matrixL().transpose();
         sqrt_info/=InfoScale;
-        //assert(residual[0]<100&&residual[1]<100&&residual[2]<100&&residual[3]<100&&residual[4]<100&&residual[5]<100&&residual[6]<100&&residual[7]<100&&residual[8]<100);
+        //assert(!isnan(residual[0])&&!isnan(residual[1])&&!isnan(residual[2])&&!isnan(residual[3])&&!isnan(residual[4])&&!isnan(residual[5])&&!isnan(residual[6])&&!isnan(residual[7])&&!isnan(residual[8]));
         residual = sqrt_info* residual;
-        //LOG(INFO)<<"IMUError:  r "<<residual.transpose()<<"  "<<mpInt->dT;
+        LOG(INFO)<<"IMUError:  r "<<residual.transpose()<<"  "<<mpInt->dT;
 
  if (jacobians)
         {

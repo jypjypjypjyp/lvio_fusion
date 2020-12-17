@@ -8,7 +8,7 @@
 namespace lvio_fusion
 {
 const double eps = 1e-4;
-//NEWADD
+
 class Imu : public Sensor
 {
 public:
@@ -22,7 +22,7 @@ public:
     double G;
     bool initialized =false;
 };
-//NEWADDEND
+
 class  imuPoint
 {
 public:
