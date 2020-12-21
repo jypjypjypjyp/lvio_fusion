@@ -1,4 +1,4 @@
-#include "lvio_fusion/loop/detector.h"
+#include "lvio_fusion/loop/relocator.h"
 #include "lvio_fusion/ceres/lidar_error.hpp"
 #include "lvio_fusion/ceres/loop_error.hpp"
 #include "lvio_fusion/map.h"
@@ -16,15 +16,15 @@
 namespace lvio_fusion
 {
 
-LoopDetector::LoopDetector(std::string voc_path)
+Relocator::Relocator(std::string voc_path)
 {
     detector_ = cv::ORB::create();
     voc_ = DBoW3::Vocabulary(voc_path);
     db_ = DBoW3::Database(voc_, false, 0);
-    thread_ = std::thread(std::bind(&LoopDetector::DetectorLoop, this));
+    thread_ = std::thread(std::bind(&Relocator::DetectorLoop, this));
 }
 
-void LoopDetector::DetectorLoop()
+void Relocator::DetectorLoop()
 {
     static double old_time = DBL_MAX;
     static double start_time = 0;
@@ -69,7 +69,7 @@ void LoopDetector::DetectorLoop()
     }
 }
 
-void LoopDetector::AddKeyFrameIntoVoc(Frame::Ptr frame)
+void Relocator::AddKeyFrameIntoVoc(Frame::Ptr frame)
 {
     // compute descriptors
     std::vector<cv::KeyPoint> keypoints;
@@ -96,7 +96,7 @@ void LoopDetector::AddKeyFrameIntoVoc(Frame::Ptr frame)
     }
 }
 
-bool LoopDetector::DetectLoop(Frame::Ptr frame, Frame::Ptr &old_frame)
+bool Relocator::DetectLoop(Frame::Ptr frame, Frame::Ptr &old_frame)
 {
     // NOTE: DBow3 is not good
     // //first query; then add this frame into database!
@@ -165,7 +165,7 @@ bool LoopDetector::DetectLoop(Frame::Ptr frame, Frame::Ptr &old_frame)
     return false;
 }
 
-bool LoopDetector::Relocate(Frame::Ptr frame, Frame::Ptr old_frame)
+bool Relocator::Relocate(Frame::Ptr frame, Frame::Ptr old_frame)
 {
     frame->loop_closure->score = 0;
     double rpyxyz_o[6], rpyxyz_i[6], rpy_o_i[3];
@@ -191,7 +191,7 @@ bool LoopDetector::Relocate(Frame::Ptr frame, Frame::Ptr old_frame)
     return false;
 }
 
-bool LoopDetector::RelocateByImage(Frame::Ptr frame, Frame::Ptr old_frame)
+bool Relocator::RelocateByImage(Frame::Ptr frame, Frame::Ptr old_frame)
 {
     std::vector<cv::Point3f> points_3d;
     std::vector<cv::Point2f> points_2d;
@@ -226,7 +226,7 @@ bool LoopDetector::RelocateByImage(Frame::Ptr frame, Frame::Ptr old_frame)
     return false;
 }
 
-bool LoopDetector::RelocateByPoints(Frame::Ptr frame, Frame::Ptr old_frame)
+bool Relocator::RelocateByPoints(Frame::Ptr frame, Frame::Ptr old_frame)
 {
     if (!frame->feature_lidar || !old_frame->feature_lidar)
     {
@@ -317,7 +317,7 @@ bool LoopDetector::RelocateByPoints(Frame::Ptr frame, Frame::Ptr old_frame)
     return true;
 }
 
-bool LoopDetector::SearchInAera(const BRIEF descriptor, const std::map<unsigned long, BRIEF> &descriptors_old, unsigned long &best_id)
+bool Relocator::SearchInAera(const BRIEF descriptor, const std::map<unsigned long, BRIEF> &descriptors_old, unsigned long &best_id)
 {
     cv::Point2f best_pt;
     int best_distance = 256;
@@ -333,14 +333,14 @@ bool LoopDetector::SearchInAera(const BRIEF descriptor, const std::map<unsigned 
     return best_distance < 160;
 }
 
-int LoopDetector::Hamming(const BRIEF &a, const BRIEF &b)
+int Relocator::Hamming(const BRIEF &a, const BRIEF &b)
 {
     BRIEF xor_of_bitset = a ^ b;
     int dis = xor_of_bitset.count();
     return dis;
 }
 
-void LoopDetector::BuildProblem(Frames &active_kfs, adapt::Problem &problem)
+void Relocator::BuildProblem(Frames &active_kfs, adapt::Problem &problem)
 {
     ceres::LocalParameterization *local_parameterization = new ceres::ProductParameterization(
         new ceres::EigenQuaternionParameterization(),
@@ -363,7 +363,7 @@ void LoopDetector::BuildProblem(Frames &active_kfs, adapt::Problem &problem)
     }
 }
 
-void LoopDetector::BuildProblemWithLoop(Frames &active_kfs, adapt::Problem &problem)
+void Relocator::BuildProblemWithLoop(Frames &active_kfs, adapt::Problem &problem)
 {
     ceres::LocalParameterization *local_parameterization = new ceres::ProductParameterization(
         new ceres::EigenQuaternionParameterization(),
@@ -390,7 +390,7 @@ void LoopDetector::BuildProblemWithLoop(Frames &active_kfs, adapt::Problem &prob
     }
 }
 
-void LoopDetector::CorrectLoop(double old_time, double start_time, double end_time)
+void Relocator::CorrectLoop(double old_time, double start_time, double end_time)
 {
     // build the pose graph and submaps
     Frames active_kfs = Map::Instance().GetKeyFrames(old_time, end_time);

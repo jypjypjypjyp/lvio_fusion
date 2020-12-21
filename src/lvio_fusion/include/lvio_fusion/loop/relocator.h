@@ -45,18 +45,16 @@ inline std::map<unsigned long, BRIEF> mat2briefs(Frame::Ptr frame)
     return briefs;
 }
 
-class LoopDetector
+class Relocator
 {
 public:
-    typedef std::shared_ptr<LoopDetector> Ptr;
+    typedef std::shared_ptr<Relocator> Ptr;
 
-    LoopDetector(std::string voc_path);
+    Relocator(std::string voc_path);
 
     void SetFeatureAssociation(FeatureAssociation::Ptr association) { association_ = association; }
 
     void SetMapping(Mapping::Ptr mapping) { mapping_ = mapping; }
-
-    void SetFrontend(Frontend::Ptr frontend) { frontend_ = frontend; }
 
     void SetBackend(Backend::Ptr backend) { backend_ = backend; }
 
@@ -90,7 +88,6 @@ private:
     DBoW3::Database db_;
     DBoW3::Vocabulary voc_;
     Mapping::Ptr mapping_;
-    Frontend::Ptr frontend_;
     Backend::Ptr backend_;
     FeatureAssociation::Ptr association_;
     PoseGraph::Ptr pose_graph_;

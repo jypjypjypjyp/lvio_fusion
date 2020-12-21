@@ -53,12 +53,13 @@ void Navsat::Initialize()
 
     problem.AddParameterBlock(extrinsic.data(), SE3d::num_parameters, local_parameterization);
 
+    double weights[3] = {1, 1, 1};
     for (auto pair_kf : keyframes)
     {
         auto position = pair_kf.second->pose.translation();
         if (pair_kf.second->feature_navsat)
         {
-            ceres::CostFunction *cost_function = NavsatInitError::Create(position, GetPoint(pair_kf.second->feature_navsat->time));
+            ceres::CostFunction *cost_function = NavsatInitError::Create(position, GetPoint(pair_kf.second->feature_navsat->time), weights);
             problem.AddResidualBlock(cost_function, NULL, extrinsic.data());
         }
     }
@@ -95,7 +96,7 @@ double Navsat::Optimize(double time)
         Vector3d B = Map::Instance().keyframes[pair.second.B]->pose.translation();
         Vector3d now = Map::Instance().keyframes[time]->pose.translation();
         double height = vectors_height(A - B, A - now);
-        if(height < 20)
+        if (height < 20)
             break;
 
         SE3d old_pose = frame_A->pose;
@@ -108,13 +109,18 @@ double Navsat::Optimize(double time)
         double *para = frame_A->pose.data();
         problem.AddParameterBlock(para, SE3d::num_parameters, local_parameterization);
 
+        double weights[3] = {1, 1, 1};
         for (auto pair_kf : active_kfs)
         {
+            if (pair_kf.first == pair.second.B)
+            {
+                weights[0] = weights[1] = weights[2] = 3;
+            }
             auto frame = pair_kf.second;
             auto position = frame->pose.translation();
             if (frame->feature_navsat)
             {
-                ceres::CostFunction *cost_function = NavsatInitError::Create(GetPoint(frame->feature_navsat->time), frame_A->pose.inverse() * position);
+                ceres::CostFunction *cost_function = NavsatInitError::Create(GetPoint(frame->feature_navsat->time), frame_A->pose.inverse() * position, weights);
                 problem.AddResidualBlock(ProblemType::Other, cost_function, NULL, para);
             }
         }

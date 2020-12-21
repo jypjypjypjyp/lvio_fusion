@@ -265,7 +265,7 @@ void write_result(Estimator::Ptr estimator)
     of.precision(0);
     for (auto pair : lvio_fusion::Map::Instance().keyframes)
     {
-        of << pair.first * 1e9 << ",";
+        of << pair.first << ",";
         of.precision(5);
         SE3d pose = pair.second->pose;
         Vector3d T = pose.translation();

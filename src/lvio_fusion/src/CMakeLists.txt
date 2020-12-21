@@ -3,7 +3,6 @@ add_library(lvio_fusion SHARED
         association.cpp
         backend.cpp
         config.cpp
-        detector.cpp
         estimator.cpp
         frame.cpp
         frontend.cpp
@@ -15,7 +14,8 @@ add_library(lvio_fusion SHARED
         navsat.cpp
         optimizer.cpp
         preintegration.cpp
-        projection.cpp)
+        projection.cpp
+        relocator.cpp)
 
 target_link_libraries(lvio_fusion ${THIRD_PARTY_LIBS})
 target_compile_features(lvio_fusion PRIVATE cxx_std_14)

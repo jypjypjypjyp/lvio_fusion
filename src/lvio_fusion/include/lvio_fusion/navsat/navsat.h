@@ -42,6 +42,7 @@ public:
 
     bool initialized = false;
     std::map<double, Vector3d> raw;
+    double head = 0;
 
 private:
     Navsat() : Sensor(SE3d()) {}

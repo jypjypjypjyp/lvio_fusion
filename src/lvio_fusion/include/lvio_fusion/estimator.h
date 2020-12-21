@@ -8,7 +8,7 @@
 #include "lvio_fusion/imu/initializer.h"
 #include "lvio_fusion/lidar/association.h"
 #include "lvio_fusion/lidar/mapping.h"
-#include "lvio_fusion/loop/detector.h"
+#include "lvio_fusion/loop/relocator.h"
 #include "lvio_fusion/loop/pose_graph.h"
 #include "lvio_fusion/navsat/navsat.h"
 #include "lvio_fusion/semantic/detected_object.h"
@@ -47,7 +47,7 @@ public:
 
     Frontend::Ptr frontend;
     Backend::Ptr backend;
-    LoopDetector::Ptr detector;
+    LoopDetector::Ptr relocator;
     FeatureAssociation::Ptr association;
     Mapping::Ptr mapping;
     Initializer::Ptr initializer;

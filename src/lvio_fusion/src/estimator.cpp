@@ -73,11 +73,11 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
 
     if (use_loop)
     {
-        detector = LoopDetector::Ptr(new LoopDetector(
+        relocator = LoopDetector::Ptr(new LoopDetector(
             Config::Get<std::string>("voc_path")));
-        detector->SetFrontend(frontend);
-        detector->SetBackend(backend);
-        detector->SetPoseGraph(pose_graph);
+        relocator->SetFrontend(frontend);
+        relocator->SetBackend(backend);
+        relocator->SetPoseGraph(pose_graph);
     }
 
     if (use_navsat)
@@ -123,10 +123,10 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
 
         backend->SetMapping(mapping);
 
-        if (detector)
+        if (relocator)
         {
-            detector->SetFeatureAssociation(association);
-            detector->SetMapping(mapping);
+            relocator->SetFeatureAssociation(association);
+            relocator->SetMapping(mapping);
         }
 
         flags += Flag::Laser;
