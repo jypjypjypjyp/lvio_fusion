@@ -58,11 +58,11 @@ void publish_odometry(Estimator::Ptr estimator, double time)
 void publish_navsat(Estimator::Ptr estimator, double time)
 {
     auto navsat = Navsat::Get();
-    static double head = 0;
+    static double finished = 0;
     static int i = 0;
     if (navsat->initialized)
     {
-        auto iter = navsat->raw.lower_bound(head);
+        auto iter = navsat->raw.lower_bound(finished);
         while (++iter != navsat->raw.end())
         {
             if (++i % 100 == 0)
@@ -77,7 +77,7 @@ void publish_navsat(Estimator::Ptr estimator, double time)
                 navsat_path.poses.push_back(pose_stamped);
             }
         }
-        head = (--iter)->first;
+        finished = (--iter)->first;
         navsat_path.header.stamp = ros::Time(time);
         navsat_path.header.frame_id = "world";
         pub_navsat.publish(navsat_path);

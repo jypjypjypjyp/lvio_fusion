@@ -12,9 +12,10 @@ namespace lvio_fusion
 // [A, B, C]
 struct Section
 {
-    double A = 0; // time of before the first frame
-    double B = 0; // time of before the first loop frame
-    double C = 0; // the last frame
+    double A = 0;   // time of before the first frame
+    double B = 0;   // time of before the first loop frame
+    double C = 0;   // the last frame
+    SE3d pose;      // temp storage of A's old pose
 };
 
 typedef std::map<double, Section> Atlas;
@@ -28,11 +29,11 @@ public:
 
     void AddSubMap(double old_time, double start_time, double end_time);
 
-    std::map<double, SE3d> GetActiveSubMaps(Frames &active_kfs, double &old_time, double start_time);
+    Atlas GetActiveSections(Frames &active_kfs, double &old_time, double start_time);
 
     Atlas GetSections(double start, double end);
 
-    void BuildProblem(Atlas &sections, adapt::Problem &problem);
+    void BuildProblem(Atlas &sections, Section submap, adapt::Problem &problem);
 
     void Optimize(Atlas &sections, adapt::Problem &problem);
 
@@ -45,8 +46,8 @@ private:
 
     Frontend::Ptr frontend_;
 
-    Atlas atlas_;    // loop altas
-    Atlas sections_; // sections
+    Atlas submaps_;      // loop submaps [end : {old, start, end}]
+    Atlas sections_;    // sections [C : {A, B, C}]
 };
 
 } // namespace lvio_fusion

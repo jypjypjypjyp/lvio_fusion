@@ -21,17 +21,17 @@ namespace lvio_fusion
 
 void FeatureAssociation::AddScan(double time, Point3Cloud::Ptr new_scan)
 {
-    static double head = 0;
+    static double finished = 0;
     raw_point_clouds_[time] = new_scan;
 
-    Frames new_kfs = Map::Instance().GetKeyFrames(head, time);
+    Frames new_kfs = Map::Instance().GetKeyFrames(finished, time);
     for (auto pair_kf : new_kfs)
     {
         PointICloud point_cloud;
         if (AlignScan(pair_kf.first, point_cloud))
         {
             Process(point_cloud, pair_kf.second);
-            head = pair_kf.first + epsilon;
+            finished = pair_kf.first + epsilon;
         }
     }
 }

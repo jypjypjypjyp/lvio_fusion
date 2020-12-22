@@ -60,7 +60,7 @@ public:
 
     void SetPoseGraph(PoseGraph::Ptr pose_graph) { pose_graph_ = pose_graph; }
 
-    double head = 0;
+    double finished = 0;
 
 private:
     void DetectorLoop();

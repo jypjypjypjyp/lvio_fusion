@@ -33,7 +33,7 @@ void Relocator::DetectorLoop()
     while (true)
     {
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        auto new_kfs = Map::Instance().GetKeyFrames(head, backend_->head);
+        auto new_kfs = Map::Instance().GetKeyFrames(finished, backend_->finished);
         if (new_kfs.empty())
         {
             continue;
@@ -65,7 +65,7 @@ void Relocator::DetectorLoop()
                 last_old_frame = last_frame = nullptr;
             }
         }
-        head = (--new_kfs.end())->first + epsilon;
+        finished = (--new_kfs.end())->first + epsilon;
     }
 }
 
@@ -130,7 +130,7 @@ bool Relocator::DetectLoop(Frame::Ptr frame, Frame::Ptr &old_frame)
     //     }
     // }
     // return false;
-    Frames candidate_kfs = Map::Instance().GetKeyFrames(0, backend_->head - 30);
+    Frames candidate_kfs = Map::Instance().GetKeyFrames(0, backend_->finished - 30);
     double min_distance = 10;
     for (auto pair_kf : candidate_kfs)
     {
@@ -396,8 +396,8 @@ void Relocator::CorrectLoop(double old_time, double start_time, double end_time)
     Frames active_kfs = Map::Instance().GetKeyFrames(old_time, end_time);
     Frames new_submap_kfs = Map::Instance().GetKeyFrames(start_time, end_time);
     Frames all_kfs = active_kfs;
-    // std::map<double, SE3d> inner_submap_old_frames = atlas_.GetActiveSubMaps(active_kfs, old_time, start_time);
-    // atlas_.AddSubMap(old_time, start_time, end_time);
+    Atlas active_sections = pose_graph_->GetActiveSections(active_kfs, old_time, start_time);
+    pose_graph_->AddSubMap(old_time, start_time, end_time);
     // adapt::Problem problem;
     // BuildProblem(active_kfs, problem);
 
@@ -444,7 +444,6 @@ void Relocator::CorrectLoop(double old_time, double start_time, double end_time)
     // forward propogate
     {
         std::unique_lock<std::mutex> lock1(backend_->mutex);
-        std::unique_lock<std::mutex> lock2(frontend_->mutex);
 
         Frame::Ptr last_frame = frontend_->last_frame;
         Frames forward_kfs = Map::Instance().GetKeyFrames(end_time + epsilon);

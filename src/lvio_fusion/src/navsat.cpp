@@ -13,8 +13,8 @@ void Navsat::AddPoint(double time, double x, double y, double z)
 {
     raw[time] = Vector3d(x, y, z);
 
-    static double head = 0;
-    Frames new_kfs = Map::Instance().GetKeyFrames(head);
+    static double finished = 0;
+    Frames new_kfs = Map::Instance().GetKeyFrames(finished);
     for (auto pair_kf : new_kfs)
     {
         auto this_iter = raw.lower_bound(pair_kf.first);
@@ -22,10 +22,10 @@ void Navsat::AddPoint(double time, double x, double y, double z)
             continue;
 
         pair_kf.second->feature_navsat = navsat::Feature::Ptr(new navsat::Feature(this_iter->first));
-        head = pair_kf.first + epsilon;
+        finished = pair_kf.first + epsilon;
     }
 
-    if (!initialized && !pose_graph_->GetSections(0, head).empty())
+    if (!initialized && !pose_graph_->GetSections(0, 0).empty())
     {
         Initialize();
     }
@@ -80,9 +80,9 @@ void Navsat::Initialize()
 
 double Navsat::Optimize(double time)
 {
-    static double head = 0;
+    static double finished = 0;
     // get secions
-    auto sections = pose_graph_->GetSections(head, time);
+    auto sections = pose_graph_->GetSections(finished, time);
     if (sections.empty())
         return 0;
 
@@ -99,7 +99,7 @@ double Navsat::Optimize(double time)
         if (height < 20)
             break;
 
-        SE3d old_pose = frame_A->pose;
+        pair.second.pose = frame_A->pose;
         // optimize point A of sections
         adapt::Problem problem;
         ceres::LocalParameterization *local_parameterization = new ceres::ProductParameterization(
@@ -138,14 +138,14 @@ double Navsat::Optimize(double time)
 
         // forward propagate
         SE3d new_pose = frame_A->pose;
-        transform = new_pose * old_pose.inverse();
+        transform = new_pose * pair.second.pose.inverse();
         pose_graph_->ForwardPropagate(transform, Map::Instance().GetKeyFrames(pair.second.A + epsilon, pair.second.C));
 
-        head = pair.second.C + epsilon;
+        finished = pair.second.C + epsilon;
     }
 
     // forward propagate
-    pose_graph_->ForwardPropagate(transform, head);
+    pose_graph_->ForwardPropagate(transform, finished);
     return sections.begin()->second.A;
 }
 

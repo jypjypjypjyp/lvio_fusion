@@ -137,9 +137,9 @@ double compute_reprojection_error(Vector2d ob, Vector3d pw, SE3d pose, Camera::P
 
 void Backend::Optimize()
 {
-    static double forward_head = 0;
+    static double forward = 0;
     std::unique_lock<std::mutex> lock(mutex);
-    Frames active_kfs = Map::Instance().GetKeyFrames(head);
+    Frames active_kfs = Map::Instance().GetKeyFrames(finished);
 
     // TODO: IMU
     // imu init
@@ -204,9 +204,9 @@ void Backend::Optimize()
     }
 
     // propagate to the last frame
-    forward_head = (--active_kfs.end())->first + epsilon;
-    ForwardPropagate(forward_head);
-    head = forward_head - delay_;
+    forward = (--active_kfs.end())->first + epsilon;
+    ForwardPropagate(forward);
+    finished = forward - delay_;
 }
 
 void Backend::ForwardPropagate(double time)

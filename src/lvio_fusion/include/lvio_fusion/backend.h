@@ -42,7 +42,7 @@ public:
 
     BackendStatus status = BackendStatus::RUNNING;
     std::mutex mutex;
-    double head = 0;
+    double finished = 0;
 
 private:
     void BackendLoop();
