@@ -6,13 +6,14 @@
 namespace lvio_fusion
 {
 
-void PoseGraph::AddSubMap(double old_time, double start_time, double end_time)
+Section &PoseGraph::AddSubMap(double old_time, double start_time, double end_time)
 {
     Section new_submap;
     new_submap.C = end_time;
     new_submap.B = start_time;
     new_submap.A = old_time;
     submaps_[end_time] = new_submap;
+    return submaps_[end_time];
 }
 
 /**
@@ -48,14 +49,19 @@ Atlas PoseGraph::GetActiveSections(Frames &active_kfs, double &old_time, double 
     Atlas active_sections;
     Frame::Ptr last_frame;
     double start = 0;
-    for (auto pair_kf : active_kfs)
+    for (auto &pair_kf : active_kfs)
     {
         if (last_frame)
         {
             if (last_frame->id + 1 != pair_kf.second->id)
             {
-                Atlas GetSections(start, last_frame->time);
-                
+                auto sections = GetSections(start, last_frame->time);
+                for (auto &pair : sections)
+                {
+                    if (pair.second.C > last_frame->time)
+                        break;
+                    active_sections.insert(pair);
+                }
                 start = pair_kf.first;
             }
         }
@@ -65,6 +71,8 @@ Atlas PoseGraph::GetActiveSections(Frames &active_kfs, double &old_time, double 
         }
         last_frame = pair_kf.second;
     }
+    Atlas sections = GetSections(start, start_time);
+    active_sections.insert(sections.begin(), sections.end());
     return active_sections;
 }
 
@@ -81,7 +89,7 @@ void PoseGraph::UpdateSections(double time)
     static bool turning = false;
     static int A_id = 0;
     static Section current_section;
-    for (auto pair_kf : active_kfs)
+    for (auto &pair_kf : active_kfs)
     {
         Vector3d heading = pair_kf.second->pose.so3() * Vector3d::UnitX();
         if (last_frame && pair_kf.second->feature_navsat)
@@ -92,7 +100,7 @@ void PoseGraph::UpdateSections(double time)
                 if (current_section.A != 0 && pair_kf.second->id - A_id > 10)
                 {
                     current_section.C = pair_kf.first;
-                    sections_[current_section.C] = current_section;
+                    sections_[current_section.A] = current_section;
                 }
                 current_section.A = pair_kf.first;
                 A_id = pair_kf.second->id;
@@ -109,7 +117,7 @@ void PoseGraph::UpdateSections(double time)
                 {
                     current_section.B = pair_kf.first;
                     current_section.C = pair_kf.first;
-                    sections_[current_section.C] = current_section;
+                    sections_[current_section.A] = current_section;
                     current_section.A = pair_kf.first;
                 }
             }
@@ -130,7 +138,7 @@ Atlas PoseGraph::GetSections(double start, double end)
     return Atlas(start_iter, end_iter);
 }
 
-void PoseGraph::BuildProblem(Atlas &sections, Section submap, adapt::Problem &problem)
+void PoseGraph::BuildProblem(Atlas &sections, Section &submap, adapt::Problem &problem)
 {
     ceres::LocalParameterization *local_parameterization = new ceres::ProductParameterization(
         new ceres::EigenQuaternionParameterization(),
@@ -145,20 +153,21 @@ void PoseGraph::BuildProblem(Atlas &sections, Section submap, adapt::Problem &pr
     problem.SetParameterBlockConstant(para_start);
 
     Frame::Ptr last_frame = old_frame;
-    for (auto pair : sections)
+    for (auto &pair : sections)
     {
-        Frame::Ptr frame_A = Map::Instance().keyframes[pair.second.A];
+        auto frame_A = Map::Instance().keyframes[pair.second.A];
         double *para = frame_A->pose.data();
         problem.AddParameterBlock(para, SE3d::num_parameters, local_parameterization);
         double *para_last_kf = last_frame->pose.data();
         ceres::CostFunction *cost_function;
         cost_function = PoseGraphError::Create(last_frame->pose, frame_A->pose, frame_A->weights.pose_graph);
         problem.AddResidualBlock(ProblemType::Other, cost_function, NULL, para_last_kf, para);
+        pair.second.pose = frame_A->pose;
         last_frame = frame_A;
     }
 }
 
-void PoseGraph::Optimize(Atlas &sections, adapt::Problem &problem)
+void PoseGraph::Optimize(Atlas &sections, Section &submap, adapt::Problem &problem)
 {
     ceres::Solver::Options options;
     options.linear_solver_type = ceres::SPARSE_NORMAL_CHOLESKY;
@@ -167,13 +176,22 @@ void PoseGraph::Optimize(Atlas &sections, adapt::Problem &problem)
     ceres::Solve(options, &problem, &summary);
     LOG(INFO) << summary.FullReport();
 
-    for(auto pair : sections)
+    Section last_section;
+    double last_time = 0;
+    for (auto &pair : sections)
     {
-
+        if (last_time)
+        {
+            SE3d transfrom = Map::Instance().keyframes[last_time]->pose * last_section.pose.inverse();
+            Frames forward_kfs = Map::Instance().GetKeyFrames(last_time + epsilon, pair.first);
+            ForwardPropagate(transfrom, forward_kfs);
+        }
+        last_time = pair.first;
+        last_section = pair.second;
     }
-
-    ForwardPropagate()
-
+    SE3d transfrom = Map::Instance().keyframes[last_time]->pose * last_section.pose.inverse();
+    Frames forward_kfs = Map::Instance().GetKeyFrames(last_time + epsilon, submap.B - epsilon);
+    ForwardPropagate(transfrom, forward_kfs);
 }
 
 // end_time = 0 means full forward propagate
@@ -186,18 +204,13 @@ void PoseGraph::ForwardPropagate(SE3d transfrom, double start_time)
     {
         forward_kfs[last_frame->time] = last_frame;
     }
-
-    for (auto pair_kf : forward_kfs)
-    {
-        pair_kf.second->pose = transfrom * pair_kf.second->pose;
-    }
-
+    ForwardPropagate(transfrom, forward_kfs);
     frontend_->UpdateCache();
 }
 
 void PoseGraph::ForwardPropagate(SE3d transfrom, const Frames &forward_kfs)
 {
-    for (auto pair_kf : forward_kfs)
+    for (auto &pair_kf : forward_kfs)
     {
         pair_kf.second->pose = transfrom * pair_kf.second->pose;
     }

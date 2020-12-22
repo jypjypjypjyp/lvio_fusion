@@ -145,11 +145,11 @@ bool Frontend::Track()
 void Frontend::CreateKeyframe(bool need_new_features)
 {
     // first, add new observations of old points
-    for (auto pair_feature : current_frame->features_left)
+    for (auto &pair_feature : current_frame->features_left)
     {
         auto feature = pair_feature.second;
-        auto mp = feature->landmark.lock();
-        mp->AddObservation(feature);
+        auto landmark = feature->landmark.lock();
+        landmark->AddObservation(feature);
     }
     // detect new features, track in right image and triangulate map points
     if (need_new_features)
@@ -207,7 +207,7 @@ int Frontend::TrackLastFrame()
     // use LK flow to estimate points in the last image
     std::vector<cv::Point2f> kps_last, kps_current;
     std::vector<visual::Landmark::Ptr> landmarks;
-    for (auto pair_feature : last_frame->features_left)
+    for (auto &pair_feature : last_frame->features_left)
     {
         // use project point
         auto feature = pair_feature.second;
@@ -301,7 +301,7 @@ int Frontend::DetectNewFeatures()
     while (num_times++ < 2 && current_frame->features_left.size() < 0.8 * num_features_)
     {
         cv::Mat mask(current_frame->image_left.size(), CV_8UC1, 255);
-        for (auto pair_feature : current_frame->features_left)
+        for (auto &pair_feature : current_frame->features_left)
         {
             auto feature = pair_feature.second;
             cv::circle(mask, feature->keypoint, 20, 0, cv::FILLED);
@@ -365,7 +365,7 @@ bool Frontend::Reset()
 void Frontend::UpdateCache()
 {
     position_cache_.clear();
-    for (auto pair_feature : last_frame->features_left)
+    for (auto &pair_feature : last_frame->features_left)
     {
         auto feature = pair_feature.second;
         auto camera_point = feature->landmark.lock();

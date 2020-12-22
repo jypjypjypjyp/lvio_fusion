@@ -1,6 +1,6 @@
 #include "lvio_fusion/imu/initializer.h"
-#include <lvio_fusion/utility.h>
 #include "lvio_fusion/map.h"
+#include <lvio_fusion/utility.h>
 
 namespace lvio_fusion
 {
@@ -8,7 +8,7 @@ bool Initializer::Initialize(Frames kfs)
 {
     // be perpare for initialization
     std::vector<Initializer::Frame> frames;
-    for (auto pair_kf : kfs)
+    for (auto &pair_kf : kfs)
     {
         if (!pair_kf.second->preintegration)
             return false;
@@ -22,7 +22,7 @@ bool Initializer::Initialize(Frames kfs)
     }
 
     SolveGyroscopeBias(frames);
-    for (auto frame : frames)
+    for (auto &frame : frames)
     {
         frame.preintegration->Repropagate(Vector3d::Zero(), frame.Bg);
     }

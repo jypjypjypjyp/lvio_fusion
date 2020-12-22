@@ -26,6 +26,7 @@ Relocator::Relocator(std::string voc_path)
 
 void Relocator::DetectorLoop()
 {
+    static double finished = 0;
     static double old_time = DBL_MAX;
     static double start_time = 0;
     static Frame::Ptr last_frame;
@@ -35,10 +36,8 @@ void Relocator::DetectorLoop()
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
         auto new_kfs = Map::Instance().GetKeyFrames(finished, backend_->finished);
         if (new_kfs.empty())
-        {
             continue;
-        }
-        for (auto pair_kf : new_kfs)
+        for (auto &pair_kf : new_kfs)
         {
             Frame::Ptr frame = pair_kf.second, old_frame;
             AddKeyFrameIntoVoc(frame);
@@ -73,7 +72,7 @@ void Relocator::AddKeyFrameIntoVoc(Frame::Ptr frame)
 {
     // compute descriptors
     std::vector<cv::KeyPoint> keypoints;
-    for (auto pair_feature : frame->features_left)
+    for (auto &pair_feature : frame->features_left)
     {
         keypoints.push_back(cv::KeyPoint(pair_feature.second->keypoint, 1));
     }
@@ -85,7 +84,7 @@ void Relocator::AddKeyFrameIntoVoc(Frame::Ptr frame)
     // NOTE: detector_->compute maybe remove some row because its descriptor cannot be computed
     int j = 0, i = 0;
     frame->descriptors = cv::Mat::zeros(frame->features_left.size(), 32, CV_8U);
-    for (auto pair_feature : frame->features_left)
+    for (auto &pair_feature : frame->features_left)
     {
         if (pair_feature.second->keypoint == keypoints[j].pt && j < descriptors.rows)
         {
@@ -132,7 +131,7 @@ bool Relocator::DetectLoop(Frame::Ptr frame, Frame::Ptr &old_frame)
     // return false;
     Frames candidate_kfs = Map::Instance().GetKeyFrames(0, backend_->finished - 30);
     double min_distance = 10;
-    for (auto pair_kf : candidate_kfs)
+    for (auto &pair_kf : candidate_kfs)
     {
         Vector3d vec = (pair_kf.second->pose.translation() - frame->pose.translation());
         vec.z() = 0;
@@ -198,7 +197,7 @@ bool Relocator::RelocateByImage(Frame::Ptr frame, Frame::Ptr old_frame)
     // search by BRIEFDes
     auto descriptors = mat2briefs(frame);
     auto descriptors_old = mat2briefs(old_frame);
-    for (auto pair_desciptor : descriptors)
+    for (auto &pair_desciptor : descriptors)
     {
         unsigned long best_id = 0;
         if (SearchInAera(pair_desciptor.second, descriptors_old, best_id))
@@ -321,7 +320,7 @@ bool Relocator::SearchInAera(const BRIEF descriptor, const std::map<unsigned lon
 {
     cv::Point2f best_pt;
     int best_distance = 256;
-    for (auto pair_desciptor : descriptors_old)
+    for (auto &pair_desciptor : descriptors_old)
     {
         int distance = Hamming(descriptor, pair_desciptor.second);
         if (distance < best_distance)
@@ -347,7 +346,7 @@ void Relocator::BuildProblem(Frames &active_kfs, adapt::Problem &problem)
         new ceres::IdentityParameterization(3));
 
     Frame::Ptr last_frame;
-    for (auto pair_kf : active_kfs)
+    for (auto &pair_kf : active_kfs)
     {
         auto frame = pair_kf.second;
         double *para_kf = frame->pose.data();
@@ -372,7 +371,7 @@ void Relocator::BuildProblemWithLoop(Frames &active_kfs, adapt::Problem &problem
     double start_time = active_kfs.begin()->first;
 
     // loop constraint
-    for (auto pair_kf : active_kfs)
+    for (auto &pair_kf : active_kfs)
     {
         auto frame = pair_kf.second;
         if (frame->loop_closure && frame->loop_closure->relocated)
@@ -397,9 +396,9 @@ void Relocator::CorrectLoop(double old_time, double start_time, double end_time)
     Frames new_submap_kfs = Map::Instance().GetKeyFrames(start_time, end_time);
     Frames all_kfs = active_kfs;
     Atlas active_sections = pose_graph_->GetActiveSections(active_kfs, old_time, start_time);
-    pose_graph_->AddSubMap(old_time, start_time, end_time);
-    // adapt::Problem problem;
-    // BuildProblem(active_kfs, problem);
+    Section &new_submap = pose_graph_->AddSubMap(old_time, start_time, end_time);
+    adapt::Problem problem;
+    pose_graph_->BuildProblem(active_sections, new_submap, problem);
 
     // update new submap frams
     SE3d old_pose = (--new_submap_kfs.end())->second->pose;
@@ -410,13 +409,13 @@ void Relocator::CorrectLoop(double old_time, double start_time, double end_time)
 
         // relocate new submaps
         std::map<double, double> score_table;
-        for (auto pair_kf : new_submap_kfs)
+        for (auto &pair_kf : new_submap_kfs)
         {
             Relocate(pair_kf.second, pair_kf.second->loop_closure->frame_old);
             score_table[-pair_kf.second->loop_closure->score] = pair_kf.first;
         }
         int max_num_relocated = 1;
-        for (auto pair : score_table)
+        for (auto &pair : score_table)
         {
             if (max_num_relocated-- == 0)
                 break;
@@ -432,7 +431,7 @@ void Relocator::CorrectLoop(double old_time, double start_time, double end_time)
         ceres::Solver::Summary summary;
         ceres::Solve(options, &problem, &summary);
 
-        for (auto pair_kf : new_submap_kfs)
+        for (auto &pair_kf : new_submap_kfs)
         {
             Relocate(pair_kf.second, pair_kf.second->loop_closure->frame_old);
             pair_kf.second->loop_closure->relocated = true;
@@ -444,54 +443,19 @@ void Relocator::CorrectLoop(double old_time, double start_time, double end_time)
     // forward propogate
     {
         std::unique_lock<std::mutex> lock1(backend_->mutex);
-
-        Frame::Ptr last_frame = frontend_->last_frame;
-        Frames forward_kfs = Map::Instance().GetKeyFrames(end_time + epsilon);
-        if (forward_kfs.find(last_frame->time) == forward_kfs.end())
-        {
-            forward_kfs[last_frame->time] = last_frame;
-        }
         SE3d transform = old_pose.inverse() * new_pose;
-        for (auto pair_kf : forward_kfs)
+        pose_graph_->ForwardPropagate(transform, end_time + epsilon);
+        if (mapping_)
         {
-            pair_kf.second->pose = pair_kf.second->pose * transform;
-            // TODO: Repropagate
-
-            if (mapping_)
+            Frames mapping_kfs = Map::Instance().GetKeyFrames(end_time + epsilon);
+            for (auto &pair : mapping_kfs)
             {
-                mapping_->ToWorld(pair_kf.second);
+                mapping_->ToWorld(pair.second);
             }
         }
-        frontend_->UpdateCache();
     }
 
-    // BuildProblemWithLoop(active_kfs, problem);
-    // ceres::Solver::Options options;
-    // options.linear_solver_type = ceres::SPARSE_NORMAL_CHOLESKY;
-    // options.num_threads = 1;
-    // ceres::Solver::Summary summary;
-    // ceres::Solve(options, &problem, &summary);
-
-    // // update pose of inner submaps
-    // for (auto pair_of : inner_submap_old_frames)
-    // {
-    //     auto old_frame = active_kfs[pair_of.first];
-    //     // T2_new = T2 * T1.inverse() * T1_new
-    //     SE3d transform = pair_of.second.inverse() * old_frame->pose;
-    //     for (auto iter = ++all_kfs.find(pair_of.first); active_kfs.find(iter->first) == active_kfs.end(); iter++)
-    //     {
-    //         auto frame = iter->second;
-    //         frame->pose = frame->pose * transform;
-    //     }
-    // }
-
-    // if (mapping_)
-    // {
-    //     for (auto pair_kf : all_kfs)
-    //     {
-    //         mapping_->AddToWorld(pair_kf.second);
-    //     }
-    // }
+    pose_graph_->Optimize(active_sections, new_submap, problem);
 }
 
 } // namespace lvio_fusion

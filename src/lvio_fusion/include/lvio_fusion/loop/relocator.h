@@ -37,7 +37,7 @@ inline std::map<unsigned long, BRIEF> mat2briefs(Frame::Ptr frame)
 {
     std::map<unsigned long, BRIEF> briefs;
     int i = 0;
-    for (auto pair_feature : frame->features_left)
+    for (auto &pair_feature : frame->features_left)
     {
         briefs[pair_feature.first] = mat2brief(frame->descriptors.row(i));
         i++;
@@ -59,8 +59,6 @@ public:
     void SetBackend(Backend::Ptr backend) { backend_ = backend; }
 
     void SetPoseGraph(PoseGraph::Ptr pose_graph) { pose_graph_ = pose_graph; }
-
-    double finished = 0;
 
 private:
     void DetectorLoop();

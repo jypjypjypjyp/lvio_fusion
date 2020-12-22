@@ -47,7 +47,7 @@ public:
 
     Frontend::Ptr frontend;
     Backend::Ptr backend;
-    LoopDetector::Ptr relocator;
+    Relocator::Ptr relocator;
     FeatureAssociation::Ptr association;
     Mapping::Ptr mapping;
     Initializer::Ptr initializer;

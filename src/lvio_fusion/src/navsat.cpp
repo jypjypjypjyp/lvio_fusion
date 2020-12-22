@@ -15,7 +15,7 @@ void Navsat::AddPoint(double time, double x, double y, double z)
 
     static double finished = 0;
     Frames new_kfs = Map::Instance().GetKeyFrames(finished);
-    for (auto pair_kf : new_kfs)
+    for (auto &pair_kf : new_kfs)
     {
         auto this_iter = raw.lower_bound(pair_kf.first);
         if (this_iter == raw.begin() || std::fabs(this_iter->first - pair_kf.first) > 1e-1)
@@ -54,7 +54,7 @@ void Navsat::Initialize()
     problem.AddParameterBlock(extrinsic.data(), SE3d::num_parameters, local_parameterization);
 
     double weights[3] = {1, 1, 1};
-    for (auto pair_kf : keyframes)
+    for (auto &pair_kf : keyframes)
     {
         auto position = pair_kf.second->pose.translation();
         if (pair_kf.second->feature_navsat)
@@ -87,10 +87,10 @@ double Navsat::Optimize(double time)
         return 0;
 
     SE3d transform;
-    for (auto pair : sections)
+    for (auto &pair : sections)
     {
         Frames active_kfs = Map::Instance().GetKeyFrames(pair.second.A, time);
-        Frame::Ptr frame_A = Map::Instance().keyframes[pair.second.A];
+        auto frame_A = Map::Instance().keyframes[pair.second.A];
         // check
         Vector3d A = frame_A->pose.translation();
         Vector3d B = Map::Instance().keyframes[pair.second.B]->pose.translation();
@@ -99,46 +99,48 @@ double Navsat::Optimize(double time)
         if (height < 20)
             break;
 
-        pair.second.pose = frame_A->pose;
-        // optimize point A of sections
-        adapt::Problem problem;
-        ceres::LocalParameterization *local_parameterization = new ceres::ProductParameterization(
-            new ceres::EigenQuaternionParameterization(),
-            new ceres::IdentityParameterization(3));
-
-        double *para = frame_A->pose.data();
-        problem.AddParameterBlock(para, SE3d::num_parameters, local_parameterization);
-
-        double weights[3] = {1, 1, 1};
-        for (auto pair_kf : active_kfs)
+        SE3d old_pose = frame_A->pose;
         {
-            if (pair_kf.first == pair.second.B)
+            // optimize point A of sections
+            adapt::Problem problem;
+            ceres::LocalParameterization *local_parameterization = new ceres::ProductParameterization(
+                new ceres::EigenQuaternionParameterization(),
+                new ceres::IdentityParameterization(3));
+
+            double *para = frame_A->pose.data();
+            problem.AddParameterBlock(para, SE3d::num_parameters, local_parameterization);
+
+            double weights[3] = {1, 1, 1};
+            for (auto &pair_kf : active_kfs)
             {
-                weights[0] = weights[1] = weights[2] = 3;
+                if (pair_kf.first == pair.second.B)
+                {
+                    weights[0] = weights[1] = weights[2] = 3;
+                }
+                auto frame = pair_kf.second;
+                auto position = frame->pose.translation();
+                if (frame->feature_navsat)
+                {
+                    ceres::CostFunction *cost_function = NavsatInitError::Create(GetPoint(frame->feature_navsat->time), frame_A->pose.inverse() * position, weights);
+                    problem.AddResidualBlock(ProblemType::Other, cost_function, NULL, para);
+                }
             }
-            auto frame = pair_kf.second;
-            auto position = frame->pose.translation();
-            if (frame->feature_navsat)
-            {
-                ceres::CostFunction *cost_function = NavsatInitError::Create(GetPoint(frame->feature_navsat->time), frame_A->pose.inverse() * position, weights);
-                problem.AddResidualBlock(ProblemType::Other, cost_function, NULL, para);
-            }
+
+            ceres::Solver::Options options;
+            options.linear_solver_type = ceres::DENSE_QR;
+            options.num_threads = 1;
+            ceres::Solver::Summary summary;
+            ceres::Solve(options, &problem, &summary);
+            LOG(INFO) << summary.FullReport();
+
+            frame_A->loop_closure = loop::LoopClosure::Ptr(new loop::LoopClosure());
+            frame_A->loop_closure->frame_old = frame_A;
+            frame_A->loop_closure->relocated = true;
         }
-
-        ceres::Solver::Options options;
-        options.linear_solver_type = ceres::DENSE_QR;
-        options.num_threads = 1;
-        ceres::Solver::Summary summary;
-        ceres::Solve(options, &problem, &summary);
-        LOG(INFO) << summary.FullReport();
-
-        frame_A->loop_closure = loop::LoopClosure::Ptr(new loop::LoopClosure());
-        frame_A->loop_closure->frame_old = frame_A;
-        frame_A->loop_closure->relocated = true;
+        SE3d new_pose = frame_A->pose;
 
         // forward propagate
-        SE3d new_pose = frame_A->pose;
-        transform = new_pose * pair.second.pose.inverse();
+        transform = new_pose * old_pose.inverse();
         pose_graph_->ForwardPropagate(transform, Map::Instance().GetKeyFrames(pair.second.A + epsilon, pair.second.C));
 
         finished = pair.second.C + epsilon;

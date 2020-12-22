@@ -70,12 +70,12 @@ void Backend::BuildProblem(Frames &active_kfs, adapt::Problem &problem)
 
     double start_time = active_kfs.begin()->first;
 
-    for (auto pair_kf : active_kfs)
+    for (auto &pair_kf : active_kfs)
     {
         auto frame = pair_kf.second;
         double *para_kf = frame->pose.data();
         problem.AddParameterBlock(para_kf, SE3d::num_parameters, local_parameterization);
-        for (auto pair_feature : frame->features_left)
+        for (auto &pair_feature : frame->features_left)
         {
             auto feature = pair_feature.second;
             auto landmark = feature->landmark.lock();
@@ -101,7 +101,7 @@ void Backend::BuildProblem(Frames &active_kfs, adapt::Problem &problem)
     // {
     //     Frame::Ptr last_frame;
     //     Frame::Ptr current_frame;
-    //     for (auto pair_kf : active_kfs)
+    //     for (auto & pair_kf : active_kfs)
     //     {
     //         current_frame = pair_kf.second;
     //         if (!current_frame->preintegration)
@@ -174,7 +174,7 @@ void Backend::Optimize()
         if (start_time && mapping_)
         {
             Frames mapping_kfs = Map::Instance().GetKeyFrames(start_time);
-            for (auto pair : mapping_kfs)
+            for (auto &pair : mapping_kfs)
             {
                 mapping_->ToWorld(pair.second);
             }
@@ -182,11 +182,11 @@ void Backend::Optimize()
     }
 
     // reject outliers and clean the map
-    for (auto pair_kf : active_kfs)
+    for (auto &pair_kf : active_kfs)
     {
         auto frame = pair_kf.second;
         auto left_features = frame->features_left;
-        for (auto pair_feature : left_features)
+        for (auto &pair_feature : left_features)
         {
             auto feature = pair_feature.second;
             auto landmark = feature->landmark.lock();

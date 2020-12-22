@@ -84,7 +84,7 @@ const map<string, LabelType> map_label = {
 vector<DetectedObject> get_objects_from_msg(const object_detector::BoundingBoxesConstPtr &obj_msg)
 {
     vector<DetectedObject> objects;
-    for (auto box : obj_msg->bounding_boxes)
+    for (auto & box : obj_msg->bounding_boxes)
     {
         if (map_label.find(box.Class) == map_label.end())
             continue;
@@ -137,7 +137,7 @@ void sync_process()
                 {
                     auto objects = get_objects_from_msg(obj_buf);
                     // DEBUG
-                    // for (auto object : objects)
+                    // for (auto & object : objects)
                     // {
                     //     cv::rectangle(image0,
                     //                   cv::Rect2i(cv::Point2i(object.xmin, object.ymin), cv::Point2i(object.xmax, object.ymax)),
@@ -263,7 +263,7 @@ void write_result(Estimator::Ptr estimator)
     ofstream of(result_path, ios::out);
     of.setf(ios::fixed, ios::floatfield);
     of.precision(0);
-    for (auto pair : lvio_fusion::Map::Instance().keyframes)
+    for (auto & pair : lvio_fusion::Map::Instance().keyframes)
     {
         of << pair.first << ",";
         of.precision(5);

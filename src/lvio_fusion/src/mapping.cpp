@@ -40,7 +40,7 @@ void Mapping::BuildOldMapFrame(Frames old_frames, Frame::Ptr map_frame)
 {
     PointICloud points_surf_merged;
     PointICloud points_ground_merged;
-    for (auto pair_kf : old_frames)
+    for (auto & pair_kf : old_frames)
     {
         points_surf_merged += pointclouds_surf[pair_kf.first];
         points_ground_merged += pointclouds_ground[pair_kf.first];
@@ -65,7 +65,7 @@ void Mapping::BuildMapFrame(Frame::Ptr frame, Frame::Ptr map_frame)
         return;
     PointICloud points_surf_merged;
     PointICloud points_ground_merged;
-    for (auto pair_kf : last_frames)
+    for (auto & pair_kf : last_frames)
     {
         points_surf_merged += pointclouds_surf[pair_kf.first];
         points_ground_merged += pointclouds_ground[pair_kf.first];
@@ -84,10 +84,10 @@ void Mapping::BuildMapFrame(Frame::Ptr frame, Frame::Ptr map_frame)
 void Mapping::Optimize(Frames &active_kfs)
 {
     // NOTE: some place is good, don't need optimize too much.
-    for (auto pair_kf : active_kfs)
+    for (auto & pair_kf : active_kfs)
     {
         auto t1 = std::chrono::steady_clock::now();
-        Frame::Ptr map_frame = Frame::Ptr(new Frame());
+        auto map_frame = Frame::Ptr(new Frame());
         BuildMapFrame(pair_kf.second, map_frame);
         if (map_frame->feature_lidar && pair_kf.second->feature_lidar)
         {
@@ -104,8 +104,6 @@ void Mapping::Optimize(Frames &active_kfs)
                 ceres::Solver::Summary summary;
                 ceres::Solve(options, &problem, &summary);
                 pair_kf.second->pose = rpyxyz2se3(rpyxyz) * map_frame->pose;
-                LOG(INFO) << "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!";
-                LOG(INFO) << summary.BriefReport();
             }
             if (!map_frame->feature_lidar->points_surf.empty())
             {
@@ -118,8 +116,6 @@ void Mapping::Optimize(Frames &active_kfs)
                 ceres::Solver::Summary summary;
                 ceres::Solve(options, &problem, &summary);
                 pair_kf.second->pose = rpyxyz2se3(rpyxyz) * map_frame->pose;
-                LOG(INFO) << "^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^";
-                LOG(INFO) << summary.BriefReport();
             }
         }
         ToWorld(pair_kf.second);
@@ -134,7 +130,7 @@ void Mapping::MergeScan(const PointICloud &in, SE3d Twc, PointICloud &out)
 {
     Sophus::SE3f tf_se3 = Twc.cast<float>();
     float *tf = tf_se3.data();
-    for (auto point_in : in)
+    for (auto & point_in : in)
     {
         PointI point_out;
         ceres::SE3TransformPoint(tf, point_in.data, point_out.data);
@@ -162,7 +158,7 @@ void Mapping::ToWorld(Frame::Ptr frame)
 PointRGBCloud Mapping::GetGlobalMap()
 {
     PointRGBCloud global_map;
-    for (auto pair_pc : pointclouds_color)
+    for (auto & pair_pc : pointclouds_color)
     {
         auto &pointcloud = pair_pc.second;
         global_map.insert(global_map.end(), pointcloud.begin(), pointcloud.end());
