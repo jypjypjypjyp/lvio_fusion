@@ -3,6 +3,7 @@
 
 #include "lvio_fusion/adapt/problem.h"
 #include "lvio_fusion/adapt/weights.h"
+#include "lvio_fusion/frame.h"
 
 namespace lvio_fusion
 {
@@ -10,7 +11,7 @@ namespace lvio_fusion
 class Environment
 {
 public:
-    void Interact();
+    void Interact(Frame::Ptr frame, Weights *weights, double *reward);
 
 private:
 };
