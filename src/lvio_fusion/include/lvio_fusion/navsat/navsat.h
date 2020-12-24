@@ -53,7 +53,6 @@ private:
 
     PoseGraph::Ptr pose_graph_;
 
-    double A_, B_, C_; // three points on the ground level
     static std::vector<Navsat::Ptr> devices_;
 };
 

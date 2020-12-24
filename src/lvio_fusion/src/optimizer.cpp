@@ -133,7 +133,7 @@ Atlas PoseGraph::GetSections(double start, double end)
 {
     UpdateSections(end);
 
-    auto start_iter = sections_.upper_bound(start);
+    auto start_iter = sections_.lower_bound(start);
     auto end_iter = end == 0 ? sections_.end() : sections_.upper_bound(end);
     return Atlas(start_iter, end_iter);
 }
