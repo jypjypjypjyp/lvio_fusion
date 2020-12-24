@@ -97,7 +97,7 @@ void PoseGraph::UpdateSections(double time)
             double degree = vectors_degree_angle(last_heading, heading);
             if (!turning && degree >= 5)
             {
-                if (current_section.A != 0 && pair_kf.second->id - A_id > 10)
+                if (current_section.A != 0 && pair_kf.second->id - A_id > 3)
                 {
                     current_section.C = pair_kf.first;
                     sections_[current_section.A] = current_section;
@@ -113,7 +113,7 @@ void PoseGraph::UpdateSections(double time)
                     current_section.B = pair_kf.first;
                     turning = false;
                 }
-                else if (pair_kf.second->id - A_id > 20)
+                else if (pair_kf.second->id - A_id > 10)
                 {
                     current_section.B = pair_kf.first;
                     current_section.C = pair_kf.first;

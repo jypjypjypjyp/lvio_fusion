@@ -28,7 +28,7 @@ void Relocator::DetectorLoop()
 {
     static double finished = 0;
     static double old_time = DBL_MAX;
-    static double start_time = 0;
+    static double start_time = DBL_MAX;
     static Frame::Ptr last_frame;
     static Frame::Ptr last_old_frame;
     while (true)
