@@ -262,11 +262,10 @@ void write_result(Estimator::Ptr estimator)
 {
     ofstream of(result_path, ios::out);
     of.setf(ios::fixed, ios::floatfield);
-    of.precision(0);
+    of.precision(5);
     for (auto & pair : lvio_fusion::Map::Instance().keyframes)
     {
         of << pair.first << ",";
-        of.precision(5);
         SE3d pose = pair.second->pose;
         Vector3d T = pose.translation();
         Quaterniond R = pose.unit_quaternion();

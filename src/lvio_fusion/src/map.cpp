@@ -33,7 +33,7 @@ Frames Map::GetKeyFrames(double start, double end, int num)
     {
         auto start_iter = keyframes.lower_bound(start);
         auto end_iter = keyframes.upper_bound(end);
-        return start >= end ? Frames() : Frames(start_iter, end_iter);
+        return start > end ? Frames() : Frames(start_iter, end_iter);
     }
     else if (end == 0)
     {

@@ -79,7 +79,7 @@ Atlas PoseGraph::GetActiveSections(Frames &active_kfs, double &old_time, double 
 void PoseGraph::UpdateSections(double time)
 {
     static double finished = 0;
-    if (time <= finished)
+    if (time < finished)
         return;
     Frames active_kfs = Map::Instance().GetKeyFrames(finished, time);
     finished = time + epsilon;
@@ -87,40 +87,38 @@ void PoseGraph::UpdateSections(double time)
     static Frame::Ptr last_frame;
     static Vector3d last_heading(1, 0, 0);
     static bool turning = false;
-    static int A_id = 0;
+    static int num = 0;
+    static double accumulate_degree = 0;
     static Section current_section;
     for (auto &pair_kf : active_kfs)
     {
         Vector3d heading = pair_kf.second->pose.so3() * Vector3d::UnitX();
-        if (last_frame && pair_kf.second->feature_navsat)
+        if (last_frame)
         {
             double degree = vectors_degree_angle(last_heading, heading);
-            if (!turning && degree >= 5)
+            accumulate_degree += degree;
+            if (!turning && (degree >= 3 || accumulate_degree > 20))
             {
-                if (current_section.A != 0 && pair_kf.second->id - A_id > 3)
+                if (num > 5)
                 {
-                    current_section.C = pair_kf.first;
-                    sections_[current_section.A] = current_section;
-                }
-                current_section.A = pair_kf.first;
-                A_id = pair_kf.second->id;
-                turning = true;
-            }
-            else if (turning)
-            {
-                if (degree < 1)
-                {
-                    current_section.B = pair_kf.first;
-                    turning = false;
-                }
-                else if (pair_kf.second->id - A_id > 10)
-                {
-                    current_section.B = pair_kf.first;
                     current_section.C = pair_kf.first;
                     sections_[current_section.A] = current_section;
                     current_section.A = pair_kf.first;
+                    num = 0;
                 }
+                turning = true;
             }
+            else if (turning && (degree < 1 || num > 10))
+            {
+                current_section.B = pair_kf.first;
+                accumulate_degree = 0;
+                turning = false;
+            }
+            num++;
+        }
+        else
+        {
+            current_section.A = pair_kf.first;
         }
         last_frame = pair_kf.second;
         last_heading = heading;

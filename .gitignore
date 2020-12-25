@@ -4,5 +4,4 @@ notes
 .catkin_workspace
 .vscode
 *.weights
-result
 src/CMakeLists.txt

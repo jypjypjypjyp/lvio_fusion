@@ -25,7 +25,7 @@ void Navsat::AddPoint(double time, double x, double y, double z)
         finished = pair_kf.first + epsilon;
     }
 
-    if (!initialized && !pose_graph_->GetSections(0, finished).empty())
+    if (!initialized && pose_graph_->GetSections(0, finished).size() >= 2)
     {
         Initialize();
     }
