@@ -13,7 +13,7 @@ namespace lvio_fusion
 Estimator::Estimator(std::string &config_path)
     : config_file_path_(config_path) {}
 
-bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, int is_semantic)
+bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop)
 {
     // read from config file
     if (!Config::SetParameterFile(config_file_path_))
@@ -64,8 +64,6 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
         Config::Get<double>("delay")));
 
     frontend->SetBackend(backend);
-    flags += Flag::Stereo;
-
     backend->SetFrontend(frontend);
 
     pose_graph = PoseGraph::Ptr(new PoseGraph);
@@ -83,7 +81,6 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
     {
         Navsat::Create();
         Navsat::Get()->SetPoseGraph(pose_graph);
-        flags += Flag::GNSS;
     }
 
     if (use_imu)
@@ -91,7 +88,6 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
         Imu::Create(SE3d());
         initializer = Initializer::Ptr(new Initializer);
         backend->SetInitializer(initializer);
-        flags += Flag::IMU;
     }
 
     if (use_lidar)
@@ -127,16 +123,7 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
             relocator->SetFeatureAssociation(association);
             relocator->SetMapping(mapping);
         }
-
-        flags += Flag::Laser;
     }
-
-    // semantic map
-    if (is_semantic)
-    {
-        flags += Flag::Semantic;
-    }
-
     return true;
 }
 

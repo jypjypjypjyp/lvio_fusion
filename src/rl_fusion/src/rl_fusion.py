@@ -1,26 +1,34 @@
-#! /home/jyp/.miniconda3/envs/pytorch/bin/python
+#! /home/jyp/.miniconda3/envs/lvio_fusion/bin/python
 # -*- coding: utf-8 -*-
 
-import rospy
-from rl_fusion.net import Net
-from std_msgs.msg import String
-
-import os
-import gym
-import torch
-import pprint
 import argparse
+import os
+import pprint
+import threading
+
+import gym
 import numpy as np
+import rospy
+import torch
+from std_msgs.msg import String
+from tianshou.data import Collector, ReplayBuffer
+from tianshou.env import DummyVectorEnv
+from tianshou.exploration import GaussianNoise
+from tianshou.policy import TD3Policy
+from tianshou.trainer import offpolicy_trainer
+from tianshou.utils.net.common import Net
+from tianshou.utils.net.continuous import Actor, Critic
 from torch.utils.tensorboard import SummaryWriter
 
-from tianshou.policy import TD3Policy
-from tianshou.env import DummyVectorEnv
-from tianshou.utils.net.common import Net
-from tianshou.trainer import offpolicy_trainer
-from tianshou.exploration import GaussianNoise
-from tianshou.data import Collector, ReplayBuffer
-from tianshou.utils.net.continuous import Actor, Critic
+from rl_fusion.net import Net
+from rl_fusion.env import FactorGraphEnv
 
+from lvio_fusion_node.srv import Init, CreateEnv, Step
+
+save_net_path = '/home/jyp/Projects/lvio_fusion/misc/td3.pt'
+svr_init = None
+clt_create_env = None
+clt_step = None
 
 def get_args():
     parser = argparse.ArgumentParser()
@@ -55,8 +63,9 @@ def get_args():
 
 
 def test_td3(args=get_args()):
+    global clt_create_env, clt_step
     torch.set_num_threads(1)  # we just need only one thread for NN
-    env = gym.make(args.task)
+    env = gym.make(args.task, clt_create_env, clt_step)
     if args.task == 'Pendulum-v0':
         env.spec.reward_threshold = -250
     args.state_shape = env.observation_space.shape or env.observation_space.n
@@ -129,18 +138,17 @@ def test_td3(args=get_args()):
         collector = Collector(policy, env)
         result = collector.collect(n_episode=1, render=args.render)
         print(f'Final reward: {result["rew"]}, length: {result["len"]}')
+        torch.save(net, save_net_path)
 
-
-if __name__ == '__main__':
+def callback(data:String):
     test_td3()
-
 
 if __name__ == '__main__':
     try:
-        rospy.loginfo('hello_str')
-        rospy.init_node('adaptive_fusion', anonymous=True)
-        pub = rospy.Publisher('chatter', String, queue_size=10)
-        timer = rospy.Timer(rospy.Duration(1. / 10), publish_callback)  # 10Hz
+        rospy.init_node('rl_fusion', anonymous=True)
+        svr_init = rospy.Service('/lvio_fusion_node/init', Init, callback)
+        clt_create_env = rospy.ServiceProxy('/lvio_fusion_node/create_env', CreateEnv)
+        clt_step = rospy.ServiceProxy('/lvio_fusion_node/step', Step)
         rospy.spin()
     except rospy.ROSInterruptException:
         pass

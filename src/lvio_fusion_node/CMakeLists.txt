@@ -8,16 +8,37 @@ list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)
 find_package(catkin REQUIRED COMPONENTS
     roscpp
     std_msgs
-    geometry_msgs
-    nav_msgs
+    sensor_msgs
     tf
     cv_bridge
-    lvio_fusion
-    object_detector
     image_transport
     pcl_conversions
-    pcl_ros)
+    pcl_ros
+    lvio_fusion
+    message_generation)
 include_directories(${catkin_INCLUDE_DIRS})
+
+# message
+add_message_files(
+    FILES
+        BoundingBox.msg
+        BoundingBoxes.msg
+    )
+
+# server
+add_service_files(
+    FILES 
+        CreateEnv.srv
+        Step.srv
+        Init.srv
+    )
+
+generate_messages(
+    DEPENDENCIES
+        geometry_msgs
+        sensor_msgs
+        std_msgs
+    )
 
 # GeographicLib
 find_package(GeographicLib REQUIRED)
@@ -28,6 +49,8 @@ set(THIRD_PARTY_LIBS
     ${GeographicLib_LIBRARIES}
     )
 
-catkin_package()
+catkin_package(
+    LIBRARIES lvio_fusion_node
+    )
 
 add_subdirectory(src)

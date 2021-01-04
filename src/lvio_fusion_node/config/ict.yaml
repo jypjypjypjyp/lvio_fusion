@@ -4,9 +4,10 @@
 use_imu: 0
 use_lidar: 0
 use_navsat: 0
-use_loop: 0             # 0 for only odometry, 1 for whole system
+loop: 0             # 0 for only odometry, 1 for whole system
 num_of_cam: 2
-is_semantic: 0
+object_detector: 0
+train: 0
 
 # ros parameters
 # imu_topic: '/kitti/oxts/imu'

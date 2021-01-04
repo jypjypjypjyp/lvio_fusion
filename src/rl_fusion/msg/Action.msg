@@ -1,7 +1,5 @@
-string Class
-float64 probability
-int64 xmin
-int64 ymin
-int64 xmax
-int64 ymax
-
+int32 id
+float64[2] visual
+float64[3] lidar_ground
+float64[3] lidar_surf
+float64[9] imu

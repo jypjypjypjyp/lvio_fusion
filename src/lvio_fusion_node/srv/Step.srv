@@ -1,0 +1,11 @@
+int32 id
+float64[2] visual
+float64[3] lidar_ground
+float64[3] lidar_surf
+float64[9] imu
+---
+sensor_msgs/Image image
+sensor_msgs/PointCloud2 points_ground
+sensor_msgs/PointCloud2 points_surf
+float64 reward
+bool done

@@ -3,6 +3,7 @@ add_library(lvio_fusion SHARED
         association.cpp
         backend.cpp
         config.cpp
+        environment.cpp
         estimator.cpp
         frame.cpp
         frontend.cpp
