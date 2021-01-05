@@ -1,56 +1,38 @@
 import gym
-from gym import spaces
+import rospy
 import numpy as np
+from gym import spaces
+from cv_bridge import CvBridge, CvBridgeError
+from std_msgs.msg import Float64MultiArray
 
-class FactorGraphEnv(gym.Env):
+
+class LvioFusionEnv(gym.Env):
     metadata = {}
+    camera_height = None
+    camera_width = None
+    clt_create_env = None
+    clt_step = None
 
     def __init__(self):
-
-        self.action_space = spaces.Discrete(4)
-        self.observation_space = spaces.Discrete(8)
-
-        self.x=[140,220,300,380,460,140,300,460]
-        self.y=[250,250,250,250,250,150,150,150]
-
-        self.rewards = dict();        #回报的数据结构为字典
-        self.rewards[5] = -1.0
-        self.rewards[6] = 1.0
-        self.rewards[7] = -1.0
-
-        self.map = dict()
-        self.map[0] = [-1, 5, -1, 1]
-        self.map[1] = [-1, -1, 0, 2]
-        self.map[2] = [-1, 6, 1, 3]
-        self.map[3] = [-1, -1, 2, 4]
-        self.map[4] = [-1, 7, 3, -1]
-
-        self.gamma = 0.8         #折扣因子
-        self.viewer = None
-        self.state = None
+        self.action_space = spaces.Box(np.array([0, 0, 0, 0, 0, 0, 0, 0]), np.array([
+                                       1, 1, 1, 1, 1, 1, 1, 1]), dtype=np.float64)
+        self.observation_space = spaces.Box(low=0, high=255, shape=(
+            LvioFusionEnv.camera_height, LvioFusionEnv.camera_width), dtype=np.uint8)
+        self.cv_bridge = CvBridge()
+        self.id = LvioFusionEnv.clt_create_env()
 
     def step(self, action):
         err_msg = "%r (%s) invalid" % (action, type(action))
         assert self.action_space.contains(action), err_msg
-        
-        #系统当前状态
-        state = self.state
-        if state not in self.map:
-            return state, 0, True, {}
 
-        #状态转移
-        next_state = self.map[state][action]
-
-        if next_state == -1:
-            return state, 0.0, False, {}
-        else:
-            self.state = next_state
-            if next_state not in self.map:
-                return next_state, self.rewards[next_state], True, {}
-            else:
-                return next_state, 0.0 , False, {}
+        visual = Float64MultiArray(data=action[:2])
+        lidar_ground = Float64MultiArray(data=action[2:5])
+        lidar_surf = Float64MultiArray(data=action[5:8])
+        imu = Float64MultiArray(data=np.ones(9))
+        resp = LvioFusionEnv.clt_step(self.id, visual, lidar_ground, lidar_surf, imu)
+        obs = numpy.asarray(self.cv_bridge.imgmsg_to_cv2(resp.image, "mono8"))
+        return obs, resp.reward, resp.done, {}
 
     def reset(self):
-        self.state = int(random.random() * len(self.map))
+        self.id = LvioFusionEnv.clt_create_env()
         return self.state
-    

@@ -1,3 +1,0 @@
-<launch>
-    <node name="adaptive_fusion" pkg="adaptive_fusion" type="main.py" output="screen"/>
-</launch>

@@ -1,6 +1,3 @@
-#! /home/jyp/.miniconda3/envs/lvio_fusion/bin/python
-# -*- coding: utf-8 -*-
-
 import argparse
 import os
 import pprint
@@ -21,9 +18,8 @@ from tianshou.utils.net.continuous import Actor, Critic
 from torch.utils.tensorboard import SummaryWriter
 
 from rl_fusion.net import Net
-from rl_fusion.env import FactorGraphEnv
-
-from lvio_fusion_node.srv import Init, CreateEnv, Step
+from rl_fusion.env import LvioFusionEnv
+from lvio_fusion_node.srv import *
 
 save_net_path = '/home/jyp/Projects/lvio_fusion/misc/td3.pt'
 svr_init = None
@@ -65,7 +61,7 @@ def get_args():
 def test_td3(args=get_args()):
     global clt_create_env, clt_step
     torch.set_num_threads(1)  # we just need only one thread for NN
-    env = gym.make(args.task, clt_create_env, clt_step)
+    env = gym.make(args.task, clt_create_env=clt_create_env, clt_step=clt_step)
     if args.task == 'Pendulum-v0':
         env.spec.reward_threshold = -250
     args.state_shape = env.observation_space.shape or env.observation_space.n
@@ -74,10 +70,10 @@ def test_td3(args=get_args()):
     # you can also use tianshou.env.SubprocVectorEnv
     # train_envs = gym.make(args.task)
     train_envs = DummyVectorEnv(
-        [lambda: gym.make(args.task) for _ in range(args.training_num)])
+        [lambda: gym.make(args.task, clt_create_env=clt_create_env, clt_step=clt_step) for _ in range(args.training_num)])
     # test_envs = gym.make(args.task)
     test_envs = DummyVectorEnv(
-        [lambda: gym.make(args.task) for _ in range(args.test_num)])
+        [lambda: gym.make(args.task, clt_create_env=clt_create_env, clt_step=clt_step) for _ in range(args.test_num)])
     # seed
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
@@ -139,16 +135,3 @@ def test_td3(args=get_args()):
         result = collector.collect(n_episode=1, render=args.render)
         print(f'Final reward: {result["rew"]}, length: {result["len"]}')
         torch.save(net, save_net_path)
-
-def callback(data:String):
-    test_td3()
-
-if __name__ == '__main__':
-    try:
-        rospy.init_node('rl_fusion', anonymous=True)
-        svr_init = rospy.Service('/lvio_fusion_node/init', Init, callback)
-        clt_create_env = rospy.ServiceProxy('/lvio_fusion_node/create_env', CreateEnv)
-        clt_step = rospy.ServiceProxy('/lvio_fusion_node/step', Step)
-        rospy.spin()
-    except rospy.ROSInterruptException:
-        pass

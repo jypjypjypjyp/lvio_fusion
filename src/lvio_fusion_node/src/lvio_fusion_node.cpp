@@ -245,7 +245,7 @@ bool create_env_callback(lvio_fusion_node::CreateEnv::Request &req,
 sensor_msgs::ImagePtr cv_mat_to_msg(cv::Mat image)
 {
     cv_bridge::CvImage cv_image;
-    cv_image.encoding = sensor_msgs::image_encodings::TYPE_8UC1;
+    cv_image.encoding = sensor_msgs::image_encodings::MONO8;
     cv_image.image = image;
     return cv_image.toImageMsg();
 }

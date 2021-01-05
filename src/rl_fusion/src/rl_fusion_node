@@ -1,0 +1,24 @@
+#! /home/jyp/.miniconda3/envs/lvio_fusion/bin/python
+# -*- coding: utf-8 -*-
+
+import rospy
+from lvio_fusion_node.srv import *
+from rl_fusion.td3 import *
+from rl_fusion.env import LvioFusionEnv
+
+save_net_path = '/home/jyp/Projects/lvio_fusion/misc/td3.pt'
+
+def callback(data:String):
+    test_td3()
+
+if __name__ == '__main__':
+    try:
+        rospy.init_node('rl_fusion')
+        LvioFusionEnv.camera_height = rospy.get_param('~camera_height')
+        LvioFusionEnv.camera_width = rospy.get_param('~camera_width')
+        svr_init = rospy.Service('/lvio_fusion_node/init', Init, callback)
+        LvioFusionEnv.clt_create_env = rospy.ServiceProxy('/lvio_fusion_node/create_env', CreateEnv)
+        LvioFusionEnv.clt_step = rospy.ServiceProxy('/lvio_fusion_node/step', Step)
+        rospy.spin()
+    except rospy.ROSInterruptException:
+        pass
