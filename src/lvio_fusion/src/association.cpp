@@ -4,6 +4,7 @@
 #include "lvio_fusion/ceres/lidar_error.hpp"
 #include "lvio_fusion/ceres/loop_error.hpp"
 #include "lvio_fusion/lidar/feature.h"
+#include "lvio_fusion/lidar/lidar.h"
 #include "lvio_fusion/map.h"
 #include "lvio_fusion/utility.h"
 
@@ -65,8 +66,8 @@ void FeatureAssociation::UndistortPoint(PointI &point, Frame::Ptr frame)
     double time_delta = (point.intensity - int(point.intensity));
     double time = frame->time - cycle_time_ * 0.5 + time_delta;
     SE3d pose = Map::Instance().ComputePose(time);
-    auto p1 = lidar_->Sensor2World(Vector3d(point.x, point.y, point.z), pose);
-    auto p2 = lidar_->World2Sensor(p1, frame->pose);
+    auto p1 = Lidar::Get()->Sensor2World(Vector3d(point.x, point.y, point.z), pose);
+    auto p2 = Lidar::Get()->World2Sensor(p1, frame->pose);
     point.x = p2.x();
     point.y = p2.y();
     point.z = p2.z();
@@ -194,20 +195,19 @@ void FeatureAssociation::ExtractFeatures(PointICloud &points_segmented, Segmente
 
     PointICloud::Ptr temp(new PointICloud());
     pcl::VoxelGrid<PointI> voxel_filter;
-    voxel_filter.setLeafSize(3 * lidar_->resolution, 3 * lidar_->resolution, 3 * lidar_->resolution);
+    voxel_filter.setLeafSize(2 * Lidar::Get()->resolution, 2 * Lidar::Get()->resolution, 2 * Lidar::Get()->resolution);
     pcl::copyPointCloud(points_surf, *temp);
     voxel_filter.setInputCloud(temp);
     voxel_filter.filter(points_surf);
 
     pcl::RadiusOutlierRemoval<PointI> ror_filter;
-    ror_filter.setRadiusSearch(4 * lidar_->resolution);
+    ror_filter.setRadiusSearch(4 * Lidar::Get()->resolution);
     ror_filter.setMinNeighborsInRadius(4);
     pcl::copyPointCloud(points_surf, *temp);
     ror_filter.setInputCloud(temp);
     ror_filter.filter(points_surf);
 
     pcl::copyPointCloud(points_ground, *temp);
-    voxel_filter.setLeafSize(2 * lidar_->resolution, 2 * lidar_->resolution, 2 * lidar_->resolution);
     voxel_filter.setInputCloud(temp);
     voxel_filter.filter(points_ground);
 
@@ -221,7 +221,7 @@ void FeatureAssociation::ExtractFeatures(PointICloud &points_segmented, Segmente
 
 inline void FeatureAssociation::Sensor2Robot(PointICloud &in, PointICloud &out)
 {
-    Sophus::SE3f tf_se3 = lidar_->extrinsic.cast<float>();
+    Sophus::SE3f tf_se3 = Lidar::Get()->extrinsic.cast<float>();
     float *tf = tf_se3.data();
     for (auto point_in : in)
     {
@@ -243,7 +243,7 @@ inline void FeatureAssociation::SegmentGround(PointICloud &points_ground)
     seg.setModelType(pcl::SACMODEL_PLANE);
     seg.setMethodType(pcl::SAC_RANSAC);
     seg.setMaxIterations(100);
-    seg.setDistanceThreshold(0.1 * lidar_->resolution);
+    seg.setDistanceThreshold(0.1 * Lidar::Get()->resolution);
     seg.setInputCloud(pointcloud_seg);
     seg.segment(*inliers, coefficients);
     pcl::ExtractIndices<PointI> extract;
@@ -268,7 +268,7 @@ void FeatureAssociation::ScanToMapWithGround(Frame::Ptr frame, Frame::Ptr map_fr
     std::vector<int> points_index;
     std::vector<float> points_distance;
 
-    static const double distance_threshold = lidar_->resolution * lidar_->resolution * 16; // squared
+    static const double distance_threshold = Lidar::Get()->resolution * Lidar::Get()->resolution * 16; // squared
     int num_points_flat = frame->feature_lidar->points_ground.size();
     Sophus::SE3f tf_se3 = frame->pose.cast<float>();
     float *tf = tf_se3.data();
@@ -300,7 +300,7 @@ void FeatureAssociation::ScanToMapWithGround(Frame::Ptr frame, Frame::Ptr map_fr
                                   points_ground_last[points_index[2]].z);
             double weights[1] = {curr_point.norm() > 5 ? 10.0 : 1.0};
             ceres::CostFunction *cost_function;
-            cost_function = LidarPlaneErrorRPZ::Create(curr_point, last_point_a, last_point_b, last_point_c, lidar_, map_frame->pose, para, weights);
+            cost_function = LidarPlaneErrorRPZ::Create(curr_point, last_point_a, last_point_b, last_point_c, map_frame->pose, para, weights);
             problem.AddResidualBlock(ProblemType::LidarPlaneErrorRPZ, cost_function, loss_function, para + 1, para + 2, para + 5);
         }
     }
@@ -328,7 +328,7 @@ void FeatureAssociation::ScanToMapWithSegmented(Frame::Ptr frame, Frame::Ptr map
     std::vector<int> points_index;
     std::vector<float> points_distance;
 
-    static const double distance_threshold = lidar_->resolution * lidar_->resolution * 16; // squared
+    static const double distance_threshold = Lidar::Get()->resolution * Lidar::Get()->resolution * 16; // squared
     int num_points_flat = frame->feature_lidar->points_surf.size();
     Sophus::SE3f tf_se3 = frame->pose.cast<float>();
     float *tf = tf_se3.data();
@@ -360,7 +360,7 @@ void FeatureAssociation::ScanToMapWithSegmented(Frame::Ptr frame, Frame::Ptr map
                                   points_surf_last[points_index[2]].z);
             double weights[1] = {1};
             ceres::CostFunction *cost_function;
-            cost_function = LidarPlaneErrorYXY::Create(curr_point, last_point_a, last_point_b, last_point_c, lidar_, map_frame->pose, para, weights);
+            cost_function = LidarPlaneErrorYXY::Create(curr_point, last_point_a, last_point_b, last_point_c, map_frame->pose, para, weights);
             problem.AddResidualBlock(ProblemType::LidarPlaneErrorYXY, cost_function, loss_function, para, para + 3, para + 4);
         }
     }

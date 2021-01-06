@@ -4,57 +4,14 @@
 
 namespace lvio_fusion
 {
-namespace imu
+
+    namespace imu
 {
+
 //NOTE:translation,rotation,velocity,ba,bg,para_pose(rotation,translation)
 int O_T = 0, O_R = 3, O_V = 6, O_BA = 9, O_BG = 12, O_PR = 0, O_PT = 4;
-Vector3d g(0, 0, 9.8);
+Vector3d g(0, 0, 9.81007);
 
-void Preintegration::PreintegrateIMU(std::vector<imuPoint> measureFromLastFrame,double last_frame_time,double current_frame_time)
-{
-    const int n = measureFromLastFrame.size()-1;
-    for(int i=0; i<n; i++)
-    {
-        double tstep;
-        double tab;
-        Vector3d acc, angVel;
-        if((i==0) && (i<(n-1)))
-        {
-             tab = measureFromLastFrame[i+1].t-measureFromLastFrame[i].t;
-            double tini = measureFromLastFrame[i].t- last_frame_time;
-            acc = (measureFromLastFrame[i].a+measureFromLastFrame[i+1].a-
-                    (measureFromLastFrame[i+1].a-measureFromLastFrame[i].a)*(tini/tab))*0.5f;
-            angVel = (measureFromLastFrame[i].w+measureFromLastFrame[i+1].w-
-                    (measureFromLastFrame[i+1].w-measureFromLastFrame[i].w)*(tini/tab))*0.5f;
-            tstep = measureFromLastFrame[i+1].t- last_frame_time;
-        }
-        else if(i<(n-1))
-        {
-            acc = (measureFromLastFrame[i].a+measureFromLastFrame[i+1].a)*0.5f;
-            angVel = (measureFromLastFrame[i].w+measureFromLastFrame[i+1].w)*0.5f;
-            tstep = measureFromLastFrame[i+1].t-measureFromLastFrame[i].t;
-        }
-        else if((i>0) && (i==(n-1)))
-        {
-            tab = measureFromLastFrame[i+1].t-measureFromLastFrame[i].t;
-            double tend = measureFromLastFrame[i+1].t-current_frame_time;
-            acc = (measureFromLastFrame[i].a+measureFromLastFrame[i+1].a-
-                    (measureFromLastFrame[i+1].a-measureFromLastFrame[i].a)*(tend/tab))*0.5f;
-            angVel = (measureFromLastFrame[i].w+measureFromLastFrame[i+1].w-
-                    (measureFromLastFrame[i+1].w-measureFromLastFrame[i].w)*(tend/tab))*0.5f;
-            tstep = current_frame_time-measureFromLastFrame[i].t;
-        }
-        else if((i==0) && (i==(n-1)))
-        {
-            acc = measureFromLastFrame[i].a;
-            angVel = measureFromLastFrame[i].w;
-            tstep = current_frame_time-last_frame_time;
-        }
-         if(tab==0)continue;
-
-       IntegrateNewMeasurement(acc,angVel,tstep);
-    }
-}
 
 
 void Preintegration::IntegrateNewMeasurement(const Vector3d &acceleration, const Vector3d &angVel, const double &dt)
@@ -69,6 +26,7 @@ void Preintegration::IntegrateNewMeasurement(const Vector3d &acceleration, const
     acc<< acceleration[0]-b.linearized_ba[0],acceleration[1]-b.linearized_ba[1], acceleration[2]-b.linearized_ba[2];
     Matrix<double,3,1> accW;
     accW<< angVel[0]-b.linearized_bg[0], angVel[1]-b.linearized_bg[1], angVel[2]-b.linearized_bg[2];
+    //LOG(INFO)<<b.linearized_ba.transpose()<<" "<<b.linearized_bg.transpose();
     avgA = (dT*avgA + dR*acc*dt)/(dT+dt);
     avgW = (dT*avgW + accW*dt)/(dT+dt);
 
@@ -92,7 +50,8 @@ void Preintegration::IntegrateNewMeasurement(const Vector3d &acceleration, const
 
     IntegratedRotation dRi( angVel,b,dt);
     dR = NormalizeRotation(dR*dRi.deltaR);
-
+    Quaterniond R(dR);
+    dR=R.toRotationMatrix();
     A.block<3,3>(0,0) = dRi.deltaR.transpose();
     B.block<3,3>(0,0) = dRi.rightJ*dt;
 
@@ -131,6 +90,7 @@ Vector3d Preintegration::GetUpdatedDeltaVelocity()
 }
 Matrix3d Preintegration::GetUpdatedDeltaRotation()
 {
+    
     return NormalizeRotation(dR*ExpSO3(JRg*delta_bias.block<3,1>(0,0)));
 }
 Vector3d Preintegration::GetUpdatedDeltaPosition()
@@ -173,7 +133,7 @@ Vector3d Preintegration::GetDeltaPosition(const Bias &b_)
     dbg <<b_.linearized_bg[0]-b.linearized_bg[0],b_.linearized_bg[1]-b.linearized_bg[1],b_.linearized_bg[2]-b.linearized_bg[2];
     Vector3d dba;
     dba <<b_.linearized_ba[0]-b.linearized_ba[0],b_.linearized_ba[1]-b.linearized_ba[1],b_.linearized_ba[2]-b.linearized_ba[2];
-    return dP + JPg*dbg + JPa*dba;
+     return dP + JPg*dbg + JPa*dba;
 }
 
 Bias Preintegration::GetDeltaBias(const Bias &b_)
@@ -192,7 +152,6 @@ void Preintegration::Reintegrate()
     for(size_t i=0;i<aux.size();i++)
         IntegrateNewMeasurement(aux[i].a,aux[i].w,aux[i].t);
 }
-
 } // namespace imu
 
 } // namespace lvio_fusion

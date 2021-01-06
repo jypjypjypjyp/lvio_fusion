@@ -4,12 +4,8 @@
 #include "lvio_fusion/adapt/problem.h"
 #include "lvio_fusion/common.h"
 #include "lvio_fusion/frame.h"
-#include "lvio_fusion/imu/imu.hpp"
 #include "lvio_fusion/imu/initializer.h"
-#include "lvio_fusion/lidar/lidar.hpp"
 #include "lvio_fusion/lidar/mapping.h"
-#include "lvio_fusion/navsat/navsat.h"
-#include "lvio_fusion/visual/camera.hpp"
 
 #include <ceres/ceres.h>
 
@@ -32,18 +28,6 @@ public:
 
     Backend(double range);
 
-    void SetCameras(Camera::Ptr left, Camera::Ptr right)
-    {
-        camera_left_ = left;
-        camera_right_ = right;
-    }
-
-    void SetLidar(Lidar::Ptr lidar) { lidar_ = lidar; }
-
-    void SetImu(Imu::Ptr imu) { imu_ = imu; }
-
-    void SetNavsat(NavsatMap::Ptr navsat) { navsat_ = navsat; }
-
     void SetFrontend(std::shared_ptr<Frontend> frontend) { frontend_ = frontend; }
 
     void SetMapping(Mapping::Ptr mapping) { mapping_ = mapping; }
@@ -60,13 +44,14 @@ public:
     std::mutex mutex;
     double head = 0;
     Initializer::Ptr initializer_;//NEWADD
-    
+    bool isInitliazing=false;//NEWADD
+         Frame::Ptr new_frame;
 private:
     void BackendLoop();
 
     void GlobalLoop();
 
-    void Optimize(bool full = false);
+    void Optimize();
 
     void ForwardPropagate(double time);
 
@@ -75,19 +60,12 @@ private:
     std::weak_ptr<Frontend> frontend_;
     Mapping::Ptr mapping_;
 
-
     std::thread thread_;
     std::mutex running_mutex_, pausing_mutex_;
     std::condition_variable running_;
     std::condition_variable pausing_;
     std::condition_variable map_update_;
     const double delay_;
-
-    Camera::Ptr camera_left_;
-    Camera::Ptr camera_right_;
-    Lidar::Ptr lidar_;
-    Imu::Ptr imu_;
-    NavsatMap::Ptr navsat_;
 };
 
 } // namespace lvio_fusion

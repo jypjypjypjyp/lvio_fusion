@@ -15,7 +15,7 @@ navsat_topic: '/kitti/oxts/gps/fix'
 image0_topic: '/kitti/camera_gray_left/image_raw'
 image1_topic: '/kitti/camera_gray_right/image_raw'
 color_topic: '/kitti/camera_color_left/image_raw'
-result_path: '/home/jyp/Projects/lvio-fusion/result/result.csv'
+result_path: '/home/zoet/Projects.new/lvio-fusion/result/result.csv'
 
 # camera1 intrinsics
 camera1.fx: 7.188560000000e+02
@@ -42,12 +42,11 @@ deskew: 0
 resolution: 0.2
 
 #imu parameters
-acc_n: 0.1          # accelerometer measurement noise standard deviation. #0.2   0.04
-gyr_n: 0.01         # gyroscope measurement noise standard deviation.     #0.05  0.004
-acc_w: 0.001         # accelerometer bias random work noise standard deviation.  #0.02
-gyr_w: 1.0e-4       # gyroscope bias random work noise standard deviation.     #4.0e-5
-g_norm: 9.81007     # gravity magnitude
-
+acc_n: 0.08             # accelerometer measurement noise standard deviation. #0.2   0.04
+gyr_n: 0.004            # gyroscope measurement noise standard deviation.     #0.05  0.004
+acc_w: 0.00004          # accelerometer bias random work noise standard deviation.  #0.02
+gyr_w: 2.0e-6           # gyroscope bias random work noise standard deviation.     #4.0e-5
+g_norm: 9.81007         # gravity magnitude
 
 # body to camera0
 base_to_cam0: !!opencv-matrix
@@ -81,13 +80,13 @@ base_to_lidar: !!opencv-matrix
 
 # number of features
 num_features: 200
-num_features_init: 80
-num_features_tracking: 50
+num_features_init: 50
+num_features_tracking: 8
 num_features_tracking_bad: 8
-num_features_needed_for_keyframe: 120
+num_features_needed_for_keyframe: 90
 
 # backend
 delay: 3
 
 # loop
-voc_path: '/home/jyp/Projects/lvio_fusion/misc/orbvoc.dbow3'
+voc_path: '/home/zoet/Projects.new/lvio_fusion/misc/orbvoc.dbow3'

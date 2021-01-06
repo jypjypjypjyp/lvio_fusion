@@ -2,7 +2,7 @@
 #include "lvio_fusion/visual/feature.h"
 #include "lvio_fusion/map.h"
 #include "lvio_fusion/visual/landmark.h"
-
+#include <opencv2/core/eigen.hpp>
 namespace lvio_fusion
 {
 
@@ -60,9 +60,10 @@ void Frame::SetVelocity(const Vector3d  &Vw_)
 {
     Vw=Vw_;
 }
-void Frame::SetPose(const Matrix3d Rwb_,const Vector3d  &twb_)
+void Frame::SetPose(const Matrix3d &Rwb_,const Vector3d  &twb_)
 {
-    pose=SE3d(Rwb_,twb_);
+    Quaterniond R(Rwb_);
+    pose=SE3d(R,twb_);
 }
 
 void Frame::SetNewBias(const Bias &bias_)

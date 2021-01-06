@@ -9,14 +9,14 @@ void Map::InsertKeyFrame(Frame::Ptr frame)
     std::unique_lock<std::mutex> lock(mutex_local_kfs);
     Frame::current_frame_id++;
     current_frame = frame;//NEWADD
-    keyframes_[frame->time] = frame;
+    keyframes[frame->time] = frame;
 }
 
 void Map::InsertLandmark(visual::Landmark::Ptr landmark)
 {
     std::unique_lock<std::mutex> lock(mutex_local_kfs);
     visual::Landmark::current_landmark_id++;
-    landmarks_[landmark->id] = landmark;
+    landmarks[landmark->id] = landmark;
 }
 
 // 1: [start]
@@ -27,20 +27,20 @@ Frames Map::GetKeyFrames(double start, double end, int num)
 {
     if (end == 0 && num == 0)
     {
-        auto start_iter = keyframes_.lower_bound(start);
-        return start_iter == keyframes_.end() ? Frames() : Frames(start_iter, keyframes_.end());
+        auto start_iter = keyframes.lower_bound(start);
+        return start_iter == keyframes.end() ? Frames() : Frames(start_iter, keyframes.end());
     }
     else if (num == 0)
     {
-        auto start_iter = keyframes_.lower_bound(start);
-        auto end_iter = keyframes_.upper_bound(end);
+        auto start_iter = keyframes.lower_bound(start);
+        auto end_iter = keyframes.upper_bound(end);
         return start >= end ? Frames() : Frames(start_iter, end_iter);
     }
     else if (end == 0)
     {
-        auto iter = keyframes_.upper_bound(start);
+        auto iter = keyframes.upper_bound(start);
         Frames frames;
-        for (size_t i = 0; i < num && iter != keyframes_.end(); i++)
+        for (size_t i = 0; i < num && iter != keyframes.end(); i++)
         {
             frames.insert(*(iter++));
         }
@@ -48,9 +48,9 @@ Frames Map::GetKeyFrames(double start, double end, int num)
     }
     else if (start == 0)
     {
-        auto iter = keyframes_.lower_bound(end);
+        auto iter = keyframes.lower_bound(end);
         Frames frames;
-        for (size_t i = 0; i < num && iter != keyframes_.begin(); i++)
+        for (size_t i = 0; i < num && iter != keyframes.begin(); i++)
         {
             frames.insert(*(--iter));
         }
@@ -63,13 +63,13 @@ void Map::RemoveLandmark(visual::Landmark::Ptr landmark)
 {
     std::unique_lock<std::mutex> lock(mutex_local_kfs);
     landmark->Clear();
-    landmarks_.erase(landmark->id);
+    landmarks.erase(landmark->id);
 }
 
 SE3d Map::ComputePose(double time)
 {
-    auto frame1 = keyframes_.lower_bound(time)->second;
-    auto frame2 = keyframes_.upper_bound(time)->second;
+    auto frame1 = keyframes.lower_bound(time)->second;
+    auto frame2 = keyframes.upper_bound(time)->second;
     double d_t = time - frame1->time;
     double t_t = frame2->time - frame1->time;
     double s = d_t / t_t;
@@ -78,4 +78,17 @@ SE3d Map::ComputePose(double time)
     return SE3d(q, t);
 }
 
+//NEWADD
+void Map::ApplyScaledRotation(const Matrix3d &R)
+{
+    LOG(INFO)<<R;
+    for(auto iter:keyframes)
+    {
+        Frame::Ptr keyframe=iter .second;
+        keyframe->SetPose(R*keyframe->pose.rotationMatrix(),R*keyframe->pose.translation());
+    }
+
+}
+
+//NEWADDEND
 } // namespace lvio_fusion

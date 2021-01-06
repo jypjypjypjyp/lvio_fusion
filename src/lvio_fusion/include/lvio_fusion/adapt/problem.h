@@ -15,6 +15,7 @@ enum class ProblemType
     LidarPlaneErrorRPZ,
     LidarPlaneErrorYXY,
     NavsatError,
+    PoseError,
     IMUError,
     Other
 };
@@ -44,6 +45,7 @@ public:
         {ProblemType::LidarPlaneErrorRPZ, 0},
         {ProblemType::LidarPlaneErrorYXY, 0},
         {ProblemType::NavsatError, 0},
+        {ProblemType::PoseError, 0},
         {ProblemType::IMUError, 0},
         {ProblemType::Other, 0}};
 };

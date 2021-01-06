@@ -255,6 +255,18 @@ inline T normalize_angle(const T &angle_degrees)
         return angle_degrees +
                two_pi * std::floor((-angle_degrees + T(180)) / two_pi);
 };
+
+inline double vectors_degree_angle(Vector3d v1, Vector3d v2)
+{
+    double radian_angle = atan2(v1.cross(v2).norm(), v1.transpose() * v2);
+    return radian_angle * 180 / M_PI;
+}
+
+inline double vectors_height(Vector3d v1, Vector3d v2)
+{
+    return v1.cross(v2).norm() / v1.norm();
+}
+
 //NEWADD
 inline Eigen::Vector3d LogSO3(const Eigen::Matrix3d &R)
 {
@@ -343,6 +355,7 @@ inline Eigen::Matrix3d RightJacobianSO3(const Eigen::Vector3d &v)
 }
 
 //NEWADDEND
+
 } // namespace lvio_fusion
 
 #endif // lvio_fusion_UTILITY_H

@@ -1,5 +1,5 @@
-#ifndef MAP_H
-#define MAP_H
+#ifndef lvio_fusion_MAP_H
+#define lvio_fusion_MAP_H
 
 #include "lvio_fusion/common.h"
 #include "lvio_fusion/frame.h"
@@ -21,12 +21,7 @@ public:
 
     int size()
     {
-        return keyframes_.size();
-    }
-
-    Frames &GetAllKeyFrames()
-    {
-        return keyframes_;
+        return keyframes.size();
     }
 
     Frames GetKeyFrames(double start, double end = 0, int num = 0);
@@ -41,23 +36,24 @@ public:
 
     void Reset()
     {
-        landmarks_.clear();
-        keyframes_.clear();
+        landmarks.clear();
+        keyframes.clear();
     }
-//NEWADD
-     int GetAllKeyFramesSize(){return keyframes_.size();}
+    //NEWADD
+     int GetAllKeyFramesSize(){return keyframes.size();}
     Frame::Ptr current_frame;
-//NEWADDEND
+    bool mapUpdated=false;
+    void ApplyScaledRotation(const Matrix3d &R);
+    //NEWADDEND
     std::mutex mutex_local_kfs;
-
+    Frames keyframes;
+    visual::Landmarks landmarks;
+    
 private:
     Map() {}
     Map(const Map &);
     Map &operator=(const Map &);
-
-    visual::Landmarks landmarks_;
-    Frames keyframes_;
 };
 } // namespace lvio_fusion
 
-#endif // MAP_H
+#endif // lvio_fusion_MAP_H

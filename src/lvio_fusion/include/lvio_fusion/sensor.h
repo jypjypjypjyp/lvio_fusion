@@ -10,8 +10,6 @@ namespace lvio_fusion
 class Sensor
 {
 public:
-    typedef std::shared_ptr<Sensor> Ptr;
-
     Sensor(const SE3d &extrinsic) : extrinsic(extrinsic) {}
 
     // coordinate transform: world, sensor
@@ -46,6 +44,11 @@ public:
     }
 
     SE3d extrinsic;
+
+protected:
+    Sensor() {}
+    Sensor(const Sensor &);
+    Sensor &operator=(const Sensor &);
 };
 
 } // namespace lvio_fusion

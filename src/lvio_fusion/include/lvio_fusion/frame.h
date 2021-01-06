@@ -5,7 +5,7 @@
 #include "lvio_fusion/common.h"
 #include "lvio_fusion/imu/preintegration.h"
 #include "lvio_fusion/lidar/feature.h"
-#include "lvio_fusion/loop/loop_constraint.h"
+#include "lvio_fusion/loop/loop.h"
 #include "lvio_fusion/navsat/feature.h"
 #include "lvio_fusion/semantic/detected_object.h"
 #include "lvio_fusion/visual/feature.h"
@@ -35,13 +35,15 @@ public:
     double time;
     cv::Mat image_left, image_right;
     std::vector<DetectedObject> objects;
-    visual::Features features_left;             // extracted features in left image
-    visual::Features features_right;            // corresponding features in right image, only for this frame
-    lidar::Feature::Ptr feature_lidar;          // extracted features in lidar point cloud
-    imu::Preintegration::Ptr preintegration;    // imu pre integration
-    navsat::Feature::Ptr feature_navsat;             // navsat point
-    cv::Mat descriptors;                        // orb descriptors
-    loop::LoopConstraint::Ptr loop_constraint;  // loop constraint
+    visual::Features features_left;          // extracted features in left image
+    visual::Features features_right;         // corresponding features in right image, only for this frame
+    lidar::Feature::Ptr feature_lidar;       // extracted features in lidar point cloud
+    imu::Preintegration::Ptr preintegration; // imu pre integration from last key frame
+    imu::Preintegration::Ptr preintegrationFrame; // imu pre integration from last frame
+    
+    navsat::Feature::Ptr feature_navsat;     // navsat point
+    cv::Mat descriptors;                     // orb descriptors
+    loop::LoopClosure::Ptr loop_closure;     // loop closure
     Weights weights;
     SE3d pose;
 
@@ -49,7 +51,7 @@ public:
     Frame::Ptr last_keyframe;
     Vector3d Vw;// IMU linear velocity
     Bias ImuBias;
-    bool bImu;  //是否经过imu尺度优化
+    bool bImu=false;  //是否经过imu尺度优化
 
     Vector3d GetGyroBias();
     Vector3d GetAccBias();
@@ -59,7 +61,7 @@ public:
     Bias GetImuBias();
     Vector3d GetVelocity();
     void SetNewBias(const Bias &bias_);
-    void SetPose(const Matrix3d Rwb_,const Vector3d  &twb_);
+    void SetPose(const Matrix3d &Rwb_,const Vector3d  &twb_);
     //NEWADDEND
 private:
     //NOTE: semantic map

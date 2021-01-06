@@ -2,7 +2,7 @@
 
 # flags
 use_imu: 0
-use_lidar: 1
+use_lidar: 0
 use_navsat: 0
 use_loop: 0             # 0 for only odometry, 1 for whole system
 num_of_cam: 2
@@ -15,7 +15,7 @@ lidar_topic: '/lslidar_point_cloud'
 image0_topic: '/camera/infra1/image_rect_raw'
 image1_topic: '/camera/infra2/image_rect_raw'
 color_topic: '/camera/color/image_raw'
-result_path: '/home/jyp/Projects/lvio-fusion/result/result.csv'
+result_path: '/home/zoet/Projects.new/lvio-fusion/result/result.csv'
 
 # camera1 intrinsics
 camera1.fx: 385.7544860839844
@@ -114,12 +114,12 @@ base_to_lidar: !!opencv-matrix
 # number of features
 num_features: 200
 num_features_init: 50
-num_features_tracking: 120
+num_features_tracking: 8
 num_features_tracking_bad: 8
-num_features_needed_for_keyframe: 120
+num_features_needed_for_keyframe: 60
 
 # backend
-delay: 5
+delay: 3
 
 # loop
-voc_path: '/home/jyp/Projects/lvio_fusion/misc/orbvoc.dbow3'
+voc_path: '/home/zoet/Projects.new/lvio_fusion/misc/orbvoc.dbow3'

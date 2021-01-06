@@ -8,7 +8,8 @@
 #include "lvio_fusion/imu/initializer.h"
 #include "lvio_fusion/lidar/association.h"
 #include "lvio_fusion/lidar/mapping.h"
-#include "lvio_fusion/loop/relocation.h"
+#include "lvio_fusion/loop/detector.h"
+#include "lvio_fusion/loop/pose_graph.h"
 #include "lvio_fusion/navsat/navsat.h"
 #include "lvio_fusion/semantic/detected_object.h"
 
@@ -46,11 +47,11 @@ public:
 
     Frontend::Ptr frontend;
     Backend::Ptr backend;
-    Relocation::Ptr relocation;
+    LoopDetector::Ptr detector;
     FeatureAssociation::Ptr association;
     Mapping::Ptr mapping;
     Initializer::Ptr initializer;
-    NavsatMap::Ptr navsat;
+    PoseGraph::Ptr pose_graph;
 
     int flags = Flag::None;
 

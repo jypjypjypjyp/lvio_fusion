@@ -21,10 +21,10 @@ void register_pub(ros::NodeHandle &n)
 
 void publish_odometry(Estimator::Ptr estimator, double time)
 {
-    if (estimator->frontend->status == FrontendStatus::TRACKING_GOOD||estimator->frontend->status == FrontendStatus::TRACKING_BAD||estimator->frontend->status == FrontendStatus::TRACKING_TRY)
+    if (estimator->frontend->status == FrontendStatus::TRACKING_GOOD||estimator->frontend->status == FrontendStatus::INITIALIZING)
     {
         path.poses.clear();
-        for (auto frame : lvio_fusion::Map::Instance().GetAllKeyFrames())
+        for (auto frame : lvio_fusion::Map::Instance().keyframes)
         {
             auto pose = frame.second->pose;
             geometry_msgs::PoseStamped pose_stamped;
@@ -38,9 +38,9 @@ void publish_odometry(Estimator::Ptr estimator, double time)
             pose_stamped.pose.orientation.y = pose.unit_quaternion().y();
             pose_stamped.pose.orientation.z = pose.unit_quaternion().z();
             path.poses.push_back(pose_stamped);
-            if (frame.second->loop_constraint)
+            if (frame.second->loop_closure)
             {
-                auto position = frame.second->loop_constraint->frame_old->pose.translation();
+                auto position = frame.second->loop_closure->frame_old->pose.translation();
                 geometry_msgs::PoseStamped pose_stamped_loop;
                 pose_stamped_loop.header.stamp = ros::Time(frame.first);
                 pose_stamped_loop.header.frame_id = "world";
@@ -59,22 +59,31 @@ void publish_odometry(Estimator::Ptr estimator, double time)
 
 void publish_navsat(Estimator::Ptr estimator, double time)
 {
-    auto navsat = estimator->navsat;
-    navsat_path.poses.clear();
-    for (auto pair : navsat->raw)
+    auto navsat = Navsat::Get();
+    static double head = 0;
+    static int i = 0;
+    if (navsat->initialized)
     {
-        geometry_msgs::PoseStamped pose_stamped;
-        Vector3d point = navsat->GetPoint(pair.first);
-        pose_stamped.header.stamp = ros::Time(pair.first);
-        pose_stamped.header.frame_id = "world";
-        pose_stamped.pose.position.x = point.x();
-        pose_stamped.pose.position.y = point.y();
-        pose_stamped.pose.position.z = point.z();
-        navsat_path.poses.push_back(pose_stamped);
+        auto iter = navsat->raw.lower_bound(head);
+        while (++iter != navsat->raw.end())
+        {
+            if (++i % 100 == 0)
+            {
+                geometry_msgs::PoseStamped pose_stamped;
+                Vector3d point = navsat->GetPoint(iter->first);
+                pose_stamped.header.stamp = ros::Time(iter->first);
+                pose_stamped.header.frame_id = "world";
+                pose_stamped.pose.position.x = point.x();
+                pose_stamped.pose.position.y = point.y();
+                pose_stamped.pose.position.z = point.z();
+                navsat_path.poses.push_back(pose_stamped);
+            }
+        }
+        head = (--iter)->first;
+        navsat_path.header.stamp = ros::Time(time);
+        navsat_path.header.frame_id = "world";
+        pub_navsat.publish(navsat_path);
     }
-    navsat_path.header.stamp = ros::Time(time);
-    navsat_path.header.frame_id = "world";
-    pub_navsat.publish(navsat_path);
 }
 
 void publish_tf(Estimator::Ptr estimator, double time)
@@ -84,7 +93,7 @@ void publish_tf(Estimator::Ptr estimator, double time)
     tf::Quaternion tf_q;
     tf::Vector3 tf_t;
     // base_link
-    if (estimator->frontend->status == FrontendStatus::TRACKING_GOOD||estimator->frontend->status == FrontendStatus::TRACKING_BAD||estimator->frontend->status == FrontendStatus::TRACKING_TRY)
+    if (estimator->frontend->status == FrontendStatus::TRACKING_GOOD||estimator->frontend->status == FrontendStatus::INITIALIZING)
     {
         SE3d pose = estimator->frontend->current_frame->pose;
         Quaterniond pose_q = pose.unit_quaternion();
@@ -96,9 +105,9 @@ void publish_tf(Estimator::Ptr estimator, double time)
         br.sendTransform(tf::StampedTransform(transform, ros::Time(time), "world", "base_link"));
     }
     // navsat
-    if (estimator->navsat != nullptr && estimator->navsat->initialized)
+    if (Navsat::Num() && Navsat::Get()->initialized)
     {
-        double *tf_data = estimator->navsat->extrinsic.data();
+        double *tf_data = Navsat::Get()->extrinsic.data();
         tf_q.setValue(tf_data[0], tf_data[1], tf_data[2], tf_data[3]);
         tf_t.setValue(tf_data[4], tf_data[5], tf_data[6]);
         transform.setOrigin(tf_t);
@@ -124,7 +133,7 @@ void publish_car_model(Estimator::Ptr estimator, double time)
     car_mesh.type = visualization_msgs::Marker::MESH_RESOURCE;
     car_mesh.action = visualization_msgs::Marker::ADD;
     // car_mesh.mesh_resource = "package://lvio_fusion_node/models/car.dae";
-    car_mesh.mesh_resource = "file:///home/zoet/Projects/lvio_fusion/src/lvio_fusion_node/models/car.dae";
+    car_mesh.mesh_resource = "file:///home/zoet/Projects.new/lvio_fusion/src/lvio_fusion_node/models/car.dae";
     car_mesh.id = 0;
 
     SE3d pose = estimator->frontend->current_frame->pose;

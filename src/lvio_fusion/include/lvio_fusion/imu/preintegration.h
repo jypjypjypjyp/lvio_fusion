@@ -2,13 +2,12 @@
 #define lvio_fusion_PREINTEGRATION_H
 
 #include "lvio_fusion/common.h"
-#include "lvio_fusion/imu/imu.hpp"
+#include "lvio_fusion/imu/imu.h"
 
 namespace lvio_fusion
 {
 
 class Frame;
-
 namespace imu
 {
 
@@ -20,17 +19,12 @@ class Preintegration
 public:
     typedef std::shared_ptr<Preintegration> Ptr;
 
-    static Preintegration::Ptr Create(Bias bias,const Imu::Ptr imu)
+    static Preintegration::Ptr Create(Bias bias)
     {
-        Preintegration::Ptr new_preintegration(new Preintegration(bias,imu));
+        Preintegration::Ptr new_preintegration(new Preintegration(bias));
         return new_preintegration;
     }
-    void Appendimu(imuPoint imuMeasure)
-    {
-        imuData_buf.push_back(imuMeasure);
-    }
 
-    void PreintegrateIMU(std::vector<imuPoint> measureFromLastFrame,double last_frame_time,double current_frame_time);
     void IntegrateNewMeasurement(const Vector3d &acceleration, const Vector3d  &angVel, const double &dt);
     void Initialize(const Bias &b_);
     Vector3d GetUpdatedDeltaVelocity();
@@ -43,7 +37,6 @@ public:
     Bias GetDeltaBias(const Bias &b_);
     void Reintegrate();
 
-    std::vector<imuPoint> imuData_buf;
     std::vector<double> dt_buf;
     std::vector<Vector3d> acc_buf;
     std::vector<Vector3d> gyr_buf;
@@ -66,14 +59,14 @@ public:
 private:
     Preintegration(){Initialize(Bias(0,0,0,0,0,0));};
 
-    Preintegration(const Bias &b_,const Imu::Ptr imu)
+    Preintegration(const Bias &b_)
     {
         Nga.setZero();
         NgaWalk.setZero();
-        Nga.block<3,3>(0,0)= (imu->GYR_N * imu->GYR_N) * Matrix3d::Identity();
-        Nga.block<3,3>(3,3)= (imu->ACC_N * imu->ACC_N) * Matrix3d::Identity();
-        NgaWalk.block<3,3>(0,0)=(imu->GYR_W * imu->GYR_W) * Matrix3d::Identity();
-        NgaWalk.block<3,3>(3,3)= (imu->ACC_W * imu->ACC_W) * Matrix3d::Identity();
+        Nga.block<3,3>(0,0)= (Imu::Get()->GYR_N * Imu::Get()->GYR_N) * Matrix3d::Identity();
+        Nga.block<3,3>(3,3)= (Imu::Get()->ACC_N * Imu::Get()->ACC_N) * Matrix3d::Identity();
+        NgaWalk.block<3,3>(0,0)=(Imu::Get()->GYR_W * Imu::Get()->GYR_W) * Matrix3d::Identity();
+        NgaWalk.block<3,3>(3,3)= (Imu::Get()->ACC_W * Imu::Get()->ACC_W) * Matrix3d::Identity();
         Initialize(b_);
         isPreintegrated=false;
     }

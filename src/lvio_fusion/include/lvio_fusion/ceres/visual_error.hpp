@@ -2,7 +2,7 @@
 #define lvio_fusion_VISUAL_ERROR_H
 
 #include "lvio_fusion/ceres/base.hpp"
-#include "lvio_fusion/visual/camera.hpp"
+#include "lvio_fusion/visual/camera.h"
 
 namespace lvio_fusion
 {
@@ -18,20 +18,6 @@ inline void Reprojection(const T *pw, const T *Twc, Camera::Ptr camera, T *resul
     ceres::SE3TransformPoint(e_i, pc_, pc);
     T xp = pc[0] / pc[2];
     T yp = pc[1] / pc[2];
-    result[0] = camera->fx * xp + camera->cx;
-    result[1] = camera->fy * yp + camera->cy;
-}
-
-inline void Reprojection2(const double* pw, const double *Twc, Camera::Ptr camera, double *result)
-{
-    double e[7], e_i[7], Twc_i[7], pc[3], pc_[3];
-    ceres::SE3Inverse(Twc, Twc_i);
-    ceres::SE3TransformPoint(Twc_i, pw, pc_);
-    ceres::Cast(camera->extrinsic.data(), SE3d::num_parameters, e);
-    ceres::SE3Inverse(e, e_i);
-    ceres::SE3TransformPoint(e_i, pc_, pc);
-    double xp = pc[0] / pc[2];
-    double yp = pc[1] / pc[2];
     result[0] = camera->fx * xp + camera->cx;
     result[1] = camera->fy * yp + camera->cy;
 }
@@ -70,55 +56,6 @@ private:
     Camera::Ptr camera_;
     double weights_[2];
 };
-
-class PoseOnlyReprojectionError2 :public ceres::SizedCostFunction<2,7>
-{
-public:
-    PoseOnlyReprojectionError2(Vector2d ob, Vector3d pw, Camera::Ptr camera, double *weights)
-        : ob_(ob), pw_(pw), camera_(camera)
-    {
-        weights_[0] = weights[0];
-        weights_[1] = weights[1];
-    }
-
-    virtual bool Evaluate(double const *const *parameters, double *residuals, double **jacobians) const
-    {
-        double p_p[2];
-        double pw[3] = {(pw_.x()), (pw_.y()), (pw_.z())};
-        double ob[2] = {(ob_.x()), (ob_.y())};
-        Reprojection2(pw, parameters[0], camera_, p_p);
-        residuals[0] = (weights_[0]) * (p_p[0] - ob[0]);
-        residuals[1] = (weights_[1]) * (p_p[1] - ob[1]);
-
-        if (jacobians)
-            {
-                if(jacobians[0])
-                {
-                    Eigen::Map<Matrix<double, 7,2, RowMajor>>  jacobian_(jacobians[0]);
-                    jacobian_.setZero();
-                    // jacobian_.block<1,4>(0, 0) = ;
-                    // jacobian_.block<1,3>(0, 4) = ;
-                    // jacobian_.block<1,4>(1, 0) = ;
-                    // jacobian_.block<1,3>(1, 4) = ;
-                }
-            }
-
-        return true;
-    }
-
-    static ceres::CostFunction *Create(Vector2d ob, Vector3d pw, Camera::Ptr camera, double *weights)
-    {
-        return (new PoseOnlyReprojectionError2(ob, pw, camera, weights));
-    }
-
-private:
-    Vector2d ob_;
-    Vector3d pw_;
-    Camera::Ptr camera_;
-    double weights_[2];
-};
-
-
 
 class TwoFrameReprojectionError
 {

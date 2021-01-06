@@ -3,25 +3,44 @@
 
 #include "lvio_fusion/common.h"
 #include "lvio_fusion/sensor.h"
-#include <boost/serialization/serialization.hpp>
-#include <boost/serialization/vector.hpp>
+
 namespace lvio_fusion
 {
-const double eps = 1e-4;
-
 class Imu : public Sensor
 {
 public:
     typedef std::shared_ptr<Imu> Ptr;
 
-    Imu(const SE3d &extrinsic, double acc_n, double  acc_w, double gyr_n,double gyr_w,double g_norm) : Sensor(extrinsic),ACC_N(acc_n),ACC_W(acc_w),GYR_N(gyr_n),GYR_W(gyr_w), G(g_norm){}
+    static int Create(const SE3d &extrinsic, double acc_n, double  acc_w, double gyr_n,double gyr_w,double g_norm)
+    {
+        devices_.push_back(Imu::Ptr(new Imu(extrinsic,acc_n,acc_w,gyr_n,gyr_w,g_norm)));
+        return devices_.size() - 1;
+    }
 
+    static int Num()
+    {
+        return devices_.size();
+    }
 
+    static Imu::Ptr Get(int id = 0)
+    {
+        return devices_[id];
+    }
     double ACC_N, ACC_W;
     double GYR_N, GYR_W;
     double G;
-    bool initialized =false;
+    Matrix3d Rwg;
+    bool initialized = false;
+
+private:
+    Imu(const SE3d &extrinsic, double acc_n, double  acc_w, double gyr_n,double gyr_w,double g_norm) : Sensor(extrinsic),ACC_N(acc_n),ACC_W(acc_w),GYR_N(gyr_n),GYR_W(gyr_w), G(g_norm){}
+    Imu(const Imu &);
+    Imu &operator=(const Imu &);
+
+    static std::vector<Imu::Ptr> devices_;
 };
+
+
 
 class  imuPoint
 {
@@ -73,7 +92,7 @@ public:
     W << 0, -z, y,
                  z, 0, -x,
                  -y,  x, 0;
-    if(d<eps)
+    if(d<1e-4)
     {
         deltaR = I + W;                                    // 公式(4)
         rightJ = Matrix3d::Identity();
@@ -90,6 +109,7 @@ public:
     Matrix3d deltaR; //integrated rotation
     Matrix3d rightJ; // right jacobian
 };
+
 
 } // namespace lvio_fusion
 #endif // lvio_fusion_IMU_H

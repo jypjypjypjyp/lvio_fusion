@@ -1,5 +1,7 @@
+
 #include "lvio_fusion/visual/landmark.h"
 #include "lvio_fusion/frame.h"
+#include "lvio_fusion/visual/camera.h"
 
 namespace lvio_fusion
 {
@@ -10,14 +12,13 @@ unsigned long Landmark::current_landmark_id = 0;
 
 Vector3d Landmark::ToWorld()
 {
-    return camera->Robot2World(position, FirstFrame().lock()->pose);
+    return Camera::Get()->Robot2World(position, FirstFrame().lock()->pose);
 }
 
-visual::Landmark::Ptr Landmark::Create(Vector3d position, Camera::Ptr camera)
+visual::Landmark::Ptr Landmark::Create(Vector3d position)
 {
     visual::Landmark::Ptr new_point(new Landmark);
     new_point->position = position;
-    new_point->camera = camera;
     return new_point;
 }
 
