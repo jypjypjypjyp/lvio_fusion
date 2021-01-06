@@ -345,7 +345,7 @@ void read_ground_truth()
 void start_train()
 {
     ROS_WARN("Start Training!");
-    Environment::Init();
+    Environment::Init(estimator);
     // call init server
     clt_init.waitForExistence();
     ROS_WARN("Initialization Finished");
@@ -410,7 +410,7 @@ int main(int argc, char **argv)
     read_parameters(config_file);
     Agent::SetCore(new Core());
     estimator = Estimator::Ptr(new Estimator(config_file));
-    assert(estimator->Init(use_imu, use_lidar, use_navsat, use_loop) == true);
+    assert(estimator->Init(use_imu, use_lidar, use_navsat, use_loop, use_adapt) == true);
 
     ROS_WARN("Waiting for images...");
 
@@ -449,7 +449,7 @@ int main(int argc, char **argv)
         sub_objects = n.subscribe("/lvio_fusion_node/output_objects", 10, objects_callback);
         pub_detector = n.advertise<sensor_msgs::Image>("/lvio_fusion_node/image_raw", 10);
     }
-    if (train)
+    if (use_imu && use_lidar && train)
     {
         clt_init = n.serviceClient<lvio_fusion_node::Init>("lvio_fusion_node/init");
         svr_create_env = n.advertiseService("/lvio_fusion_node/create_env", create_env_callback);

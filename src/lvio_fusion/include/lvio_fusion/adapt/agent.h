@@ -1,8 +1,10 @@
 #ifndef lvio_fusion_AGENT_H
 #define lvio_fusion_AGENT_H
 
-#include "lvio_fusion/adapt/problem.h"
+#include "lvio_fusion/adapt/observation.h"
 #include "lvio_fusion/adapt/weights.h"
+#include "lvio_fusion/frame.h"
+#include "lvio_fusion/lidar/lidar.h"
 
 namespace lvio_fusion
 {
@@ -10,7 +12,7 @@ namespace lvio_fusion
 class Core
 {
 public:
-    virtual void UpdateWeights(adapt::Problem &problem, Weights &weights){};
+    virtual void UpdateWeights(Observation obs, Weights &weights){};
 };
 
 class Agent
@@ -21,23 +23,32 @@ public:
         Agent::instance_ = new Agent(core);
     }
 
-    static Agent* Instance()
+    static Agent *Instance()
     {
         return instance_;
     }
 
-    void UpdateWeights(adapt::Problem &problem, Weights &weights)
+    void UpdateWeights(Frame::Ptr frame, Weights &weights)
     {
-        core_->UpdateWeights(problem, weights);
+        Observation obs;
+        obs.image = frame->image_left;
+        if (Lidar::Num())
+        {
+            obs.points_ground = frame->feature_lidar->points_ground;
+            obs.points_surf = frame->feature_lidar->points_surf;
+        }
+        obs.points_ground = frame->feature_lidar->points_ground;
+        obs.points_surf = frame->feature_lidar->points_surf;
+        core_->UpdateWeights(obs, weights);
     }
 
 private:
-    Agent(Core* core)
+    Agent(Core *core)
     {
         core_ = core;
     }
     Agent(const Agent &);
-    Agent & operator = (const Agent &);
+    Agent &operator=(const Agent &);
 
     Core *core_;
     static Agent *instance_;

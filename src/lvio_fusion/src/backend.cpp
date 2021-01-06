@@ -12,7 +12,8 @@
 namespace lvio_fusion
 {
 
-Backend::Backend(double delay) : delay_(delay)
+Backend::Backend(double window_size, bool update_weights)
+    : window_size_(window_size), update_weights_(update_weights)
 {
     thread_ = std::thread(std::bind(&Backend::BackendLoop, this));
 }
@@ -141,6 +142,17 @@ void Backend::Optimize()
     std::unique_lock<std::mutex> lock(mutex);
     Frames active_kfs = Map::Instance().GetKeyFrames(finished);
 
+    if (update_weights_)
+    {
+        for (auto pair : active_kfs)
+        {
+            if (!pair.second->weights.updated)
+            {
+                
+            }
+        }
+    }
+
     // TODO: IMU
     // imu init
     // if (imu_ && !initializer_->initialized)
@@ -158,7 +170,7 @@ void Backend::Optimize()
 
     ceres::Solver::Options options;
     options.linear_solver_type = ceres::DENSE_SCHUR;
-    options.max_solver_time_in_seconds = 5;
+    options.max_solver_time_in_seconds = 0.6 * window_size_;
     options.num_threads = 4;
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
@@ -206,7 +218,7 @@ void Backend::Optimize()
     // propagate to the last frame
     forward = (--active_kfs.end())->first + epsilon;
     ForwardPropagate(forward);
-    finished = forward - delay_;
+    finished = forward - window_size_;
 }
 
 void Backend::ForwardPropagate(double time)

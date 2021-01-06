@@ -13,6 +13,7 @@ struct Weights
     double lidar_surf[3] = {2, 2, 2};
     double imu[9] = {1, 1, 1, 1, 1, 1, 1, 1, 1};
     double pose_graph[6] = {1, 1, 1, 1, 1, 1};
+    bool updated = false;
 };
 
 } // namespace lvio_fusion

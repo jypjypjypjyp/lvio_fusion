@@ -43,7 +43,7 @@ public:
 
     void InputIMU(double time, Vector3d acc, Vector3d gyr);
 
-    bool Init(int use_imu, int use_lidar, int use_navsat, int use_loop);
+    bool Init(int use_imu, int use_lidar, int use_navsat, int use_loop, int use_adapt);
 
     Frontend::Ptr frontend;
     Backend::Ptr backend;

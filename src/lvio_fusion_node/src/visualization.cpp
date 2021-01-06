@@ -22,11 +22,11 @@ void publish_odometry(Estimator::Ptr estimator, double time)
     if (estimator->frontend->status == FrontendStatus::TRACKING_GOOD)
     {
         path.poses.clear();
-        for (auto & frame : lvio_fusion::Map::Instance().keyframes)
+        for (auto &pair : lvio_fusion::Map::Instance().keyframes)
         {
-            auto pose = frame.second->pose;
+            auto pose = pair.second->pose;
             geometry_msgs::PoseStamped pose_stamped;
-            pose_stamped.header.stamp = ros::Time(frame.first);
+            pose_stamped.header.stamp = ros::Time(pair.first);
             pose_stamped.header.frame_id = "world";
             pose_stamped.pose.position.x = pose.translation().x();
             pose_stamped.pose.position.y = pose.translation().y();
@@ -36,11 +36,11 @@ void publish_odometry(Estimator::Ptr estimator, double time)
             pose_stamped.pose.orientation.y = pose.unit_quaternion().y();
             pose_stamped.pose.orientation.z = pose.unit_quaternion().z();
             path.poses.push_back(pose_stamped);
-            if (frame.second->loop_closure)
+            if (pair.second->loop_closure)
             {
-                auto position = frame.second->loop_closure->frame_old->pose.translation();
+                auto position = pair.second->loop_closure->frame_old->pose.translation();
                 geometry_msgs::PoseStamped pose_stamped_loop;
-                pose_stamped_loop.header.stamp = ros::Time(frame.first);
+                pose_stamped_loop.header.stamp = ros::Time(pair.first);
                 pose_stamped_loop.header.frame_id = "world";
                 pose_stamped_loop.pose.position.x = position.x();
                 pose_stamped_loop.pose.position.y = position.y();

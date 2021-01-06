@@ -87,7 +87,7 @@ num_features_tracking_bad: 8
 num_features_needed_for_keyframe: 60
 
 # backend
-delay: 3
+windows_size: 3
 
 # loop
 voc_path: '/home/jyp/Projects/lvio_fusion/misc/orbvoc.dbow3'

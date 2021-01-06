@@ -1,9 +1,11 @@
 #ifndef lvio_fusion_ENVIRONMENT_H
 #define lvio_fusion_ENVIRONMENT_H
 
+#include "lvio_fusion/adapt/observation.h"
 #include "lvio_fusion/adapt/problem.h"
 #include "lvio_fusion/adapt/weights.h"
 #include "lvio_fusion/common.h"
+#include "lvio_fusion/estimator.h"
 #include "lvio_fusion/map.h"
 
 #include <random>
@@ -11,49 +13,31 @@
 namespace lvio_fusion
 {
 
-struct VirtualFrame
-{
-    Frame::Ptr frame;
-    SE3d pose;
-    SE3d groundtruth;
-    double time;
-};
-
-typedef std::map<double, VirtualFrame> VirtualFrames;
-
-struct Observation
-{
-    cv::Mat image;
-    PointICloud points_ground;
-    PointICloud points_surf;
-};
-
 class Environment
 {
 public:
     typedef std::shared_ptr<Environment> Ptr;
 
-    static void Step(int id, Weights *weights, Observation* obs, double *reward, bool *done)
+    static void Step(int id, Weights *weights, Observation *obs, double *reward, bool *done)
     {
         environments_[id]->Step(weights, obs, reward, done);
     }
 
-    static void Reset(int id)
+    static void Init(Estimator::Ptr estimator)
     {
-        environments_[id]->Reset();
-    }
-
-    static void Init()
-    {
-        if (!ground_truths.empty())
+        if (!ground_truths.empty() && estimator)
         {
-            double start_time = Map::Instance().keyframes.begin()->first;
-            auto iter = Map::Instance().keyframes.end();
-            for (int i = 0; i < num_virtual_frames_; i++)
+            estimator_ = estimator;
+
+            // initialize map with ground turth
+            for (auto &pair : Map::Instance().keyframes)
             {
-                iter--;
+                pair.second->pose = GetGroundTruth(pair.first);
             }
-            double end_time = iter->first;
+
+            // initialize random distribution
+            double start_time = (++Map::Instance().keyframes.begin())->first;
+            double end_time = (--Map::Instance().keyframes.end())->first;
             u_ = std::uniform_real_distribution<double>(start_time, end_time);
             initialized_ = true;
         }
@@ -101,36 +85,24 @@ public:
 private:
     Environment()
     {
-        double time = u_(e_);
-        Frames active_kfs = Map::Instance().GetKeyFrames(time, 0, num_virtual_frames_);
-        for (auto pair : active_kfs)
-        {
-            VirtualFrame virtual_frame;
-            virtual_frame.frame = pair.second;
-            virtual_frame.groundtruth = GetGroundTruth(pair.first);
-            virtual_frame.pose = virtual_frame.groundtruth;
-            virtual_env[pair.first] = virtual_frame;
-        }
+        std::default_random_engine e;
+        double time = u_(e);
+        frames_ = Map::Instance().GetKeyFrames(time, 0, num_frames_per_env_);
+        state_ = frames_.begin();
     }
 
-    void Step(Weights *weights, Observation* obs, double *reward, bool *done);
+    void Step(Weights *weights, Observation *obs, double *reward, bool *done);
 
-    void Reset()
-    {
-        state_ = virtual_env.begin()->first;
-    }
+    SE3d Optimize();
 
-    void BuildProblem(adapt::Problem &problem);
-
-    static std::default_random_engine e_;
     static std::uniform_real_distribution<double> u_;
     static std::vector<Environment::Ptr> environments_;
-    static int num_virtual_frames_;
+    static Estimator::Ptr estimator_;
+    static int num_frames_per_env_;
     static bool initialized_;
-    
-    VirtualFrames virtual_env;
-    double state_;
-    double id_;
+
+    Frames frames_;
+    Frames::iterator state_;
 };
 
 } // namespace lvio_fusion

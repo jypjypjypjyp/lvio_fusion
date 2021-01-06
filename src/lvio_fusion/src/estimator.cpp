@@ -13,7 +13,7 @@ namespace lvio_fusion
 Estimator::Estimator(std::string &config_path)
     : config_file_path_(config_path) {}
 
-bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop)
+bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, int use_adapt)
 {
     // read from config file
     if (!Config::SetParameterFile(config_file_path_))
@@ -61,7 +61,8 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop)
         Config::Get<int>("num_features_needed_for_keyframe")));
 
     backend = Backend::Ptr(new Backend(
-        Config::Get<double>("delay")));
+        Config::Get<double>("windows_size"),
+        use_adapt));
 
     frontend->SetBackend(backend);
     backend->SetFrontend(frontend);

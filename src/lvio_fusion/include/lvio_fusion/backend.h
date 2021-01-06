@@ -26,7 +26,7 @@ class Backend
 public:
     typedef std::shared_ptr<Backend> Ptr;
 
-    Backend(double range);
+    Backend(double window_size, bool update_weights);
 
     void SetFrontend(std::shared_ptr<Frontend> frontend) { frontend_ = frontend; }
 
@@ -64,7 +64,8 @@ private:
     std::condition_variable running_;
     std::condition_variable pausing_;
     std::condition_variable map_update_;
-    const double delay_;
+    const double window_size_;
+    const bool update_weights_;
 };
 
 } // namespace lvio_fusion
