@@ -254,8 +254,8 @@ bool LoopDetector::RelocateByPoints(Frame::Ptr frame, Frame::Ptr old_frame)
     // PointICloud points_temp_frame_world;
     // mapping_->MergeScan(clone_frame->feature_lidar->points_full, clone_frame->pose, points_temp_frame_world);
     // // save
-    // pcl::io::savePCDFile("/home/zoet/Projects.new/lvio_fusion/result/" + std::to_string(frame->time) + ".pcd", points_temp_frame_world);
-    // pcl::io::savePCDFile("/home/zoet/Projects.new/lvio_fusion/result/old_" + std::to_string(frame->time) + ".pcd", map_frame->feature_lidar->points_full);
+    // pcl::io::savePCDFile("/home/zoet/Projects/lvio_fusion/result/" + std::to_string(frame->time) + ".pcd", points_temp_frame_world);
+    // pcl::io::savePCDFile("/home/zoet/Projects/lvio_fusion/result/old_" + std::to_string(frame->time) + ".pcd", map_frame->feature_lidar->points_full);
     // // icp
     // pcl::IterativeClosestPoint<PointI, PointI> icp;
     // icp.setInputSource(boost::make_shared<PointICloud>(points_temp_frame_world));

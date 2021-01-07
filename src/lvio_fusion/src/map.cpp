@@ -81,11 +81,12 @@ SE3d Map::ComputePose(double time)
 //NEWADD
 void Map::ApplyScaledRotation(const Matrix3d &R)
 {
-    LOG(INFO)<<R;
+    //LOG(INFO)<<R;
     for(auto iter:keyframes)
     {
         Frame::Ptr keyframe=iter .second;
         keyframe->SetPose(R*keyframe->pose.rotationMatrix(),R*keyframe->pose.translation());
+        keyframe->Vw=R*keyframe->Vw;
     }
 
 }

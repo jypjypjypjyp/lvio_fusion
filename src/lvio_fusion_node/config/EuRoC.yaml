@@ -15,7 +15,7 @@ imu_topic: "/imu0"
 image0_topic: "/cam0/image_raw"
 image1_topic: "/cam1/image_raw"
 #color_topic: '/kitti/camera_color_left/image_raw'
-result_path: '/home/zoet/Projects.new/lvio-fusion/result/result.csv'
+result_path: '/home/zoet/Projects/lvio-fusion/result/result.csv'
 
 # camera1 intrinsics
 camera1.fx: 4.6115862106007575e+02 #2.1387619122017772e+03
@@ -91,4 +91,4 @@ num_features_needed_for_keyframe: 60
 delay: 3
 
 # loop
-voc_path: '/home/zoet/Projects.new/lvio_fusion/misc/orbvoc.dbow3'
+voc_path: '/home/zoet/Projects/lvio_fusion/misc/orbvoc.dbow3'
