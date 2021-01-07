@@ -362,7 +362,7 @@ void Relocator::BuildProblem(Frames &active_kfs, adapt::Problem &problem)
     }
 }
 
-void Relocator::BuildProblemWithLoop(Frames &active_kfs, adapt::Problem &problem)
+void Relocator::BuildProblemWithRelocated(Frames &active_kfs, adapt::Problem &problem)
 {
     ceres::LocalParameterization *local_parameterization = new ceres::ProductParameterization(
         new ceres::EigenQuaternionParameterization(),
@@ -424,7 +424,7 @@ void Relocator::CorrectLoop(double old_time, double start_time, double end_time)
             frame->pose = frame->loop_closure->relative_o_c * frame->loop_closure->frame_old->pose;
         }
 
-        BuildProblemWithLoop(new_submap_kfs, problem);
+        BuildProblemWithRelocated(new_submap_kfs, problem);
         ceres::Solver::Options options;
         options.linear_solver_type = ceres::SPARSE_NORMAL_CHOLESKY;
         options.num_threads = 1;
@@ -455,7 +455,7 @@ void Relocator::CorrectLoop(double old_time, double start_time, double end_time)
         }
     }
 
-    pose_graph_->Optimize(active_sections, new_submap, problem);
+    // pose_graph_->Optimize(active_sections, new_submap, problem);
 }
 
 } // namespace lvio_fusion

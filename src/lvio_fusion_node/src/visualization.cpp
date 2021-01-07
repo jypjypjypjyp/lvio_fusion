@@ -62,10 +62,10 @@ void publish_navsat(Estimator::Ptr estimator, double time)
     static int i = 0;
     if (navsat->initialized)
     {
-        auto iter = navsat->raw.lower_bound(finished);
+        auto iter = navsat->raw.upper_bound(finished);
         while (++iter != navsat->raw.end())
         {
-            if (++i % 100 == 0)
+            if (++i % 10 == 0)
             {
                 geometry_msgs::PoseStamped pose_stamped;
                 Vector3d point = navsat->GetPoint(iter->first);

@@ -79,7 +79,7 @@ private:
 
     void BuildProblem(Frames &active_kfs, adapt::Problem &problem);
 
-    void BuildProblemWithLoop(Frames &active_kfs, adapt::Problem &problem);
+    void BuildProblemWithRelocated(Frames &active_kfs, adapt::Problem &problem);
 
     void CorrectLoop(double old_time, double start_time, double end_time);
 

@@ -369,8 +369,11 @@ void keyboard_process()
             ros::shutdown();
             break;
         case 't':
-            read_ground_truth();
-            start_train();
+            if (train)
+            {
+                read_ground_truth();
+                start_train();
+            }
             break;
         default:
             break;
@@ -449,7 +452,7 @@ int main(int argc, char **argv)
         sub_objects = n.subscribe("/lvio_fusion_node/output_objects", 10, objects_callback);
         pub_detector = n.advertise<sensor_msgs::Image>("/lvio_fusion_node/image_raw", 10);
     }
-    if (use_imu && use_lidar && train)
+    if (train)
     {
         clt_init = n.serviceClient<lvio_fusion_node::Init>("lvio_fusion_node/init");
         svr_create_env = n.advertiseService("/lvio_fusion_node/create_env", create_env_callback);

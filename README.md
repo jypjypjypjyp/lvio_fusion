@@ -17,7 +17,7 @@
 
 Complie:
 ``` bash
-catkin_make -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++
+catkin_make
 ```
 
 Run:

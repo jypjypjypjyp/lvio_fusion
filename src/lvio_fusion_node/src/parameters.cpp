@@ -51,5 +51,6 @@ void read_parameters(string config_file)
     {
         settings["navsat_topic"] >> NAVSAT_TOPIC;
     }
+    train = /*use_imu &&*/ use_lidar && train;
     settings.release();
 }

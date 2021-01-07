@@ -1,5 +1,4 @@
 #include "lvio_fusion/lidar/association.h"
-#include "lvio_fusion/adapt/agent.h"
 #include "lvio_fusion/adapt/problem.h"
 #include "lvio_fusion/ceres/lidar_error.hpp"
 #include "lvio_fusion/ceres/loop_error.hpp"
@@ -25,7 +24,7 @@ void FeatureAssociation::AddScan(double time, Point3Cloud::Ptr new_scan)
     raw_point_clouds_[time] = new_scan;
 
     Frames new_kfs = Map::Instance().GetKeyFrames(finished, time);
-    for (auto & pair_kf : new_kfs)
+    for (auto &pair_kf : new_kfs)
     {
         PointICloud point_cloud;
         if (AlignScan(pair_kf.first, point_cloud))
@@ -223,7 +222,7 @@ inline void FeatureAssociation::Sensor2Robot(PointICloud &in, PointICloud &out)
 {
     Sophus::SE3f tf_se3 = Lidar::Get()->extrinsic.cast<float>();
     float *tf = tf_se3.data();
-    for (auto & point_in : in)
+    for (auto &point_in : in)
     {
         PointI point_out;
         ceres::SE3TransformPoint(tf, point_in.data, point_out.data);
@@ -307,7 +306,6 @@ void FeatureAssociation::ScanToMapWithGround(Frame::Ptr frame, Frame::Ptr map_fr
 
     if (frame->id == map_frame->id + 1)
     {
-        Agent::Instance()->UpdateWeights(problem, frame->weights);
         ceres::CostFunction *cost_function = PoseErrorRPZ::Create(para, frame->weights.lidar_ground);
         problem.AddResidualBlock(ProblemType::Other, cost_function, NULL, para + 1, para + 2, para + 5);
     }
@@ -367,7 +365,6 @@ void FeatureAssociation::ScanToMapWithSegmented(Frame::Ptr frame, Frame::Ptr map
 
     if (frame->id == map_frame->id + 1)
     {
-        Agent::Instance()->UpdateWeights(problem, frame->weights);
         ceres::CostFunction *cost_function = PoseErrorYXY::Create(para, frame->weights.lidar_surf);
         problem.AddResidualBlock(ProblemType::Other, cost_function, NULL, para, para + 3, para + 4);
     }
