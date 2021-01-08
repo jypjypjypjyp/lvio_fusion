@@ -94,17 +94,14 @@ double Navsat::Optimize(double time)
     SE3d transform;
     for (auto &pair : sections)
     {
+        // optimize point A's rotation
         auto frame_A = Map::Instance().keyframes[pair.second.A];
-        auto frame_B = Map::Instance().keyframes[pair.second.B];
-
         SE3d old_pose = frame_A->pose;
         {
-            // optimize point A's rotation
             adapt::Problem problem;
             Frames active_kfs = Map::Instance().GetKeyFrames(pair.second.A, time);
-            ceres::LocalParameterization *local_parameterization = new ceres::EigenQuaternionParameterization();
             double *para = frame_A->pose.data();
-            problem.AddParameterBlock(para, 4, local_parameterization);
+            problem.AddParameterBlock(para, 4, new ceres::EigenQuaternionParameterization());
 
             for (auto &pair_kf : active_kfs)
             {
@@ -127,9 +124,10 @@ double Navsat::Optimize(double time)
         transform = new_pose * old_pose.inverse();
         pose_graph_->Propagate(transform, Map::Instance().GetKeyFrames(pair.second.A + epsilon, pair.second.C));
 
+        // optimize point B's translation
+        auto frame_B = Map::Instance().keyframes[pair.second.B];
         old_pose = frame_B->pose;
         {
-            // optimize point B's translation
             adapt::Problem problem;
             Frames active_kfs = Map::Instance().GetKeyFrames(pair.second.B, time);
             double *para = frame_B->pose.data() + 4;
@@ -154,7 +152,7 @@ double Navsat::Optimize(double time)
         new_pose = frame_B->pose;
 
         // section propagate
-        transform = new_pose * old_pose.inverse() * transform;
+        transform = new_pose * old_pose.inverse();
         pose_graph_->Propagate(transform, Map::Instance().GetKeyFrames(pair.second.B + epsilon, pair.second.C));
         finished = pair.second.A;
     }
