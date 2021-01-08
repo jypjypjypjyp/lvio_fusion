@@ -288,7 +288,7 @@ bool Relocator::RelocateByPoints(Frame::Ptr frame, Frame::Ptr old_frame)
             ceres::Solver::Options options;
             options.linear_solver_type = ceres::DENSE_QR;
             options.max_num_iterations = 4;
-            options.num_threads = 4;
+            options.num_threads = 6;
             ceres::Solver::Summary summary;
             ceres::Solve(options, &problem, &summary);
             clone_frame->pose = rpyxyz2se3(rpyxyz) * map_frame->pose;
@@ -302,7 +302,7 @@ bool Relocator::RelocateByPoints(Frame::Ptr frame, Frame::Ptr old_frame)
             ceres::Solver::Options options;
             options.linear_solver_type = ceres::DENSE_QR;
             options.max_num_iterations = 4;
-            options.num_threads = 4;
+            options.num_threads = 6;
             ceres::Solver::Summary summary;
             ceres::Solve(options, &problem, &summary);
             clone_frame->pose = rpyxyz2se3(rpyxyz) * map_frame->pose;

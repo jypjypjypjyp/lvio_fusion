@@ -44,7 +44,7 @@ SE3d Environment::Optimize()
 
         ceres::Solver::Options options;
         options.linear_solver_type = ceres::DENSE_QR;
-        options.num_threads = 4;
+        options.num_threads = 6;
         ceres::Solver::Summary summary;
         ceres::Solve(options, &problem, &summary);
     }
@@ -65,7 +65,7 @@ SE3d Environment::Optimize()
                 ceres::Solver::Options options;
                 options.linear_solver_type = ceres::DENSE_QR;
                 options.max_num_iterations = 4;
-                options.num_threads = 4;
+                options.num_threads = 6;
                 ceres::Solver::Summary summary;
                 ceres::Solve(options, &problem, &summary);
             }
@@ -76,7 +76,7 @@ SE3d Environment::Optimize()
                 ceres::Solver::Options options;
                 options.linear_solver_type = ceres::DENSE_QR;
                 options.max_num_iterations = 4;
-                options.num_threads = 4;
+                options.num_threads = 6;
                 ceres::Solver::Summary summary;
                 ceres::Solve(options, &problem, &summary);
             }

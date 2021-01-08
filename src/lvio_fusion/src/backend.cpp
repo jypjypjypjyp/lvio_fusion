@@ -130,9 +130,8 @@ void Backend::BuildProblem(Frames &active_kfs, adapt::Problem &problem)
 
 double compute_reprojection_error(Vector2d ob, Vector3d pw, SE3d pose, Camera::Ptr camera)
 {
-    static double weights[2] = {1, 1};
     Vector2d error(0, 0);
-    PoseOnlyReprojectionError(ob, pw, camera, weights)(pose.data(), error.data());
+    PoseOnlyReprojectionError(ob, pw, camera, 1)(pose.data(), error.data());
     return error.norm();
 }
 
@@ -171,7 +170,7 @@ void Backend::Optimize()
     ceres::Solver::Options options;
     options.linear_solver_type = ceres::DENSE_SCHUR;
     options.max_solver_time_in_seconds = 0.6 * window_size_;
-    options.num_threads = 4;
+    options.num_threads = 6;
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
 
@@ -238,7 +237,7 @@ void Backend::ForwardPropagate(double time)
     ceres::Solver::Options options;
     options.linear_solver_type = ceres::DENSE_SCHUR;
     options.max_num_iterations = 1;
-    options.num_threads = 4;
+    options.num_threads = 6;
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
 

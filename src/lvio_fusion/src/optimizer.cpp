@@ -99,7 +99,7 @@ void PoseGraph::UpdateSections(double time)
             accumulate_degree += degree;
             if (!turning && (degree >= 3 || accumulate_degree > 20))
             {
-                if (num > 5)
+                if (num > 10)
                 {
                     current_section.C = pair_kf.first;
                     sections_[current_section.A] = current_section;
@@ -119,6 +119,7 @@ void PoseGraph::UpdateSections(double time)
         else
         {
             current_section.A = pair_kf.first;
+            current_section.B = pair_kf.first;
         }
         last_frame = pair_kf.second;
         last_heading = heading;
@@ -182,17 +183,16 @@ void PoseGraph::Optimize(Atlas &sections, Section &submap, adapt::Problem &probl
         {
             SE3d transfrom = Map::Instance().keyframes[last_time]->pose * last_section.pose.inverse();
             Frames forward_kfs = Map::Instance().GetKeyFrames(last_time + epsilon, pair.first);
-            ForwardPropagate(transfrom, forward_kfs);
+            Propagate(transfrom, forward_kfs);
         }
         last_time = pair.first;
         last_section = pair.second;
     }
     SE3d transfrom = Map::Instance().keyframes[last_time]->pose * last_section.pose.inverse();
     Frames forward_kfs = Map::Instance().GetKeyFrames(last_time + epsilon, submap.B - epsilon);
-    ForwardPropagate(transfrom, forward_kfs);
+    Propagate(transfrom, forward_kfs);
 }
 
-// end_time = 0 means full forward propagate
 void PoseGraph::ForwardPropagate(SE3d transfrom, double start_time)
 {
     std::unique_lock<std::mutex> lock(frontend_->mutex);
@@ -202,11 +202,11 @@ void PoseGraph::ForwardPropagate(SE3d transfrom, double start_time)
     {
         forward_kfs[last_frame->time] = last_frame;
     }
-    ForwardPropagate(transfrom, forward_kfs);
+    Propagate(transfrom, forward_kfs);
     frontend_->UpdateCache();
 }
 
-void PoseGraph::ForwardPropagate(SE3d transfrom, const Frames &forward_kfs)
+void PoseGraph::Propagate(SE3d transfrom, const Frames &forward_kfs)
 {
     for (auto &pair_kf : forward_kfs)
     {

@@ -25,12 +25,8 @@ inline void Reprojection(const T *pw, const T *Twc, Camera::Ptr camera, T *resul
 class PoseOnlyReprojectionError
 {
 public:
-    PoseOnlyReprojectionError(Vector2d ob, Vector3d pw, Camera::Ptr camera, double *weights)
-        : ob_(ob), pw_(pw), camera_(camera)
-    {
-        weights_[0] = weights[0];
-        weights_[1] = weights[1];
-    }
+    PoseOnlyReprojectionError(Vector2d ob, Vector3d pw, Camera::Ptr camera, double weight)
+        : ob_(ob), pw_(pw), camera_(camera), weight_(weight) {}
 
     template <typename T>
     bool operator()(const T *Twc, T *residuals) const
@@ -39,33 +35,29 @@ public:
         T pw[3] = {T(pw_.x()), T(pw_.y()), T(pw_.z())};
         T ob[2] = {T(ob_.x()), T(ob_.y())};
         Reprojection(pw, Twc, camera_, p_p);
-        residuals[0] = T(weights_[0]) * (p_p[0] - ob[0]);
-        residuals[1] = T(weights_[1]) * (p_p[1] - ob[1]);
+        residuals[0] = T(weight_) * (p_p[0] - ob[0]);
+        residuals[1] = T(weight_) * (p_p[1] - ob[1]);
         return true;
     }
 
-    static ceres::CostFunction *Create(Vector2d ob, Vector3d pw, Camera::Ptr camera, double *weights)
+    static ceres::CostFunction *Create(Vector2d ob, Vector3d pw, Camera::Ptr camera, double weight)
     {
         return (new ceres::AutoDiffCostFunction<PoseOnlyReprojectionError, 2, 7>(
-            new PoseOnlyReprojectionError(ob, pw, camera, weights)));
+            new PoseOnlyReprojectionError(ob, pw, camera, weight)));
     }
 
 private:
     Vector2d ob_;
     Vector3d pw_;
     Camera::Ptr camera_;
-    double weights_[2];
+    double weight_;
 };
 
 class TwoFrameReprojectionError
 {
 public:
-    TwoFrameReprojectionError(Vector3d pr, Vector2d ob, Camera::Ptr camera, double *weights)
-        : pr_(pr), ob_(ob), camera_(camera)
-    {
-        weights_[0] = weights[0];
-        weights_[1] = weights[1];
-    }
+    TwoFrameReprojectionError(Vector3d pr, Vector2d ob, Camera::Ptr camera, double weight)
+        : pr_(pr), ob_(ob), camera_(camera), weight_(weight) {}
 
     template <typename T>
     bool operator()(const T *Twc1, const T *Twc2, T *residuals) const
@@ -75,22 +67,22 @@ public:
         T ob2[2] = {T(ob_.x()), T(ob_.y())};
         ceres::SE3TransformPoint(Twc1, pr, pw);
         Reprojection(pw, Twc2, camera_, pixel);
-        residuals[0] = T(weights_[0]) * (pixel[0] - ob2[0]);
-        residuals[1] = T(weights_[1]) * (pixel[1] - ob2[1]);
+        residuals[0] = T(weight_) * (pixel[0] - ob2[0]);
+        residuals[1] = T(weight_) * (pixel[1] - ob2[1]);
         return true;
     }
 
-    static ceres::CostFunction *Create(Vector3d pr, Vector2d ob, Camera::Ptr camera, double *weights)
+    static ceres::CostFunction *Create(Vector3d pr, Vector2d ob, Camera::Ptr camera, double weight)
     {
         return (new ceres::AutoDiffCostFunction<TwoFrameReprojectionError, 2, 7, 7>(
-            new TwoFrameReprojectionError(pr, ob, camera, weights)));
+            new TwoFrameReprojectionError(pr, ob, camera, weight)));
     }
 
 private:
     Vector3d pr_;
     Vector2d ob_;
     Camera::Ptr camera_;
-    double weights_[2];
+    double weight_;
 };
 
 } // namespace lvio_fusion

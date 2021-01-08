@@ -39,7 +39,7 @@ public:
 
     void ForwardPropagate(SE3d transfrom, double start_time);
 
-    void ForwardPropagate(SE3d transfrom, const Frames& forward_kfs);
+    void Propagate(SE3d transfrom, const Frames& forward_kfs);
 
     void ForwardPropagate(Section section);
 

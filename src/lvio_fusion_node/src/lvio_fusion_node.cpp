@@ -255,10 +255,9 @@ bool step_callback(lvio_fusion_node::Step::Request &req,
 {
     Observation obs;
     Weights weights;
-    copy(req.imu.begin(), req.imu.end(), begin(weights.imu));
-    copy(req.lidar_ground.begin(), req.lidar_ground.end(), begin(weights.lidar_ground));
-    copy(req.lidar_surf.begin(), req.lidar_surf.end(), begin(weights.lidar_surf));
-    copy(req.visual.begin(), req.visual.end(), begin(weights.visual));
+    weights.visual = req.visual;
+    weights.lidar_ground = req.lidar_ground;
+    weights.lidar_surf = req.lidar_surf;
     Environment::Step(req.id, &weights, &obs, &res.reward, (bool *)&res.done);
     res.image = *cv_mat_to_msg(obs.image);
     pcl::toROSMsg(obs.points_ground, res.points_ground);
