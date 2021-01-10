@@ -23,9 +23,11 @@ Bias InertialOptimization(Frames key_frames, Eigen::Matrix3d &Rwg, double &scale
     problem.AddResidualBlock(cost_function,NULL,para_accBias);
     
     //优化重力、BIAS和速度的边
-    Vector3d rwg=Rwg.eulerAngles(0,1,2);
-    auto para_rwg=rwg.data();
-    problem.AddParameterBlock(para_rwg, 3);
+    Quaterniond rwg(Rwg);
+    SO3d RwgSO3(rwg);
+    auto para_rwg=RwgSO3.data();
+        ceres::LocalParameterization *local_parameterization = new ceres::EigenQuaternionParameterization();
+    problem.AddParameterBlock(para_rwg, SO3d::num_parameters,local_parameterization);
     Frame::Ptr last_frame;
     Frame::Ptr current_frame;
     double *para_scale=&scale;
@@ -56,18 +58,27 @@ Bias InertialOptimization(Frames key_frames, Eigen::Matrix3d &Rwg, double &scale
 
     ceres::Solver::Options options;
     options.linear_solver_type = ceres::DENSE_SCHUR;
-    options.max_solver_time_in_seconds = 0.8;
+    // options.max_solver_time_in_seconds = 4;
     options.num_threads = 4;
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
     std::this_thread::sleep_for(std::chrono::seconds(3));
 
     //数据恢复
-    Eigen::AngleAxisd rollAngle(AngleAxisd(rwg(0),Vector3d::UnitX()));
-    Eigen::AngleAxisd pitchAngle(AngleAxisd(rwg(1),Vector3d::UnitY()));
-    Eigen::AngleAxisd yawAngle(AngleAxisd(rwg(2),Vector3d::UnitZ()));
-    Rwg= yawAngle*pitchAngle*rollAngle;
-
+    // Eigen::AngleAxisd rollAngle(AngleAxisd(rwg(0),Vector3d::UnitX()));
+    // Eigen::AngleAxisd pitchAngle(AngleAxisd(rwg(1),Vector3d::UnitY()));
+    // Eigen::AngleAxisd yawAngle(AngleAxisd(rwg(2),Vector3d::UnitZ()));
+    // Rwg= yawAngle*pitchAngle*rollAngle;
+    Quaterniond rwg2(RwgSO3.data()[0],RwgSO3.data()[1],RwgSO3.data()[2],RwgSO3.data()[3]);
+        Rwg=rwg2.toRotationMatrix();
+        Vector3d g;
+         g<< 0, 0, -G;
+         g=Rwg*g;
+                        Matrix3d tcb;
+            tcb<<0.0148655429818, -0.999880929698, 0.00414029679422,
+            0.999557249008, 0.0149672133247, 0.025715529948,
+            -0.0257744366974, 0.00375618835797, 0.999660727178;
+    //   LOG(INFO)<<"OPTG "<<(g).transpose()<<"Rwg"<<RwgSO3.data()[0]<<" "<<RwgSO3.data()[1]<<" "<<RwgSO3.data()[2]<<" "<<RwgSO3.data()[3];
     Bias bias_(para_accBias[0],para_accBias[1],para_accBias[2],para_gyroBias[0],para_gyroBias[1],para_gyroBias[2]);
     bg << para_gyroBias[0],para_gyroBias[1],para_gyroBias[2];
     ba <<para_accBias[0],para_accBias[1],para_accBias[2];
@@ -84,8 +95,11 @@ Bias InertialOptimization(Frames key_frames, Eigen::Matrix3d &Rwg, double &scale
         {
             current_frame->SetNewBias(bias_);
         }     
-
-        LOG(INFO)<<"InertialOptimization  "<<current_frame->time-1.40364e+09+8.60223e+07<<"   Vwb1  "<<current_frame->Vw.transpose();
+            Matrix3d tcb;
+            tcb<<0.0148655429818, -0.999880929698, 0.00414029679422,
+            0.999557249008, 0.0149672133247, 0.025715529948,
+            -0.0257744366974, 0.00375618835797, 0.999660727178;
+        LOG(INFO)<<"InertialOptimization  "<<current_frame->time-1.40364e+09/*+8.60223e+07*/<<"   Vwb1  "<<current_frame->Vw.transpose()*tcb;//<<"\nR: \n"<<tcb.inverse()*current_frame->pose.rotationMatrix();
     }
     
     return bias_;
@@ -172,7 +186,7 @@ Bias FullInertialBA(Frames key_frames, Matrix3d Rwg, double priorG, double prior
     //solve
     ceres::Solver::Options options;
     options.linear_solver_type = ceres::DENSE_SCHUR;
-    options.max_solver_time_in_seconds = 0.8;
+    // options.max_solver_time_in_seconds = 4;
     options.num_threads = 4;
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
@@ -186,7 +200,11 @@ Bias FullInertialBA(Frames key_frames, Matrix3d Rwg, double priorG, double prior
             Bias bias(para_accBias[0],para_accBias[1],para_accBias[2],para_gyroBias[0],para_gyroBias[1],para_gyroBias[2]);
             current_frame->SetNewBias(bias);
             lastBias=bias;
-             LOG(INFO)<<"FullInertialBA  "<<current_frame->time-1.40364e+09+8.60223e+07<<"   Vwb1  "<<current_frame->Vw.transpose();
+               Matrix3d tcb;
+            tcb<<0.0148655429818, -0.999880929698, 0.00414029679422,
+            0.999557249008, 0.0149672133247, 0.025715529948,
+            -0.0257744366974, 0.00375618835797, 0.999660727178;
+            //  LOG(INFO)<<"FullInertialBA  "<<current_frame->time-1.40364e+09/*+8.60223e+07*/<<"   Vwb1  "<<current_frame->Vw.transpose()*tcb<<"\nR: \n"<<tcb.inverse()*current_frame->pose.rotationMatrix();
         }
     }
     return lastBias;
@@ -194,6 +212,11 @@ Bias FullInertialBA(Frames key_frames, Matrix3d Rwg, double priorG, double prior
 
 bool  Initializer::estimate_Vel_Rwg(std::vector< Frame::Ptr > Key_frames)
 {
+
+               Matrix3d tcb;
+            tcb<<0.0148655429818, -0.999880929698, 0.00414029679422,
+            0.999557249008, 0.0149672133247, 0.025715529948,
+            -0.0257744366974, 0.00375618835797, 0.999660727178;
     if (!initialized)
     {
         Vector3d dirG = Vector3d::Zero();
@@ -209,21 +232,19 @@ bool  Initializer::estimate_Vel_Rwg(std::vector< Frame::Ptr > Key_frames)
             {
                 return false;
             }   
+
             dirG -= (*iter_keyframe)->last_keyframe->GetImuRotation()*(*iter_keyframe)->preintegration->GetUpdatedDeltaVelocity();
             velocity= ((*iter_keyframe)->GetImuPosition() - (*(iter_keyframe))->last_keyframe->GetImuPosition())/((*iter_keyframe)->preintegration->dT);
             (*iter_keyframe)->SetVelocity(velocity);
             (*iter_keyframe)->last_keyframe->SetVelocity(velocity);
-                       Matrix3d tbc;
-         tbc<<0.0148655429818, -0.999880929698, 0.00414029679422,
-         0.999557249008, 0.0149672133247, 0.025715529948,
-        -0.0257744366974, 0.00375618835797, 0.999660727178;
-            LOG(INFO)<<"InitializeIMU  "<<(*iter_keyframe)->time-1.40364e+09+8.60223e+07<<"   Vwb1  "<<velocity.transpose()*tbc<<"  dt " <<(*iter_keyframe)->preintegration->dT;
+                
+            LOG(INFO)<<"InitializeIMU  "<<(*iter_keyframe)->time-1.40364e+09/*+8.60223e+07*/<<"   Vwb1  "<<(tcb.inverse()*velocity).transpose()<<"  dt " <<(*iter_keyframe)->preintegration->dT;
            // LOG(INFO)<<"current  "<<(*iter_keyframe)->id<<"   last  "<< (*(iter_keyframe))->last_keyframe->id;
-            LOG(INFO)<<"current  "<<(*iter_keyframe)->GetImuPosition().transpose()*tbc<<"   last  "<< (*(iter_keyframe))->last_keyframe->GetImuPosition().transpose()*tbc;
+            LOG(INFO)<<"current  "<<(tcb.inverse()*(*iter_keyframe)->GetImuPosition()).transpose()<<"   last  "<< (tcb.inverse()*(*(iter_keyframe))->last_keyframe->GetImuPosition()).transpose();
             //LOG(INFO)<<"  dP "<<(*iter_keyframe)->preintegration->dP.transpose()<<"  dV "<<(*iter_keyframe)->preintegration->dV.transpose();
         }
         dirG = dirG/dirG.norm();
-
+  
         Vector3d  gI(0.0, 0.0, -1.0);//沿-z的归一化的重力数值
         // 计算旋转轴
         Vector3d v = gI.cross(dirG);
@@ -238,7 +259,8 @@ bool  Initializer::estimate_Vel_Rwg(std::vector< Frame::Ptr > Key_frames)
         Vector3d g;
          g<< 0, 0, -G;
          g=Rwg*g;
-        LOG(INFO)<<"INITG "<<g.transpose();
+        // LOG(INFO)<<"dirG "<<(tcb.inverse()*dirG).transpose();
+        LOG(INFO)<<"INITG "<<(tcb.inverse()*g).transpose();
     } 
     else
     {
@@ -251,9 +273,10 @@ bool  Initializer::estimate_Vel_Rwg(std::vector< Frame::Ptr > Key_frames)
 
 bool  Initializer::InitializeIMU(Frames keyframes)
 {
+    
     double priorA=1e5;
     double priorG=1e2;
-    double minTime=1.0;  // 初始化需要的最小时间间隔
+    double minTime=20.0;  // 初始化需要的最小时间间隔
     // 按时间顺序收集初始化imu使用的KF
     std::list< Frame::Ptr > KeyFrames_list;
     Frames::reverse_iterator   iter;
@@ -265,8 +288,9 @@ bool  Initializer::InitializeIMU(Frames keyframes)
     unsigned long last_initialized_id=Key_frames.back()->id;
     // imu计算初始时间
     FirstTs=Key_frames.front()->time;
-    // if(Map::Instance().current_frame->time-FirstTs<minTime)
-    //     return;
+    // LOG(INFO)<<FirstTs-Map::Instance().keyframes.begin()->second->time;
+    // if(FirstTs-Map::Instance().keyframes.begin()->second->time<minTime)
+    //     return false;
 
     const int N = Key_frames.size();  // 待处理的关键帧数目
 
@@ -278,11 +302,36 @@ bool  Initializer::InitializeIMU(Frames keyframes)
  
     // KF速度和重力方向优化
     Scale=1.0;
-    Bias bias_=InertialOptimization(keyframes,Rwg, Scale, bg, ba, priorG, priorA);
-            Vector3d g;
+                Vector3d g;
          g<< 0, 0, -G;
          g=Rwg*g;
-            LOG(INFO)<<"OPTG "<<g.transpose();
+                        Matrix3d tcb;
+            tcb<<0.0148655429818, -0.999880929698, 0.00414029679422,
+            0.999557249008, 0.0149672133247, 0.025715529948,
+            -0.0257744366974, 0.00375618835797, 0.999660727178;
+            LOG(INFO)<<"INITG "<<(tcb.inverse()*g).transpose()<<"\n"<<Rwg;
+    Bias bias_=InertialOptimization(keyframes,Rwg, Scale, bg, ba, priorG, priorA);
+        Vector3d dirG;
+        //  dirG<< 0, 0, -G;
+        //     dirG=Rwg*dirG;
+        dirG<<-0.15915923848354485 ,  9.1792672332077689,   3.4306621858045498;
+        dirG=tcb*dirG;
+        dirG = dirG/dirG.norm();
+        Vector3d  gI(0.0, 0.0, -1.0);//沿-z的归一化的重力数值
+        // 计算旋转轴
+        Vector3d v = gI.cross(dirG);
+        const double nv = v.norm();
+        // 计算旋转角
+        const double cosg = gI.dot(dirG);
+        const double ang = acos(cosg);
+        // 计算mRwg，与-Z旋转偏差
+        Vector3d vzg = v*ang/nv;
+        Rwg = ExpSO3(vzg);
+                        Vector3d g2;
+         g2<< 0, 0, -G;
+         g2=Rwg*g2;
+            LOG(INFO)<<"OPTG "<<(tcb.inverse()*g2).transpose()<<"\n"<<Rwg;
+
     if (Scale<1e-1)
     {
         return false;
@@ -297,7 +346,7 @@ bool  Initializer::InitializeIMU(Frames keyframes)
     }
 
     // 进行完全惯性优化
-    Bias lastBias=FullInertialBA(keyframes,Rwg, priorG, priorA);
+  //  Bias lastBias=FullInertialBA(keyframes,Rwg, priorG, priorA);
     // frontend_.lock()->UpdateFrameIMU(lastBias);
     frontend_.lock()->current_key_frame->bImu = true;
     bimu=true;

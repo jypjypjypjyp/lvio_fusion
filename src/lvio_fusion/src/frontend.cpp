@@ -225,9 +225,10 @@ bool Frontend::Track()
     {
         CreateKeyframe();
     }
-    else if (status == FrontendStatus::INITIALIZING&&num_inliers < num_features_needed_for_keyframe_*1.5)
+    else if (status == FrontendStatus::INITIALIZING)
     {
-        CreateKeyframe(false);
+        if(current_key_frame&&current_frame->time-current_key_frame->time>=0.25)
+            CreateKeyframe(false);
     }
     relative_i_j = current_frame->pose * last_frame_pose_cache_.inverse();
     return true;
@@ -256,8 +257,12 @@ void Frontend::CreateKeyframe(bool need_new_features)
     }
     // insert!
     Map::Instance().InsertKeyFrame(current_frame);
-    current_key_frame = current_frame;
-    //LOG(INFO) << "Add a keyframe " << current_frame->id<<"    :"<<current_key_frame->pose.translation().transpose()<<"  "<<current_frame->time-1.40364e+09;
+    current_key_frame = current_frame;    
+                Matrix3d tcb;
+            tcb<<0.0148655429818, -0.999880929698, 0.00414029679422,
+            0.999557249008, 0.0149672133247, 0.025715529948,
+            -0.0257744366974, 0.00375618835797, 0.999660727178;
+    //   LOG(INFO) << "Add a keyframe " << current_frame->id<<"    :"<<current_frame->pose.translation().transpose()<<"  "<<current_frame->time-1.40364e+09<<"\nR: \n"<<tcb.inverse()*current_frame->pose.rotationMatrix();
     // update backend because we have a new keyframe
     backend_.lock()->UpdateMap();
 }
@@ -360,7 +365,7 @@ int Frontend::TrackLastFrame()
         cv::Rodrigues(rvec, cv_R);
         Matrix3d R;
         cv::cv2eigen(cv_R, R);
-        //if(!Imu::Num()||!backend_.lock()->initializer_->initialized)
+        if(!Imu::Num()||!backend_.lock()->initializer_->initialized)
             current_frame->pose = (Camera::Get()->extrinsic * SE3d(SO3d(R), Vector3d(tvec.at<double>(0, 0), tvec.at<double>(1, 0), tvec.at<double>(2, 0)))).inverse();
     }
 
@@ -386,7 +391,11 @@ bool Frontend::InitMap()
 
     // the first frame is a keyframe
     Map::Instance().InsertKeyFrame(current_frame);
-      //LOG(INFO) << "Add a keyframe " << current_frame->id<<"    :"<<current_frame->pose.translation().transpose()<<"  "<<current_frame->time-1.40364e+09;
+    //             Matrix3d tcb;
+    //         tcb<<0.0148655429818, -0.999880929698, 0.00414029679422,
+    //         0.999557249008, 0.0149672133247, 0.025715529948,
+    //         -0.0257744366974, 0.00375618835797, 0.999660727178;
+    //   LOG(INFO) << "Add a keyframe " << current_frame->id<<"    :"<<current_frame->pose.translation().transpose()<<"  "<<current_frame->time-1.40364e+09<<"\nR: \n"<<tcb.inverse()*current_frame->pose.rotationMatrix();
     //LOG(INFO) << "Initial map created with " << num_new_features << " map points";
 
     // update backend and loop because we have a new keyframe
@@ -540,6 +549,10 @@ void Frontend::UpdateFrameIMU( const Bias &bias_)
 
 void Frontend::PredictStateIMU()
 {
+            Matrix3d tcb;
+            tcb<<0.0148655429818, -0.999880929698, 0.00414029679422,
+            0.999557249008, 0.0149672133247, 0.025715529948,
+            -0.0257744366974, 0.00375618835797, 0.999660727178;
     if(Map::Instance().mapUpdated&&current_key_frame)
     {
         Vector3d Gz ;
@@ -558,13 +571,12 @@ void Frontend::PredictStateIMU()
         current_frame->SetPose(Rwb2,twb2);
         current_frame->SetNewBias(current_key_frame->GetImuBias());
         Map::Instance().mapUpdated=false;//NEWADD
+        //          LOG(INFO)<<"PredictStateIMU  "<<current_frame->time-1.40364e+09<<"  T12  "<<t12;
+        // LOG(INFO)<<" Rwb2\n"<<tcb.inverse()*Rwb2;
     }
     else if(! Map::Instance().mapUpdated)
     {
-        //    Matrix3d tbc;
-        //  tbc<<0.0148655429818, -0.999880929698, 0.00414029679422,
-        //  0.999557249008, 0.0149672133247, 0.025715529948,
-        // -0.0257744366974, 0.00375618835797, 0.999660727178;
+           
         Vector3d Gz ;
         Gz << 0, 0, -9.81007;
           
@@ -579,11 +591,13 @@ void Frontend::PredictStateIMU()
         Vector3d twb2=twb1 + Vwb1*t12 + 0.5f*t12*t12*Gz+ Rwb1*current_frame->preintegrationFrame->GetDeltaPosition(last_frame->GetImuBias());
         Vector3d Vwb2=Vwb1+t12*Gz+Rwb1*current_frame->preintegrationFrame->GetDeltaVelocity(last_frame->GetImuBias());
          
-        //  LOG(INFO)<<"PredictStateIMU  "<<current_frame->time-1.40364e+09<<"  T12  "<<t12;
-        // LOG(INFO)<<" Vwb1"<<Vwb1.transpose();
-        // LOG(INFO)<<"   GRdV "<<(t12*Gz+Rwb1*current_frame->preintegrationFrame->GetDeltaVelocity(last_frame->GetImuBias())).transpose()*backend_.lock()->initializer_->Rwg;
-        // LOG(INFO)<<"   RdV    "<<(Rwb1*current_frame->preintegrationFrame->GetDeltaVelocity(last_frame->GetImuBias())).transpose()*backend_.lock()->initializer_->Rwg;
-        // LOG(INFO)<<"   dV      "<<(current_frame->preintegrationFrame->GetDeltaVelocity(last_frame->GetImuBias())).transpose();
+         LOG(INFO)<<"PredictStateIMU  "<<current_frame->time-1.40364e+09<<"  T12  "<<t12;
+        LOG(INFO)<<" Rwb2\n"<<tcb.inverse()*Rwb2;
+        LOG(INFO)<<" Vwb1"<<Vwb1.transpose()*tcb;
+        LOG(INFO)<<" Vwb2"<<Vwb2.transpose()*tcb;
+        LOG(INFO)<<"   GRdV "<<(t12*Gz+Rwb1*current_frame->preintegrationFrame->GetDeltaVelocity(last_frame->GetImuBias())).transpose()*tcb;
+        LOG(INFO)<<"   RdV    "<<((tcb.inverse()*Rwb1)*current_frame->preintegrationFrame->GetDeltaVelocity(last_frame->GetImuBias())).transpose();
+        LOG(INFO)<<"   dV      "<<(current_frame->preintegrationFrame->GetDeltaVelocity(last_frame->GetImuBias())).transpose();
         //  LOG(INFO)<<"  dR:\n"<<current_frame->preintegrationFrame->GetDeltaRotation(last_frame->GetImuBias()); 
         current_frame->SetVelocity(Vwb2);
         current_frame->SetPose(Rwb2,twb2);
@@ -609,11 +623,40 @@ void Frontend::PredictStateIMU()
             cost_function = PoseOnlyReprojectionError::Create(cv2eigen(feature->keypoint),position_cache_[landmark->id],  Camera::Get(), current_frame->weights.visual);
             problem.AddResidualBlock(ProblemType::PoseOnlyReprojectionError, cost_function, loss_function, para_kf);
         }
+
+    //    if(current_frame->last_keyframe&&backend_.lock()->initializer_->initialized)
+    //     {
+    //         auto para_kf_last=current_frame->last_keyframe->pose.data();
+    //         auto para_v=current_frame->Vw.data();
+    //         auto para_v_last=current_frame->last_keyframe->Vw.data();
+    //         auto para_accBias=current_frame->ImuBias.linearized_ba.data();
+    //         auto para_gyroBias=current_frame->ImuBias.linearized_bg.data();
+    //         auto para_accBias_last=current_frame->last_keyframe->ImuBias.linearized_ba.data();
+    //         auto para_gyroBias_last=current_frame->last_keyframe->ImuBias.linearized_bg.data();
+    //         problem.AddParameterBlock(para_kf_last, SE3d::num_parameters, local_parameterization);
+    //         problem.AddParameterBlock(para_v, 3);
+    //         problem.AddParameterBlock(para_v_last, 3);
+    //         problem.AddParameterBlock(para_accBias, 3);
+    //         problem.AddParameterBlock(para_gyroBias, 3);
+    //         problem.AddParameterBlock(para_accBias_last, 3);
+    //         problem.AddParameterBlock(para_gyroBias_last, 3);
+    //         problem.SetParameterBlockConstant(para_kf_last);
+    //         problem.SetParameterBlockConstant(para_v_last);
+    //         problem.SetParameterBlockConstant(para_accBias_last);
+    //         problem.SetParameterBlockConstant(para_gyroBias_last);
+
+    //          ceres::CostFunction *cost_function =InertialError::Create(current_frame->preintegration,backend_.lock()->initializer_->Rwg);
+    //         problem.AddResidualBlock(ProblemType::IMUError,cost_function, NULL, para_kf_last, para_v_last,  para_gyroBias,para_accBias, para_kf, para_v);
+    //         ceres::CostFunction *cost_function_g = GyroRWError2::Create(current_frame->preintegration->C.block<3,3>(9,9).inverse());
+    //         problem.AddResidualBlock(ProblemType::IMUError,cost_function_g, NULL, para_gyroBias_last,para_gyroBias);
+    //         ceres::CostFunction *cost_function_a = AccRWError2::Create(current_frame->preintegration->C.block<3,3>(12,12).inverse());
+    //         problem.AddResidualBlock(ProblemType::IMUError,cost_function_a, NULL, para_accBias_last,para_accBias);
+    //     }
     ceres::Solver::Options options;
     options.linear_solver_type = ceres::DENSE_QR;
-    options.max_solver_time_in_seconds = 0.1;
-    //options.max_num_iterations = 1;
-    options.num_threads = 1;
+    //  options.max_solver_time_in_seconds = 4;
+   // options.max_num_iterations = 4;
+    options.num_threads = 4;
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
  }

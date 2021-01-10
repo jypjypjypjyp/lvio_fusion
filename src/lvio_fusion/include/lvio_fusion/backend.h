@@ -46,6 +46,7 @@ public:
     Initializer::Ptr initializer_;//NEWADD
     bool isInitliazing=false;//NEWADD
          Frame::Ptr new_frame;
+     SE3d old_pose;
 private:
     void BackendLoop();
 

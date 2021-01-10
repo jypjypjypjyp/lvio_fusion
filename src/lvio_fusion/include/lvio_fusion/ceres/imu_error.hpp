@@ -477,17 +477,21 @@ public:
         Vector3d Vj(parameters1[0], parameters1[1], parameters1[2]);
         Vector3d gyroBias(parameters2[0], parameters2[1], parameters2[2]);
         Vector3d accBias(parameters3[0], parameters3[1], parameters3[2]);
-        Vector3d eulerAngle(parameters4[0], parameters4[1], parameters4[2]);
+        Quaterniond rwg(parameters4[0], parameters4[1], parameters4[2], parameters4[3]);
         // double Scale=parameters[5][0];
         double Scale=1.0;
         double dt=(mpInt->dT);
-        Eigen::AngleAxisd rollAngle(AngleAxisd(eulerAngle(0),Vector3d::UnitX()));
-        Eigen::AngleAxisd pitchAngle(AngleAxisd(eulerAngle(1),Vector3d::UnitY()));
-        Eigen::AngleAxisd yawAngle(AngleAxisd(eulerAngle(2),Vector3d::UnitZ()));
-        Matrix3d Rwg;
-        Rwg= yawAngle*pitchAngle*rollAngle;
+        // Eigen::AngleAxisd rollAngle(AngleAxisd(eulerAngle(0),Vector3d::UnitX()));
+        // Eigen::AngleAxisd pitchAngle(AngleAxisd(eulerAngle(1),Vector3d::UnitY()));
+        // Eigen::AngleAxisd yawAngle(AngleAxisd(eulerAngle(2),Vector3d::UnitZ()));
+        Matrix3d Rwg=rwg.toRotationMatrix();
+        // Rwg= yawAngle*pitchAngle*rollAngle;
         Vector3d g=Rwg*gl;
-        //LOG(INFO)<<"G  "<<g.transpose();
+        Matrix3d tcb;
+            tcb<<0.0148655429818, -0.999880929698, 0.00414029679422,
+            0.999557249008, 0.0149672133247, 0.025715529948,
+            -0.0257744366974, 0.00375618835797, 0.999660727178;
+        // LOG(INFO)<<"G  "<<(g).transpose()<<"Rwg"<<parameters4[0]<<" "<< parameters4[1]<<" "<< parameters4[2]<<" "<<parameters4[3];
         const Bias  b1(accBias(0,0),accBias(1,0),accBias(2,0),gyroBias(0,0),gyroBias(1,0),gyroBias(2,0));
         Matrix3d dR = (mpInt->GetDeltaRotation(b1));
         Vector3d dV = (mpInt->GetDeltaVelocity(b1));
@@ -512,7 +516,7 @@ public:
         sqrt_info/=InfoScale;
       //  assert(residual[0]<10&&residual[1]<10&&residual[2]<10&&residual[3]<10&&residual[4]<10&&residual[5]<10&&residual[6]<10&&residual[7]<10&&residual[8]<10);
         residual = sqrt_info* residual;
-      //  LOG(INFO)<<"InertialGSError sqrt_info* residual :  er "<<residual.transpose()<<" dT "<<mpInt->dT;
+       LOG(INFO)<<"InertialGSError sqrt_info* residual :  er "<<residual.transpose()<<" dT "<<mpInt->dT;
     //     LOG(INFO)<<"                Qi "<<Qi.eulerAngles(0,1,2).transpose()<<" Qj "<<Qj.eulerAngles(0,1,2).transpose()<<"dQ"<<dR.eulerAngles(0,1,2).transpose();
     //     LOG(INFO)<<"                Pi "<<Pi.transpose()<<" Pj "<<Pj.transpose()<<"dP"<<dP.transpose();
     //     LOG(INFO)<<"                Vi "<<Vi.transpose()<<" Vj "<<Vj.transpose()<<"dV"<<dV.transpose();
@@ -521,7 +525,7 @@ public:
     }
     static ceres::CostFunction *Create(imu::Preintegration::Ptr preintegration,SE3d current_pose_,SE3d last_pose_)
     {
-        return new ceres::NumericDiffCostFunction<InertialGSError2,ceres::FORWARD,9, 3,3,3,3,3>(new InertialGSError2(preintegration,current_pose_,last_pose_));
+        return new ceres::NumericDiffCostFunction<InertialGSError2,ceres::FORWARD,9, 3,3,3,3,4>(new InertialGSError2(preintegration,current_pose_,last_pose_));
     }
 private:
  imu::Preintegration::Ptr mpInt;

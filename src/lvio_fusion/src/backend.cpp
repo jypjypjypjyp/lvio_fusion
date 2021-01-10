@@ -160,15 +160,17 @@ void Backend::Optimize()
 {
     static double forward_head = 0;
     std::unique_lock<std::mutex> lock(mutex);
+    std::unique_lock<std::mutex> lock2(frontend_.lock()->mutex);
 
     Frames active_kfs = Map::Instance().GetKeyFrames(head);
+    old_pose=(--active_kfs.end())->second->pose;
     LOG(INFO)<<"BACKEND IMU OPTIMIZER  ===>"<<active_kfs.size();
     adapt::Problem problem;
     BuildProblem(active_kfs, problem);
 
     ceres::Solver::Options options;
     options.linear_solver_type = ceres::DENSE_SCHUR;
-    options.max_solver_time_in_seconds = 3;
+    options.max_solver_time_in_seconds = 0.1;
     options.num_threads = 4;
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
@@ -240,25 +242,31 @@ void Backend::Optimize()
 
 void Backend::ForwardPropagate(double time)
 {
-    std::unique_lock<std::mutex> lock(frontend_.lock()->mutex);
+    // std::unique_lock<std::mutex> lock(frontend_.lock()->mutex);
 
-    Frames  frames_init;
-     if (Imu::Num() && !initializer_->initialized)
-    {
-        frames_init = Map::Instance().GetKeyFrames(0,time,initializer_->num_frames);
-        if (frames_init.size() == initializer_->num_frames&&frames_init.begin()->second->preintegration->isPreintegrated)
-        {
-            isInitliazing=true;
-        }
-    }
-    if (isInitliazing)
-    {
-        LOG(INFO)<<"Initializer Start";
-        if(initializer_->InitializeIMU(frames_init))
-            frontend_.lock()->status = FrontendStatus::TRACKING_GOOD;
-        LOG(INFO)<<"Initializer Finished";
-        isInitliazing=false;
-    }    
+    // Frames  frames_init;
+    //  if (Imu::Num() && !initializer_->initialized)
+    // {
+    //     frames_init = Map::Instance().GetKeyFrames(0,time,initializer_->num_frames);
+    //     if (frames_init.size() == initializer_->num_frames&&frames_init.begin()->second->preintegration->isPreintegrated)
+    //     {
+    //         // LOG(INFO)<<frames_init.end()->second->time<<" "<<Map::Instance().keyframes.begin()->second->time;
+    //         // if(frames_init.end()->second->time-Map::Instance().keyframes.begin()->second->time>10)
+    //         isInitliazing=true;
+    //     }
+    // }
+    // // bool fistinit=false;
+    // if (isInitliazing)
+    // {
+    //     LOG(INFO)<<"Initializer Start";
+    //     if(initializer_->InitializeIMU(frames_init))
+    //     {
+    //         frontend_.lock()->status = FrontendStatus::TRACKING_GOOD;
+    //         // fistinit=true;
+    //     }
+    //     LOG(INFO)<<"Initializer Finished";
+    //     isInitliazing=false;
+    // }    
 
 
     Frame::Ptr last_frame = frontend_.lock()->last_frame;
@@ -269,53 +277,125 @@ void Backend::ForwardPropagate(double time)
         active_kfs[last_frame->time] = last_frame;
     }
     //NEWADD
-    if(Imu::Num() && initializer_->initialized)
+        Frames  frames_init;
+     if (Imu::Num() && !initializer_->initialized)
     {
-        Frame::Ptr last_key_frame=new_frame;
-        for(auto kf:active_kfs){
-            Frame::Ptr current_key_frame =kf.second;
-            // SE3d transFromOld=current_key_frame->pose*old_pose.inverse();
-            // current_key_frame->pose=transFromOld*new_frame->pose;
-            Vector3d Gz ;
-            Gz << 0, 0, -9.81007;
-            //Gz =initializer_->Rwg*Gz;
-            double t12=current_key_frame->preintegration->dT;
-            Vector3d twb1=last_key_frame->GetImuPosition();
-            Matrix3d Rwb1=last_key_frame->GetImuRotation();
-            Vector3d Vwb1=last_key_frame->Vw;
-            Matrix3d Rwb2=NormalizeRotation(Rwb1*current_key_frame->preintegration->GetDeltaRotation(last_key_frame->GetImuBias()));
-            Vector3d twb2=twb1 + Vwb1*t12 + 0.5f*t12*t12*Gz+ Rwb1*current_key_frame->preintegration->GetDeltaPosition(last_key_frame->GetImuBias());
-            Vector3d Vwb2=Vwb1+t12*Gz+Rwb1*current_key_frame->preintegration->GetDeltaVelocity(last_key_frame->GetImuBias());
-            current_key_frame->SetVelocity(Vwb2);
-             current_key_frame->SetPose(Rwb2,twb2);
-            current_key_frame->SetNewBias(last_key_frame->GetImuBias());
-            last_key_frame=current_key_frame;
+        frames_init = Map::Instance().GetKeyFrames(0,(--active_kfs.end())->second->time + epsilon,initializer_->num_frames);
+        if (frames_init.size() == initializer_->num_frames&&frames_init.begin()->second->preintegration->isPreintegrated)
+        {
+            // LOG(INFO)<<frames_init.end()->second->time<<" "<<Map::Instance().keyframes.begin()->second->time;
+            // if(frames_init.end()->second->time-Map::Instance().keyframes.begin()->second->time>10)
+            isInitliazing=true;
         }
     }
+//     if(Imu::Num() && initializer_->initialized)
+//     {
+//         Frame::Ptr last_key_frame=new_frame;
+//         for(auto kf:active_kfs){
+//             Frame::Ptr current_key_frame =kf.second;
+//             // SE3d transFromOld=current_key_frame->pose*old_pose.inverse();
+//             // current_key_frame->pose=transFromOld*new_frame->pose;
+//             Vector3d Gz ;
+//             Gz << 0, 0, -9.81007;
+//             double t12=current_key_frame->preintegration->dT;
+//             Vector3d twb1=last_key_frame->GetImuPosition();
+//             Matrix3d Rwb1=last_key_frame->GetImuRotation();
+//             Vector3d Vwb1=last_key_frame->Vw;
+//             Matrix3d Rwb2=NormalizeRotation(Rwb1*current_key_frame->preintegration->GetDeltaRotation(last_key_frame->GetImuBias()));
+//             Vector3d twb2=twb1 + Vwb1*t12 + 0.5f*t12*t12*Gz+ Rwb1*current_key_frame->preintegration->GetDeltaPosition(last_key_frame->GetImuBias());
+//             Vector3d Vwb2=Vwb1+t12*Gz+Rwb1*current_key_frame->preintegration->GetDeltaVelocity(last_key_frame->GetImuBias());
+//             current_key_frame->SetVelocity(Vwb2);
+//              current_key_frame->SetPose(Rwb2,twb2);
+//             current_key_frame->SetNewBias(last_key_frame->GetImuBias());
+//             last_key_frame=current_key_frame;
+//         //              LOG(INFO)<<"ForwardPropagate  "<<current_key_frame->time-1.40364e+09<<"  T12  "<<t12;
+//         //             Matrix3d tcb;
+//         //     tcb<<0.0148655429818, -0.999880929698, 0.00414029679422,
+//         //     0.999557249008, 0.0149672133247, 0.025715529948,
+//         //     -0.0257744366974, 0.00375618835797, 0.999660727178;
+//         //             LOG(INFO)<<" Rwb2\n"<<tcb.inverse()*Rwb2;
+//         // LOG(INFO)<<" Vwb1"<<Vwb1.transpose();
+//         // LOG(INFO)<<"   GRdV "<<(t12*Gz+Rwb1*current_key_frame->preintegration->GetDeltaVelocity(last_key_frame->GetImuBias())).transpose()*tcb;
+//         // LOG(INFO)<<"   RdV    "<<((tcb.inverse()*Rwb1)*current_key_frame->preintegration->GetDeltaVelocity(last_key_frame->GetImuBias())).transpose();
+//         // LOG(INFO)<<"   dV      "<<(current_key_frame->preintegration->GetDeltaVelocity(last_key_frame->GetImuBias())).transpose();
+//                  adapt::Problem problem;
+//       ceres::LossFunction *loss_function = new ceres::HuberLoss(1.0);
+//           ceres::LocalParameterization *local_parameterization = new ceres::ProductParameterization(
+//         new ceres::EigenQuaternionParameterization(),
+//         new ceres::IdentityParameterization(3));
+//       auto para_kf=current_key_frame->pose.data();
+//       problem.AddParameterBlock(para_kf, SE3d::num_parameters, local_parameterization);
+//       for (auto pair_feature : current_key_frame->features_left)
+//         {
+//             auto feature = pair_feature.second;
+//             auto landmark = feature->landmark.lock();
+//             auto first_frame = landmark->FirstFrame().lock();
+//             ceres::CostFunction *cost_function;
+//             cost_function = PoseOnlyReprojectionError::Create(cv2eigen(feature->keypoint),landmark->ToWorld(),  Camera::Get(), current_key_frame->weights.visual);
+//             problem.AddResidualBlock(ProblemType::PoseOnlyReprojectionError, cost_function, loss_function, para_kf);
+//         }
 
+//        if(current_key_frame->last_keyframe&&initializer_->initialized)
+//         {
+//             auto para_kf_last=current_key_frame->last_keyframe->pose.data();
+//             auto para_v=current_key_frame->Vw.data();
+//             auto para_v_last=current_key_frame->last_keyframe->Vw.data();
+//             auto para_accBias=current_key_frame->ImuBias.linearized_ba.data();
+//             auto para_gyroBias=current_key_frame->ImuBias.linearized_bg.data();
+//             auto para_accBias_last=current_key_frame->last_keyframe->ImuBias.linearized_ba.data();
+//             auto para_gyroBias_last=current_key_frame->last_keyframe->ImuBias.linearized_bg.data();
+//             problem.AddParameterBlock(para_kf_last, SE3d::num_parameters, local_parameterization);
+//             problem.AddParameterBlock(para_v, 3);
+//             problem.AddParameterBlock(para_v_last, 3);
+//             problem.AddParameterBlock(para_accBias, 3);
+//             problem.AddParameterBlock(para_gyroBias, 3);
+//             problem.AddParameterBlock(para_accBias_last, 3);
+//             problem.AddParameterBlock(para_gyroBias_last, 3);
+//             problem.SetParameterBlockConstant(para_kf_last);
+//             problem.SetParameterBlockConstant(para_v_last);
+//             problem.SetParameterBlockConstant(para_accBias_last);
+//             problem.SetParameterBlockConstant(para_gyroBias_last);
 
+//              ceres::CostFunction *cost_function =InertialError::Create(current_key_frame->preintegration,initializer_->Rwg);
+//             problem.AddResidualBlock(ProblemType::IMUError,cost_function, NULL, para_kf_last, para_v_last,  para_gyroBias,para_accBias, para_kf, para_v);
+//             ceres::CostFunction *cost_function_g = GyroRWError2::Create(current_key_frame->preintegration->C.block<3,3>(9,9).inverse());
+//             problem.AddResidualBlock(ProblemType::IMUError,cost_function_g, NULL, para_gyroBias_last,para_gyroBias);
+//             ceres::CostFunction *cost_function_a = AccRWError2::Create(current_key_frame->preintegration->C.block<3,3>(12,12).inverse());
+//             problem.AddResidualBlock(ProblemType::IMUError,cost_function_a, NULL, para_accBias_last,para_accBias);
+//         }
+//     ceres::Solver::Options options;
+//     options.linear_solver_type = ceres::DENSE_QR;
+//     //  options.max_solver_time_in_seconds = 4;
+//    // options.max_num_iterations = 4;
+//     options.num_threads = 4;
+//     ceres::Solver::Summary summary;
+//     ceres::Solve(options, &problem, &summary);
+//         }
+//     }
+
+/*
     adapt::Problem problem;
     BuildProblem(active_kfs, problem);
 
     ceres::Solver::Options options;
     options.linear_solver_type = ceres::DENSE_SCHUR;
-    if (isInitliazing)
-    {
-         options.max_solver_time_in_seconds = 5;
-    }
-    else
-    {
-        options.max_num_iterations = 1;
-    }
+    // if (isInitliazing)
+    // {
+    //      options.max_solver_time_in_seconds = 5;
+    // }
+    // else
+    // {
+    //     options.max_num_iterations = 1;
+    // }
     options.num_threads = 4;
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
 
    //NEWADD
-    
+      Bias lastbias_;
     if(Imu::Num()&&initializer_->initialized)
     {
-         Bias lastbias_;
+       
         for(auto kf_pair : active_kfs){
             auto frame = kf_pair.second;
             if(!frame->preintegration||!frame->last_keyframe||!frame->bImu){
@@ -326,10 +406,27 @@ void Backend::ForwardPropagate(double time)
             //LOG(INFO)<<"fwd  TIME: "<<frame->time-1.40364e+09+8.60223e+07<<"    V  "<<frame->Vw.transpose()<<"    R  "<<frame->pose.rotationMatrix().eulerAngles(0,1,2).transpose()<<"    P  "<<frame->pose.translation().transpose();
             lastbias_=bias_;
         }
-       Map::Instance().mapUpdated=true;
-         frontend_.lock()->UpdateFrameIMU(lastbias_);
     }
+   */ 
+        // bool fistinit=false;
+    if (isInitliazing)
+    {
+        LOG(INFO)<<"Initializer Start";
+        if(initializer_->InitializeIMU(frames_init))
+        {
+            frontend_.lock()->status = FrontendStatus::TRACKING_GOOD;
+            // fistinit=true;
+        }
+        LOG(INFO)<<"Initializer Finished";
+        isInitliazing=false;
+    }    
 
+
+   if(Imu::Num()&&initializer_->initialized)
+   {
+       Map::Instance().mapUpdated=false;
+         frontend_.lock()->UpdateFrameIMU((--active_kfs.end())->second->GetImuBias());
+   }
     //NEWADDEND
 
     frontend_.lock()->UpdateCache();
