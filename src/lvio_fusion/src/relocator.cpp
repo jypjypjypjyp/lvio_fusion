@@ -18,9 +18,9 @@ namespace lvio_fusion
 
 Relocator::Relocator(std::string voc_path)
 {
-    detector_ = cv::ORB::create();
-    voc_ = DBoW3::Vocabulary(voc_path);
-    db_ = DBoW3::Database(voc_, false, 0);
+    // detector_ = cv::ORB::create();
+    // voc_ = DBoW3::Vocabulary(voc_path);
+    // db_ = DBoW3::Database(voc_, false, 0);
     thread_ = std::thread(std::bind(&Relocator::DetectorLoop, this));
 }
 
@@ -40,7 +40,7 @@ void Relocator::DetectorLoop()
         for (auto &pair_kf : new_kfs)
         {
             Frame::Ptr frame = pair_kf.second, old_frame;
-            AddKeyFrameIntoVoc(frame);
+            // AddKeyFrameIntoVoc(frame);
             // if last is loop and this is not loop, then correct all new loops
             if (DetectLoop(frame, old_frame))
             {
@@ -68,32 +68,32 @@ void Relocator::DetectorLoop()
     }
 }
 
-void Relocator::AddKeyFrameIntoVoc(Frame::Ptr frame)
-{
-    // compute descriptors
-    std::vector<cv::KeyPoint> keypoints;
-    for (auto &pair_feature : frame->features_left)
-    {
-        keypoints.push_back(cv::KeyPoint(pair_feature.second->keypoint, 1));
-    }
-    cv::Mat descriptors;
-    detector_->compute(frame->image_left, keypoints, descriptors);
-    DBoW3::EntryId id = db_.add(descriptors);
-    map_dbow_to_frames_[id] = frame->time;
+// void Relocator::AddKeyFrameIntoVoc(Frame::Ptr frame)
+// {
+//     // compute descriptors
+//     std::vector<cv::KeyPoint> keypoints;
+//     for (auto &pair_feature : frame->features_left)
+//     {
+//         keypoints.push_back(cv::KeyPoint(pair_feature.second->keypoint, 1));
+//     }
+//     cv::Mat descriptors;
+//     detector_->compute(frame->image_left, keypoints, descriptors);
+//     DBoW3::EntryId id = db_.add(descriptors);
+//     map_dbow_to_frames_[id] = frame->time;
 
-    // NOTE: detector_->compute maybe remove some row because its descriptor cannot be computed
-    int j = 0, i = 0;
-    frame->descriptors = cv::Mat::zeros(frame->features_left.size(), 32, CV_8U);
-    for (auto &pair_feature : frame->features_left)
-    {
-        if (pair_feature.second->keypoint == keypoints[j].pt && j < descriptors.rows)
-        {
-            descriptors.row(j).copyTo(frame->descriptors.row(i));
-            j++;
-        }
-        i++;
-    }
-}
+//     // NOTE: detector_->compute maybe remove some row because its descriptor cannot be computed
+//     int j = 0, i = 0;
+//     frame->descriptors = cv::Mat::zeros(frame->features_left.size(), 32, CV_8U);
+//     for (auto &pair_feature : frame->features_left)
+//     {
+//         if (pair_feature.second->keypoint == keypoints[j].pt && j < descriptors.rows)
+//         {
+//             descriptors.row(j).copyTo(frame->descriptors.row(i));
+//             j++;
+//         }
+//         i++;
+//     }
+// }
 
 bool Relocator::DetectLoop(Frame::Ptr frame, Frame::Ptr &old_frame)
 {
@@ -192,36 +192,36 @@ bool Relocator::Relocate(Frame::Ptr frame, Frame::Ptr old_frame)
 
 bool Relocator::RelocateByImage(Frame::Ptr frame, Frame::Ptr old_frame)
 {
-    std::vector<cv::Point3f> points_3d;
-    std::vector<cv::Point2f> points_2d;
-    // search by BRIEFDes
-    auto descriptors = mat2briefs(frame);
-    auto descriptors_old = mat2briefs(old_frame);
-    for (auto &pair_desciptor : descriptors)
-    {
-        unsigned long best_id = 0;
-        if (SearchInAera(pair_desciptor.second, descriptors_old, best_id))
-        {
-            cv::Point2f point_2d = old_frame->features_left[best_id]->keypoint;
-            visual::Landmark::Ptr landmark = old_frame->features_left[best_id]->landmark.lock();
-            visual::Feature::Ptr new_left_feature = visual::Feature::Create(frame, point_2d, landmark);
-            points_2d.push_back(point_2d);
-            points_3d.push_back(eigen2cv(landmark->position));
-        }
-    }
-    // solve pnp ransca
-    cv::Mat K;
-    cv::eigen2cv(Camera::Get()->K(), K);
-    cv::Mat rvec, tvec, inliers, D, cv_R;
-    if (points_2d.size() >= 20 && cv::solvePnPRansac(points_3d, points_2d, K, D, rvec, tvec, false, 100, 8.0F, 0.98, cv::noArray(), cv::SOLVEPNP_EPNP))
-    {
-        cv::Rodrigues(rvec, cv_R);
-        Matrix3d R;
-        cv::cv2eigen(cv_R, R);
-        frame->loop_closure->relative_o_c = (Camera::Get()->extrinsic * SE3d(SO3d(R), Vector3d(tvec.at<double>(0, 0), tvec.at<double>(1, 0), tvec.at<double>(2, 0)))).inverse();
-        frame->loop_closure->score = std::min((double)points_2d.size(), 50.0);
-        return true;
-    }
+    // std::vector<cv::Point3f> points_3d;
+    // std::vector<cv::Point2f> points_2d;
+    // // search by BRIEFDes
+    // auto descriptors = mat2briefs(frame);
+    // auto descriptors_old = mat2briefs(old_frame);
+    // for (auto &pair_desciptor : descriptors)
+    // {
+    //     unsigned long best_id = 0;
+    //     if (SearchInAera(pair_desciptor.second, descriptors_old, best_id))
+    //     {
+    //         cv::Point2f point_2d = old_frame->features_left[best_id]->keypoint;
+    //         visual::Landmark::Ptr landmark = old_frame->features_left[best_id]->landmark.lock();
+    //         visual::Feature::Ptr new_left_feature = visual::Feature::Create(frame, point_2d, landmark);
+    //         points_2d.push_back(point_2d);
+    //         points_3d.push_back(eigen2cv(landmark->position));
+    //     }
+    // }
+    // // solve pnp ransca
+    // cv::Mat K;
+    // cv::eigen2cv(Camera::Get()->K(), K);
+    // cv::Mat rvec, tvec, inliers, D, cv_R;
+    // if (points_2d.size() >= 20 && cv::solvePnPRansac(points_3d, points_2d, K, D, rvec, tvec, false, 100, 8.0F, 0.98, cv::noArray(), cv::SOLVEPNP_EPNP))
+    // {
+    //     cv::Rodrigues(rvec, cv_R);
+    //     Matrix3d R;
+    //     cv::cv2eigen(cv_R, R);
+    //     frame->loop_closure->relative_o_c = (Camera::Get()->extrinsic * SE3d(SO3d(R), Vector3d(tvec.at<double>(0, 0), tvec.at<double>(1, 0), tvec.at<double>(2, 0)))).inverse();
+    //     frame->loop_closure->score = std::min((double)points_2d.size(), 50.0);
+    //     return true;
+    // }
     return false;
 }
 
@@ -316,28 +316,28 @@ bool Relocator::RelocateByPoints(Frame::Ptr frame, Frame::Ptr old_frame)
     return true;
 }
 
-bool Relocator::SearchInAera(const BRIEF descriptor, const std::map<unsigned long, BRIEF> &descriptors_old, unsigned long &best_id)
-{
-    cv::Point2f best_pt;
-    int best_distance = 256;
-    for (auto &pair_desciptor : descriptors_old)
-    {
-        int distance = Hamming(descriptor, pair_desciptor.second);
-        if (distance < best_distance)
-        {
-            best_distance = distance;
-            best_id = pair_desciptor.first;
-        }
-    }
-    return best_distance < 160;
-}
+// bool Relocator::SearchInAera(const BRIEF descriptor, const std::map<unsigned long, BRIEF> &descriptors_old, unsigned long &best_id)
+// {
+//     cv::Point2f best_pt;
+//     int best_distance = 256;
+//     for (auto &pair_desciptor : descriptors_old)
+//     {
+//         int distance = Hamming(descriptor, pair_desciptor.second);
+//         if (distance < best_distance)
+//         {
+//             best_distance = distance;
+//             best_id = pair_desciptor.first;
+//         }
+//     }
+//     return best_distance < 160;
+// }
 
-int Relocator::Hamming(const BRIEF &a, const BRIEF &b)
-{
-    BRIEF xor_of_bitset = a ^ b;
-    int dis = xor_of_bitset.count();
-    return dis;
-}
+// int Relocator::Hamming(const BRIEF &a, const BRIEF &b)
+// {
+//     BRIEF xor_of_bitset = a ^ b;
+//     int dis = xor_of_bitset.count();
+//     return dis;
+// }
 
 void Relocator::BuildProblem(Frames &active_kfs, adapt::Problem &problem)
 {

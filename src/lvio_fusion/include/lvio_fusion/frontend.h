@@ -15,7 +15,6 @@ enum class FrontendStatus
     BUILDING,
     INITIALIZING,
     TRACKING_GOOD,
-    TRACKING_BAD,
     TRACKING_TRY,
     LOST
 };
@@ -57,15 +56,18 @@ private:
 
     int TriangulateNewPoints();
 
+    void UndistortKeyPoints();
+
     // data
     std::weak_ptr<Backend> backend_;
     std::unordered_map<unsigned long, Vector3d> position_cache_;
     SE3d last_frame_pose_cache_;
+    std::vector<cv::Point3f> points_3d;
+    std::vector<cv::Point2f> points_2d;
 
     // params
     int num_features_;
     int num_features_init_;
-    int num_features_tracking_;
     int num_features_tracking_bad_;
     int num_features_needed_for_keyframe_;
 };

@@ -13,8 +13,8 @@ namespace lvio_fusion
 {
 
 Frontend::Frontend(int num_features, int init, int tracking, int tracking_bad, int need_for_keyframe)
-    : num_features_(num_features), num_features_init_(init), num_features_tracking_(tracking),
-      num_features_tracking_bad_(tracking_bad), num_features_needed_for_keyframe_(need_for_keyframe)
+    : num_features_(num_features), num_features_init_(init), num_features_tracking_bad_(tracking_bad),
+      num_features_needed_for_keyframe_(need_for_keyframe)
 {
 }
 
@@ -30,7 +30,6 @@ bool Frontend::AddFrame(lvio_fusion::Frame::Ptr frame)
         break;
     case FrontendStatus::INITIALIZING:
     case FrontendStatus::TRACKING_GOOD:
-    case FrontendStatus::TRACKING_BAD:
     case FrontendStatus::TRACKING_TRY:
         if (Track())
         {
@@ -46,6 +45,7 @@ bool Frontend::AddFrame(lvio_fusion::Frame::Ptr frame)
             return false;
         }
     case FrontendStatus::LOST:
+        //TODO
         Reset();
         InitMap();
         break;
@@ -94,22 +94,7 @@ void Frontend::AddImu(double time, Vector3d acc, Vector3d gyr)
 bool Frontend::Track()
 {
     current_frame->pose = relative_i_j * last_frame_pose_cache_;
-    int num_inliers = TrackLastFrame(last_frame);
-    // check the status of tracking
-    if((current_frame->pose.translation() - last_frame->pose.translation()).norm() > 5
-    || last_frame->features_left.size() - num_inliers > num_features_ * 0.2)
-    {
-        // if tracking goes wrong
-        LOG(INFO) << "tracking goes wrong";
-        for (auto &pair : current_frame->features_left)
-        {
-            auto feature = pair.second;
-            (pair.second)->landmark.lock()->RemoveObservation(feature);
-            current_frame->RemoveFeature(feature);
-        }
-        current_frame->pose = relative_i_j * last_frame_pose_cache_;
-        num_inliers = TrackLastFrame(last_key_frame);
-    }
+    int num_inliers = TrackLastFrame(status == FrontendStatus::TRACKING_TRY ? last_key_frame : last_frame);
 
     if (status == FrontendStatus::INITIALIZING)
     {
@@ -120,19 +105,15 @@ bool Frontend::Track()
     }
     else
     {
-        if (num_inliers > num_features_tracking_)
+        if (num_inliers > num_features_tracking_bad_ &&
+            (current_frame->pose.translation() - last_frame->pose.translation()).norm() < 5)
         {
             // tracking good
             status = FrontendStatus::TRACKING_GOOD;
         }
-        else if (num_inliers > num_features_tracking_bad_)
-        {
-            // tracking bad
-            status = FrontendStatus::TRACKING_BAD;
-        }
         else
         {
-            // lost, but give a chance
+            // tracking bad, but give a chance
             status = FrontendStatus::TRACKING_TRY;
             LOG(INFO) << "Lost, try again!";
             return false;
@@ -152,28 +133,6 @@ bool Frontend::Track()
     return true;
 }
 
-void Frontend::CreateKeyframe(bool need_new_features)
-{
-    // first, add new observations of old points
-    for (auto &pair_feature : current_frame->features_left)
-    {
-        auto feature = pair_feature.second;
-        auto landmark = feature->landmark.lock();
-        landmark->AddObservation(feature);
-    }
-    // detect new features, track in right image and triangulate map points
-    if (need_new_features)
-    {
-        DetectNewFeatures();
-    }
-    // insert!
-    Map::Instance().InsertKeyFrame(current_frame);
-    last_key_frame = current_frame;
-    LOG(INFO) << "Add a keyframe " << current_frame->id;
-    // update backend because we have a new keyframe
-    backend_.lock()->UpdateMap();
-}
-
 inline double distance(cv::Point2f &pt1, cv::Point2f &pt2)
 {
     double dx = pt1.x - pt2.x;
@@ -186,14 +145,14 @@ inline void calcOpticalFlowPyrLK(cv::Mat &prevImg, cv::Mat &nextImg,
                                  std::vector<uchar> &status, cv::Mat &err)
 {
     cv::calcOpticalFlowPyrLK(
-        prevImg, nextImg, prevPts, nextPts, status, err, cv::Size(11, 11), 3,
+        prevImg, nextImg, prevPts, nextPts, status, err, cv::Size(21, 21), 3,
         cv::TermCriteria(cv::TermCriteria::COUNT + cv::TermCriteria::EPS, 30, 0.01),
         cv::OPTFLOW_USE_INITIAL_FLOW);
 
     std::vector<uchar> reverse_status;
     std::vector<cv::Point2f> reverse_pts = prevPts;
     cv::calcOpticalFlowPyrLK(
-        nextImg, prevImg, nextPts, reverse_pts, reverse_status, err, cv::Size(11, 11), 1,
+        nextImg, prevImg, nextPts, reverse_pts, reverse_status, err, cv::Size(3, 3), 1,
         cv::TermCriteria(cv::TermCriteria::COUNT + cv::TermCriteria::EPS, 30, 0.01),
         cv::OPTFLOW_USE_INITIAL_FLOW);
 
@@ -359,6 +318,28 @@ int Frontend::DetectNewFeatures()
     LOG(INFO) << "Find " << num_good_pts << " in the right image.";
     LOG(INFO) << "new landmarks: " << num_triangulated_pts;
     return num_triangulated_pts;
+}
+
+void Frontend::CreateKeyframe(bool need_new_features)
+{
+    // first, add new observations of old points
+    for (auto &pair_feature : current_frame->features_left)
+    {
+        auto feature = pair_feature.second;
+        auto landmark = feature->landmark.lock();
+        landmark->AddObservation(feature);
+    }
+    // detect new features, track in right image and triangulate map points
+    if (need_new_features)
+    {
+        DetectNewFeatures();
+    }
+    // insert!
+    Map::Instance().InsertKeyFrame(current_frame);
+    last_key_frame = current_frame;
+    LOG(INFO) << "Add a keyframe " << current_frame->id;
+    // update backend because we have a new keyframe
+    backend_.lock()->UpdateMap();
 }
 
 // TODO
