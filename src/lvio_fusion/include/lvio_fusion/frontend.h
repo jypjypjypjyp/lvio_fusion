@@ -38,7 +38,7 @@ public:
     FrontendStatus status = FrontendStatus::BUILDING;
     Frame::Ptr current_frame;
     Frame::Ptr last_frame;
-    Frame::Ptr current_key_frame;
+    Frame::Ptr last_key_frame;
     SE3d relative_i_j;
     std::mutex mutex;
 
@@ -47,7 +47,7 @@ private:
 
     bool Reset();
 
-    int TrackLastFrame();
+    int TrackLastFrame(Frame::Ptr last_frame);
 
     void CreateKeyframe(bool need_new_features = true);
 

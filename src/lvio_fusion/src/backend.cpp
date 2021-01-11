@@ -170,7 +170,7 @@ void Backend::Optimize()
     ceres::Solver::Options options;
     options.linear_solver_type = ceres::DENSE_SCHUR;
     options.max_solver_time_in_seconds = 0.6 * window_size_;
-    options.num_threads = 6;
+    options.num_threads = num_threads;
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
 
@@ -196,8 +196,8 @@ void Backend::Optimize()
     for (auto &pair_kf : active_kfs)
     {
         auto frame = pair_kf.second;
-        auto left_features = frame->features_left;
-        for (auto &pair_feature : left_features)
+        auto features_left = frame->features_left;
+        for (auto &pair_feature : features_left)
         {
             auto feature = pair_feature.second;
             auto landmark = feature->landmark.lock();
@@ -237,7 +237,7 @@ void Backend::ForwardPropagate(double time)
     ceres::Solver::Options options;
     options.linear_solver_type = ceres::DENSE_SCHUR;
     options.max_num_iterations = 1;
-    options.num_threads = 6;
+    options.num_threads = num_threads;
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
 

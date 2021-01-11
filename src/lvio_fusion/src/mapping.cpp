@@ -100,7 +100,7 @@ void Mapping::Optimize(Frames &active_kfs)
                 ceres::Solver::Options options;
                 options.linear_solver_type = ceres::DENSE_QR;
                 options.max_num_iterations = 4;
-                options.num_threads = 6;
+                options.num_threads = num_threads;
                 ceres::Solver::Summary summary;
                 ceres::Solve(options, &problem, &summary);
                 pair_kf.second->pose = rpyxyz2se3(rpyxyz) * map_frame->pose;
@@ -112,7 +112,7 @@ void Mapping::Optimize(Frames &active_kfs)
                 ceres::Solver::Options options;
                 options.linear_solver_type = ceres::DENSE_QR;
                 options.max_num_iterations = 4;
-                options.num_threads = 6;
+                options.num_threads = num_threads;
                 ceres::Solver::Summary summary;
                 ceres::Solve(options, &problem, &summary);
                 pair_kf.second->pose = rpyxyz2se3(rpyxyz) * map_frame->pose;

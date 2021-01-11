@@ -82,8 +82,8 @@ base_to_lidar: !!opencv-matrix
 # number of features
 num_features: 200
 num_features_init: 50
-num_features_tracking: 8
-num_features_tracking_bad: 8
+num_features_tracking: 20
+num_features_tracking_bad: 20
 num_features_needed_for_keyframe: 60
 
 # backend

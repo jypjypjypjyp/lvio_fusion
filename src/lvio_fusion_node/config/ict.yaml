@@ -2,7 +2,7 @@
 
 # flags
 use_imu: 0
-use_lidar: 0
+use_lidar: 1
 use_navsat: 0
 loop: 0             # 0 for only odometry, 1 for whole system
 num_of_cam: 2
@@ -38,9 +38,9 @@ ang_bottom: 16
 ground_rows: 16
 cycle_time: 0.1
 min_range: 0.2
-max_range: 10
+max_range: 20
 deskew: 0
-resolution: 0.1
+resolution: 0.2
 
 #imu parameters
 acc_n: 0.08             # accelerometer measurement noise standard deviation. #0.2   0.04
@@ -115,8 +115,8 @@ base_to_lidar: !!opencv-matrix
 # number of features
 num_features: 200
 num_features_init: 50
-num_features_tracking: 8
-num_features_tracking_bad: 8
+num_features_tracking: 20
+num_features_tracking_bad: 20
 num_features_needed_for_keyframe: 60
 
 # backend

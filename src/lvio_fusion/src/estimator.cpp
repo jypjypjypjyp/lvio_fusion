@@ -4,8 +4,10 @@
 #include "lvio_fusion/manager.h"
 
 #include <opencv2/core/eigen.hpp>
+#include <sys/sysinfo.h>
 
 double epsilon = 1e-3;
+int num_threads = std::max(1, (int)(0.75 * get_nprocs()));
 
 namespace lvio_fusion
 {
@@ -15,6 +17,8 @@ Estimator::Estimator(std::string &config_path)
 
 bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, int use_adapt)
 {
+    LOG(INFO) << "System info:\n\tepsilon: " << epsilon << "\n\tnum_threads: " << num_threads;
+
     // read from config file
     if (!Config::SetParameterFile(config_file_path_))
     {

@@ -25,6 +25,8 @@ public:
 
     void RemoveFeature(visual::Feature::Ptr feature);
 
+    void Clear();
+
     //NOTE: semantic map
     void UpdateLabel();
 

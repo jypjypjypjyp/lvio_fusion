@@ -1,6 +1,7 @@
 #include <GeographicLib/LocalCartesian.hpp>
 #include <cv_bridge/cv_bridge.h>
 #include <opencv2/opencv.hpp>
+#include <opencv2/imgproc.hpp>
 #include <pcl_conversions/pcl_conversions.h>
 #include <ros/ros.h>
 #include <sensor_msgs/Image.h>
@@ -111,25 +112,10 @@ void sync_process()
         if (!img0_buf.empty() && !img1_buf.empty())
         {
             m_img_buf.lock();
-            // double time0 = img0_buf.front()->header.stamp.toSec();
-            // double time1 = img1_buf.front()->header.stamp.toSec();
-            // if (time0 < time1)
-            // {
-            //     img0_buf.pop();
-            //     printf("throw img0\n");
-            // }
-            // else if (time0 > time1)
-            // {
-            //     img1_buf.pop();
-            //     printf("throw img1\n");
-            // }
-            // else
-            // {
             time = img0_buf.front()->header.stamp.toSec();
             header = img0_buf.front()->header;
             image0 = get_image_from_msg(img0_buf.front());
             image1 = get_image_from_msg(img1_buf.front());
-            // }
             if (n++ % 7 == 0 && use_semantic)
             {
                 pub_detector.publish(img0_buf.front());
@@ -142,15 +128,6 @@ void sync_process()
                 if (obj_buf != nullptr)
                 {
                     auto objects = get_objects_from_msg(obj_buf);
-                    // DEBUG
-                    // for (auto & object : objects)
-                    // {
-                    //     cv::rectangle(image0,
-                    //                   cv::Rect2i(cv::Point2i(object.xmin, object.ymin), cv::Point2i(object.xmax, object.ymax)),
-                    //                   cv::Scalar(0, 255, 0));
-                    // }
-                    // cv::imshow("debug", image0);
-                    // cv::waitKey(2);
                     estimator->InputImage(time, image0, image1, objects);
                 }
                 else

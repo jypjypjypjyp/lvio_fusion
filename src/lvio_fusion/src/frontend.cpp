@@ -82,9 +82,9 @@ void Frontend::AddImu(double time, Vector3d acc, Vector3d gyr)
             current_frame->preintegration = imu::Preintegration::Create(acc0, gyr0, v0, ba, bg);
         }
         current_frame->preintegration->Append(dt, acc, gyr);
-        if (current_key_frame && current_key_frame->preintegration && current_key_frame != current_frame)
+        if (last_key_frame && last_key_frame->preintegration && last_key_frame != current_frame)
         {
-            current_key_frame->preintegration->Append(dt, acc, gyr);
+            last_key_frame->preintegration->Append(dt, acc, gyr);
         }
         acc0 = acc;
         gyr0 = acc;
@@ -94,10 +94,23 @@ void Frontend::AddImu(double time, Vector3d acc, Vector3d gyr)
 bool Frontend::Track()
 {
     current_frame->pose = relative_i_j * last_frame_pose_cache_;
-    TrackLastFrame();
-    int num_inliers = current_frame->features_left.size();
+    int num_inliers = TrackLastFrame(last_frame);
+    // check the status of tracking
+    if((current_frame->pose.translation() - last_frame->pose.translation()).norm() > 5
+    || last_frame->features_left.size() - num_inliers > num_features_ * 0.2)
+    {
+        // if tracking goes wrong
+        LOG(INFO) << "tracking goes wrong";
+        for (auto &pair : current_frame->features_left)
+        {
+            auto feature = pair.second;
+            (pair.second)->landmark.lock()->RemoveObservation(feature);
+            current_frame->RemoveFeature(feature);
+        }
+        current_frame->pose = relative_i_j * last_frame_pose_cache_;
+        num_inliers = TrackLastFrame(last_key_frame);
+    }
 
-    static int num_tries = 0;
     if (status == FrontendStatus::INITIALIZING)
     {
         if (num_inliers <= num_features_tracking_bad_)
@@ -111,20 +124,17 @@ bool Frontend::Track()
         {
             // tracking good
             status = FrontendStatus::TRACKING_GOOD;
-            num_tries = 0;
         }
         else if (num_inliers > num_features_tracking_bad_)
         {
             // tracking bad
             status = FrontendStatus::TRACKING_BAD;
-            num_tries = 0;
         }
         else
         {
             // lost, but give a chance
-            num_tries++;
-            status = num_tries >= 4 ? FrontendStatus::LOST : FrontendStatus::TRACKING_TRY;
-            num_tries %= 4;
+            status = FrontendStatus::TRACKING_TRY;
+            LOG(INFO) << "Lost, try again!";
             return false;
         }
     }
@@ -158,7 +168,7 @@ void Frontend::CreateKeyframe(bool need_new_features)
     }
     // insert!
     Map::Instance().InsertKeyFrame(current_frame);
-    current_key_frame = current_frame;
+    last_key_frame = current_frame;
     LOG(INFO) << "Add a keyframe " << current_frame->id;
     // update backend because we have a new keyframe
     backend_.lock()->UpdateMap();
@@ -202,7 +212,7 @@ inline void calcOpticalFlowPyrLK(cv::Mat &prevImg, cv::Mat &nextImg,
     }
 }
 
-int Frontend::TrackLastFrame()
+int Frontend::TrackLastFrame(Frame::Ptr last_frame)
 {
     // use LK flow to estimate points in the last image
     std::vector<cv::Point2f> kps_last, kps_current;
@@ -241,7 +251,7 @@ int Frontend::TrackLastFrame()
     cv::eigen2cv(Camera::Get()->K(), K);
     cv::Mat rvec, tvec, inliers, D, cv_R;
     int num_good_pts = 0;
-    if (cv::solvePnPRansac(points_3d, points_2d, K, D, rvec, tvec, false, 100, 8.0F, 0.98, inliers, cv::SOLVEPNP_EPNP))
+    if (points_2d.size() > num_features_tracking_bad_ && cv::solvePnPRansac(points_3d, points_2d, K, D, rvec, tvec, false, 100, 8.0F, 0.98, inliers, cv::SOLVEPNP_EPNP))
     {
         //DEBUG
         cv::Mat img_track = current_frame->image_left;
