@@ -5,7 +5,6 @@ use_imu: 0
 use_lidar: 1
 use_navsat: 1
 loop: 0             # 0 for only odometry, 1 for whole system
-num_of_cam: 2
 object_detector: 0
 train: 0
 
@@ -17,6 +16,9 @@ image0_topic: '/kitti/camera_gray_left/image_raw'
 image1_topic: '/kitti/camera_gray_right/image_raw'
 color_topic: '/kitti/camera_color_left/image_raw'
 result_path: '/home/jyp/Projects/lvio_fusion/result/result.csv'
+
+# cameras parameters
+undistort: 0
 
 # camera1 intrinsics
 camera1.fx: 7.188560000000e+02

@@ -36,18 +36,15 @@ inline std::map<unsigned long, BRIEF> mat2briefs(Frame::Ptr frame)
 class ORBMatcher
 {
 public:
-    ORBMatcher() : detector_(cv::ORB::create()) {}
+    ORBMatcher() : detector_(cv::ORB::create()), matcher_(cv::DescriptorMatcher::create("BruteForce-Hamming")) {}
 
-    int Search(Frame::Ptr current_frame, Frame::Ptr last_frame, const float radius);
+    int Search(Frame::Ptr current_frame, Frame::Ptr last_frame, std::vector<cv::Point2f> &kps_current, std::vector<cv::Point2f> &kps_last, std::vector<uchar> &status);
 
 private:
-    void ComputeBRIEF(Frame::Ptr frame);
-
-    bool SearchInAera(const BRIEF descriptor, const std::map<unsigned long, BRIEF> &descriptors_old, unsigned long &best_id);
-
-    int Hamming(const BRIEF &a, const BRIEF &b);
+    cv::Mat ComputeBRIEF(cv::Mat image, std::vector<cv::Point2f> &keypoints);
 
     cv::Ptr<cv::Feature2D> detector_;
+    cv::Ptr<cv::DescriptorMatcher> matcher_;
 };
 
 } // namespace lvio_fusion

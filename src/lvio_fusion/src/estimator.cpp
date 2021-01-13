@@ -36,25 +36,51 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
     Quaterniond q_base_to_cam0(R_base_to_cam0);
     Vector3d t_base_to_cam0(0, 0, 0);
     t_base_to_cam0 << base_to_cam0(0, 3), base_to_cam0(1, 3), base_to_cam0(2, 3);
-    Camera::Create(Config::Get<double>("camera1.fx"),
-                   Config::Get<double>("camera1.fy"),
-                   Config::Get<double>("camera1.cx"),
-                   Config::Get<double>("camera1.cy"),
-                   SE3d(q_base_to_cam0, t_base_to_cam0));
-    LOG(INFO) << "Camera 1"
-              << " extrinsics: " << t_base_to_cam0.transpose();
+    if (Config::Get<double>("undistort"))
+    {
+        Camera::Create(Config::Get<double>("camera0.fx"),
+                       Config::Get<double>("camera0.fy"),
+                       Config::Get<double>("camera0.cx"),
+                       Config::Get<double>("camera0.cy"),
+                       Config::Get<double>("camera0.k1"),
+                       Config::Get<double>("camera0.k2"),
+                       Config::Get<double>("camera0.p1"),
+                       Config::Get<double>("camera0.p2"),
+                       SE3d(q_base_to_cam0, t_base_to_cam0));
+    }
+    else
+    {
+        Camera::Create(Config::Get<double>("camera0.fx"),
+                       Config::Get<double>("camera0.fy"),
+                       Config::Get<double>("camera0.cx"),
+                       Config::Get<double>("camera0.cy"),
+                       SE3d(q_base_to_cam0, t_base_to_cam0));
+    }
     // second camera
     Matrix3d R_base_to_cam1(base_to_cam1.block(0, 0, 3, 3));
     Quaterniond q_base_to_cam1(R_base_to_cam1);
     Vector3d t_base_to_cam1(0, 0, 0);
     t_base_to_cam1 << base_to_cam1(0, 3), base_to_cam1(1, 3), base_to_cam1(2, 3);
-    Camera::Create(Config::Get<double>("camera2.fx"),
-                   Config::Get<double>("camera2.fy"),
-                   Config::Get<double>("camera2.cx"),
-                   Config::Get<double>("camera2.cy"),
-                   SE3d(q_base_to_cam1, t_base_to_cam1));
-    LOG(INFO) << "Camera 2"
-              << " extrinsics: " << t_base_to_cam1.transpose();
+    if (Config::Get<double>("undistort"))
+    {
+        Camera::Create(Config::Get<double>("camera1.fx"),
+                       Config::Get<double>("camera1.fy"),
+                       Config::Get<double>("camera1.cx"),
+                       Config::Get<double>("camera1.cy"),
+                       Config::Get<double>("camera1.k1"),
+                       Config::Get<double>("camera1.k2"),
+                       Config::Get<double>("camera1.p1"),
+                       Config::Get<double>("camera1.p2"),
+                       SE3d(q_base_to_cam1, t_base_to_cam1));
+    }
+    else
+    {
+        Camera::Create(Config::Get<double>("camera1.fx"),
+                       Config::Get<double>("camera1.fy"),
+                       Config::Get<double>("camera1.cx"),
+                       Config::Get<double>("camera1.cy"),
+                       SE3d(q_base_to_cam1, t_base_to_cam1));
+    }
 
     // create components and links
     frontend = Frontend::Ptr(new Frontend(
@@ -136,8 +162,8 @@ void Estimator::InputImage(double time, cv::Mat &left_image, cv::Mat &right_imag
 {
     Frame::Ptr new_frame = Frame::Create();
     new_frame->time = time;
-    new_frame->image_left = left_image;
-    new_frame->image_right = right_image;
+    cv::undistort(left_image, new_frame->image_left, Camera::Get(0)->K, Camera::Get(0)->D);
+    cv::undistort(right_image, new_frame->image_right, Camera::Get(0)->K, Camera::Get(0)->D);
     new_frame->objects = objects;
 
     auto t1 = std::chrono::steady_clock::now();

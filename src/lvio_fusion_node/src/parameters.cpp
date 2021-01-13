@@ -34,11 +34,8 @@ void read_parameters(string config_file)
     settings["train"] >> train;
     settings["result_path"] >> result_path;
     settings["ground_truth_path"] >> ground_truth_path;
-    if (num_of_cam == 2)
-    {
-        settings["image0_topic"] >> IMAGE0_TOPIC;
-        settings["image1_topic"] >> IMAGE1_TOPIC;
-    }
+    settings["image0_topic"] >> IMAGE0_TOPIC;
+    settings["image1_topic"] >> IMAGE1_TOPIC;
     if (use_imu)
     {
         settings["imu_topic"] >> IMU_TOPIC;

@@ -399,6 +399,10 @@ int main(int argc, char **argv)
     ros::Timer pc_timer;
     ros::Timer navsat_timer;
 
+    cout << "image0:" << IMAGE0_TOPIC << endl;
+    sub_img0 = n.subscribe(IMAGE0_TOPIC, 100, img0_callback);
+    cout << "image1:" << IMAGE1_TOPIC << endl;
+    sub_img1 = n.subscribe(IMAGE1_TOPIC, 100, img1_callback);
     if (use_imu)
     {
         cout << "imu:" << IMU_TOPIC << endl;
@@ -415,13 +419,6 @@ int main(int argc, char **argv)
         cout << "navsat:" << NAVSAT_TOPIC << endl;
         sub_navsat = n.subscribe(NAVSAT_TOPIC, 100, navsat_callback);
         navsat_timer = n.createTimer(ros::Duration(1), navsat_timer_callback);
-    }
-    cout << "image0:" << IMAGE0_TOPIC << endl;
-    sub_img0 = n.subscribe(IMAGE0_TOPIC, 100, img0_callback);
-    if (num_of_cam == 2)
-    {
-        cout << "image1:" << IMAGE1_TOPIC << endl;
-        sub_img1 = n.subscribe(IMAGE1_TOPIC, 100, img1_callback);
     }
     if (use_semantic)
     {

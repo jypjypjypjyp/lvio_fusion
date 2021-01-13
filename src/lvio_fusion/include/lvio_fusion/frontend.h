@@ -2,8 +2,8 @@
 #define lvio_fusion_FRONTEND_H
 
 #include "lvio_fusion/common.h"
-#include "lvio_fusion/frame.h"
 #include "lvio_fusion/imu/initializer.h"
+#include "lvio_fusion/visual/matcher.h"
 
 namespace lvio_fusion
 {
@@ -60,10 +60,9 @@ private:
 
     // data
     std::weak_ptr<Backend> backend_;
+    ORBMatcher mather_; 
     std::unordered_map<unsigned long, Vector3d> position_cache_;
     SE3d last_frame_pose_cache_;
-    std::vector<cv::Point3f> points_3d;
-    std::vector<cv::Point2f> points_2d;
 
     // params
     int num_features_;

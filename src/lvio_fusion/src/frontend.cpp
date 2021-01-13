@@ -101,7 +101,7 @@ bool Frontend::Track()
         if (num_inliers <= num_features_tracking_bad_)
         {
             status = FrontendStatus::BUILDING;
-        }
+        } 
     }
     else
     {
@@ -140,10 +140,11 @@ inline double distance(cv::Point2f &pt1, cv::Point2f &pt2)
     return sqrt(dx * dx + dy * dy);
 }
 
-inline void calcOpticalFlowPyrLK(cv::Mat &prevImg, cv::Mat &nextImg,
+inline void optical_flow(cv::Mat &prevImg, cv::Mat &nextImg,
                                  std::vector<cv::Point2f> &prevPts, std::vector<cv::Point2f> &nextPts,
-                                 std::vector<uchar> &status, cv::Mat &err)
+                                 std::vector<uchar> &status)
 {
+    cv::Mat err;
     cv::calcOpticalFlowPyrLK(
         prevImg, nextImg, prevPts, nextPts, status, err, cv::Size(21, 21), 3,
         cv::TermCriteria(cv::TermCriteria::COUNT + cv::TermCriteria::EPS, 30, 0.01),
@@ -173,9 +174,12 @@ inline void calcOpticalFlowPyrLK(cv::Mat &prevImg, cv::Mat &nextImg,
 
 int Frontend::TrackLastFrame(Frame::Ptr last_frame)
 {
-    // use LK flow to estimate points in the last image
     std::vector<cv::Point2f> kps_last, kps_current;
     std::vector<visual::Landmark::Ptr> landmarks;
+    std::vector<cv::Point3f> points_3d;
+    std::vector<cv::Point2f> points_2d;
+    std::vector<uchar> status;
+    // use LK flow to estimate points in the last image
     for (auto &pair_feature : last_frame->features_left)
     {
         // use project point
@@ -186,14 +190,12 @@ int Frontend::TrackLastFrame(Frame::Ptr last_frame)
         kps_last.push_back(feature->keypoint);
         kps_current.push_back(cv::Point2f(px[0], px[1]));
     }
+    optical_flow(last_frame->image_left, current_frame->image_left, kps_last, kps_current, status);
 
-    std::vector<uchar> status;
-    cv::Mat error;
-    calcOpticalFlowPyrLK(last_frame->image_left, current_frame->image_left, kps_last, kps_current, status, error);
-
+    // mismatch points, try again by ORB mathcer
+    int a = mather_.Search(current_frame, last_frame, kps_current, kps_last, status);
+    LOG(INFO) << "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!" << a;
     // Solve PnP
-    std::vector<cv::Point3f> points_3d;
-    std::vector<cv::Point2f> points_2d;
     std::unordered_map<int, int> map;
     for (size_t i = 0; i < status.size(); ++i)
     {
@@ -206,11 +208,9 @@ int Frontend::TrackLastFrame(Frame::Ptr last_frame)
         }
     }
 
-    cv::Mat K;
-    cv::eigen2cv(Camera::Get()->K(), K);
-    cv::Mat rvec, tvec, inliers, D, cv_R;
+    cv::Mat rvec, tvec, inliers, cv_R;
     int num_good_pts = 0;
-    if (points_2d.size() > num_features_tracking_bad_ && cv::solvePnPRansac(points_3d, points_2d, K, D, rvec, tvec, false, 100, 8.0F, 0.98, inliers, cv::SOLVEPNP_EPNP))
+    if (points_2d.size() > num_features_tracking_bad_ && cv::solvePnPRansac(points_3d, points_2d, Camera::Get()->K, Camera::Get()->D, rvec, tvec, false, 100, 8.0F, 0.98, inliers, cv::SOLVEPNP_EPNP))
     {
         //DEBUG
         cv::Mat img_track = current_frame->image_left;
@@ -282,8 +282,7 @@ int Frontend::DetectNewFeatures()
         // use LK flow to estimate points in the right image
         kps_right = kps_left;
         std::vector<uchar> status;
-        cv::Mat error;
-        calcOpticalFlowPyrLK(current_frame->image_left, current_frame->image_right, kps_left, kps_right, status, error);
+        optical_flow(current_frame->image_left, current_frame->image_right, kps_left, kps_right, status);
 
         // triangulate new points
         for (size_t i = 0; i < kps_left.size(); ++i)
