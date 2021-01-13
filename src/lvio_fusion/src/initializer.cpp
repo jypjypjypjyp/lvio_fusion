@@ -104,6 +104,53 @@ Bias InertialOptimization(Frames key_frames, Eigen::Matrix3d &Rwg, double &scale
     
     return bias_;
 }
+     bool showIMUErrorINIT(const double*  parameters0, const double*  parameters1, const double*  parameters2, const double*  parameters3, const double*  parameters4, const double*  parameters5, imu::Preintegration::Ptr mpInt, double time)  
+    {
+        Quaterniond Qi(parameters0[3], parameters0[0], parameters0[1], parameters0[2]);
+        Vector3d Pi(parameters0[4], parameters0[5], parameters0[6]);
+        Vector3d Vi(parameters1[0], parameters1[1], parameters1[2]);
+
+        Vector3d gyroBias(parameters2[0], parameters2[1], parameters2[2]);
+        Vector3d accBias(parameters3[0], parameters3[1],parameters3[2]);
+
+        Quaterniond Qj(parameters4[3], parameters4[0], parameters4[1], parameters4[2]);
+        Vector3d Pj(parameters4[4], parameters4[5], parameters4[6]);
+        Vector3d Vj(parameters5[0], parameters5[1], parameters5[2]);
+        double dt=(mpInt->dT);
+        Vector3d g;
+         g<< 0, 0, -G;
+        // g=Rwg*g;
+        const Bias  b1(accBias(0,0),accBias(1,0),accBias(2,0),gyroBias(0,0),gyroBias(1,0),gyroBias(2,0));
+        Matrix3d dR = mpInt->GetDeltaRotation(b1);
+        Vector3d dV = mpInt->GetDeltaVelocity(b1);
+        Vector3d dP =mpInt->GetDeltaPosition(b1);
+ 
+        const Vector3d er = LogSO3(dR.inverse()*Qi.toRotationMatrix().inverse()*Qj.toRotationMatrix());
+        const Vector3d ev = Qi.toRotationMatrix().inverse()*((Vj - Vi) - g*dt) - dV;
+        const Vector3d ep = Qi.toRotationMatrix().inverse()*((Pj - Pi - Vi*dt) - g*dt*dt/2) - dP;
+        Matrix<double, 9, 1> residual;
+        residual<<er,ev,ep;
+        //LOG(INFO)<<"InertialError residual "<<residual.transpose();
+        //    Matrix<double ,9,9> Info=mpInt->C.block<9,9>(0,0).inverse();
+        //  Info = (Info+Info.transpose())/2;
+        //  Eigen::SelfAdjointEigenSolver<Eigen::Matrix<double,9,9> > es(Info);
+        //  Eigen::Matrix<double,9,1> eigs = es.eigenvalues();
+        //  for(int i=0;i<9;i++)
+        //      if(eigs[i]<1e-12)
+        //          eigs[i]=0;
+        //  Matrix<double, 9,9> sqrt_info = es.eigenvectors()*eigs.asDiagonal()*es.eigenvectors().transpose();
+        Matrix<double, 9,9> sqrt_info =LLT<Matrix<double, 9, 9>>( mpInt->C.block<9,9>(0,0).inverse()).matrixL().transpose();
+        sqrt_info/=InfoScale;
+        // LOG(INFO)<<"InertialError sqrt_info "<<sqrt_info;
+        //assert(!isnan(residual[0])&&!isnan(residual[1])&&!isnan(residual[2])&&!isnan(residual[3])&&!isnan(residual[4])&&!isnan(residual[5])&&!isnan(residual[6])&&!isnan(residual[7])&&!isnan(residual[8]));
+        residual = sqrt_info* residual;
+        LOG(INFO)<<time<<"  IMUError:  r "<<residual.transpose()<<"  "<<mpInt->dT;
+        // LOG(INFO)<<"                Qi "<<Qi.toRotationMatrix().eulerAngles(0,1,2).transpose()<<" Qj "<<Qj.toRotationMatrix().eulerAngles(0,1,2).transpose()<<"dQ"<<dR.eulerAngles(0,1,2).transpose();
+        // LOG(INFO)<<"                Pi "<<Pi.transpose()<<" Pj "<<Pj.transpose()<<"dP"<<dP.transpose();
+        // LOG(INFO)<<"                Vi "<<Vi.transpose()<<" Vj "<<Vj.transpose()<<"dV"<<dV.transpose();
+        // LOG(INFO)<<"             Bai "<< accBias.transpose()<<"  Bgi "<<  gyroBias.transpose();
+         return true;
+    }
 
 Bias FullInertialBA(Frames key_frames, Matrix3d Rwg, double priorG, double priorA)
 {
@@ -169,6 +216,8 @@ Bias FullInertialBA(Frames key_frames, Matrix3d Rwg, double priorG, double prior
             auto para_v_last = last_frame->Vw.data();
             ceres::CostFunction *cost_function =InertialError2::Create(current_frame->preintegration,Rwg);
             problem.AddResidualBlock(cost_function, NULL, para_kf_last, para_v_last,  para_gyroBias,para_accBias, para_kf, para_v);
+                showIMUErrorINIT(para_kf_last, para_v_last,  para_gyroBias,para_accBias, para_kf, para_v,current_frame->preintegration,current_frame->time-1.40364e+09);
+
                 // LOG(INFO)<<"FullInertialBA ckf: "<<current_frame->id<<"  lkf: "<<last_frame->id;
                 // LOG(INFO)<<"     current pose: "<<current_frame->pose.translation().transpose(); 
                 // LOG(INFO)<<"     last pose: "<<last_frame->pose.translation().transpose();
@@ -204,7 +253,7 @@ Bias FullInertialBA(Frames key_frames, Matrix3d Rwg, double priorG, double prior
             tcb<<0.0148655429818, -0.999880929698, 0.00414029679422,
             0.999557249008, 0.0149672133247, 0.025715529948,
             -0.0257744366974, 0.00375618835797, 0.999660727178;
-            //  LOG(INFO)<<"FullInertialBA  "<<current_frame->time-1.40364e+09/*+8.60223e+07*/<<"   Vwb1  "<<current_frame->Vw.transpose()*tcb<<"\nR: \n"<<tcb.inverse()*current_frame->pose.rotationMatrix();
+             LOG(INFO)<<"FullInertialBA  "<<current_frame->time-1.40364e+09/*+8.60223e+07*/<<"   Vwb1  "<<current_frame->Vw.transpose()*tcb<<"\nR: \n"<<tcb.inverse()*current_frame->pose.rotationMatrix();
         }
     }
     return lastBias;
@@ -312,10 +361,10 @@ bool  Initializer::InitializeIMU(Frames keyframes)
             LOG(INFO)<<"INITG "<<(tcb.inverse()*g).transpose()<<"\n"<<Rwg;
     Bias bias_=InertialOptimization(keyframes,Rwg, Scale, bg, ba, priorG, priorA);
         Vector3d dirG;
-        //  dirG<< 0, 0, -G;
-        //     dirG=Rwg*dirG;
-        dirG<<-0.15915923848354485 ,  9.1792672332077689,   3.4306621858045498;
-        dirG=tcb*dirG;
+         dirG<< 0, 0, -G;
+            dirG=Rwg*dirG;
+        // dirG<<-0.15915923848354485 ,  9.1792672332077689,   3.4306621858045498;
+        // dirG=tcb*dirG;
         dirG = dirG/dirG.norm();
         Vector3d  gI(0.0, 0.0, -1.0);//沿-z的归一化的重力数值
         // 计算旋转轴
@@ -346,7 +395,7 @@ bool  Initializer::InitializeIMU(Frames keyframes)
     }
 
     // 进行完全惯性优化
-  //  Bias lastBias=FullInertialBA(keyframes,Rwg, priorG, priorA);
+    Bias lastBias=FullInertialBA(keyframes,Rwg, priorG, priorA);
     // frontend_.lock()->UpdateFrameIMU(lastBias);
     frontend_.lock()->current_key_frame->bImu = true;
     bimu=true;

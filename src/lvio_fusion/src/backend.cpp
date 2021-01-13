@@ -11,6 +11,54 @@
 
 namespace lvio_fusion
 {
+     bool showIMUError(const double*  parameters0, const double*  parameters1, const double*  parameters2, const double*  parameters3, const double*  parameters4, const double*  parameters5, imu::Preintegration::Ptr mpInt, double time)  
+    {
+        Quaterniond Qi(parameters0[3], parameters0[0], parameters0[1], parameters0[2]);
+        Vector3d Pi(parameters0[4], parameters0[5], parameters0[6]);
+        Vector3d Vi(parameters1[0], parameters1[1], parameters1[2]);
+
+        Vector3d gyroBias(parameters2[0], parameters2[1], parameters2[2]);
+        Vector3d accBias(parameters3[0], parameters3[1],parameters3[2]);
+
+        Quaterniond Qj(parameters4[3], parameters4[0], parameters4[1], parameters4[2]);
+        Vector3d Pj(parameters4[4], parameters4[5], parameters4[6]);
+        Vector3d Vj(parameters5[0], parameters5[1], parameters5[2]);
+        double dt=(mpInt->dT);
+        Vector3d g;
+         g<< 0, 0, -G;
+        // g=Rwg*g;
+        const Bias  b1(accBias(0,0),accBias(1,0),accBias(2,0),gyroBias(0,0),gyroBias(1,0),gyroBias(2,0));
+        Matrix3d dR = mpInt->GetDeltaRotation(b1);
+        Vector3d dV = mpInt->GetDeltaVelocity(b1);
+        Vector3d dP =mpInt->GetDeltaPosition(b1);
+ 
+        const Vector3d er = LogSO3(dR.inverse()*Qi.toRotationMatrix().inverse()*Qj.toRotationMatrix());
+        const Vector3d ev = Qi.toRotationMatrix().inverse()*((Vj - Vi) - g*dt) - dV;
+        const Vector3d ep = Qi.toRotationMatrix().inverse()*((Pj - Pi - Vi*dt) - g*dt*dt/2) - dP;
+        Matrix<double, 9, 1> residual;
+        residual<<er,ev,ep;
+        //LOG(INFO)<<"InertialError residual "<<residual.transpose();
+        //    Matrix<double ,9,9> Info=mpInt->C.block<9,9>(0,0).inverse();
+        //  Info = (Info+Info.transpose())/2;
+        //  Eigen::SelfAdjointEigenSolver<Eigen::Matrix<double,9,9> > es(Info);
+        //  Eigen::Matrix<double,9,1> eigs = es.eigenvalues();
+        //  for(int i=0;i<9;i++)
+        //      if(eigs[i]<1e-12)
+        //          eigs[i]=0;
+        //  Matrix<double, 9,9> sqrt_info = es.eigenvectors()*eigs.asDiagonal()*es.eigenvectors().transpose();
+        Matrix<double, 9,9> sqrt_info =LLT<Matrix<double, 9, 9>>( mpInt->C.block<9,9>(0,0).inverse()).matrixL().transpose();
+        sqrt_info/=InfoScale;
+        // LOG(INFO)<<"InertialError sqrt_info "<<sqrt_info;
+        //assert(!isnan(residual[0])&&!isnan(residual[1])&&!isnan(residual[2])&&!isnan(residual[3])&&!isnan(residual[4])&&!isnan(residual[5])&&!isnan(residual[6])&&!isnan(residual[7])&&!isnan(residual[8]));
+        residual = sqrt_info* residual;
+        LOG(INFO)<<time<<"  IMUError:  r "<<residual.transpose()<<"  "<<mpInt->dT;
+        // LOG(INFO)<<"                Qi "<<Qi.toRotationMatrix().eulerAngles(0,1,2).transpose()<<" Qj "<<Qj.toRotationMatrix().eulerAngles(0,1,2).transpose()<<"dQ"<<dR.eulerAngles(0,1,2).transpose();
+        // LOG(INFO)<<"                Pi "<<Pi.transpose()<<" Pj "<<Pj.transpose()<<"dP"<<dP.transpose();
+        // LOG(INFO)<<"                Vi "<<Vi.transpose()<<" Vj "<<Vj.transpose()<<"dV"<<dV.transpose();
+        // LOG(INFO)<<"             Bai "<< accBias.transpose()<<"  Bgi "<<  gyroBias.transpose();
+         return true;
+    }
+
 
 Backend::Backend(double delay) : delay_(delay)
 {
@@ -140,7 +188,7 @@ void Backend::BuildProblem(Frames &active_kfs, adapt::Problem &problem)
                  ceres::CostFunction *cost_function_a = AccRWError2::Create(current_frame->preintegration->C.block<3,3>(12,12).inverse());
                 problem.AddResidualBlock(ProblemType::IMUError,cost_function_a, NULL, para_ba_last,para_ba);
                 //LOG(INFO)<<"TIME: "<<current_frame->time-1.40364e+09+8.60223e+07<<"    V  "<<current_frame->Vw.transpose()<<"    R  "<<current_frame->pose.rotationMatrix().eulerAngles(0,1,2).transpose()<<"    P  "<<current_frame->pose.translation().transpose();
-
+                // showIMUError(para_kf_last, para_v_last,  para_bg_last,para_ba_last, para_kf, para_v,current_frame->preintegration,current_frame->time-1.40364e+09);
             }
             last_frame = current_frame;
         }
@@ -160,7 +208,7 @@ void Backend::Optimize()
 {
     static double forward_head = 0;
     std::unique_lock<std::mutex> lock(mutex);
-    std::unique_lock<std::mutex> lock2(frontend_.lock()->mutex);
+    // std::unique_lock<std::mutex> lock2(frontend_.lock()->mutex);
 
     Frames active_kfs = Map::Instance().GetKeyFrames(head);
     old_pose=(--active_kfs.end())->second->pose;
@@ -242,7 +290,7 @@ void Backend::Optimize()
 
 void Backend::ForwardPropagate(double time)
 {
-    // std::unique_lock<std::mutex> lock(frontend_.lock()->mutex);
+     std::unique_lock<std::mutex> lock(frontend_.lock()->mutex);
 
     // Frames  frames_init;
     //  if (Imu::Num() && !initializer_->initialized)
@@ -373,7 +421,7 @@ void Backend::ForwardPropagate(double time)
 //         }
 //     }
 
-/*
+
     adapt::Problem problem;
     BuildProblem(active_kfs, problem);
 
@@ -385,7 +433,7 @@ void Backend::ForwardPropagate(double time)
     // }
     // else
     // {
-    //     options.max_num_iterations = 1;
+         options.max_num_iterations = 1;
     // }
     options.num_threads = 4;
     ceres::Solver::Summary summary;
@@ -407,7 +455,7 @@ void Backend::ForwardPropagate(double time)
             lastbias_=bias_;
         }
     }
-   */ 
+   
         // bool fistinit=false;
     if (isInitliazing)
     {

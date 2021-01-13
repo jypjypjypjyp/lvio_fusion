@@ -77,7 +77,7 @@ private:
     const double priorA;
 };
 
-class InertialGSError:public ceres::SizedCostFunction<9, 3,3,3,3,3>
+class InertialGSError:public ceres::SizedCostFunction<9, 3,3,3,3,4>
 {
 public:
     InertialGSError(imu::Preintegration::Ptr preintegration,SE3d current_pose_,SE3d last_pose_) : mpInt(preintegration),JRg(  preintegration->JRg),
@@ -97,43 +97,50 @@ public:
         Vector3d Vj(parameters[1][0], parameters[1][1], parameters[1][2]);
         Vector3d gyroBias(parameters[2][0], parameters[2][1], parameters[2][2]);
         Vector3d accBias(parameters[3][0], parameters[3][1], parameters[3][2]);
-        Vector3d eulerAngle(parameters[4][0], parameters[4][1], parameters[4][2]);
+        Quaterniond rwg(parameters[4][0], parameters[4][1], parameters[4][2], parameters[4][3]);
         // double Scale=parameters[5][0];
         double Scale=1.0;
         double dt=(mpInt->dT);
-        Eigen::AngleAxisd rollAngle(AngleAxisd(eulerAngle(0),Vector3d::UnitX()));
-        Eigen::AngleAxisd pitchAngle(AngleAxisd(eulerAngle(1),Vector3d::UnitY()));
-        Eigen::AngleAxisd yawAngle(AngleAxisd(eulerAngle(2),Vector3d::UnitZ()));
-        Matrix3d Rwg;
-        Rwg= yawAngle*pitchAngle*rollAngle;
+        // Eigen::AngleAxisd rollAngle(AngleAxisd(eulerAngle(0),Vector3d::UnitX()));
+        // Eigen::AngleAxisd pitchAngle(AngleAxisd(eulerAngle(1),Vector3d::UnitY()));
+        // Eigen::AngleAxisd yawAngle(AngleAxisd(eulerAngle(2),Vector3d::UnitZ()));
+        Matrix3d Rwg=rwg.toRotationMatrix();
+        // Rwg= yawAngle*pitchAngle*rollAngle;
         Vector3d g=Rwg*gl;
+        Matrix3d tcb;
+            tcb<<0.0148655429818, -0.999880929698, 0.00414029679422,
+            0.999557249008, 0.0149672133247, 0.025715529948,
+            -0.0257744366974, 0.00375618835797, 0.999660727178;
+        // LOG(INFO)<<"G  "<<(g).transpose()<<"Rwg"<<parameters4[0]<<" "<< parameters4[1]<<" "<< parameters4[2]<<" "<<parameters4[3];
         const Bias  b1(accBias(0,0),accBias(1,0),accBias(2,0),gyroBias(0,0),gyroBias(1,0),gyroBias(2,0));
         Matrix3d dR = (mpInt->GetDeltaRotation(b1));
         Vector3d dV = (mpInt->GetDeltaVelocity(b1));
         Vector3d dP =(mpInt->GetDeltaPosition(b1));
 
-        const Vector3d er = LogSO3(dR.transpose()*Qi.transpose()*Qj);
-        const Vector3d ev = Qi.transpose()*(Scale*(Vj - Vi) - g*dt) - dV;
-        const Vector3d ep = Qi.transpose()*(Scale*(Pj - Pi - Vi*dt) - g*dt*dt/2) - dP;
+        const Vector3d er = LogSO3(dR.inverse()*Qi.inverse()*Qj);
+        const Vector3d ev = Qi.inverse()*(Scale*(Vj - Vi) - g*dt) - dV;
+        const Vector3d ep = Qi.inverse()*(Scale*(Pj - Pi - Vi*dt) - g*dt*dt/2) - dP;
         
        Eigen::Map<Matrix<double, 9, 1>> residual(residuals);
         residual<<er,ev,ep;
-       // LOG(INFO)<<"InertialGSError residual "<<residual.transpose();
-       // Matrix<double ,9,9> Info=mpInt->C.block<9,9>(0,0);
-        // Info = (Info+Info.transpose())/2;
-        // Eigen::SelfAdjointEigenSolver<Eigen::Matrix<double,9,9> > es(Info);
-        // Eigen::Matrix<double,9,1> eigs = es.eigenvalues();
-        // for(int i=0;i<9;i++)
-        //     if(eigs[i]<1e-12)
-        //         eigs[i]=0;
-        // Info = es.eigenvectors()*eigs.asDiagonal()*es.eigenvectors().transpose();
-        Matrix<double, 9,9> sqrt_info =LLT<Matrix<double, 9, 9>>(mpInt->C.block<9,9>(0,0).inverse()).matrixL().transpose();
-       // LOG(INFO)<<"InertialGSError sqrt_info "<<sqrt_info;
+       //LOG(INFO)<<"InertialGSError residual :  er "<<residual.transpose()<<" dT "<<mpInt->dT;
+    //        Matrix<double ,9,9> Info=mpInt->C.block<9,9>(0,0).inverse();
+    //      Info = (Info+Info.transpose())/2;
+    //      Eigen::SelfAdjointEigenSolver<Eigen::Matrix<double,9,9> > es(Info);
+    //      Eigen::Matrix<double,9,1> eigs = es.eigenvalues();
+    //      for(int i=0;i<9;i++)
+    //          if(eigs[i]<1e-12)
+    //              eigs[i]=0;
+    //      Matrix<double, 9,9> sqrt_info = es.eigenvectors()*eigs.asDiagonal()*es.eigenvectors().transpose();
+       Matrix<double, 9,9> sqrt_info =LLT<Matrix<double, 9, 9>>(mpInt->C.block<9,9>(0,0).inverse()).matrixL().transpose();
         sqrt_info/=InfoScale;
       //  assert(residual[0]<10&&residual[1]<10&&residual[2]<10&&residual[3]<10&&residual[4]<10&&residual[5]<10&&residual[6]<10&&residual[7]<10&&residual[8]<10);
         residual = sqrt_info* residual;
-        //LOG(INFO)<<"InertialGSError sqrt_info* residual  "<<residual.transpose();
-
+    //    LOG(INFO)<<"InertialGSError sqrt_info* residual :  er "<<residual.transpose()<<" dT "<<mpInt->dT;
+    //     LOG(INFO)<<"                Qi "<<Qi.eulerAngles(0,1,2).transpose()<<" Qj "<<Qj.eulerAngles(0,1,2).transpose()<<"dQ"<<dR.eulerAngles(0,1,2).transpose();
+    //     LOG(INFO)<<"                Pi "<<Pi.transpose()<<" Pj "<<Pj.transpose()<<"dP"<<dP.transpose();
+    //     LOG(INFO)<<"                Vi "<<Vi.transpose()<<" Vj "<<Vj.transpose()<<"dV"<<dV.transpose();
+    //      LOG(INFO)<<"                 Bai "<< accBias.transpose()<<"  Bgi "<<  gyroBias.transpose();
         if (jacobians)
         {
             Bias delta_bias=mpInt->GetDeltaBias(b1);
@@ -184,7 +191,7 @@ public:
             }
             if(jacobians[4])
             {
-                Eigen::Map<Matrix<double, 9, 3, RowMajor>> jacobian_Rwg(jacobians[4]);
+                Eigen::Map<Matrix<double, 9,4, RowMajor>> jacobian_Rwg(jacobians[4]);
                 jacobian_Rwg.setZero();
                 jacobian_Rwg.block<3,2>(3,0) = -Rbw1*dGdTheta*dt;
                 jacobian_Rwg.block<3,2>(6,0) = -0.5*Rbw1*dGdTheta*dt*dt;
@@ -516,7 +523,7 @@ public:
         sqrt_info/=InfoScale;
       //  assert(residual[0]<10&&residual[1]<10&&residual[2]<10&&residual[3]<10&&residual[4]<10&&residual[5]<10&&residual[6]<10&&residual[7]<10&&residual[8]<10);
         residual = sqrt_info* residual;
-       LOG(INFO)<<"InertialGSError sqrt_info* residual :  er "<<residual.transpose()<<" dT "<<mpInt->dT;
+    //    LOG(INFO)<<"InertialGSError sqrt_info* residual :  er "<<residual.transpose()<<" dT "<<mpInt->dT;
     //     LOG(INFO)<<"                Qi "<<Qi.eulerAngles(0,1,2).transpose()<<" Qj "<<Qj.eulerAngles(0,1,2).transpose()<<"dQ"<<dR.eulerAngles(0,1,2).transpose();
     //     LOG(INFO)<<"                Pi "<<Pi.transpose()<<" Pj "<<Pj.transpose()<<"dP"<<dP.transpose();
     //     LOG(INFO)<<"                Vi "<<Vi.transpose()<<" Vj "<<Vj.transpose()<<"dV"<<dV.transpose();
