@@ -278,8 +278,6 @@ int Frontend::DetectNewFeatures()
 
         std::vector<cv::Point2f> kps_left, kps_right; // must be point2f
         cv::goodFeaturesToTrack(current_frame->image_left, kps_left, num_features_ - current_frame->features_left.size(), 0.01, 20, mask);
-        if(kps_left.size() < num_features_init_)
-            break;
 
         // use LK flow to estimate points in the right image
         kps_right = kps_left;
