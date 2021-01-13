@@ -101,7 +101,7 @@ bool Frontend::Track()
         if (num_inliers <= num_features_tracking_bad_)
         {
             status = FrontendStatus::BUILDING;
-        } 
+        }
     }
     else
     {
@@ -133,16 +133,9 @@ bool Frontend::Track()
     return true;
 }
 
-inline double distance(cv::Point2f &pt1, cv::Point2f &pt2)
-{
-    double dx = pt1.x - pt2.x;
-    double dy = pt1.y - pt2.y;
-    return sqrt(dx * dx + dy * dy);
-}
-
 inline void optical_flow(cv::Mat &prevImg, cv::Mat &nextImg,
-                                 std::vector<cv::Point2f> &prevPts, std::vector<cv::Point2f> &nextPts,
-                                 std::vector<uchar> &status)
+                         std::vector<cv::Point2f> &prevPts, std::vector<cv::Point2f> &nextPts,
+                         std::vector<uchar> &status)
 {
     cv::Mat err;
     cv::calcOpticalFlowPyrLK(
@@ -176,8 +169,6 @@ int Frontend::TrackLastFrame(Frame::Ptr last_frame)
 {
     std::vector<cv::Point2f> kps_last, kps_current;
     std::vector<visual::Landmark::Ptr> landmarks;
-    std::vector<cv::Point3f> points_3d;
-    std::vector<cv::Point2f> points_2d;
     std::vector<uchar> status;
     // use LK flow to estimate points in the last image
     for (auto &pair_feature : last_frame->features_left)
@@ -193,9 +184,12 @@ int Frontend::TrackLastFrame(Frame::Ptr last_frame)
     optical_flow(last_frame->image_left, current_frame->image_left, kps_last, kps_current, status);
 
     // mismatch points, try again by ORB mathcer
-    // int a = mather_.Search(current_frame, last_frame, kps_current, kps_last, status);
+    int a = mather_.Search(current_frame, last_frame, kps_current, kps_last, status, 100);
     // LOG(INFO) << "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!" << a;
+
     // Solve PnP
+    std::vector<cv::Point3f> points_3d;
+    std::vector<cv::Point2f> points_2d;
     std::unordered_map<int, int> map;
     for (size_t i = 0; i < status.size(); ++i)
     {
@@ -218,8 +212,9 @@ int Frontend::TrackLastFrame(Frame::Ptr last_frame)
         for (int r = 0; r < inliers.rows; r++)
         {
             int i = map[inliers.at<int>(r)];
-            cv::arrowedLine(img_track, kps_current[i], kps_last[i], cv::Scalar(0, 255, 0), 1, 8, 0, 0.2);
-            cv::circle(img_track, kps_current[i], 2, cv::Scalar(255, 0, 0), cv::FILLED);
+            cv::Scalar color = status[i] == 1 ? cv::Scalar(0, 255, 0) : cv::Scalar(255, 0, 0);
+            cv::arrowedLine(img_track, kps_current[i], kps_last[i], color, 1, 8, 0, 0.2);
+            cv::circle(img_track, kps_current[i], 2, color, cv::FILLED);
             auto feature = visual::Feature::Create(current_frame, kps_current[i], landmarks[i]);
             current_frame->AddFeature(feature);
             num_good_pts++;

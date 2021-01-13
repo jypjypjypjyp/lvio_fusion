@@ -29,7 +29,7 @@ namespace lvio_fusion
 //     }
 // }
 
-int ORBMatcher::Search(Frame::Ptr current_frame, Frame::Ptr last_frame, std::vector<cv::Point2f> &kps_current, std::vector<cv::Point2f> &kps_last, std::vector<uchar> &status)
+int ORBMatcher::Search(Frame::Ptr current_frame, Frame::Ptr last_frame, std::vector<cv::Point2f> &kps_current, std::vector<cv::Point2f> &kps_last, std::vector<uchar> &status, float thershold)
 {
     const static int max_dist = 50;
     std::vector<cv::KeyPoint> kps_mismatch;
@@ -46,27 +46,47 @@ int ORBMatcher::Search(Frame::Ptr current_frame, Frame::Ptr last_frame, std::vec
     cv::Mat descriptors_mismatch;
     detector_->compute(last_frame->image_left, kps_mismatch, descriptors_mismatch);
 
+    // for (auto kp : kps_mismatch)
+    // {
+    //     cv::Mat mask = cv::Mat::zeros(current_frame->image_left.size(), CV_8UC1);
+    //     cv::circle(mask, kp.pt, thershold, 255, cv::FILLED);
+    //     std::vector<cv::KeyPoint> kps_add;
+    //     cv::Mat descriptors_add;
+    //     detector_->detectAndCompute(current_frame->image_left, mask, kps_add, descriptors_add);
+    // }
+
     std::vector<cv::KeyPoint> kps_add;
     cv::Mat descriptors_add;
     detector_->detectAndCompute(current_frame->image_left, mask, kps_add, descriptors_add);
     std::vector<cv::DMatch> matches;
     matcher_->match(descriptors_mismatch, descriptors_add, matches);
 
-    int j = 0, i = 0;
+    int i = 0, num_good_matches = 0;
+    cv::Mat img_track = current_frame->image_left;
+    cv::cvtColor(img_track, img_track, cv::COLOR_GRAY2RGB);
     for (auto &match : matches)
     {
         int index_mismatch = match.queryIdx;
         int index_add = match.trainIdx;
-        for (; i < kps_last.size(); i++)
+        // for (; i < kps_last.size(); i++)
+        // {
+        //     if (kps_mismatch[index_mismatch].pt == kps_last[i])
+        //         break;
+        // }
+        if (distance(kps_mismatch[index_mismatch].pt, kps_add[index_add].pt) < thershold)
         {
-            if (kps_mismatch[index_mismatch].pt == kps_last[i])
-                break;
+            LOG(INFO) << "!!!!!!!!!!!!!!!!!!!!!!!!!" << distance(kps_mismatch[index_mismatch].pt, kps_add[index_add].pt);
+            // kps_current[i] = kps_add[index_add].pt;
+            // status[i] = 2;
+            num_good_matches++;
+            cv::Scalar color = cv::Scalar(255, 0, 0);
+            cv::arrowedLine(img_track, kps_mismatch[index_mismatch].pt, kps_add[index_add].pt, color, 1, 8, 0, 0.2);
+            cv::circle(img_track, kps_mismatch[index_mismatch].pt, 2, color, cv::FILLED);
         }
-        kps_current[i] = kps_add[index_add].pt;
-        status[i] = 1;
     }
-
-    return matches.size();
+    cv::imshow("debug", img_track);
+    cv::waitKey(1);
+    return num_good_matches;
 }
 
 // bool ORBMatcher::SearchInAera(const BRIEF descriptor, const std::map<unsigned long, BRIEF> &descriptors_old, unsigned long &best_id)

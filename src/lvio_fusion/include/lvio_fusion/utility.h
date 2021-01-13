@@ -267,6 +267,13 @@ inline double vectors_height(Vector3d v1, Vector3d v2)
     return v1.cross(v2).norm() / v1.norm();
 }
 
+inline double distance(cv::Point2f &pt1, cv::Point2f &pt2)
+{
+    double dx = pt1.x - pt2.x;
+    double dy = pt1.y - pt2.y;
+    return sqrt(dx * dx + dy * dy);
+}
+
 } // namespace lvio_fusion
 
 #endif // lvio_fusion_UTILITY_H

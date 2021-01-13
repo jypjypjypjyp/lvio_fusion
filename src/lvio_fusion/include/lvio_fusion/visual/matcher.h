@@ -36,9 +36,9 @@ inline std::map<unsigned long, BRIEF> mat2briefs(Frame::Ptr frame)
 class ORBMatcher
 {
 public:
-    ORBMatcher() : detector_(cv::ORB::create()), matcher_(cv::DescriptorMatcher::create("BruteForce-Hamming")) {}
+    ORBMatcher() : detector_(cv::ORB::create(200)), matcher_(cv::DescriptorMatcher::create("BruteForce-Hamming")) {}
 
-    int Search(Frame::Ptr current_frame, Frame::Ptr last_frame, std::vector<cv::Point2f> &kps_current, std::vector<cv::Point2f> &kps_last, std::vector<uchar> &status);
+    int Search(Frame::Ptr current_frame, Frame::Ptr last_frame, std::vector<cv::Point2f> &kps_current, std::vector<cv::Point2f> &kps_last, std::vector<uchar> &status, float thershold);
 
 private:
     cv::Mat ComputeBRIEF(cv::Mat image, std::vector<cv::Point2f> &keypoints);

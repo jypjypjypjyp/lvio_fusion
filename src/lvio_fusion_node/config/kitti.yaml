@@ -2,8 +2,8 @@
 
 # flags
 use_imu: 0
-use_lidar: 1
-use_navsat: 1
+use_lidar: 0
+use_navsat: 0
 use_loop: 0             # 0 for only odometry, 1 for whole system
 use_semantic: 0
 train: 0
@@ -83,9 +83,9 @@ base_to_lidar: !!opencv-matrix
 
 # number of features
 num_features: 200
-num_features_init: 50
+num_features_init: 80
 num_features_tracking_bad: 20
-num_features_needed_for_keyframe: 60
+num_features_needed_for_keyframe: 80
 
 # backend
 windows_size: 3
