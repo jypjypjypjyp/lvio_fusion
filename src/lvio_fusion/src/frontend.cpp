@@ -193,8 +193,8 @@ int Frontend::TrackLastFrame(Frame::Ptr last_frame)
     optical_flow(last_frame->image_left, current_frame->image_left, kps_last, kps_current, status);
 
     // mismatch points, try again by ORB mathcer
-    int a = mather_.Search(current_frame, last_frame, kps_current, kps_last, status);
-    LOG(INFO) << "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!" << a;
+    // int a = mather_.Search(current_frame, last_frame, kps_current, kps_last, status);
+    // LOG(INFO) << "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!" << a;
     // Solve PnP
     std::unordered_map<int, int> map;
     for (size_t i = 0; i < status.size(); ++i)
@@ -278,6 +278,8 @@ int Frontend::DetectNewFeatures()
 
         std::vector<cv::Point2f> kps_left, kps_right; // must be point2f
         cv::goodFeaturesToTrack(current_frame->image_left, kps_left, num_features_ - current_frame->features_left.size(), 0.01, 20, mask);
+        if(kps_left.size() < num_features_init_)
+            break;
 
         // use LK flow to estimate points in the right image
         kps_right = kps_left;

@@ -26,6 +26,7 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
     }
 
     // read camera intrinsics and extrinsics
+    bool undistort = Config::Get<int>("undistort");
     cv::Mat cv_base_to_cam0 = Config::Get<cv::Mat>("base_to_cam0");
     cv::Mat cv_base_to_cam1 = Config::Get<cv::Mat>("base_to_cam1");
     Matrix4d base_to_cam0, base_to_cam1;
@@ -36,7 +37,7 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
     Quaterniond q_base_to_cam0(R_base_to_cam0);
     Vector3d t_base_to_cam0(0, 0, 0);
     t_base_to_cam0 << base_to_cam0(0, 3), base_to_cam0(1, 3), base_to_cam0(2, 3);
-    if (Config::Get<double>("undistort"))
+    if (undistort)
     {
         Camera::Create(Config::Get<double>("camera0.fx"),
                        Config::Get<double>("camera0.fy"),
@@ -61,7 +62,7 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
     Quaterniond q_base_to_cam1(R_base_to_cam1);
     Vector3d t_base_to_cam1(0, 0, 0);
     t_base_to_cam1 << base_to_cam1(0, 3), base_to_cam1(1, 3), base_to_cam1(2, 3);
-    if (Config::Get<double>("undistort"))
+    if (undistort)
     {
         Camera::Create(Config::Get<double>("camera1.fx"),
                        Config::Get<double>("camera1.fy"),
@@ -163,7 +164,7 @@ void Estimator::InputImage(double time, cv::Mat &left_image, cv::Mat &right_imag
     Frame::Ptr new_frame = Frame::Create();
     new_frame->time = time;
     cv::undistort(left_image, new_frame->image_left, Camera::Get(0)->K, Camera::Get(0)->D);
-    cv::undistort(right_image, new_frame->image_right, Camera::Get(0)->K, Camera::Get(0)->D);
+    cv::undistort(right_image, new_frame->image_right, Camera::Get(1)->K, Camera::Get(1)->D);
     new_frame->objects = objects;
 
     auto t1 = std::chrono::steady_clock::now();

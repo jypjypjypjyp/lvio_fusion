@@ -17,7 +17,6 @@ extern int use_navsat;
 extern int use_loop;
 extern int use_semantic;
 extern int use_adapt;
-extern int num_of_cam;
 extern int train;
 
 void read_parameters(std::string config_file);
