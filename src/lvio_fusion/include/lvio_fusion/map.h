@@ -7,7 +7,6 @@
 
 namespace lvio_fusion
 {
-
 class Map
 {
 public:

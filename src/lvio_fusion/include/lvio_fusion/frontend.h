@@ -50,6 +50,7 @@ public:
     imu::Preintegration::Ptr  ImuPreintegratedFromLastKF;
     Frame::Ptr last_key_frame;
     std::list<imuPoint> imuData_buf;
+         bool needreinit=false;
     //NEWADDEND
     std::mutex mutex;
 

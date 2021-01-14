@@ -151,6 +151,12 @@ void Frontend::PreintegrateIMU()
         }
         current_frame->preintegration=ImuPreintegratedFromLastKF;
         current_frame->preintegrationFrame=ImuPreintegratedFromLastFrame;
+   
+
+        if(ImuPreintegratedFromLastKF->dT==0){
+             backend_.lock()->initializer_->initialized=false;
+        }
+
     }   
 }
 
@@ -166,7 +172,7 @@ bool Frontend::Track()
              PredictStateIMU();
         }
     }
-    if(!Imu::Num()||!backend_.lock()->initializer_->initialized)
+   // if(!Imu::Num()||!backend_.lock()->initializer_->initialized||(backend_.lock()->initializer_->initialized&&!current_frame->preintegrationFrame->isPreintegrated))
     {
         current_frame->pose = relative_i_j * last_frame_pose_cache_;
     }
@@ -506,20 +512,10 @@ void Frontend::UpdateFrameIMU( const Bias &bias_)
     Vector3d twb2;
     Matrix3d Rwb2;
    Vector3d Vwb2;
-    while(!current_frame->preintegration->isPreintegrated)
-    {
-        usleep(500);
-    }
-
     // Step 2:更新Frame的pose velocity
     // Step 2.1:更新lastFrame的pose velocity
-    if(last_frame->last_keyframe){
-        if(last_frame->id== last_frame->last_keyframe->id)
-        {
-            last_frame->SetPose(last_frame->last_keyframe->GetImuRotation(),last_frame->last_keyframe->GetImuPosition());
-            last_frame->SetVelocity(last_frame->last_keyframe->GetVelocity());
-        }
-        else
+    if(last_frame->last_keyframe&&last_frame->preintegration->isPreintegrated){
+        if(fabs(last_frame->time-current_key_frame->time)>0.001)
         {
             twb1= last_frame->last_keyframe->GetImuPosition();
             Rwb1 = last_frame->last_keyframe->GetImuRotation();
@@ -533,7 +529,7 @@ void Frontend::UpdateFrameIMU( const Bias &bias_)
         }
     }
     // Step 2.2:更新currentFrame的pose velocity
-    if (current_frame->preintegration&&current_frame->last_keyframe)
+    if (fabs(current_frame->time-current_key_frame->time)>0.001&&current_frame->preintegration->isPreintegrated&&current_frame->last_keyframe)
     {
          twb1= current_frame->last_keyframe->GetImuPosition();
         Rwb1 = current_frame->last_keyframe->GetImuRotation();
@@ -550,9 +546,12 @@ void Frontend::UpdateFrameIMU( const Bias &bias_)
 void Frontend::PredictStateIMU()
 {
             Matrix3d tcb;
-            tcb<<0.0148655429818, -0.999880929698, 0.00414029679422,
-            0.999557249008, 0.0149672133247, 0.025715529948,
-            -0.0257744366974, 0.00375618835797, 0.999660727178;
+            // tcb<<0.0148655429818, -0.999880929698, 0.00414029679422,
+            // 0.999557249008, 0.0149672133247, 0.025715529948,
+            // -0.0257744366974, 0.00375618835797, 0.999660727178;
+             tcb<<1,0,0,
+             0,1,0,
+             0,0,1;
     if(Map::Instance().mapUpdated&&current_key_frame)
     {
         Vector3d Gz ;
@@ -593,12 +592,12 @@ void Frontend::PredictStateIMU()
          
          LOG(INFO)<<"PredictStateIMU  "<<current_frame->time-1.40364e+09<<"  T12  "<<t12;
         // LOG(INFO)<<" Rwb2\n"<<tcb.inverse()*Rwb2;
-        LOG(INFO)<<" Vwb1"<<Vwb1.transpose()*tcb;
-        LOG(INFO)<<" Vwb2"<<Vwb2.transpose()*tcb;
-        LOG(INFO)<<"   GRdV "<<(t12*Gz+Rwb1*current_frame->preintegrationFrame->GetDeltaVelocity(last_frame->GetImuBias())).transpose()*tcb;
-        // LOG(INFO)<<"   RdV    "<<((tcb.inverse()*Rwb1)*current_frame->preintegrationFrame->GetDeltaVelocity(last_frame->GetImuBias())).transpose();
-        // LOG(INFO)<<"   dV      "<<(current_frame->preintegrationFrame->GetDeltaVelocity(last_frame->GetImuBias())).transpose();
-        //  LOG(INFO)<<"  dR:\n"<<current_frame->preintegrationFrame->GetDeltaRotation(last_frame->GetImuBias()); 
+        LOG(INFO)<<"  Vwb1  "<<Vwb1.transpose()*tcb;
+        LOG(INFO)<<" Vwb2  "<<Vwb2.transpose()*tcb;
+        LOG(INFO)<<"   GRdV   "<<(t12*Gz+Rwb1*current_frame->preintegrationFrame->GetDeltaVelocity(last_frame->GetImuBias())).transpose()*tcb;
+        LOG(INFO)<<"   RdV    "<<((tcb.inverse()*Rwb1)*current_frame->preintegrationFrame->GetDeltaVelocity(last_frame->GetImuBias())).transpose();
+        LOG(INFO)<<"   dV      "<<(current_frame->preintegrationFrame->GetDeltaVelocity(last_frame->GetImuBias())).transpose();
+        // //  LOG(INFO)<<"  dR:\n"<<current_frame->preintegrationFrame->GetDeltaRotation(last_frame->GetImuBias()); 
         current_frame->SetVelocity(Vwb2);
         current_frame->SetPose(Rwb2,twb2);
         current_frame->SetNewBias(last_frame->GetImuBias());
@@ -631,20 +630,22 @@ void Frontend::PredictStateIMU()
         const Vector3d ep = Qi.toRotationMatrix().inverse()*((Pj - Pi - Vi*dt) - g*dt*dt/2) - dP;
         Matrix<double, 9, 1> residual;
         residual<<er,ev,ep;
+
         //LOG(INFO)<<"InertialError residual "<<residual.transpose();
-        //    Matrix<double ,9,9> Info=mpInt->C.block<9,9>(0,0).inverse();
-        //  Info = (Info+Info.transpose())/2;
-        //  Eigen::SelfAdjointEigenSolver<Eigen::Matrix<double,9,9> > es(Info);
-        //  Eigen::Matrix<double,9,1> eigs = es.eigenvalues();
-        //  for(int i=0;i<9;i++)
-        //      if(eigs[i]<1e-12)
-        //          eigs[i]=0;
-        //  Matrix<double, 9,9> sqrt_info = es.eigenvectors()*eigs.asDiagonal()*es.eigenvectors().transpose();
-        Matrix<double, 9,9> sqrt_info =LLT<Matrix<double, 9, 9>>( mpInt->C.block<9,9>(0,0).inverse()).matrixL().transpose();
+           Matrix<double ,9,9> Info=mpInt->C.block<9,9>(0,0).inverse();
+         Info = (Info+Info.transpose())/2;
+         Eigen::SelfAdjointEigenSolver<Eigen::Matrix<double,9,9> > es(Info);
+         Eigen::Matrix<double,9,1> eigs = es.eigenvalues();
+         for(int i=0;i<9;i++)
+             if(eigs[i]<1e-12)
+                 eigs[i]=0;
+         Matrix<double, 9,9> sqrt_info = es.eigenvectors()*eigs.asDiagonal()*es.eigenvectors().transpose();
+      //  Matrix<double, 9,9> sqrt_info =LLT<Matrix<double, 9, 9>>( mpInt->C.block<9,9>(0,0).inverse()).matrixL().transpose();
         sqrt_info/=InfoScale;
         // LOG(INFO)<<"InertialError sqrt_info "<<sqrt_info;
         //assert(!isnan(residual[0])&&!isnan(residual[1])&&!isnan(residual[2])&&!isnan(residual[3])&&!isnan(residual[4])&&!isnan(residual[5])&&!isnan(residual[6])&&!isnan(residual[7])&&!isnan(residual[8]));
         residual = sqrt_info* residual;
+     
         LOG(INFO)<<time<<" IMUError:  r "<<residual.transpose()<<"  "<<mpInt->dT;
          Matrix3d tcb;
             tcb<<0.0148655429818, -0.999880929698, 0.00414029679422,
@@ -657,7 +658,7 @@ void Frontend::PredictStateIMU()
          return true;
     }
  void Frontend::LocalBA(){
-     adapt::Problem problem;
+     adapt::Problem problem;  
       ceres::LossFunction *loss_function = new ceres::HuberLoss(1.0);
           ceres::LocalParameterization *local_parameterization = new ceres::ProductParameterization(
         new ceres::EigenQuaternionParameterization(),
@@ -674,7 +675,7 @@ void Frontend::PredictStateIMU()
             problem.AddResidualBlock(ProblemType::PoseOnlyReprojectionError, cost_function, loss_function, para_kf);
         }
 
-       if(current_frame->last_keyframe&&backend_.lock()->initializer_->initialized)
+       if(current_frame->last_keyframe&&backend_.lock()->initializer_->initialized&&current_frame->preintegration->isPreintegrated)
         {
             auto para_kf_last=current_frame->last_keyframe->pose.data();
             auto para_v=current_frame->Vw.data();
@@ -694,18 +695,18 @@ void Frontend::PredictStateIMU()
             problem.SetParameterBlockConstant(para_v_last);
             problem.SetParameterBlockConstant(para_accBias_last);
             problem.SetParameterBlockConstant(para_gyroBias_last);
-
-             ceres::CostFunction *cost_function =InertialError::Create(current_frame->preintegration,backend_.lock()->initializer_->Rwg);
+            //assert(current_frame->preintegration->dT!=0);
+             ceres::CostFunction *cost_function =InertialError3::Create(current_frame->preintegration,backend_.lock()->initializer_->Rwg);
             problem.AddResidualBlock(ProblemType::IMUError,cost_function, NULL, para_kf_last, para_v_last,  para_gyroBias_last,para_accBias_last, para_kf, para_v);
-            ceres::CostFunction *cost_function_g = GyroRWError2::Create(current_frame->preintegration->C.block<3,3>(9,9).inverse());
+            ceres::CostFunction *cost_function_g = GyroRWError3::Create(current_frame->preintegration->C.block<3,3>(9,9).inverse());
             problem.AddResidualBlock(ProblemType::IMUError,cost_function_g, NULL, para_gyroBias_last,para_gyroBias);
-            ceres::CostFunction *cost_function_a = AccRWError2::Create(current_frame->preintegration->C.block<3,3>(12,12).inverse());
+            ceres::CostFunction *cost_function_a = AccRWError3::Create(current_frame->preintegration->C.block<3,3>(12,12).inverse());
             problem.AddResidualBlock(ProblemType::IMUError,cost_function_a, NULL, para_accBias_last,para_accBias);
-             showIMUErrorfornt(para_kf_last, para_v_last,  para_gyroBias_last,para_accBias_last, para_kf, para_v,current_frame->preintegration,current_frame->time-1.40364e+09);
+            //  showIMUErrorfornt(para_kf_last, para_v_last,  para_gyroBias_last,para_accBias_last, para_kf, para_v,current_frame->preintegration,current_frame->time-1.40364e+09+8.60223e+07);
         }
     ceres::Solver::Options options;
-    options.linear_solver_type = ceres::DENSE_QR;
-    //  options.max_solver_time_in_seconds = 4;
+    options.linear_solver_type = ceres::DENSE_SCHUR;
+    options.max_solver_time_in_seconds = 0.1;
    // options.max_num_iterations = 4;
     options.num_threads = 4;
     ceres::Solver::Summary summary;
@@ -720,7 +721,7 @@ void Frontend::PredictStateIMU()
             auto para_gyroBias=current_frame->ImuBias.linearized_bg.data();
             auto para_accBias_last=current_frame->last_keyframe->ImuBias.linearized_ba.data();
             auto para_gyroBias_last=current_frame->last_keyframe->ImuBias.linearized_bg.data();
-             showIMUErrorfornt(para_kf_last, para_v_last,  para_gyroBias_last,para_accBias_last, para_kf, para_v,current_frame->preintegration,current_frame->time-1.40364e+09);
+            //  showIMUErrorfornt(para_kf_last, para_v_last,  para_gyroBias_last,para_accBias_last, para_kf, para_v,current_frame->preintegration,current_frame->time-1.40364e+09);
 
         }
  }

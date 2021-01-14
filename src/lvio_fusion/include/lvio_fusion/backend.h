@@ -45,6 +45,8 @@ public:
     double head = 0;
     Initializer::Ptr initializer_;//NEWADD
     bool isInitliazing=false;//NEWADD
+    bool initA=false;
+    bool initB=false;
          Frame::Ptr new_frame;
      SE3d old_pose;
 private:
@@ -56,7 +58,7 @@ private:
 
     void ForwardPropagate(double time);
 
-    void BuildProblem(Frames &active_kfs, adapt::Problem &problem);
+    void BuildProblem(Frames &active_kfs, adapt::Problem &problem,bool isimu=true);
 
     std::weak_ptr<Frontend> frontend_;
     Mapping::Ptr mapping_;

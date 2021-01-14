@@ -283,6 +283,43 @@ inline Eigen::Vector3d LogSO3(const Eigen::Matrix3d &R)
     else
         return theta*w/s;
 }
+template <typename T>
+inline Eigen::Matrix<T,3,1> LogSO3_(const Eigen::Matrix<T,3,3> &R)
+{
+    const T tr = R(0,0)+R(1,1)+R(2,2);
+    Eigen::Matrix<T,3,1> w;
+    w << (R(2,1)-R(1,2))/T(2), (R(0,2)-R(2,0))/T(2), (R(1,0)-R(0,1))/T(2);
+    const T costheta = (tr-T(1.0))*T(0.5);
+    if(costheta>T(1) || costheta<T(-1))
+        return w;
+    const T theta = acos(costheta);
+    const T s = sin(theta);
+    T s_;
+    if(s<T(0)){
+        s_=-s;
+    }
+    if(s_<T(1e-5))
+        return w;
+    else
+        return theta*w/s;
+}
+// inline Eigen::Vector3d LogSO3(const Quaterniond &QR)
+// {
+//     Eigen::Matrix3d R=QR.toRotationMatrix();
+//     const double tr = R(0,0)+R(1,1)+R(2,2);
+//     Eigen::Vector3d w;
+//     w << (R(2,1)-R(1,2))/2, (R(0,2)-R(2,0))/2, (R(1,0)-R(0,1))/2;
+//     const double costheta = (tr-1.0)*0.5f;
+//     if(costheta>1 || costheta<-1)
+//         return w;
+//     const double theta = acos(costheta);
+//     const double s = sin(theta);
+//     if(fabs(s)<1e-5)
+//         return w;
+//     else
+//         return theta*w/s;
+// }
+
 
 inline Eigen::Matrix3d InverseRightJacobianSO3(const double x, const double y, const double z)
 {
@@ -322,12 +359,44 @@ inline Matrix3d ExpSO3(const Vector3d &v)
     return ExpSO3(v(0),v(1),v(2));
 }
 
+template <typename T>
+inline Matrix<T,3,3> ExpSO3_(const T &x, const T &y, const T &z)
+{
+     Matrix<T,3,3> I =  Matrix<T,3,3>::Identity();
+    const T d2 = x*x+y*y+z*z;
+    const T d = sqrt(d2);
+    Matrix<T,3,3> W;
+   W << T(0), -z, y,
+            z, T(0), -x,
+            -y,  x, T(0);
+    if(d<T(1e-4))
+        return (I + W + T(0.5)*W*W);
+    else
+        return (I + W*sin(d)/d + W*W*(T(1.0)-cos(d))/d2);
+}
+template <typename T>
+inline Matrix<T,3,3> ExpSO3_(const Matrix<T,3,1>  &v)
+{
+    return ExpSO3_(v(0),v(1),v(2));
+}
+
+
 inline Matrix3d NormalizeRotation(const Matrix3d &R_)
 { 
     cv::Mat_<double> U,w,Vt;
     cv::Mat_<double> R=(cv::Mat_<double>(3,3)<<R_(0,0),R_(0,1),R_(0,2),R_(1,0),R_(1,1),R_(1,2),R_(2,0),R_(2,1),R_(2,2));
     cv::SVDecomp(R,w,U,Vt,cv::SVD::FULL_UV);
     Matrix3d uvt;
+    cv::cv2eigen(U*Vt,uvt);
+    return uvt;
+}
+template <typename T>
+inline Matrix<T,3,3>  NormalizeRotation_(const Matrix<T,3,3> &R_)
+{ 
+    cv::Mat_<T> U,w,Vt;
+    cv::Mat_<T> R=(cv::Mat_<T>(3,3)<<T(R_(0,0)),T(R_(0,1)),T(R_(0,2)),T(R_(1,0)),T(R_(1,1)),T(R_(1,2)),T(R_(2,0)),T(R_(2,1)),T(R_(2,2)));
+    cv::SVDecomp(R,w,U,Vt,cv::SVD::FULL_UV);
+    Matrix<T,3,3> uvt;
     cv::cv2eigen(U*Vt,uvt);
     return uvt;
 }

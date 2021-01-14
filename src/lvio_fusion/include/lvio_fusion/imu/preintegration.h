@@ -34,6 +34,7 @@ public:
     Matrix3d GetDeltaRotation(const Bias &b_);
     Vector3d GetDeltaVelocity(const Bias &b_);
     Vector3d  GetDeltaPosition(const Bias &b_);
+
     Bias GetDeltaBias(const Bias &b_);
     void Reintegrate();
 
