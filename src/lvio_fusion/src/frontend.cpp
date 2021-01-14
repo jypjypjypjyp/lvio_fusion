@@ -170,32 +170,34 @@ int Frontend::TrackLastFrame(Frame::Ptr last_frame)
     std::vector<cv::Point2f> kps_last, kps_current;
     std::vector<visual::Landmark::Ptr> landmarks;
     std::vector<uchar> status;
+    std::vector<double> depths;
     // use LK flow to estimate points in the last image
     for (auto &pair_feature : last_frame->features_left)
     {
         // use project point
         auto feature = pair_feature.second;
-        auto camera_point = feature->landmark.lock();
-        auto px = Camera::Get()->World2Pixel(position_cache_[camera_point->id], current_frame->pose);
-        landmarks.push_back(camera_point);
+        auto landmark = feature->landmark.lock();
+        auto px = Camera::Get()->World2Pixel(position_cache_[landmark->id], current_frame->pose);
+        depths.push_back(position_cache_[landmark->id].z());
         kps_last.push_back(feature->keypoint);
         kps_current.push_back(cv::Point2f(px[0], px[1]));
+        landmarks.push_back(landmark);
     }
     optical_flow(last_frame->image_left, current_frame->image_left, kps_last, kps_current, status);
 
     // mismatch points, try again by ORB mathcer
-    int a = mather_.Search(current_frame, last_frame, kps_current, kps_last, status, 100);
-    // LOG(INFO) << "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!" << a;
+    int a = mather_.Search(current_frame, last_frame, kps_current, kps_last, status, depths, 100);
+    LOG(INFO) << "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!" << a;
 
     // Solve PnP
     std::vector<cv::Point3f> points_3d;
     std::vector<cv::Point2f> points_2d;
-    std::unordered_map<int, int> map;
+    std::vector<int> map;
     for (size_t i = 0; i < status.size(); ++i)
     {
         if (status[i])
         {
-            map[points_2d.size()] = i;
+            map.push_back(i);
             points_2d.push_back(kps_current[i]);
             Vector3d p = position_cache_[landmarks[i]->id];
             points_3d.push_back(cv::Point3f(p.x(), p.y(), p.z()));
