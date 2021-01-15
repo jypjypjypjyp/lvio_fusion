@@ -59,10 +59,10 @@ base_to_cam1: !!opencv-matrix
           0, 0, 0, 1]
 
 # number of features
-num_features: 200
-num_features_init: 80
+num_features: 400
+num_features_init: 150
 num_features_tracking_bad: 20
-num_features_needed_for_keyframe: 80
+num_features_needed_for_keyframe: 150
 
 # backend
 windows_size: 3

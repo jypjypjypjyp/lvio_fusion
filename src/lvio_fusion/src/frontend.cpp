@@ -182,126 +182,54 @@ int Frontend::TrackLastFrame(Frame::Ptr last_frame)
         landmarks.push_back(landmark);
     }
     optical_flow(last_frame->image_left, current_frame->image_left, kps_last, kps_current, status);
-    {
-        std::vector<cv::Point3f> points_3d;
-        std::vector<cv::Point2f> points_2d;
-        std::vector<int> map;
-        for (size_t i = 0; i < status.size(); ++i)
-        {
-            if (status[i])
-            {
-                map.push_back(i);
-                points_2d.push_back(kps_current[i]);
-                Vector3d p = position_cache_[landmarks[i]->id];
-                points_3d.push_back(cv::Point3f(p.x(), p.y(), p.z()));
-            }
-        }
-        cv::Mat rvec, tvec, inliers, cv_R;
-        if (cv::solvePnPRansac(points_3d, points_2d, Camera::Get()->K, Camera::Get()->D, rvec, tvec, false, 100, 8.0F, 0.98, inliers, cv::SOLVEPNP_EPNP))
-        {
-            cv::Rodrigues(rvec, cv_R);
-            Matrix3d R;
-            cv::cv2eigen(cv_R, R);
-            current_frame->pose = (Camera::Get()->extrinsic * SE3d(SO3d(R), Vector3d(tvec.at<double>(0, 0), tvec.at<double>(1, 0), tvec.at<double>(2, 0)))).inverse();
-        }
-    }
-    for (int i = 0; i < kps_current.size(); i++)
-    {
-        // use project point
-        auto px = Camera::Get()->World2Pixel(position_cache_[landmarks[i]->id], current_frame->pose);
-        kps_current[i] = (cv::Point2f(px[0], px[1]));
-    }
-    optical_flow(last_frame->image_left, current_frame->image_left, kps_last, kps_current, status);
-    int num_good_pts = 0;
-    {
-        std::vector<cv::Point3f> points_3d;
-        std::vector<cv::Point2f> points_2d;
-        std::vector<int> map;
-        for (size_t i = 0; i < status.size(); ++i)
-        {
-            if (status[i])
-            {
-                map.push_back(i);
-                points_2d.push_back(kps_current[i]);
-                Vector3d p = position_cache_[landmarks[i]->id];
-                points_3d.push_back(cv::Point3f(p.x(), p.y(), p.z()));
-            }
-        }
-        cv::Mat rvec, tvec, inliers, cv_R;
-        if (points_2d.size() > num_features_tracking_bad_ && cv::solvePnPRansac(points_3d, points_2d, Camera::Get()->K, Camera::Get()->D, rvec, tvec, false, 100, 8.0F, 0.98, inliers, cv::SOLVEPNP_EPNP))
-        {
-            //DEBUG
-            cv::Mat img_track = current_frame->image_left;
-            cv::cvtColor(img_track, img_track, cv::COLOR_GRAY2RGB);
-            for (int r = 0; r < inliers.rows; r++)
-            {
-                int i = map[inliers.at<int>(r)];
-                cv::Scalar color = status[i] == 1 ? cv::Scalar(0, 255, 0) : cv::Scalar(255, 0, 0);
-                cv::arrowedLine(img_track, kps_current[i], kps_last[i], color, 1, 8, 0, 0.2);
-                cv::circle(img_track, kps_current[i], 2, color, cv::FILLED);
-                auto feature = visual::Feature::Create(current_frame, kps_current[i], landmarks[i]);
-                current_frame->AddFeature(feature);
-                num_good_pts++;
-            }
-            cv::imshow("tracking", img_track);
-            cv::waitKey(1);
-
-            cv::Rodrigues(rvec, cv_R);
-            Matrix3d R;
-            cv::cv2eigen(cv_R, R);
-            current_frame->pose = (Camera::Get()->extrinsic * SE3d(SO3d(R), Vector3d(tvec.at<double>(0, 0), tvec.at<double>(1, 0), tvec.at<double>(2, 0)))).inverse();
-        }
-    }
-    LOG(INFO) << "Find " << num_good_pts << " in the last image.";
-    return num_good_pts;
 
     // mismatch points, try again by ORB mathcer
     // int a = mather_.Search(current_frame, last_frame, kps_current, kps_last, status, depths, 100);
     // LOG(INFO) << "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!" << a;
 
-    // // Solve PnP
-    // std::vector<cv::Point3f> points_3d;
-    // std::vector<cv::Point2f> points_2d;
-    // std::vector<int> map;
-    // for (size_t i = 0; i < status.size(); ++i)
-    // {
-    //     if (status[i])
-    //     {
-    //         map.push_back(i);
-    //         points_2d.push_back(kps_current[i]);
-    //         Vector3d p = position_cache_[landmarks[i]->id];
-    //         points_3d.push_back(cv::Point3f(p.x(), p.y(), p.z()));
-    //     }
-    // }
+    // Solve PnP
+    std::vector<cv::Point3f> points_3d;
+    std::vector<cv::Point2f> points_2d;
+    std::vector<int> map;
+    for (size_t i = 0; i < status.size(); ++i)
+    {
+        if (status[i])
+        {
+            map.push_back(i);
+            points_2d.push_back(kps_current[i]);
+            Vector3d p = position_cache_[landmarks[i]->id];
+            points_3d.push_back(cv::Point3f(p.x(), p.y(), p.z()));
+        }
+    }
 
-    // int num_good_pts = 0;
-    // cv::Mat rvec, tvec, inliers, cv_R;
-    // if (points_2d.size() > num_features_tracking_bad_ && cv::solvePnPRansac(points_3d, points_2d, Camera::Get()->K, Camera::Get()->D, rvec, tvec, false, 100, 8.0F, 0.98, inliers, cv::SOLVEPNP_EPNP))
-    // {
-    //     //DEBUG
-    //     cv::Mat img_track = current_frame->image_left;
-    //     cv::cvtColor(img_track, img_track, cv::COLOR_GRAY2RGB);
-    //     for (int r = 0; r < inliers.rows; r++)
-    //     {
-    //         int i = map[inliers.at<int>(r)];
-    //         cv::Scalar color = status[i] == 1 ? cv::Scalar(0, 255, 0) : cv::Scalar(255, 0, 0);
-    //         cv::arrowedLine(img_track, kps_current[i], kps_last[i], color, 1, 8, 0, 0.2);
-    //         cv::circle(img_track, kps_current[i], 2, color, cv::FILLED);
-    //         auto feature = visual::Feature::Create(current_frame, kps_current[i], landmarks[i]);
-    //         current_frame->AddFeature(feature);
-    //         num_good_pts++;
-    //     }
-    //     cv::imshow("tracking", img_track);
-    //     cv::waitKey(1);
+    int num_good_pts = 0;
+    cv::Mat rvec, tvec, inliers, cv_R;
+    if (points_2d.size() > num_features_tracking_bad_ && cv::solvePnPRansac(points_3d, points_2d, Camera::Get()->K, Camera::Get()->D, rvec, tvec, false, 100, 8.0F, 0.98, inliers, cv::SOLVEPNP_EPNP))
+    {
+        //DEBUG
+        cv::Mat img_track = current_frame->image_left;
+        cv::cvtColor(img_track, img_track, cv::COLOR_GRAY2RGB);
+        for (int r = 0; r < inliers.rows; r++)
+        {
+            int i = map[inliers.at<int>(r)];
+            cv::Scalar color = status[i] == 1 ? cv::Scalar(0, 255, 0) : cv::Scalar(255, 0, 0);
+            cv::arrowedLine(img_track, kps_current[i], kps_last[i], color, 1, 8, 0, 0.2);
+            cv::circle(img_track, kps_current[i], 2, color, cv::FILLED);
+            auto feature = visual::Feature::Create(current_frame, kps_current[i], landmarks[i]);
+            current_frame->AddFeature(feature);
+            num_good_pts++;
+        }
+        cv::imshow("tracking", img_track);
+        cv::waitKey(1);
 
-    //     cv::Rodrigues(rvec, cv_R);
-    //     Matrix3d R;
-    //     cv::cv2eigen(cv_R, R);
-    //     current_frame->pose = (Camera::Get()->extrinsic * SE3d(SO3d(R), Vector3d(tvec.at<double>(0, 0), tvec.at<double>(1, 0), tvec.at<double>(2, 0)))).inverse();
-    // }
+        cv::Rodrigues(rvec, cv_R);
+        Matrix3d R;
+        cv::cv2eigen(cv_R, R);
+        current_frame->pose = (Camera::Get()->extrinsic * SE3d(SO3d(R), Vector3d(tvec.at<double>(0, 0), tvec.at<double>(1, 0), tvec.at<double>(2, 0)))).inverse();
+    }
 
-    // LOG(INFO) << "Find " << num_good_pts << " in the last image.";
-    // return num_good_pts;
+    LOG(INFO) << "Find " << num_good_pts << " in the last image.";
+    return num_good_pts;
 }
 
 bool Frontend::InitMap()
@@ -344,10 +272,7 @@ int Frontend::DetectNewFeatures()
         }
 
         std::vector<cv::Point2f> kps_left, kps_right; // must be point2f
-        // cv::goodFeaturesToTrack(current_frame->image_left, kps_left, num_features_ - current_frame->features_left.size(), 0.01, 20, mask);
-        std::vector<cv::KeyPoint> kps_left_;
-        mather_.detector_->detect(current_frame->image_left, kps_left_, mask);
-        convert_points(kps_left_, kps_left);
+        cv::goodFeaturesToTrack(current_frame->image_left, kps_left, num_features_ - current_frame->features_left.size(), 0.01, 20, mask);
 
         // use LK flow to estimate points in the right image
         kps_right = kps_left;
