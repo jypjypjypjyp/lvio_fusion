@@ -32,29 +32,6 @@ namespace lvio_fusion
 //     }
 // }
 
-double get_search_area(double depth)
-{
-    return std::max(30.0, Camera::Get()->fx / depth);
-}
-
-void convert(const std::vector<cv::KeyPoint> &kps, std::vector<cv::Point2f> &ps)
-{
-    ps.resize(kps.size());
-    for (int i = 0; i < kps.size(); i++)
-    {
-        ps[i] = kps[i].pt;
-    }
-}
-
-void convert(const std::vector<cv::Point2f> &ps, std::vector<cv::KeyPoint> &kps)
-{
-    kps.resize(ps.size());
-    for (int i = 0; i < ps.size(); i++)
-    {
-        kps[i] = cv::KeyPoint(ps[i], 1);
-    }
-}
-
 int ORBMatcher::Search(Frame::Ptr current_frame, Frame::Ptr last_frame, std::vector<cv::Point2f> &kps_current, std::vector<cv::Point2f> &kps_last, std::vector<uchar> &status, std::vector<double> &depths, float thershold)
 {
     const static int max_dist = 50;
@@ -74,9 +51,9 @@ int ORBMatcher::Search(Frame::Ptr current_frame, Frame::Ptr last_frame, std::vec
         return 0;
 
     // compute descriptors of mismatch keypoints
-    convert(kps_mismatch, kps_mismatch_);
+    convert_points(kps_mismatch, kps_mismatch_);
     detector_->compute(last_frame->image_left, kps_mismatch_, descriptors_mismatch);
-    convert(kps_mismatch_, kps_mismatch);
+    convert_points(kps_mismatch_, kps_mismatch);
     // NOTE: detector_->compute maybe remove some row because its descriptor cannot be computed
     // remap
     std::unordered_map<int, int> map;
@@ -96,7 +73,9 @@ int ORBMatcher::Search(Frame::Ptr current_frame, Frame::Ptr last_frame, std::vec
     LOG(INFO) << ")))))))))))))))))))))))))))))))" << kps_add_.size();
     if (kps_add_.empty())
         return 0;
-    convert(kps_add_, kps_add);
+    convert_points(kps_add_, kps_add);
+
+    cv::cvtColor(mask, mask, cv::COLOR_GRAY2RGB);
     for(auto p:kps_add)
     {
         cv::circle(mask, p, 2, cv::Scalar(0, 0, 255), cv::FILLED);
@@ -124,31 +103,23 @@ int ORBMatcher::Search(Frame::Ptr current_frame, Frame::Ptr last_frame, std::vec
     for (int j = 0; j < kps_mismatch.size(); j++)
     {
         std::vector<float> query = {kps_mismatch[j].x, kps_mismatch[j].y};
-        int n = kdtree.radiusSearch(query, indices, dists, max_dist, 100);
-        LOG(INFO) << n;
-        for (int k = 0; k < n; k++)
+        int n = std::min(100, kdtree.radiusSearch(query, indices, dists, max_dist * max_dist, 100));
+        cv::Mat descriptors = cv::Mat::zeros(n, descriptors_add.cols, descriptors_add.type());
+        for (int i = 0; i < n; i++)
         {
-            int i = indices[k];
-            if (i != 0)
-            {
-                cv::arrowedLine(img_debug2, kps_mismatch[j], kps_add[i], cv::Scalar(0, 0, 255), 1, 8, 0, 0.2);
-            }
+            descriptors_add.row(indices[i]).copyTo(descriptors.row(i));
         }
-        // cv::Mat descriptors = cv::Mat::zeros(indices.size(), descriptors_add.cols, descriptors_add.type());
-        // for (int i = 0; i < indices.size(); i++)
-        // {
-        //     descriptors_add.row(indices[i]).copyTo(descriptors.row(i));
-        // }
-        // std::vector<cv::DMatch> matches;
-        // matcher_->match(descriptors_mismatch.row(j), descriptors, matches);
-        // if (matches.empty())
-        //     continue;
-        // int index_mismatch = matches[0].queryIdx, index_add = matches[0].trainIdx;
-        // cv::arrowedLine(img_debug, kps_mismatch[index_mismatch], kps_add[index_add], cv::Scalar(0, 0, 255), 1, 8, 0, 0.2);
-        // cv::circle(img_debug, kps_mismatch[index_mismatch], 2, cv::Scalar(0, 0, 255), cv::FILLED);
-        // kps_current[map[index_mismatch]] = kps_add[index_add];
-        // status[map[index_mismatch]] = 2;
-        // num_good_matches++;
+        std::vector<cv::DMatch> matches;
+        matcher_->match(descriptors_mismatch.row(j), descriptors, matches);
+        if (matches.empty())
+            continue;
+        int index_mismatch = matches[0].queryIdx, index_add = indices[matches[0].trainIdx];
+        cv::arrowedLine(img_debug, kps_mismatch[index_mismatch], kps_add[index_add], cv::Scalar(0, 0, 255), 1, 8, 0, 0.2);
+        cv::circle(img_debug, kps_mismatch[index_mismatch], 2, cv::Scalar(0, 0, 255), cv::FILLED);
+        kps_current[map[index_mismatch]] = kps_add[index_add];
+        status[map[index_mismatch]] = 2;
+        cv::arrowedLine(img_debug2, kps_mismatch[j], kps_add[index_add], cv::Scalar(0, 0, 255), 1, 8, 0, 0.2);
+        num_good_matches++;
     }
     cv::imshow("debug", img_debug2);
     cv::waitKey(1);

@@ -274,6 +274,24 @@ inline double distance(cv::Point2f &pt1, cv::Point2f &pt2)
     return sqrt(dx * dx + dy * dy);
 }
 
+inline void convert_points(const std::vector<cv::KeyPoint> &kps, std::vector<cv::Point2f> &ps)
+{
+    ps.resize(kps.size());
+    for (int i = 0; i < kps.size(); i++)
+    {
+        ps[i] = kps[i].pt;
+    }
+}
+
+inline void convert_points(const std::vector<cv::Point2f> &ps, std::vector<cv::KeyPoint> &kps)
+{
+    kps.resize(ps.size());
+    for (int i = 0; i < ps.size(); i++)
+    {
+        kps[i] = cv::KeyPoint(ps[i], 1);
+    }
+}
+
 } // namespace lvio_fusion
 
 #endif // lvio_fusion_UTILITY_H

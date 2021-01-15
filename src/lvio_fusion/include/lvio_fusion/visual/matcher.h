@@ -40,11 +40,11 @@ public:
 
     int Search(Frame::Ptr current_frame, Frame::Ptr last_frame, std::vector<cv::Point2f> &kps_current, std::vector<cv::Point2f> &kps_last, std::vector<uchar> &status, std::vector<double> &depths, float thershold);
 
-private:
-    cv::Mat ComputeBRIEF(cv::Mat image, std::vector<cv::Point2f> &keypoints);
-
     cv::Ptr<cv::Feature2D> detector_;
     cv::Ptr<cv::DescriptorMatcher> matcher_;
+
+private:
+    cv::Mat ComputeBRIEF(cv::Mat image, std::vector<cv::Point2f> &keypoints);
 };
 
 } // namespace lvio_fusion
