@@ -51,7 +51,6 @@ public:
     FeatureAssociation::Ptr association;
     Mapping::Ptr mapping;
     Initializer::Ptr initializer;
-    PoseGraph::Ptr pose_graph;
 
 private:
     std::string config_file_path_;

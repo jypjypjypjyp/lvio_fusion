@@ -37,10 +37,10 @@ private:
     double x1_, y1_, z1_;
 };
 
-class NavsatTError
+class NavsatXError
 {
 public:
-    NavsatTError(Vector3d p0, Vector3d p1)
+    NavsatXError(Vector3d p0, Vector3d p1)
         : x0_(p0.x()), y0_(p0.y()), z0_(p0.z()),
           x1_(p1.x()), y1_(p1.y()), z1_(p1.z())
     {
@@ -65,7 +65,7 @@ public:
 
     static ceres::CostFunction *Create(Vector3d p0, Vector3d p1)
     {
-        return (new ceres::AutoDiffCostFunction<NavsatTError, 3, 3>(new NavsatTError(p0, p1)));
+        return (new ceres::AutoDiffCostFunction<NavsatXError, 3, 3>(new NavsatXError(p0, p1)));
     }
     
     static Vector3d A, BC;

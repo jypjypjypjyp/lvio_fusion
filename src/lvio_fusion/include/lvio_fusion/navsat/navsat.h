@@ -30,8 +30,6 @@ public:
         return devices_[id];
     }
 
-    void SetPoseGraph(PoseGraph::Ptr pose_graph) { pose_graph_ = pose_graph; }
-
     void AddPoint(double time, double x, double y, double z);
 
     Vector3d GetPoint(double time);
@@ -50,8 +48,6 @@ private:
     Navsat &operator=(const Navsat &);
 
     void Initialize();
-
-    PoseGraph::Ptr pose_graph_;
 
     static std::vector<Navsat::Ptr> devices_;
 };

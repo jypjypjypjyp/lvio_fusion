@@ -7,7 +7,7 @@
 #include <sys/sysinfo.h>
 
 double epsilon = 1e-3;
-int num_threads = std::max(1, (int)(0.75 * get_nprocs()));
+int num_threads = 4; //std::max(1, (int)(0.75 * get_nprocs()));
 
 namespace lvio_fusion
 {
@@ -98,20 +98,17 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
     frontend->SetBackend(backend);
     backend->SetFrontend(frontend);
 
-    pose_graph = PoseGraph::Ptr(new PoseGraph);
-    pose_graph->SetFrontend(frontend);
+    PoseGraph::Instance().SetFrontend(frontend);
 
     if (use_loop)
     {
         relocator = Relocator::Ptr(new Relocator);
         relocator->SetBackend(backend);
-        relocator->SetPoseGraph(pose_graph);
     }
 
     if (use_navsat)
     {
         Navsat::Create();
-        Navsat::Get()->SetPoseGraph(pose_graph);
     }
 
     if (use_imu)

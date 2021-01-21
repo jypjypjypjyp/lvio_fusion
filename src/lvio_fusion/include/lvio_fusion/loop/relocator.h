@@ -27,8 +27,6 @@ public:
 
     void SetBackend(Backend::Ptr backend) { backend_ = backend; }
 
-    void SetPoseGraph(PoseGraph::Ptr pose_graph) { pose_graph_ = pose_graph; }
-
 private:
     void DetectorLoop();
 
@@ -49,7 +47,6 @@ private:
     Mapping::Ptr mapping_;
     Backend::Ptr backend_;
     FeatureAssociation::Ptr association_;
-    PoseGraph::Ptr pose_graph_;
 
     std::thread thread_;
 };

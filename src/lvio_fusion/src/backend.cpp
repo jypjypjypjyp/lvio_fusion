@@ -1,6 +1,5 @@
 #include "lvio_fusion/backend.h"
 #include "lvio_fusion/ceres/imu_error.hpp"
-#include "lvio_fusion/ceres/navsat_error.hpp"
 #include "lvio_fusion/ceres/visual_error.hpp"
 #include "lvio_fusion/frontend.h"
 #include "lvio_fusion/manager.h"

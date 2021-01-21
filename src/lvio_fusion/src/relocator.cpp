@@ -332,10 +332,10 @@ void Relocator::CorrectLoop(double old_time, double start_time, double end_time)
     Frames active_kfs = Map::Instance().GetKeyFrames(old_time, end_time);
     Frames new_submap_kfs = Map::Instance().GetKeyFrames(start_time, end_time);
     Frames all_kfs = active_kfs;
-    Atlas active_sections = pose_graph_->GetActiveSections(active_kfs, old_time, start_time);
-    Section &new_submap = pose_graph_->AddSubMap(old_time, start_time, end_time);
+    Atlas active_sections = PoseGraph::Instance().GetActiveSections(active_kfs, old_time, start_time);
+    Section &new_submap = PoseGraph::Instance().AddSubMap(old_time, start_time, end_time);
     adapt::Problem problem;
-    pose_graph_->BuildProblem(active_sections, new_submap, problem);
+    PoseGraph::Instance().BuildProblem(active_sections, new_submap, problem);
 
     // update new submap frams
     SE3d old_pose = (--new_submap_kfs.end())->second->pose;
@@ -381,7 +381,7 @@ void Relocator::CorrectLoop(double old_time, double start_time, double end_time)
     {
         std::unique_lock<std::mutex> lock1(backend_->mutex);
         SE3d transform = old_pose.inverse() * new_pose;
-        pose_graph_->ForwardPropagate(transform, end_time + epsilon);
+        PoseGraph::Instance().ForwardPropagate(transform, end_time + epsilon);
         if (mapping_)
         {
             Frames mapping_kfs = Map::Instance().GetKeyFrames(end_time + epsilon);
@@ -392,7 +392,7 @@ void Relocator::CorrectLoop(double old_time, double start_time, double end_time)
         }
     }
 
-    // pose_graph_->Optimize(active_sections, new_submap, problem);
+    // PoseGraph::Instance().Optimize(active_sections, new_submap, problem);
 }
 
 } // namespace lvio_fusion

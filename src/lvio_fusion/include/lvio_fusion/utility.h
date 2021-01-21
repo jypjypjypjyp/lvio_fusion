@@ -70,6 +70,20 @@ inline Vector3d closest_point_on_a_line(const Vector3d &A, const Vector3d &B, co
 };
 
 /**
+ * closest point on a panel
+ * @param A    A
+ * @param B    B
+ * @param P    P
+ * @return closest point
+ */
+inline Vector3d closest_point_on_a_panel(const Vector3d &A, const Vector3d &B, const Vector3d &P)
+{
+    Vector3d AB = B - A, AP = P - A;
+    double k = AB.dot(AP) / AB.norm();
+    return A + k * AB;
+};
+
+/**
  * remove close points
  * @param cloud_in      input
  * @param cloud_out     output

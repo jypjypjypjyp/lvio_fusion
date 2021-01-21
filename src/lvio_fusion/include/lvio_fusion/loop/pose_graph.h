@@ -25,6 +25,12 @@ class PoseGraph
 public:
     typedef std::shared_ptr<PoseGraph> Ptr;
 
+    static PoseGraph &Instance()
+    {
+        static PoseGraph instance;
+        return instance;
+    }
+
     void SetFrontend(Frontend::Ptr frontend) { frontend_ = frontend; }
 
     Section& AddSubMap(double old_time, double start_time, double end_time);
@@ -44,6 +50,10 @@ public:
     void ForwardPropagate(Section section);
 
 private:
+    PoseGraph() {}
+    PoseGraph(const PoseGraph &);
+    PoseGraph &operator=(const PoseGraph &);
+
     void UpdateSections(double time);
 
     Frontend::Ptr frontend_;

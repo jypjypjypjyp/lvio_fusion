@@ -93,7 +93,11 @@ bool Frontend::Track()
 {
     current_frame->pose = relative_i_j * last_frame_pose_cache_;
     Frame::Ptr base_frame = status == FrontendStatus::TRACKING_TRY ? last_key_frame : last_frame;
-    int num_inliers = (num_inliers = TrackLastFrame(base_frame)) == 0 ? Relocate(base_frame) : num_inliers;
+    int num_inliers = TrackLastFrame(base_frame);
+    if(num_inliers < num_features_tracking_bad_)
+    {
+        num_inliers = Relocate(base_frame);
+    }
 
     if ((status != FrontendStatus::INITIALIZING && num_inliers < num_features_needed_for_keyframe_) ||
         (status == FrontendStatus::INITIALIZING && current_frame->time - last_key_frame->time > 0.25))
@@ -165,7 +169,7 @@ int Frontend::TrackLastFrame(Frame::Ptr base_frame)
 
     int num_good_pts = 0;
     cv::Mat rvec, tvec, inliers, cv_R;
-    if ((2 * (int)points_2d.size() - (int)kps_last.size() > num_features_tracking_bad_) &&
+    if ((int)points_2d.size() > num_features_tracking_bad_ &&
         cv::solvePnPRansac(points_3d, points_2d, Camera::Get()->K, Camera::Get()->D, rvec, tvec, false, 100, 8.0F, 0.98, inliers, cv::SOLVEPNP_EPNP))
     {
         cv::Rodrigues(rvec, cv_R);
@@ -189,7 +193,7 @@ int Frontend::TrackLastFrame(Frame::Ptr base_frame)
     }
 
     LOG(INFO) << "Find " << num_good_pts << " in the last image.";
-    return 2 * num_good_pts - kps_last.size() < num_features_tracking_bad_ ? 0 : num_good_pts;
+    return num_good_pts;
 }
 
 int Frontend::Relocate(Frame::Ptr base_frame)
@@ -197,7 +201,7 @@ int Frontend::Relocate(Frame::Ptr base_frame)
     std::vector<cv::Point2f> kps_left, kps_right, kps_current;
     std::vector<Vector3d> pbs;
     int num_good_pts = matcher_.Relocate(base_frame, current_frame, kps_left, kps_right, kps_current, pbs);
-    if (num_good_pts)
+    if (num_good_pts > num_features_tracking_bad_)
     {
         for (int i = 0; i < kps_left.size(); i++)
         {
@@ -275,12 +279,11 @@ int Frontend::DetectNewFeatures()
         for (auto &pair_feature : current_frame->features_left)
         {
             auto feature = pair_feature.second;
-            cv::circle(mask, feature->keypoint, 20, 0, cv::FILLED);
+            cv::circle(mask, feature->keypoint, 10, 0, cv::FILLED);
         }
 
         std::vector<cv::Point2f> kps_left, kps_right; // must be point2f
-        // cv::goodFeaturesToTrack(current_frame->image_left, kps_left, num_features_ - current_frame->features_left.size(), 0.01, 20, mask);
-        matcher_.FastFeatureToTrack(current_frame->image_left, kps_left, 20, mask);
+        cv::goodFeaturesToTrack(current_frame->image_left, kps_left, num_features_ - current_frame->features_left.size(), 0.01, 20, mask);
 
         // use LK flow to estimate points in the right image
         kps_right = kps_left;

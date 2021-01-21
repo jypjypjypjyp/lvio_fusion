@@ -15,7 +15,7 @@ void ORBMatcher::FastFeatureToTrack(cv::Mat &image, std::vector<cv::Point2f> &co
     }
 
     std::vector<cv::KeyPoint> keypoints;
-    cv::FAST(image, keypoints, 20);
+    cv::FAST(image, keypoints, 10);
     for (size_t i = 0; i < keypoints.size(); i++)
     {
         if (mask.at<uchar>(keypoints[i].pt) != 0)
@@ -141,7 +141,7 @@ int ORBMatcher::Relocate(Frame::Ptr last_frame, Frame::Ptr current_frame,
     }
 
     LOG(INFO) << "Matcher relocate by " << num_good_pts << " points.";
-    return num_good_pts < num_features_threshold_ ? 0 : num_good_pts;
+    return num_good_pts;
 }
 
 int ORBMatcher::Relocate(Frame::Ptr last_frame, Frame::Ptr current_frame)
