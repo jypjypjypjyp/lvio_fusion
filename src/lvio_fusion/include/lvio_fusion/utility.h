@@ -274,47 +274,19 @@ inline double distance(cv::Point2f &pt1, cv::Point2f &pt2)
     return sqrt(dx * dx + dy * dy);
 }
 
-// convert opencv points
-inline void convert_points(const std::vector<cv::KeyPoint> &kps, std::vector<cv::Point2f> &ps)
-{
-    ps.resize(kps.size());
-    for (int i = 0; i < kps.size(); i++)
-    {
-        ps[i] = kps[i].pt;
-    }
-}
-
-// convert opencv points
-inline void convert_points(const std::vector<cv::Point2f> &ps, std::vector<cv::KeyPoint> &kps)
-{
-    kps.resize(ps.size());
-    for (int i = 0; i < ps.size(); i++)
-    {
-        kps[i] = cv::KeyPoint(ps[i], 1);
-    }
-}
-
 // double calculate optical flow
 inline int optical_flow(cv::Mat &prevImg, cv::Mat &nextImg,
                         std::vector<cv::Point2f> &prevPts, std::vector<cv::Point2f> &nextPts,
-                        std::vector<uchar> &status, bool use_motion = true)
+                        std::vector<uchar> &status)
 {
     if (prevPts.empty())
         return 0;
-    cv::Mat img_debug;
-    cv::cvtColor(nextImg, img_debug, cv::COLOR_GRAY2RGB);
+
     cv::Mat err;
-    if (use_motion)
-    {
-        cv::calcOpticalFlowPyrLK(
-            prevImg, nextImg, prevPts, nextPts, status, err, cv::Size(21, 21), 3,
-            cv::TermCriteria(cv::TermCriteria::COUNT + cv::TermCriteria::EPS, 30, 0.01),
-            cv::OPTFLOW_USE_INITIAL_FLOW);
-    }
-    else
-    {
-        cv::calcOpticalFlowPyrLK(prevImg, nextImg, prevPts, nextPts, status, err);
-    }
+    cv::calcOpticalFlowPyrLK(
+        prevImg, nextImg, prevPts, nextPts, status, err, cv::Size(21, 21), 3,
+        cv::TermCriteria(cv::TermCriteria::COUNT + cv::TermCriteria::EPS, 30, 0.01),
+        cv::OPTFLOW_USE_INITIAL_FLOW);
 
     std::vector<uchar> reverse_status;
     std::vector<cv::Point2f> reverse_pts = prevPts;
@@ -338,10 +310,6 @@ inline int optical_flow(cv::Mat &prevImg, cv::Mat &nextImg,
         else
             status[i] = 0;
     }
-    // if (use_motion && num_success_pts < prevPts.size() * 0.5)
-    //     return optical_flow(prevImg, nextImg, prevPts, nextPts, status, false);
-    cv::imshow("debug", img_debug);
-    cv::waitKey(1);
     return num_success_pts;
 }
 

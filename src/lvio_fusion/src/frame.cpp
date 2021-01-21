@@ -32,7 +32,6 @@ void Frame::RemoveFeature(visual::Feature::Ptr feature)
 {
     assert(feature->is_on_left_image && id != feature->landmark.lock()->FirstFrame().lock()->id);
     int a = features_left.erase(feature->landmark.lock()->id);
-    LOG(INFO) << "dasdsdaddddddddddddddddddddd" << a;
 }
 
 //NOTE:semantic map

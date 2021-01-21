@@ -7,132 +7,55 @@
 namespace lvio_fusion
 {
 
-// void ORBMatcher::ComputeBRIEF(Frame::Ptr frame)
-// {
-//     // compute descriptors
-//     std::vector<cv::KeyPoint> keypoints;
-//     for (auto &pair_feature : frame->features_left)
-//     {
-//         keypoints.push_back(cv::KeyPoint(pair_feature.second->keypoint, 1));
-//     }
-//     cv::Mat descriptors;
-//     detector_->compute(frame->image_left, keypoints, descriptors);
+void ORBMatcher::FastFeatureToTrack(cv::Mat &image, std::vector<cv::Point2f> &corners, double minDistance, cv::Mat mask)
+{
+    if (mask.empty())
+    {
+        mask = cv::Mat(image.size(), CV_8UC1, 255);
+    }
 
-//     // NOTE: detector_->compute maybe remove some row because its descriptor cannot be computed
-//     int j = 0, i = 0;
-//     frame->descriptors = cv::Mat::zeros(frame->features_left.size(), 32, CV_8U);
-//     for (auto &pair_feature : frame->features_left)
-//     {
-//         if (pair_feature.second->keypoint == keypoints[j].pt && j < descriptors.rows)
-//         {
-//             descriptors.row(j).copyTo(frame->descriptors.row(i));
-//             j++;
-//         }
-//         i++;
-//     }
-// }
+    std::vector<cv::KeyPoint> keypoints;
+    cv::FAST(image, keypoints, 20);
+    for (size_t i = 0; i < keypoints.size(); i++)
+    {
+        if (mask.at<uchar>(keypoints[i].pt) != 0)
+        {
+            cv::circle(mask, keypoints[i].pt, minDistance, 0, cv::FILLED);
+            corners.push_back(keypoints[i].pt);
+        }
+    }
+}
 
-// int ORBMatcher::Search(Frame::Ptr current_frame, Frame::Ptr last_frame, std::vector<cv::Point2f> &kps_current, std::vector<cv::Point2f> &kps_last, std::vector<uchar> &status, std::vector<double> &depths, float thershold)
-// {
-//     const static int max_dist = 50;
-//     std::vector<cv::Point2f> kps_mismatch, kps_add;
-//     std::vector<cv::KeyPoint> kps_mismatch_, kps_add_;
-//     cv::Mat descriptors_mismatch, descriptors_add;
-//     cv::Mat mask = cv::Mat::zeros(current_frame->image_left.size(), CV_8UC1);
-//     for (size_t i = 0; i < status.size(); ++i)
-//     {
-//         if (!status[i])
-//         {
-//             kps_mismatch.push_back(kps_last[i]);
-//             cv::circle(mask, kps_last[i], max_dist, 255, cv::FILLED);
-//         }
-//     }
-//     if (kps_mismatch.empty())
-//         return 0;
+void ORBMatcher::Match(cv::Mat &prevImg, cv::Mat &nextImg, std::vector<cv::Point2f> &prevPts, std::vector<cv::Point2f> &nextPts, std::vector<uchar> &status)
+{
+    std::vector<cv::KeyPoint> kps_prev, kps_next;
+    cv::Mat descriptors_prev, descriptors_next;
+    convert_points(prevPts, kps_prev);
+    detector_->compute(prevImg, kps_prev, descriptors_prev);
+    convert_points(kps_prev, prevPts);
+    cv::FAST(nextImg, kps_next, 20);
+    detector_->compute(nextImg, kps_next, descriptors_next);
 
-//     // compute descriptors of mismatch keypoints
-//     convert_points(kps_mismatch, kps_mismatch_);
-//     detector_->compute(last_frame->image_left, kps_mismatch_, descriptors_mismatch);
-//     convert_points(kps_mismatch_, kps_mismatch);
-//     // NOTE: detector_->compute maybe remove some row because its descriptor cannot be computed
-//     // remap
-//     std::unordered_map<int, int> map;
-//     for (int j = 0, i = 0; j < kps_mismatch.size(); j++)
-//     {
-//         for (; i < kps_last.size(); i++)
-//         {
-//             if (kps_mismatch[j] == kps_last[i])
-//             {
-//                 map[j] = i;
-//             }
-//         }
-//     }
-
-//     // detect and compute descriptors of supplementary keypoints
-//     detector_->detectAndCompute(current_frame->image_left, mask, kps_add_, descriptors_add);
-//     LOG(INFO) << ")))))))))))))))))))))))))))))))" << kps_add_.size();
-//     if (kps_add_.empty())
-//         return 0;
-//     convert_points(kps_add_, kps_add);
-
-//     cv::cvtColor(mask, mask, cv::COLOR_GRAY2RGB);
-//     for (auto p : kps_add)
-//     {
-//         cv::circle(mask, p, 2, cv::Scalar(0, 0, 255), cv::FILLED);
-//     }
-//     cv::imshow("mask", mask);
-
-//     int num_good_matches = 0;
-//     cv::Mat img_debug = current_frame->image_left;
-//     cv::cvtColor(img_debug, img_debug, cv::COLOR_GRAY2RGB);
-//     cv::Mat img_debug2 = current_frame->image_left;
-//     cv::cvtColor(img_debug2, img_debug2, cv::COLOR_GRAY2RGB);
-//     // match by distance and descriptors
-//     cv::flann::KDTreeIndexParams indexParams(1);
-//     cv::Mat_<float> features(0, 2);
-
-//     for (auto &&point : kps_add)
-//     {
-//         //Fill matrix
-//         cv::Mat row = (cv::Mat_<float>(1, 2) << point.x, point.y);
-//         features.push_back(row);
-//     }
-//     cv::flann::Index kdtree(features.reshape(1), indexParams);
-//     std::vector<int> indices;
-//     std::vector<float> dists;
-//     for (int j = 0; j < kps_mismatch.size(); j++)
-//     {
-//         std::vector<float> query = {kps_mismatch[j].x, kps_mismatch[j].y};
-//         int n = std::min(100, kdtree.radiusSearch(query, indices, dists, max_dist * max_dist, 100));
-//         cv::Mat descriptors = cv::Mat::zeros(n, descriptors_add.cols, descriptors_add.type());
-//         for (int i = 0; i < n; i++)
-//         {
-//             descriptors_add.row(indices[i]).copyTo(descriptors.row(i));
-//         }
-//         std::vector<cv::DMatch> matches;
-//         matcher_->match(descriptors_mismatch.row(j), descriptors, matches);
-//         if (matches.empty())
-//             continue;
-//         int index_mismatch = matches[0].queryIdx, index_add = indices[matches[0].trainIdx];
-//         cv::arrowedLine(img_debug, kps_mismatch[index_mismatch], kps_add[index_add], cv::Scalar(0, 0, 255), 1, 8, 0, 0.2);
-//         cv::circle(img_debug, kps_mismatch[index_mismatch], 2, cv::Scalar(0, 0, 255), cv::FILLED);
-//         kps_current[map[index_mismatch]] = kps_add[index_add];
-//         status[map[index_mismatch]] = 2;
-//         cv::arrowedLine(img_debug2, kps_mismatch[j], kps_add[index_add], cv::Scalar(0, 0, 255), 1, 8, 0, 0.2);
-//         num_good_matches++;
-//     }
-//     cv::imshow("debug", img_debug2);
-//     cv::waitKey(1);
-//     return num_good_matches;
-// }
+    std::vector<std::vector<cv::DMatch>> knn_matches;
+    matcher_->knnMatch(descriptors_prev, descriptors_next, knn_matches, 2);
+    const float ratio_thresh = 0.8;
+    nextPts.resize(prevPts.size(), cv::Point2f(0, 0));
+    status.resize(prevPts.size(), 0);
+    for (size_t i = 0; i < knn_matches.size(); i++)
+    {
+        if (knn_matches[i][0].distance < ratio_thresh * knn_matches[i][1].distance && distance(kps_prev[knn_matches[i][0].queryIdx].pt, kps_next[knn_matches[i][0].trainIdx].pt) < 200)
+        {
+            nextPts[knn_matches[i][0].queryIdx] = kps_next[knn_matches[i][0].trainIdx].pt;
+            status[knn_matches[i][0].queryIdx] = 1;
+        }
+    }
+}
 
 // kps_left: last keypoints, pbs: new landmark in last frame
 int ORBMatcher::Relocate(Frame::Ptr last_frame, Frame::Ptr current_frame,
                          std::vector<cv::Point2f> &kps_left, std::vector<cv::Point2f> &kps_right, std::vector<cv::Point2f> &kps_current, std::vector<Vector3d> &pbs)
 {
     // detect and match by ORB
-    cv::Mat img_debug;
-    cv::cvtColor(current_frame->image_left, img_debug, cv::COLOR_GRAY2RGB);
     std::vector<cv::KeyPoint> kps_fast_last, kps_fast_current;
     cv::Mat descriptors_last, descriptors_current;
     cv::FAST(last_frame->image_left, kps_fast_last, 20);
@@ -143,21 +66,20 @@ int ORBMatcher::Relocate(Frame::Ptr last_frame, Frame::Ptr current_frame,
     matcher_->knnMatch(descriptors_last, descriptors_current, knn_matches, 2);
     const float ratio_thresh = 0.8;
     std::vector<cv::Point2f> kps_match_left, kps_match_right, kps_match_current;
-    cv::Mat mask = cv::Mat::zeros(current_frame->image_left.size(), CV_8U);
+    cv::Mat mask = cv::Mat(current_frame->image_left.size(), CV_8UC1, 255);
     for (size_t i = 0; i < knn_matches.size(); i++)
     {
         if (knn_matches[i][0].distance < ratio_thresh * knn_matches[i][1].distance)
         {
             auto pt_fast_last = kps_fast_last[knn_matches[i][0].queryIdx].pt;
             auto pt_fast_current = kps_fast_current[knn_matches[i][0].trainIdx].pt;
-            if (distance(pt_fast_last, pt_fast_current) < 200 && mask.at<uchar>(pt_fast_current) != 255)
+            if (distance(pt_fast_last, pt_fast_current) < 200 && mask.at<uchar>(pt_fast_current) != 0)
             {
-                cv::circle(mask, pt_fast_current, 10, 255, cv::FILLED);
+                cv::circle(mask, pt_fast_current, 10, 0, cv::FILLED);
                 cv::Point2f kp_last = kps_fast_last[knn_matches[i][0].queryIdx].pt,
                             kp_current = kps_fast_current[knn_matches[i][0].trainIdx].pt;
                 kps_match_left.push_back(kp_last);
                 kps_match_current.push_back(kp_current);
-                cv::arrowedLine(img_debug, kp_current, kp_last, cv::Scalar(0, 255, 0), 1, 8, 0, 0.2);
             }
         }
     }
@@ -218,33 +140,13 @@ int ORBMatcher::Relocate(Frame::Ptr last_frame, Frame::Ptr current_frame,
         }
     }
 
-    cv::imshow("matcher", img_debug);
-    cv::waitKey(1);
     LOG(INFO) << "Matcher relocate by " << num_good_pts << " points.";
     return num_good_pts < num_features_threshold_ ? 0 : num_good_pts;
 }
 
-// bool ORBMatcher::SearchInAera(const BRIEF descriptor, const std::map<unsigned long, BRIEF> &descriptors_old, unsigned long &best_id)
-// {
-//     cv::Point2f best_pt;
-//     int best_distance = 256;
-//     for (auto &pair_desciptor : descriptors_old)
-//     {
-//         int distance = Hamming(descriptor, pair_desciptor.second);
-//         if (distance < best_distance)
-//         {
-//             best_distance = distance;
-//             best_id = pair_desciptor.first;
-//         }
-//     }
-//     return best_distance < 160;
-// }
-
-// int ORBMatcher::Hamming(const BRIEF &a, const BRIEF &b)
-// {
-//     BRIEF xor_of_bitset = a ^ b;
-//     int dis = xor_of_bitset.count();
-//     return dis;
-// }
+int ORBMatcher::Relocate(Frame::Ptr last_frame, Frame::Ptr current_frame)
+{
+    NotImplemented();
+}
 
 } // namespace lvio_fusion

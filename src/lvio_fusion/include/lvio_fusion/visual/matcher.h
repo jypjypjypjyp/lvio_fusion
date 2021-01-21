@@ -7,30 +7,24 @@
 namespace lvio_fusion
 {
 
-typedef std::bitset<256> BRIEF;
-
-inline cv::Mat brief2mat(BRIEF &brief)
+// convert opencv points
+inline void convert_points(const std::vector<cv::KeyPoint> &kps, std::vector<cv::Point2f> &ps)
 {
-    return cv::Mat(1, 32, CV_8U, reinterpret_cast<uchar *>(&brief));
-}
-
-inline BRIEF mat2brief(const cv::Mat &mat)
-{
-    BRIEF brief;
-    memcpy(&brief, mat.data, 32);
-    return brief;
-}
-
-inline std::map<unsigned long, BRIEF> mat2briefs(Frame::Ptr frame)
-{
-    std::map<unsigned long, BRIEF> briefs;
-    int i = 0;
-    for (auto &pair_feature : frame->features_left)
+    ps.resize(kps.size());
+    for (int i = 0; i < kps.size(); i++)
     {
-        briefs[pair_feature.first] = mat2brief(frame->descriptors.row(i));
-        i++;
+        ps[i] = kps[i].pt;
     }
-    return briefs;
+}
+
+// convert opencv points
+inline void convert_points(const std::vector<cv::Point2f> &ps, std::vector<cv::KeyPoint> &kps)
+{
+    kps.resize(ps.size());
+    for (int i = 0; i < ps.size(); i++)
+    {
+        kps[i] = cv::KeyPoint(ps[i], 1);
+    }
 }
 
 class ORBMatcher
@@ -41,6 +35,12 @@ public:
                                              num_features_threshold_(num_features_threshold) {}
 
     // int Search(Frame::Ptr current_frame, Frame::Ptr last_frame, std::vector<cv::Point2f> &kps_current, std::vector<cv::Point2f> &kps_last, std::vector<uchar> &status, std::vector<double> &depths, float thershold);
+
+    void FastFeatureToTrack(cv::Mat &image, std::vector<cv::Point2f> &corners, double minDistance, cv::Mat mask = cv::Mat());
+
+    void Match(cv::Mat &prevImg, cv::Mat &nextImg, std::vector<cv::Point2f> &prevPts, std::vector<cv::Point2f> &nextPts, std::vector<uchar> &status);
+
+    int Relocate(Frame::Ptr last_frame, Frame::Ptr current_frame);
 
     int Relocate(Frame::Ptr last_frame, Frame::Ptr current_frame,
                  std::vector<cv::Point2f> &kps_left, std::vector<cv::Point2f> &kps_right, std::vector<cv::Point2f> &kps_current, std::vector<Vector3d> &pbs);
