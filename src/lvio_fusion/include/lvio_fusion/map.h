@@ -7,6 +7,7 @@
 
 namespace lvio_fusion
 {
+
 class Map
 {
 public:
@@ -47,7 +48,7 @@ public:
     std::mutex mutex_local_kfs;
     Frames keyframes;
     visual::Landmarks landmarks;
-    
+
 private:
     Map() {}
     Map(const Map &);

@@ -11,63 +11,32 @@
 #include "lvio_fusion/loop/loop.h"
 #include "lvio_fusion/loop/pose_graph.h"
 
-#include <DBoW3/DBoW3.h>
-#include <DBoW3/Database.h>
-#include <DBoW3/Vocabulary.h>
-#include <bitset>
+// #include <DBoW3/DBoW3.h>
+// #include <DBoW3/Database.h>
+// #include <DBoW3/Vocabulary.h>
 
 namespace lvio_fusion
 {
 
-typedef std::bitset<256> BRIEF;
-
-inline cv::Mat brief2mat(BRIEF &brief)
-{
-    return cv::Mat(1, 32, CV_8U, reinterpret_cast<uchar *>(&brief));
-}
-
-inline BRIEF mat2brief(const cv::Mat &mat)
-{
-    BRIEF brief;
-    memcpy(&brief, mat.data, 32);
-    return brief;
-}
-
-inline std::map<unsigned long, BRIEF> mat2briefs(Frame::Ptr frame)
-{
-    std::map<unsigned long, BRIEF> briefs;
-    int i = 0;
-    for (auto pair_feature : frame->features_left)
-    {
-        briefs[pair_feature.first] = mat2brief(frame->descriptors.row(i));
-        i++;
-    }
-    return briefs;
-}
-
-class LoopDetector
+class Relocator
 {
 public:
-    typedef std::shared_ptr<LoopDetector> Ptr;
+    typedef std::shared_ptr<Relocator> Ptr;
 
-    LoopDetector(std::string voc_path);
+    Relocator(std::string voc_path);
 
     void SetFeatureAssociation(FeatureAssociation::Ptr association) { association_ = association; }
 
     void SetMapping(Mapping::Ptr mapping) { mapping_ = mapping; }
 
-    void SetFrontend(Frontend::Ptr frontend) { frontend_ = frontend; }
-
     void SetBackend(Backend::Ptr backend) { backend_ = backend; }
 
     void SetPoseGraph(PoseGraph::Ptr pose_graph) { pose_graph_ = pose_graph; }
 
-    double head = 0;
-
 private:
     void DetectorLoop();
 
-    void AddKeyFrameIntoVoc(Frame::Ptr frame);
+    // void AddKeyFrameIntoVoc(Frame::Ptr frame);
 
     bool DetectLoop(Frame::Ptr frame, Frame::Ptr &old_frame);
 
@@ -77,27 +46,21 @@ private:
 
     bool RelocateByPoints(Frame::Ptr frame, Frame::Ptr old_frame);
 
-    bool SearchInAera(const BRIEF descriptor, const std::map<unsigned long, BRIEF> &descriptors_old, unsigned long &best_id);
-
-    int Hamming(const BRIEF &a, const BRIEF &b);
-
     void BuildProblem(Frames &active_kfs, adapt::Problem &problem);
 
-    void BuildProblemWithLoop(Frames &active_kfs, adapt::Problem &problem);
+    void BuildProblemWithRelocated(Frames &active_kfs, adapt::Problem &problem);
 
     void CorrectLoop(double old_time, double start_time, double end_time);
 
-    DBoW3::Database db_;
-    DBoW3::Vocabulary voc_;
+    // DBoW3::Database db_;
+    // DBoW3::Vocabulary voc_;
     Mapping::Ptr mapping_;
-    Frontend::Ptr frontend_;
     Backend::Ptr backend_;
     FeatureAssociation::Ptr association_;
     PoseGraph::Ptr pose_graph_;
 
     std::thread thread_;
-    cv::Ptr<cv::Feature2D> detector_;
-    std::map<DBoW3::EntryId, double> map_dbow_to_frames_;
+    // std::map<DBoW3::EntryId, double> map_dbow_to_frames_;
 };
 
 } // namespace lvio_fusion

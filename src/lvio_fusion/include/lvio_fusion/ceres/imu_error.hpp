@@ -929,9 +929,11 @@ template <typename T>
         //  Matrix<double, 9,9> sqrt_info = es.eigenvectors()*eigs.asDiagonal()*es.eigenvectors().transpose();
         Matrix<T, 9,9> sqrt_info =LLT<Matrix<T, 9, 9>>( (mpInt->C.block<9,9>(0,0).inverse()).cast<T>()).matrixL().transpose();
         //Matrix<T, 9,9> sqrt_info =sqrt_info_.cast<T>();
-        // LOG(INFO)<<"InertialError sqrt_info "<<sqrt_info;
+        //LOG(INFO)<<"InertialError sqrt_info "<<sqrt_info;
         //assert(!isnan(residual[0])&&!isnan(residual[1])&&!isnan(residual[2])&&!isnan(residual[3])&&!isnan(residual[4])&&!isnan(residual[5])&&!isnan(residual[6])&&!isnan(residual[7])&&!isnan(residual[8]));
+        //assert(sqrt_info(0,0)<1e9);
         residual = sqrt_info* residual;
+
         // LOG(INFO)<<"IMUError:  r "<<residual.transpose()<<"  "<<mpInt->dT;
         // LOG(INFO)<<"                Qi "<<Qi.toRotationMatrix().eulerAngles(0,1,2).transpose()<<" Qj "<<Qj.toRotationMatrix().eulerAngles(0,1,2).transpose()<<"dQ"<<dR.eulerAngles(0,1,2).transpose();
         // LOG(INFO)<<"                Pi "<<Pi.transpose()<<" Pj "<<Pj.transpose()<<"dP"<<dP.transpose();

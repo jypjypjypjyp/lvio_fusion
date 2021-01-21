@@ -10,9 +10,9 @@ class LidarPlaneError
 {
 public:
     LidarPlaneError(Vector3d p, Vector3d pa, Vector3d pb, Vector3d pc)
-        : p_(p), pa_(pa), pb_(pb), pc_(pc)
+        : p_(p), pa_(pa)
     {
-        abc_norm_ = (pa_ - pb_).cross(pa_ - pc_);
+        abc_norm_ = (pa_ - pb).cross(pa_ - pc);
         abc_norm_.normalize();
     }
 
@@ -35,8 +35,7 @@ public:
     }
 
 private:
-    Vector3d p_, pa_, pb_, pc_;
-    Vector3d abc_norm_;
+    Vector3d p_, pa_, abc_norm_;
 };
 
 inline void se32rpyxyz(const SE3d relatice_i_j, double *rpyxyz)
@@ -57,11 +56,8 @@ inline SE3d rpyxyz2se3(const double *rpyxyz)
 class LidarPlaneErrorRPZ
 {
 public:
-    LidarPlaneErrorRPZ(LidarPlaneError origin_error, SE3d Twc1, double *rpyxyz, double *weights)
-        : origin_error_(origin_error), Twc1_(Twc1), rpyxyz_(rpyxyz)
-    {
-        weights_[0] = weights[0];
-    }
+    LidarPlaneErrorRPZ(LidarPlaneError origin_error, SE3d Twc1, double *rpyxyz, double weight)
+        : origin_error_(origin_error), Twc1_(Twc1), rpyxyz_(rpyxyz), weight_(weight) {}
 
     template <typename T>
     bool operator()(const T *pitch, const T *roll, const T *z, T *residual) const
@@ -76,31 +72,28 @@ public:
         ceres::Cast(Twc1_.data(), SE3d::num_parameters, Twc1);
         ceres::SE3Product(relative_i_j, Twc1, Twc2);
         origin_error_(Twc2, residual);
-        residual[0] = T(weights_[0]) * residual[0];
+        residual[0] = T(weight_) * residual[0];
         return true;
     }
 
-    static ceres::CostFunction *Create(Vector3d p, Vector3d pa, Vector3d pb, Vector3d pc, SE3d Twc1, double *rpyxyz, double *weights)
+    static ceres::CostFunction *Create(Vector3d p, Vector3d pa, Vector3d pb, Vector3d pc, SE3d Twc1, double *rpyxyz, double weight)
     {
         LidarPlaneError origin_error(p, pa, pb, pc);
-        return (new ceres::AutoDiffCostFunction<LidarPlaneErrorRPZ, 1, 1, 1, 1>(new LidarPlaneErrorRPZ(origin_error, Twc1, rpyxyz, weights)));
+        return (new ceres::AutoDiffCostFunction<LidarPlaneErrorRPZ, 1, 1, 1, 1>(new LidarPlaneErrorRPZ(origin_error, Twc1, rpyxyz, weight)));
     }
 
 private:
     LidarPlaneError origin_error_;
     SE3d Twc1_;
     double *rpyxyz_;
-    double weights_[1];
+    double weight_;
 };
 
 class LidarPlaneErrorYXY
 {
 public:
-    LidarPlaneErrorYXY(LidarPlaneError origin_error, SE3d Twc1, double *rpyxyz, double *weights)
-        : origin_error_(origin_error), Twc1_(Twc1), rpyxyz_(rpyxyz)
-    {
-        weights_[0] = weights[1];
-    }
+    LidarPlaneErrorYXY(LidarPlaneError origin_error, SE3d Twc1, double *rpyxyz, double weight)
+        : origin_error_(origin_error), Twc1_(Twc1), rpyxyz_(rpyxyz), weight_(weight) {}
 
     template <typename T>
     bool operator()(const T *yaw, const T *x, const T *y, T *residual) const
@@ -115,21 +108,21 @@ public:
         ceres::Cast(Twc1_.data(), SE3d::num_parameters, Twc1);
         ceres::SE3Product(relative_i_j, Twc1, Twc2);
         origin_error_(Twc2, residual);
-        residual[0] = T(weights_[0]) * residual[0];
+        residual[0] = T(weight_) * residual[0];
         return true;
     }
 
-    static ceres::CostFunction *Create(Vector3d p, Vector3d pa, Vector3d pb, Vector3d pc, SE3d Twc1, double *rpyxyz, double *weights)
+    static ceres::CostFunction *Create(Vector3d p, Vector3d pa, Vector3d pb, Vector3d pc, SE3d Twc1, double *rpyxyz, double weight)
     {
         LidarPlaneError origin_error(p, pa, pb, pc);
-        return (new ceres::AutoDiffCostFunction<LidarPlaneErrorYXY, 1, 1, 1, 1>(new LidarPlaneErrorYXY(origin_error, Twc1, rpyxyz, weights)));
+        return (new ceres::AutoDiffCostFunction<LidarPlaneErrorYXY, 1, 1, 1, 1>(new LidarPlaneErrorYXY(origin_error, Twc1, rpyxyz, weight)));
     }
 
 private:
     LidarPlaneError origin_error_;
     SE3d Twc1_;
     double *rpyxyz_;
-    double weights_[1];
+    double weight_;
 };
 
 } // namespace lvio_fusion

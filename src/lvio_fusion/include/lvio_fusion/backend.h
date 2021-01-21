@@ -26,7 +26,7 @@ class Backend
 public:
     typedef std::shared_ptr<Backend> Ptr;
 
-    Backend(double range);
+    Backend(double window_size, bool update_weights);
 
     void SetFrontend(std::shared_ptr<Frontend> frontend) { frontend_ = frontend; }
 
@@ -42,13 +42,14 @@ public:
 
     BackendStatus status = BackendStatus::RUNNING;
     std::mutex mutex;
-    double head = 0;
+    double finished = 0;
+     double head = 0;
     Initializer::Ptr initializer_;//NEWADD
     bool isInitliazing=false;//NEWADD
     bool initA=false;
     bool initB=false;
-         Frame::Ptr new_frame;
-     SE3d old_pose;
+    Frame::Ptr new_frame;
+    SE3d old_pose;
 private:
     void BackendLoop();
 
@@ -62,13 +63,15 @@ private:
 
     std::weak_ptr<Frontend> frontend_;
     Mapping::Ptr mapping_;
+  //  Initializer::Ptr initializer_;
 
     std::thread thread_;
     std::mutex running_mutex_, pausing_mutex_;
     std::condition_variable running_;
     std::condition_variable pausing_;
     std::condition_variable map_update_;
-    const double delay_;
+    const double window_size_;
+    const bool update_weights_;
 };
 
 } // namespace lvio_fusion

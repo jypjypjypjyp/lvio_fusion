@@ -51,6 +51,7 @@ public:
              const double &timestamp): a(acc_x,acc_y,acc_z), w(ang_vel_x,ang_vel_y,ang_vel_z), t(timestamp){}
     imuPoint(const Vector3d Acc, const  Vector3d Gyro, const double &timestamp):
              a(Acc[0],Acc[1],Acc[2]), w(Gyro[0],Gyro[1],Gyro[2]), t(timestamp){}
+    imuPoint(){a=Vector3d::Zero();w=Vector3d::Zero();t=0;}
 public:
     Vector3d a;
     Vector3d w;

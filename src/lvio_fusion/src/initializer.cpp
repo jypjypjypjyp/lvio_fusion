@@ -176,6 +176,7 @@ LOG(INFO)<<rwg.toRotationMatrix();
         LOG(INFO)<<current_frame->preintegration->dV.transpose();
         LOG(INFO)<<"InertialOptimization  "<<current_frame->time-1.40364e+09/*+8.60223e+07*/<<"   Vwb1  "<<current_frame->Vw.transpose()*tcb;//<<"\nR: \n"<<tcb.inverse()*current_frame->pose.rotationMatrix();
     }
+    LOG(INFO)<<"BIAS   a "<<bias_.linearized_ba.transpose()<<" g "<<bias_.linearized_bg.transpose();
     
     return bias_;
 }
@@ -288,7 +289,7 @@ Bias FullInertialBA(Frames &key_frames, Matrix3d Rwg, double priorG, double prio
             auto para_v_last = last_frame->Vw.data();
             ceres::CostFunction *cost_function =InertialError3::Create(current_frame->preintegration,Rwg);
             problem.AddResidualBlock(cost_function, NULL, para_kf_last, para_v_last,  para_gyroBias,para_accBias, para_kf, para_v);
-             showIMUErrorINIT(para_kf_last, para_v_last,  para_gyroBias,para_accBias, para_kf, para_v,current_frame->preintegration,current_frame->time-1.40364e+09);
+            // showIMUErrorINIT(para_kf_last, para_v_last,  para_gyroBias,para_accBias, para_kf, para_v,current_frame->preintegration,current_frame->time-1.40364e+09);
             //LOG(INFO)<<current_frame->preintegration->dV.transpose();
                 // LOG(INFO)<<"FullInertialBA ckf: "<<current_frame->id<<"  lkf: "<<last_frame->id;
                 // LOG(INFO)<<"     current pose: "<<current_frame->pose.translation().transpose(); 
@@ -308,7 +309,8 @@ Bias FullInertialBA(Frames &key_frames, Matrix3d Rwg, double priorG, double prio
     ceres::Solver::Options options;
     options.linear_solver_type = ceres::DENSE_SCHUR;
 
-    options.max_solver_time_in_seconds =0.01;
+    //options.max_solver_time_in_seconds =0.01;
+    options.max_num_iterations=4;
     options.num_threads = 4;
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
@@ -330,6 +332,7 @@ Bias FullInertialBA(Frames &key_frames, Matrix3d Rwg, double priorG, double prio
              LOG(INFO)<<"FullInertialBA  "<<current_frame->time-1.40364e+09/*+8.60223e+07*/<<"   Vwb1  "<<current_frame->Vw.transpose()*tcb;//<<"\nR: \n"<<tcb.inverse()*current_frame->pose.rotationMatrix();
         }
     }
+    LOG(INFO)<<"BIAS   a "<<lastBias.linearized_ba.transpose()<<" g "<<lastBias.linearized_bg.transpose();
     return lastBias;
 }
 
@@ -861,7 +864,7 @@ Cs[9]<<7.2250002e-09, 2.0828163e-17, 2.2627446e-17, -6.3372092e-11, 2.7986602e-0
          g<< 0, 0, -G;
          g=Rwg*g;
         // LOG(INFO)<<"dirG "<<(tcb.inverse()*dirG).transpose();
-        LOG(INFO)<<"INITG "<<(tcb.inverse()*g).transpose();
+       // LOG(INFO)<<"INITG "<<(tcb.inverse()*g).transpose();
     } 
     else
     {
@@ -910,7 +913,7 @@ bool  Initializer::InitializeIMU(Frames keyframes)
             tcb<<0.0148655429818, -0.999880929698, 0.00414029679422,
             0.999557249008, 0.0149672133247, 0.025715529948,
             -0.0257744366974, 0.00375618835797, 0.999660727178;
-            LOG(INFO)<<"INITG "<<(tcb.inverse()*g).transpose()<<"\n"<<Rwg;
+            //LOG(INFO)<<"INITG "<<(tcb.inverse()*g).transpose()<<"\n"<<Rwg;
     Bias bias_=InertialOptimization(keyframes,Rwg, Scale, bg, ba, priorG, priorA);
 
         Vector3d dirG;
@@ -948,11 +951,13 @@ bool  Initializer::InitializeIMU(Frames keyframes)
     }
 
     // 进行完全惯性优化
-    Bias lastBias=FullInertialBA(keyframes,Rwg, priorG, priorA);
+    if(!initialized)
+        Bias lastBias=FullInertialBA(keyframes,Rwg, priorG, priorA);
     // frontend_.lock()->UpdateFrameIMU(lastBias);
-    frontend_.lock()->current_key_frame->bImu = true;
+    frontend_.lock()->last_key_frame->bImu = true;
     bimu=true;
     initialized=true;
+    reinit=false;
     return true;
 }
 

@@ -8,7 +8,7 @@
 #include "lvio_fusion/imu/initializer.h"
 #include "lvio_fusion/lidar/association.h"
 #include "lvio_fusion/lidar/mapping.h"
-#include "lvio_fusion/loop/detector.h"
+#include "lvio_fusion/loop/relocator.h"
 #include "lvio_fusion/loop/pose_graph.h"
 #include "lvio_fusion/navsat/navsat.h"
 #include "lvio_fusion/semantic/detected_object.h"
@@ -43,17 +43,15 @@ public:
 
     void InputIMU(double time, Vector3d acc, Vector3d gyr);
 
-    bool Init(int use_imu, int use_lidar, int use_navsat, int use_loop, int is_semantic);
+    bool Init(int use_imu, int use_lidar, int use_navsat, int use_loop, int use_adapt);
 
     Frontend::Ptr frontend;
     Backend::Ptr backend;
-    LoopDetector::Ptr detector;
+    Relocator::Ptr relocator;
     FeatureAssociation::Ptr association;
     Mapping::Ptr mapping;
     Initializer::Ptr initializer;
     PoseGraph::Ptr pose_graph;
-
-    int flags = Flag::None;
 
 private:
     std::string config_file_path_;

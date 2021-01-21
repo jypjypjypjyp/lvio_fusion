@@ -21,7 +21,7 @@ public:
     std::weak_ptr<Frontend> frontend_;
     bool initialized = false;//是否初始化完成
     bool bimu=false;//是否经过imu尺度优化
-
+    bool reinit=false;
     int num_frames = 10;
     
     Eigen::Matrix3d Rwg;       //重力方向

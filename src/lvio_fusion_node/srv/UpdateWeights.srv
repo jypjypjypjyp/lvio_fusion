@@ -1,0 +1,5 @@
+sensor_msgs/Image images
+---
+float64 visual
+float64 lidar_ground
+float64 lidar_surf

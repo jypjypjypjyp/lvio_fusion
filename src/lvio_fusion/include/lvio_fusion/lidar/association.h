@@ -54,7 +54,6 @@ private:
 
     ImageProjection::Ptr projection_;
     std::map<double, Point3Cloud::Ptr> raw_point_clouds_;
-    double head_ = 0; // header of the frames' time which already has a point cloud
     float *curvatures;
 
     // params

@@ -5,8 +5,8 @@ use_imu: 1
 use_lidar: 0
 use_navsat: 0
 use_loop: 0             # 0 for only odometry, 1 for whole system
-num_of_cam: 2
-is_semantic: 0
+use_semantic: 0
+train: 0
 
 # ros parameters
 imu_topic: '/kitti/oxts/imu'
@@ -15,19 +15,22 @@ navsat_topic: '/kitti/oxts/gps/fix'
 image0_topic: '/kitti/camera_gray_left/image_raw'
 image1_topic: '/kitti/camera_gray_right/image_raw'
 color_topic: '/kitti/camera_color_left/image_raw'
-result_path: '/home/zoet/Projects.new/lvio-fusion/result/result.csv'
+result_path: '/home/zoet/Projects/lvio_fusion/result/result.csv'
+
+# cameras parameters
+undistort: 0
+
+# camera0 intrinsics
+camera0.fx: 7.188560000000e+02
+camera0.fy: 7.188560000000e+02
+camera0.cx: 6.071928000000e+02
+camera0.cy: 1.852157000000e+02
 
 # camera1 intrinsics
 camera1.fx: 7.188560000000e+02
 camera1.fy: 7.188560000000e+02
 camera1.cx: 6.071928000000e+02
 camera1.cy: 1.852157000000e+02
-
-# camera2 intrinsics
-camera2.fx: 7.188560000000e+02
-camera2.fy: 7.188560000000e+02
-camera2.cx: 6.071928000000e+02
-camera2.cy: 1.852157000000e+02
 
 # lidar parameters
 num_scans: 64           # only for 16, 32, 64
@@ -81,12 +84,11 @@ base_to_lidar: !!opencv-matrix
 # number of features
 num_features: 200
 num_features_init: 50
-num_features_tracking: 8
-num_features_tracking_bad: 8
-num_features_needed_for_keyframe: 90
+num_features_tracking_bad: 20
+num_features_needed_for_keyframe: 60
 
 # backend
-delay: 3
+windows_size: 3
 
 # loop
-voc_path: '/home/zoet/Projects.new/lvio_fusion/misc/orbvoc.dbow3'
+voc_path: '/home/zoet/Projects/lvio_fusion/misc/orbvoc.dbow3'
