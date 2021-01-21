@@ -103,8 +103,7 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
 
     if (use_loop)
     {
-        relocator = Relocator::Ptr(new Relocator(
-            Config::Get<std::string>("voc_path")));
+        relocator = Relocator::Ptr(new Relocator);
         relocator->SetBackend(backend);
         relocator->SetPoseGraph(pose_graph);
     }

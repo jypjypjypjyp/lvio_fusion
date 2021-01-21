@@ -204,8 +204,6 @@ int Frontend::Relocate(Frame::Ptr base_frame)
             auto new_landmark = visual::Landmark::Create(pbs[i]);
             auto new_left_feature = visual::Feature::Create(base_frame, kps_left[i], new_landmark);
             auto new_right_feature = visual::Feature::Create(base_frame, kps_right[i], new_landmark);
-            new_left_feature->a = 2;
-            new_right_feature->a = 2;
             new_right_feature->is_on_left_image = false;
             new_landmark->AddObservation(new_left_feature);
             new_landmark->AddObservation(new_right_feature);
@@ -215,7 +213,6 @@ int Frontend::Relocate(Frame::Ptr base_frame)
             position_cache_[new_landmark->id] = new_landmark->ToWorld();
 
             auto feature = visual::Feature::Create(current_frame, kps_current[i], new_landmark);
-            feature->a = 3;
             current_frame->AddFeature(feature);
             new_landmark->AddObservation(feature);
         }

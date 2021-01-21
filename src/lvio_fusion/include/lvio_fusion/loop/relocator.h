@@ -11,10 +11,6 @@
 #include "lvio_fusion/loop/loop.h"
 #include "lvio_fusion/loop/pose_graph.h"
 
-// #include <DBoW3/DBoW3.h>
-// #include <DBoW3/Database.h>
-// #include <DBoW3/Vocabulary.h>
-
 namespace lvio_fusion
 {
 
@@ -36,8 +32,6 @@ public:
 private:
     void DetectorLoop();
 
-    // void AddKeyFrameIntoVoc(Frame::Ptr frame);
-
     bool DetectLoop(Frame::Ptr frame, Frame::Ptr &old_frame);
 
     bool Relocate(Frame::Ptr frame, Frame::Ptr old_frame);
@@ -52,15 +46,12 @@ private:
 
     void CorrectLoop(double old_time, double start_time, double end_time);
 
-    // DBoW3::Database db_;
-    // DBoW3::Vocabulary voc_;
     Mapping::Ptr mapping_;
     Backend::Ptr backend_;
     FeatureAssociation::Ptr association_;
     PoseGraph::Ptr pose_graph_;
 
     std::thread thread_;
-    // std::map<DBoW3::EntryId, double> map_dbow_to_frames_;
 };
 
 } // namespace lvio_fusion

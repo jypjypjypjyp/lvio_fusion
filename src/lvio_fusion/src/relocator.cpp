@@ -7,7 +7,6 @@
 #include "lvio_fusion/visual/feature.h"
 #include "lvio_fusion/visual/landmark.h"
 
-#include <DBoW3/QueryResults.h>
 #include <opencv2/core/eigen.hpp>
 #include <pcl/filters/voxel_grid.h>
 #include <pcl/io/pcd_io.h>
@@ -16,11 +15,8 @@
 namespace lvio_fusion
 {
 
-Relocator::Relocator(std::string voc_path)
+Relocator::Relocator()
 {
-    // detector_ = cv::ORB::create();
-    // voc_ = DBoW3::Vocabulary(voc_path);
-    // db_ = DBoW3::Database(voc_, false, 0);
     thread_ = std::thread(std::bind(&Relocator::DetectorLoop, this));
 }
 
@@ -68,67 +64,8 @@ void Relocator::DetectorLoop()
     }
 }
 
-// void Relocator::AddKeyFrameIntoVoc(Frame::Ptr frame)
-// {
-//     // compute descriptors
-//     std::vector<cv::KeyPoint> keypoints;
-//     for (auto &pair_feature : frame->features_left)
-//     {
-//         keypoints.push_back(cv::KeyPoint(pair_feature.second->keypoint, 1));
-//     }
-//     cv::Mat descriptors;
-//     detector_->compute(frame->image_left, keypoints, descriptors);
-//     DBoW3::EntryId id = db_.add(descriptors);
-//     map_dbow_to_frames_[id] = frame->time;
-
-//     // NOTE: detector_->compute maybe remove some row because its descriptor cannot be computed
-//     int j = 0, i = 0;
-//     frame->descriptors = cv::Mat::zeros(frame->features_left.size(), 32, CV_8U);
-//     for (auto &pair_feature : frame->features_left)
-//     {
-//         if (pair_feature.second->keypoint == keypoints[j].pt && j < descriptors.rows)
-//         {
-//             descriptors.row(j).copyTo(frame->descriptors.row(i));
-//             j++;
-//         }
-//         i++;
-//     }
-// }
-
 bool Relocator::DetectLoop(Frame::Ptr frame, Frame::Ptr &old_frame)
 {
-    // NOTE: DBow3 is not good
-    // //first query; then add this frame into database!
-    // DBoW3::QueryResults ret;
-    // db_.query(frame->descriptors, ret, 4, frame->id - 20);
-    // // ret[0] is the nearest neighbour's score. threshold change with neighour score
-    // bool find_loop = false;
-    // cv::Mat loop_result;
-    // // a good match with its nerghbour
-    // if (ret.size() >= 1 && ret[0].Score > 0.05)
-    //     for (unsigned int i = 1; i < ret.size(); i++)
-    //     {
-    //         if (ret[i].Score > 0.015)
-    //         {
-    //             find_loop = true;
-    //         }
-    //     }
-    // if (find_loop && frame->id > 20)
-    // {
-    //     int max_index = -1;
-    //     for (unsigned int i = 0; i < ret.size(); i++)
-    //     {
-    //         if (max_index == -1 || (ret[i].Id > max_index && ret[i].Score > 0.015))
-    //             max_index = ret[i].Id;
-    //     }
-    //     old_frame = Map::Instance().keyframes[map_dbow_to_frames_[max_index]];
-    //     // check the distance
-    //     if ((frame->pose.inverse().translation() - old_frame->pose.inverse().translation()).norm() < 20)
-    //     {
-    //         return true;
-    //     }
-    // }
-    // return false;
     Frames candidate_kfs = Map::Instance().GetKeyFrames(0, backend_->finished - 30);
     double min_distance = 10;
     for (auto &pair_kf : candidate_kfs)

@@ -66,6 +66,3 @@ num_features_needed_for_keyframe: 80
 
 # backend
 windows_size: 3
-
-# loop
-voc_path: '/home/zoet/Projects.new/lvio_fusion/misc/orbvoc.dbow3'

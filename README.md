@@ -10,7 +10,6 @@
 * opencv
 * pcl
 * ceres-solver
-* DBoW3
 * libgeographic-dev
 
 ## Usage
