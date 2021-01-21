@@ -19,7 +19,7 @@ class Relocator
 public:
     typedef std::shared_ptr<Relocator> Ptr;
 
-    Relocator(std::string voc_path);
+    Relocator();
 
     void SetFeatureAssociation(FeatureAssociation::Ptr association) { association_ = association; }
 
