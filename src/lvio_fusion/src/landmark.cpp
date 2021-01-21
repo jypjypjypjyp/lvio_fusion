@@ -2,6 +2,7 @@
 #include "lvio_fusion/visual/landmark.h"
 #include "lvio_fusion/frame.h"
 #include "lvio_fusion/visual/camera.h"
+#include "lvio_fusion/map.h"
 
 namespace lvio_fusion
 {
@@ -26,11 +27,22 @@ void Landmark::Clear()
 {
     for (auto &pair_feature : observations)
     {
-        auto feature = pair_feature.second;
-        feature->frame.lock()->features_left.erase(id);
+        auto a = pair_feature.second->frame.lock();
+        pair_feature.second->frame.lock()->features_left.erase(id);
     }
     auto right_feature = first_observation;
     right_feature->frame.lock()->features_right.erase(id);
+
+    int num = 0;
+    Frames a = Map::Instance().GetKeyFrames(FirstFrame().lock()->time);
+    for (auto i : a)
+    {
+        if (i.second->features_left.find(id) != i.second->features_left.end())
+        {
+            num++;
+        }
+    }
+    assert(num ==0);
 }
 
 std::weak_ptr<Frame> Landmark::FirstFrame()

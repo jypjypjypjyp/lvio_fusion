@@ -63,6 +63,7 @@ void Map::RemoveLandmark(visual::Landmark::Ptr landmark)
     std::unique_lock<std::mutex> lock(mutex_local_kfs);
     landmark->Clear();
     landmarks.erase(landmark->id);
+    
 }
 
 SE3d Map::ComputePose(double time)

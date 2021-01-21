@@ -46,9 +46,11 @@ private:
 
     bool Reset();
 
-    int TrackLastFrame(Frame::Ptr last_frame);
+    int TrackLastFrame(Frame::Ptr base_frame);
 
-    void CreateKeyframe(bool need_new_features = true);
+    int Relocate(Frame::Ptr base_frame);
+
+    void CreateKeyframe();
 
     bool InitMap();
 
@@ -56,11 +58,9 @@ private:
 
     int TriangulateNewPoints();
 
-    void UndistortKeyPoints();
-
     // data
     std::weak_ptr<Backend> backend_;
-    ORBMatcher mather_; 
+    ORBMatcher matcher_; 
     std::unordered_map<unsigned long, Vector3d> position_cache_;
     SE3d last_frame_pose_cache_;
 

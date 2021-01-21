@@ -36,15 +36,22 @@ inline std::map<unsigned long, BRIEF> mat2briefs(Frame::Ptr frame)
 class ORBMatcher
 {
 public:
-    ORBMatcher() : detector_(cv::ORB::create()), matcher_(cv::DescriptorMatcher::create("BruteForce-Hamming")) {}
+    ORBMatcher(int num_features_threshold) : detector_(cv::ORB::create()),
+                                             matcher_(cv::DescriptorMatcher::create("BruteForce-Hamming")),
+                                             num_features_threshold_(num_features_threshold) {}
 
-    int Search(Frame::Ptr current_frame, Frame::Ptr last_frame, std::vector<cv::Point2f> &kps_current, std::vector<cv::Point2f> &kps_last, std::vector<uchar> &status, std::vector<double> &depths, float thershold);
+    // int Search(Frame::Ptr current_frame, Frame::Ptr last_frame, std::vector<cv::Point2f> &kps_current, std::vector<cv::Point2f> &kps_last, std::vector<uchar> &status, std::vector<double> &depths, float thershold);
+
+    int Relocate(Frame::Ptr last_frame, Frame::Ptr current_frame,
+                 std::vector<cv::Point2f> &kps_left, std::vector<cv::Point2f> &kps_right, std::vector<cv::Point2f> &kps_current, std::vector<Vector3d> &pbs);
+
+private:
+    cv::Mat ComputeBRIEF(cv::Mat image, std::vector<cv::Point2f> &keypoints);
 
     cv::Ptr<cv::Feature2D> detector_;
     cv::Ptr<cv::DescriptorMatcher> matcher_;
 
-private:
-    cv::Mat ComputeBRIEF(cv::Mat image, std::vector<cv::Point2f> &keypoints);
+    int num_features_threshold_;
 };
 
 } // namespace lvio_fusion

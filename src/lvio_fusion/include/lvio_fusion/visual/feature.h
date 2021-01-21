@@ -29,6 +29,7 @@ public:
         return new_feature;
     }
 
+    int a=0;
     std::weak_ptr<Frame> frame;
     cv::Point2f keypoint;
     std::weak_ptr<Landmark> landmark;

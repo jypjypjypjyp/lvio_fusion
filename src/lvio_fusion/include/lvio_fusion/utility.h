@@ -274,6 +274,7 @@ inline double distance(cv::Point2f &pt1, cv::Point2f &pt2)
     return sqrt(dx * dx + dy * dy);
 }
 
+// convert opencv points
 inline void convert_points(const std::vector<cv::KeyPoint> &kps, std::vector<cv::Point2f> &ps)
 {
     ps.resize(kps.size());
@@ -283,6 +284,7 @@ inline void convert_points(const std::vector<cv::KeyPoint> &kps, std::vector<cv:
     }
 }
 
+// convert opencv points
 inline void convert_points(const std::vector<cv::Point2f> &ps, std::vector<cv::KeyPoint> &kps)
 {
     kps.resize(ps.size());
@@ -290,6 +292,65 @@ inline void convert_points(const std::vector<cv::Point2f> &ps, std::vector<cv::K
     {
         kps[i] = cv::KeyPoint(ps[i], 1);
     }
+}
+
+// double calculate optical flow
+inline int optical_flow(cv::Mat &prevImg, cv::Mat &nextImg,
+                        std::vector<cv::Point2f> &prevPts, std::vector<cv::Point2f> &nextPts,
+                        std::vector<uchar> &status, bool use_motion = true)
+{
+    if (prevPts.empty())
+        return 0;
+    cv::Mat img_debug;
+    cv::cvtColor(nextImg, img_debug, cv::COLOR_GRAY2RGB);
+    cv::Mat err;
+    if (use_motion)
+    {
+        cv::calcOpticalFlowPyrLK(
+            prevImg, nextImg, prevPts, nextPts, status, err, cv::Size(21, 21), 3,
+            cv::TermCriteria(cv::TermCriteria::COUNT + cv::TermCriteria::EPS, 30, 0.01),
+            cv::OPTFLOW_USE_INITIAL_FLOW);
+    }
+    else
+    {
+        cv::calcOpticalFlowPyrLK(prevImg, nextImg, prevPts, nextPts, status, err);
+    }
+
+    std::vector<uchar> reverse_status;
+    std::vector<cv::Point2f> reverse_pts = prevPts;
+    cv::calcOpticalFlowPyrLK(
+        nextImg, prevImg, nextPts, reverse_pts, reverse_status, err, cv::Size(3, 3), 1,
+        cv::TermCriteria(cv::TermCriteria::COUNT + cv::TermCriteria::EPS, 30, 0.01),
+        cv::OPTFLOW_USE_INITIAL_FLOW);
+
+    int num_success_pts = 0;
+    for (size_t i = 0; i < status.size(); i++)
+    {
+        // clang-format off
+        if (status[i] && reverse_status[i] && distance(prevPts[i], reverse_pts[i]) <= 0.5
+        && nextPts[i].x >= 0 && nextPts[i].x < prevImg.cols
+        && nextPts[i].y >= 0 && nextPts[i].y < prevImg.rows)
+        // clang-format on
+        {
+            status[i] = 1;
+            num_success_pts++;
+        }
+        else
+            status[i] = 0;
+    }
+    // if (use_motion && num_success_pts < prevPts.size() * 0.5)
+    //     return optical_flow(prevImg, nextImg, prevPts, nextPts, status, false);
+    cv::imshow("debug", img_debug);
+    cv::waitKey(1);
+    return num_success_pts;
+}
+
+// SE3d slerp, the bigger s(0,1), the closer the result is to b
+inline SE3d se3_slerp(const SE3d &a, const SE3d &b, double s)
+{
+    Quaterniond q = a.unit_quaternion().slerp(s, b.unit_quaternion());
+    Vector3d t = s * b.translation() + (1 - s) * a.translation();
+    return SE3d(q, t);
 }
 
 } // namespace lvio_fusion

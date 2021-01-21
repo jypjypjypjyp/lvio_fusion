@@ -147,7 +147,6 @@ void Backend::Optimize()
         {
             if (!pair.second->weights.updated)
             {
-                
             }
         }
     }
@@ -197,20 +196,67 @@ void Backend::Optimize()
     {
         auto frame = pair_kf.second;
         auto features_left = frame->features_left;
+        std::vector<visual::Landmark::Ptr> need_removed;
         for (auto &pair_feature : features_left)
         {
             auto feature = pair_feature.second;
             auto landmark = feature->landmark.lock();
             auto first_frame = landmark->FirstFrame();
+            int num = 0;
+            Frames a = Map::Instance().GetKeyFrames(first_frame.lock()->time);
+            for (auto i : a)
+            {
+                if (i.second->features_left.find(landmark->id) != i.second->features_left.end())
+                {
+                    num++;
+                    LOG(INFO) << i.second->id << ":" << std::fixed << std::setprecision( 15 ) << i.first;
+                }
+            }
+            LOG(INFO) << "~~~~~~~~~~~~~~~~~";
+            assert(num <= landmark->observations.size());
             if (compute_reprojection_error(cv2eigen(feature->keypoint), landmark->ToWorld(), frame->pose, Camera::Get()) > 10)
             {
                 landmark->RemoveObservation(feature);
                 frame->RemoveFeature(feature);
+                int num = 0;
+                Frames a = Map::Instance().GetKeyFrames(first_frame.lock()->time);
+                for (auto i : a)
+                {
+                    if (i.second->features_left.find(landmark->id) != i.second->features_left.end())
+                    {
+                        num++;
+                    }
+                }
+                assert(num <= landmark->observations.size());
             }
-            if (landmark->observations.size() == 1 && frame->id != Frame::current_frame_id)
+            if (landmark->observations.size() <= 1 && frame->id != Frame::current_frame_id)
             {
-                Map::Instance().RemoveLandmark(landmark);
+                need_removed.push_back(landmark);
+                int num = 0;
+                Frames a = Map::Instance().GetKeyFrames(first_frame.lock()->time);
+                for (auto i : a)
+                {
+                    if (i.second->features_left.find(landmark->id) != i.second->features_left.end())
+                    {
+                        num++;
+                    }
+                }
+                assert(num <= landmark->observations.size());
             }
+        }
+        for (auto landmark : need_removed)
+        {
+            Map::Instance().RemoveLandmark(landmark);
+            int num = 0;
+            Frames a = Map::Instance().GetKeyFrames(landmark->FirstFrame().lock()->time);
+            for (auto i : a)
+            {
+                if (i.second->features_left.find(landmark->id) != i.second->features_left.end())
+                {
+                    num++;
+                }
+            }
+            assert(num <= landmark->observations.size());
         }
     }
 
