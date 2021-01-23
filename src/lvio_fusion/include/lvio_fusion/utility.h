@@ -70,17 +70,16 @@ inline Vector3d closest_point_on_a_line(const Vector3d &A, const Vector3d &B, co
 };
 
 /**
- * closest point on a panel
+ * closest point on a plane
+ * @param norm norm
  * @param A    A
- * @param B    B
  * @param P    P
  * @return closest point
  */
-inline Vector3d closest_point_on_a_panel(const Vector3d &A, const Vector3d &B, const Vector3d &P)
+inline Vector3d closest_point_on_a_panel(const Vector3d &norm, const Vector3d &A, const Vector3d &P)
 {
-    Vector3d AB = B - A, AP = P - A;
-    double k = AB.dot(AP) / AB.norm();
-    return A + k * AB;
+    auto t = (A - P).dot(norm) / norm.squaredNorm();
+    return P + t * norm;
 };
 
 /**

@@ -147,6 +147,7 @@ int ORBMatcher::Relocate(Frame::Ptr last_frame, Frame::Ptr current_frame,
 int ORBMatcher::Relocate(Frame::Ptr last_frame, Frame::Ptr current_frame)
 {
     NotImplemented();
+    return 0;
 }
 
 } // namespace lvio_fusion

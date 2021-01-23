@@ -32,6 +32,8 @@ public:
 
     void AddPoint(double time, double x, double y, double z);
 
+    Vector3d GetFixPoint(double time);
+    Vector3d GetRawPoint(double time);
     Vector3d GetPoint(double time);
 
     Vector3d GetAroundPoint(double time);
@@ -42,6 +44,8 @@ public:
     std::map<double, Vector3d> raw;
     double finished = 0;
 
+
+
 private:
     Navsat() : Sensor(SE3d()) {}
     Navsat(const Navsat &);
@@ -50,6 +54,7 @@ private:
     void Initialize();
 
     static std::vector<Navsat::Ptr> devices_;
+
 };
 
 } // namespace lvio_fusion

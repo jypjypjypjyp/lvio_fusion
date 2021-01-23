@@ -44,6 +44,9 @@ public:
     Frames keyframes;
     visual::Landmarks landmarks;
 
+    // norm vector and point of the ground plane
+    Vector3d ground_norm, ground_point;
+
 private:
     Map() {}
     Map(const Map &);

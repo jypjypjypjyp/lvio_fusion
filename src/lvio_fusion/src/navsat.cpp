@@ -9,11 +9,6 @@
 namespace lvio_fusion
 {
 
-Vector3d NavsatRError::A;
-Vector3d NavsatRError::BC;
-Vector3d NavsatXError::A;
-Vector3d NavsatXError::BC;
-
 void Navsat::AddPoint(double time, double x, double y, double z)
 {
     raw[time] = Vector3d(x, y, z);
@@ -36,10 +31,21 @@ void Navsat::AddPoint(double time, double x, double y, double z)
     }
 }
 
-Vector3d Navsat::GetPoint(double time)
+
+Vector3d Navsat::GetRawPoint(double time)
 {
     assert(raw.find(time) != raw.end());
-    return extrinsic * raw[time];
+    return raw[time];
+}
+
+Vector3d Navsat::GetFixPoint(double time)
+{
+    return closest_point_on_a_panel(Map::Instance().ground_norm, Map::Instance().ground_point, GetPoint(time));
+}
+
+Vector3d Navsat::GetPoint(double time)
+{
+    return extrinsic * GetRawPoint(time);
 }
 
 Vector3d Navsat::GetAroundPoint(double time)
@@ -63,7 +69,7 @@ void Navsat::Initialize()
         auto position = pair_kf.second->pose.translation();
         if (pair_kf.second->feature_navsat)
         {
-            ceres::CostFunction *cost_function = NavsatInitError::Create(position, GetPoint(pair_kf.second->feature_navsat->time));
+            ceres::CostFunction *cost_function = NavsatInitError::Create(position, GetRawPoint(pair_kf.second->feature_navsat->time));
             problem.AddResidualBlock(cost_function, NULL, extrinsic.data());
         }
     }
@@ -73,13 +79,13 @@ void Navsat::Initialize()
     options.num_threads = 1;
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
-    Vector3d a = Map::Instance().keyframes.begin()->second->pose.translation(),
-             b = Map::Instance().keyframes[PoseGraph::Instance().GetSections(0, finished).begin()->second.C]->pose.translation(),
-             c = (--Map::Instance().keyframes.end())->second->pose.translation();
-    NavsatXError::A = NavsatRError::A = a;
-    auto abc = (a - b).cross(a - c);
-    abc.normalize();
-    NavsatXError::BC = NavsatRError::BC = abc;
+
+    Vector3d A = Map::Instance().keyframes.begin()->second->pose.translation(),
+             B = Map::Instance().keyframes[PoseGraph::Instance().GetSections(0, finished).begin()->second.C]->pose.translation(),
+             C = (--Map::Instance().keyframes.end())->second->pose.translation();
+    Map::Instance().ground_norm = (A - B).cross(A - C);
+    Map::Instance().ground_point = A;
+
     initialized = true;
 }
 
@@ -100,8 +106,11 @@ double Navsat::Optimize(double time)
         {
             adapt::Problem problem;
             Frames active_kfs = Map::Instance().GetKeyFrames(pair.second.A, time);
-            double *para = frame_A->pose.data();
-            problem.AddParameterBlock(para, SO3d::num_parameters, new ceres::EigenQuaternionParameterization());
+            SE3d relative_pose;
+            double *para = relative_pose.data();
+            problem.AddParameterBlock(para, 4, new ceres::EigenQuaternionParameterization());
+            double *para_x = relative_pose.data() + 4;
+            problem.AddParameterBlock(para_x, 1);
 
             for (auto &pair_kf : active_kfs)
             {
@@ -109,8 +118,9 @@ double Navsat::Optimize(double time)
                 auto position = frame->pose.translation();
                 if (frame->feature_navsat)
                 {
-                    ceres::CostFunction *cost_function = NavsatRError::Create(GetPoint(frame->feature_navsat->time), frame_A->pose.so3().inverse() * position);
-                    problem.AddResidualBlock(ProblemType::Other, cost_function, NULL, para);
+                    ceres::CostFunction *cost_function = NavsatRXError::Create(
+                        GetPoint(frame->feature_navsat->time), frame_A->pose.inverse() * position, frame_A->pose);
+                    problem.AddResidualBlock(ProblemType::Other, cost_function, NULL, para, para_x);
                 }
             }
 
@@ -118,11 +128,12 @@ double Navsat::Optimize(double time)
             options.linear_solver_type = ceres::DENSE_QR;
             ceres::Solver::Summary summary;
             ceres::Solve(options, &problem, &summary);
+            frame_A->pose = frame_A->pose * relative_pose;
         }
         SE3d new_pose = frame_A->pose;
         // section propagate
         transform = new_pose * old_pose.inverse();
-        PoseGraph::Instance().Propagate(transform, Map::Instance().GetKeyFrames(pair.second.A + epsilon));
+        PoseGraph::Instance().Propagate(transform, Map::Instance().GetKeyFrames(pair.second.A + epsilon, time));
 
         // optimize point B's translation
         auto frame_B = Map::Instance().keyframes[pair.second.B];
@@ -130,8 +141,8 @@ double Navsat::Optimize(double time)
         {
             adapt::Problem problem;
             Frames active_kfs = Map::Instance().GetKeyFrames(pair.second.B, time);
-            double x = 0;
-            double *para = &x;
+            SE3d relative_pose;
+            double *para = relative_pose.data() + 4;
             problem.AddParameterBlock(para, 1);
 
             for (auto &pair_kf : active_kfs)
@@ -140,7 +151,8 @@ double Navsat::Optimize(double time)
                 auto position = frame->pose.translation();
                 if (frame->feature_navsat)
                 {
-                    ceres::CostFunction *cost_function = NavsatXError::Create(GetPoint(frame->feature_navsat->time), position - frame_B->pose.translation());
+                    ceres::CostFunction *cost_function = NavsatXError::Create(
+                        GetPoint(frame->feature_navsat->time), frame_B->pose.inverse() * position, frame_B->pose);
                     problem.AddResidualBlock(ProblemType::Other, cost_function, NULL, para);
                 }
             }
@@ -149,17 +161,18 @@ double Navsat::Optimize(double time)
             options.linear_solver_type = ceres::DENSE_QR;
             ceres::Solver::Summary summary;
             ceres::Solve(options, &problem, &summary);
+            frame_B->pose = frame_B->pose * relative_pose;
         }
         new_pose = frame_B->pose;
 
         // section propagate
         transform = new_pose * old_pose.inverse();
-        PoseGraph::Instance().Propagate(transform, Map::Instance().GetKeyFrames(pair.second.B + epsilon));
+        PoseGraph::Instance().Propagate(transform, Map::Instance().GetKeyFrames(pair.second.B + epsilon, time));
         finished = pair.second.A;
     }
 
     // forward propagate
-    PoseGraph::Instance().ForwardPropagate(transform, (--sections.end())->second.C + epsilon);
+    PoseGraph::Instance().ForwardPropagate(transform, time + epsilon);
     return sections.begin()->second.A;
 }
 
