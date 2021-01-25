@@ -64,7 +64,7 @@ SE3d Environment::Optimize()
                 estimator_->association->ScanToMapWithGround(frame, map_frame, rpyxyz, problem);
                 ceres::Solver::Options options;
                 options.linear_solver_type = ceres::DENSE_QR;
-                options.max_num_iterations = 4;
+                options.max_num_iterations = 2;
                 options.num_threads = num_threads;
                 ceres::Solver::Summary summary;
                 ceres::Solve(options, &problem, &summary);
@@ -75,7 +75,7 @@ SE3d Environment::Optimize()
                 estimator_->association->ScanToMapWithSegmented(frame, map_frame, rpyxyz, problem);
                 ceres::Solver::Options options;
                 options.linear_solver_type = ceres::DENSE_QR;
-                options.max_num_iterations = 4;
+                options.max_num_iterations = 2;
                 options.num_threads = num_threads;
                 ceres::Solver::Summary summary;
                 ceres::Solve(options, &problem, &summary);

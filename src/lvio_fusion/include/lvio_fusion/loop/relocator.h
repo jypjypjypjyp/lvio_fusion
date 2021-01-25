@@ -10,6 +10,7 @@
 #include "lvio_fusion/lidar/mapping.h"
 #include "lvio_fusion/loop/loop.h"
 #include "lvio_fusion/loop/pose_graph.h"
+#include "lvio_fusion/visual/matcher.h"
 
 namespace lvio_fusion
 {
@@ -19,15 +20,21 @@ class Relocator
 public:
     typedef std::shared_ptr<Relocator> Ptr;
 
-    Relocator();
-
-    void SetFeatureAssociation(FeatureAssociation::Ptr association) { association_ = association; }
+    Relocator(int mode);
 
     void SetMapping(Mapping::Ptr mapping) { mapping_ = mapping; }
 
     void SetBackend(Backend::Ptr backend) { backend_ = backend; }
 
 private:
+    enum Mode
+    {
+        None = 0,
+        Visual = 1,
+        Lidar = 2,
+        VisualAndLidar = 3
+    };
+
     void DetectorLoop();
 
     bool DetectLoop(Frame::Ptr frame, Frame::Ptr &old_frame);
@@ -46,9 +53,10 @@ private:
 
     Mapping::Ptr mapping_;
     Backend::Ptr backend_;
-    FeatureAssociation::Ptr association_;
+    ORBMatcher matcher_;
 
     std::thread thread_;
+    Mode mode_;
 };
 
 } // namespace lvio_fusion

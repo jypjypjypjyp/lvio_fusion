@@ -76,10 +76,8 @@ int ORBMatcher::Relocate(Frame::Ptr last_frame, Frame::Ptr current_frame,
             if (distance(pt_fast_last, pt_fast_current) < 200 && mask.at<uchar>(pt_fast_current) != 0)
             {
                 cv::circle(mask, pt_fast_current, 10, 0, cv::FILLED);
-                cv::Point2f kp_last = kps_fast_last[knn_matches[i][0].queryIdx].pt,
-                            kp_current = kps_fast_current[knn_matches[i][0].trainIdx].pt;
-                kps_match_left.push_back(kp_last);
-                kps_match_current.push_back(kp_current);
+                kps_match_left.push_back(pt_fast_last);
+                kps_match_current.push_back(pt_fast_current);
             }
         }
     }
@@ -138,16 +136,51 @@ int ORBMatcher::Relocate(Frame::Ptr last_frame, Frame::Ptr current_frame,
             pbs.push_back(points_pb[index_points]);
             num_good_pts++;
         }
+        LOG(INFO) << "Matcher relocate by " << num_good_pts << " points.";
     }
-
-    LOG(INFO) << "Matcher relocate by " << num_good_pts << " points.";
     return num_good_pts;
 }
 
-int ORBMatcher::Relocate(Frame::Ptr last_frame, Frame::Ptr current_frame)
+int ORBMatcher::Relocate(Frame::Ptr last_frame, Frame::Ptr current_frame, SE3d &relative_o_c)
 {
-    NotImplemented();
-    return 0;
+    // detect and match by ORB
+    std::vector<cv::KeyPoint> kps_fast_last, kps_fast_current;
+    std::vector<visual::Landmark::Ptr> landmarks;
+    for (auto pair_feature : last_frame->features_left)
+    {
+        kps_fast_last.push_back(cv::KeyPoint(pair_feature.second->keypoint, 1));
+        landmarks.push_back(pair_feature.second->landmark.lock());
+    }
+    cv::Mat descriptors_last, descriptors_current;
+    detector_->compute(last_frame->image_left, kps_fast_last, descriptors_last);
+    detector_->detectAndCompute(current_frame->image_left, cv::noArray(), kps_fast_current, descriptors_current);
+    std::vector<std::vector<cv::DMatch>> knn_matches;
+    matcher_->knnMatch(descriptors_last, descriptors_current, knn_matches, 2);
+    const float ratio_thresh = 0.8;
+    std::vector<cv::Point3f> points_3d;
+    std::vector<cv::Point2f> points_2d;
+    for (size_t i = 0; i < knn_matches.size(); i++)
+    {
+        if (knn_matches[i][0].distance < ratio_thresh * knn_matches[i][1].distance)
+        {
+            points_3d.push_back(eigen2cv(landmarks[knn_matches[i][0].queryIdx]->ToWorld()));
+            points_2d.push_back(kps_fast_current[knn_matches[i][0].trainIdx].pt);
+        }
+    }
+
+    // Solve PnP
+    int num_good_pts = 0;
+    cv::Mat rvec, tvec, inliers, cv_R;
+    if (points_2d.size() > num_features_threshold_ &&
+        cv::solvePnPRansac(points_3d, points_2d, Camera::Get()->K, Camera::Get()->D, rvec, tvec, false, 100, 8.0F, 0.98, inliers, cv::SOLVEPNP_EPNP))
+    {
+        cv::Rodrigues(rvec, cv_R);
+        Matrix3d R;
+        cv::cv2eigen(cv_R, R);
+        relative_o_c = (last_frame->pose * Camera::Get()->extrinsic * SE3d(SO3d(R), Vector3d(tvec.at<double>(0, 0), tvec.at<double>(1, 0), tvec.at<double>(2, 0)))).inverse();
+        num_good_pts = inliers.rows;
+    }
+    return std::min(num_good_pts / 2, 50);
 }
 
 } // namespace lvio_fusion

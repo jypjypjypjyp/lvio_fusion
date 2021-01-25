@@ -89,3 +89,6 @@ num_features_needed_for_keyframe: 60
 
 # backend
 windows_size: 3
+
+# loop
+relocator_mode: 0    # none = 0, visual = 1, lidar = 2, visual&&lidar = 3

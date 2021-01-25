@@ -34,13 +34,11 @@ public:
                                              matcher_(cv::DescriptorMatcher::create("BruteForce-Hamming")),
                                              num_features_threshold_(num_features_threshold) {}
 
-    // int Search(Frame::Ptr current_frame, Frame::Ptr last_frame, std::vector<cv::Point2f> &kps_current, std::vector<cv::Point2f> &kps_last, std::vector<uchar> &status, std::vector<double> &depths, float thershold);
-
     void FastFeatureToTrack(cv::Mat &image, std::vector<cv::Point2f> &corners, double minDistance, cv::Mat mask = cv::Mat());
 
     void Match(cv::Mat &prevImg, cv::Mat &nextImg, std::vector<cv::Point2f> &prevPts, std::vector<cv::Point2f> &nextPts, std::vector<uchar> &status);
 
-    int Relocate(Frame::Ptr last_frame, Frame::Ptr current_frame);
+    int Relocate(Frame::Ptr last_frame, Frame::Ptr current_frame, SE3d &relative_o_c);
 
     int Relocate(Frame::Ptr last_frame, Frame::Ptr current_frame,
                  std::vector<cv::Point2f> &kps_left, std::vector<cv::Point2f> &kps_right, std::vector<cv::Point2f> &kps_current, std::vector<Vector3d> &pbs);

@@ -28,7 +28,7 @@ clt_step = None
 
 def get_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--task', type=str, default='Pendulum-v0')
+    parser.add_argument('--task', type=str, default='FactorGraph-v0')
     parser.add_argument('--seed', type=int, default=0)
     parser.add_argument('--buffer-size', type=int, default=20000)
     parser.add_argument('--actor-lr', type=float, default=3e-4)

@@ -183,4 +183,58 @@ PointRGBCloud Mapping::GetGlobalMap()
     return global_map;
 }
 
+int Mapping::Relocate(Frame::Ptr last_frame, Frame::Ptr current_frame, SE3d &relative_o_c)
+{
+    // init relative pose
+    Frame::Ptr clone_frame = Frame::Ptr(new Frame());
+    *clone_frame = *current_frame;
+    clone_frame->pose = clone_frame->loop_closure->relative_o_c * last_frame->pose;
+
+    // build two pointclouds
+    Frame::Ptr old_frame_prev = Map::Instance().GetKeyFrames(0, last_frame->time, 1).begin()->second;
+    Frame::Ptr old_frame_subs = Map::Instance().GetKeyFrames(last_frame->time, 0, 1).begin()->second;
+    Frames old_frames = {{last_frame->time, last_frame}, {old_frame_prev->time, old_frame_prev}, {old_frame_subs->time, old_frame_subs}};
+    Frame::Ptr map_frame = Frame::Ptr(new Frame());
+    BuildOldMapFrame(old_frames, map_frame);
+
+    // optimize
+    double score_ground, score_surf;
+    for (int i = 0; i < 4; i++)
+    {
+        double rpyxyz[6];
+        se32rpyxyz(clone_frame->pose * map_frame->pose.inverse(), rpyxyz); // relative_i_j
+        if (!map_frame->feature_lidar->points_ground.empty())
+        {
+            adapt::Problem problem;
+            association_->ScanToMapWithGround(clone_frame, map_frame, rpyxyz, problem);
+            ceres::Solver::Options options;
+            options.linear_solver_type = ceres::DENSE_QR;
+            options.max_num_iterations = 2;
+            options.num_threads = num_threads;
+            ceres::Solver::Summary summary;
+            ceres::Solve(options, &problem, &summary);
+            clone_frame->pose = rpyxyz2se3(rpyxyz) * map_frame->pose;
+            score_ground = std::min((double)summary.num_residual_blocks_reduced / 10, 20.0);
+            score_ground -= 2 * summary.final_cost / summary.num_residual_blocks_reduced;
+        }
+        if (!map_frame->feature_lidar->points_surf.empty())
+        {
+            adapt::Problem problem;
+            association_->ScanToMapWithSegmented(clone_frame, map_frame, rpyxyz, problem);
+            ceres::Solver::Options options;
+            options.linear_solver_type = ceres::DENSE_QR;
+            options.max_num_iterations = 2;
+            options.num_threads = num_threads;
+            ceres::Solver::Summary summary;
+            ceres::Solve(options, &problem, &summary);
+            clone_frame->pose = rpyxyz2se3(rpyxyz) * map_frame->pose;
+            score_surf = std::min((double)summary.num_residual_blocks_reduced / 10, 30.0);
+            score_surf -= 2 * summary.final_cost / summary.num_residual_blocks_reduced;
+        }
+    }
+
+    relative_o_c = clone_frame->pose * last_frame->pose.inverse();
+    return score_ground + score_surf;
+}
+
 } // namespace lvio_fusion

@@ -26,6 +26,8 @@ public:
 
     void ToWorld(Frame::Ptr frame);
 
+    int Relocate(Frame::Ptr last_frame, Frame::Ptr current_frame, SE3d &relative_o_c);
+
     PointRGBCloud GetGlobalMap();
 
     std::map<double, PointRGBCloud> pointclouds_color;

@@ -7,7 +7,7 @@
 #include <sys/sysinfo.h>
 
 double epsilon = 1e-3;
-int num_threads = 4; //std::max(1, (int)(0.75 * get_nprocs()));
+int num_threads = std::min(8, std::max(1, (int)(0.75 * get_nprocs())));
 
 namespace lvio_fusion
 {
@@ -102,7 +102,8 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
 
     if (use_loop)
     {
-        relocator = Relocator::Ptr(new Relocator);
+        relocator = Relocator::Ptr(new Relocator(
+            Config::Get<int>("relocator_mode")));
         relocator->SetBackend(backend);
     }
 

@@ -15,7 +15,7 @@
 namespace lvio_fusion
 {
 
-Relocator::Relocator()
+Relocator::Relocator(int mode) : mode_((Mode)mode), matcher_(ORBMatcher(20))
 {
     thread_ = std::thread(std::bind(&Relocator::DetectorLoop, this));
 }
@@ -104,22 +104,26 @@ bool Relocator::DetectLoop(Frame::Ptr frame, Frame::Ptr &old_frame)
 bool Relocator::Relocate(Frame::Ptr frame, Frame::Ptr old_frame)
 {
     frame->loop_closure->score = 0;
+    // put it on the same level
+    SE3d pose = frame->pose;
+    pose.translation().z() = old_frame->pose.translation().z();
+    frame->loop_closure->relative_o_c = pose * old_frame->pose.inverse();
+    // check its orientation
     double rpyxyz_o[6], rpyxyz_i[6], rpy_o_i[3];
     se32rpyxyz(frame->pose, rpyxyz_i);
     se32rpyxyz(old_frame->pose, rpyxyz_o);
     rpy_o_i[0] = rpyxyz_i[0] - rpyxyz_o[0];
     rpy_o_i[1] = rpyxyz_i[1] - rpyxyz_o[1];
     rpy_o_i[2] = rpyxyz_i[2] - rpyxyz_o[2];
-    //TODO
-    // if (Vector3d(rpy_o_i[0], rpy_o_i[1], rpy_o_i[2]).norm() < 0.1)
-    // {
-    //     RelocateByImage(frame, old_frame);
-    // }
-    if (mapping_)
+    if ((mode_ == Mode::Visual || mode_ == Mode::VisualAndLidar) && Vector3d(rpy_o_i[0], rpy_o_i[1], rpy_o_i[2]).norm() < 0.1)
+    {
+        RelocateByImage(frame, old_frame);
+    }
+    if ((mode_ == Mode::Lidar || mode_ == Mode::VisualAndLidar) && mapping_ && frame->feature_lidar && old_frame->feature_lidar)
     {
         RelocateByPoints(frame, old_frame);
     }
-    if (frame->loop_closure->score > 0)
+    if (mode_ == Mode::None || frame->loop_closure->score > 20)
     {
         return true;
     }
@@ -129,152 +133,25 @@ bool Relocator::Relocate(Frame::Ptr frame, Frame::Ptr old_frame)
 
 bool Relocator::RelocateByImage(Frame::Ptr frame, Frame::Ptr old_frame)
 {
-    // std::vector<cv::Point3f> points_3d;
-    // std::vector<cv::Point2f> points_2d;
-    // // search by BRIEFDes
-    // auto descriptors = mat2briefs(frame);
-    // auto descriptors_old = mat2briefs(old_frame);
-    // for (auto &pair_desciptor : descriptors)
-    // {
-    //     unsigned long best_id = 0;
-    //     if (SearchInAera(pair_desciptor.second, descriptors_old, best_id))
-    //     {
-    //         cv::Point2f point_2d = old_frame->features_left[best_id]->keypoint;
-    //         visual::Landmark::Ptr landmark = old_frame->features_left[best_id]->landmark.lock();
-    //         visual::Feature::Ptr new_left_feature = visual::Feature::Create(frame, point_2d, landmark);
-    //         points_2d.push_back(point_2d);
-    //         points_3d.push_back(eigen2cv(landmark->position));
-    //     }
-    // }
-    // // solve pnp ransca
-    // cv::Mat K;
-    // cv::eigen2cv(Camera::Get()->K(), K);
-    // cv::Mat rvec, tvec, inliers, D, cv_R;
-    // if (points_2d.size() >= 20 && cv::solvePnPRansac(points_3d, points_2d, K, D, rvec, tvec, false, 100, 8.0F, 0.98, cv::noArray(), cv::SOLVEPNP_EPNP))
-    // {
-    //     cv::Rodrigues(rvec, cv_R);
-    //     Matrix3d R;
-    //     cv::cv2eigen(cv_R, R);
-    //     frame->loop_closure->relative_o_c = (Camera::Get()->extrinsic * SE3d(SO3d(R), Vector3d(tvec.at<double>(0, 0), tvec.at<double>(1, 0), tvec.at<double>(2, 0)))).inverse();
-    //     frame->loop_closure->score = std::min((double)points_2d.size(), 50.0);
-    //     return true;
-    // }
+    int score = matcher_.Relocate(old_frame, frame, frame->loop_closure->relative_o_c);
+    if (score > 10)
+    {
+        frame->loop_closure->score += score;
+        return true;
+    }
     return false;
 }
 
 bool Relocator::RelocateByPoints(Frame::Ptr frame, Frame::Ptr old_frame)
 {
-    if (!frame->feature_lidar || !old_frame->feature_lidar)
+    int score = mapping_->Relocate(old_frame, frame, frame->loop_closure->relative_o_c);
+    if (score > 10)
     {
-        return false;
+        frame->loop_closure->score += score;
+        return true;
     }
-
-    // init relative pose
-    Frame::Ptr clone_frame = Frame::Ptr(new Frame());
-    *clone_frame = *frame;
-    if (clone_frame->loop_closure->score > 0)
-    {
-        clone_frame->pose = clone_frame->loop_closure->relative_o_c * old_frame->pose;
-    }
-    else
-    {
-        clone_frame->pose.translation().z() = old_frame->pose.translation().z();
-    }
-
-    // build two pointclouds
-    Frame::Ptr old_frame_prev = Map::Instance().GetKeyFrames(0, old_frame->time, 1).begin()->second;
-    Frame::Ptr old_frame_subs = Map::Instance().GetKeyFrames(old_frame->time, 0, 1).begin()->second;
-    Frames old_frames = {{old_frame->time, old_frame}, {old_frame_prev->time, old_frame_prev}, {old_frame_subs->time, old_frame_subs}};
-    Frame::Ptr map_frame = Frame::Ptr(new Frame());
-    mapping_->BuildOldMapFrame(old_frames, map_frame);
-    // PointICloud points_temp_frame_world;
-    // mapping_->MergeScan(clone_frame->feature_lidar->points_full, clone_frame->pose, points_temp_frame_world);
-    // // save
-    // pcl::io::savePCDFile("/home/jyp/Projects/lvio_fusion/result/" + std::to_string(frame->time) + ".pcd", points_temp_frame_world);
-    // pcl::io::savePCDFile("/home/jyp/Projects/lvio_fusion/result/old_" + std::to_string(frame->time) + ".pcd", map_frame->feature_lidar->points_full);
-    // // icp
-    // pcl::IterativeClosestPoint<PointI, PointI> icp;
-    // icp.setInputSource(boost::make_shared<PointICloud>(points_temp_frame_world));
-    // icp.setInputTarget(boost::make_shared<PointICloud>(map_frame->feature_lidar->points_full));
-    // icp.setMaximumIterations(100);
-    // icp.setMaxCorrespondenceDistance(5);
-    // PointICloud::Ptr aligned(new PointICloud);
-    // icp.align(*aligned);
-    // if (!icp.hasConverged() || icp.getFitnessScore() > 10)
-    // {
-    //     return false;
-    // }
-    // Matrix4d transform_matrix = icp.getFinalTransformation().cast<double>();
-    // Matrix3d R(transform_matrix.block(0, 0, 3, 3));
-    // Quaterniond q(R);
-    // Vector3d t(0, 0, 0);
-    // t << transform_matrix(0, 3), transform_matrix(1, 3), transform_matrix(2, 3);
-    // SE3d transform(q, t);
-    // clone_frame->pose = transform * clone_frame->pose;
-
-    // optimize
-    double score_ground, score_surf;
-    for (int i = 0; i < 4; i++)
-    {
-        double rpyxyz[6];
-        se32rpyxyz(clone_frame->pose * map_frame->pose.inverse(), rpyxyz); // relative_i_j
-        if (!map_frame->feature_lidar->points_ground.empty())
-        {
-            adapt::Problem problem;
-            association_->ScanToMapWithGround(clone_frame, map_frame, rpyxyz, problem);
-            ceres::Solver::Options options;
-            options.linear_solver_type = ceres::DENSE_QR;
-            options.max_num_iterations = 4;
-            options.num_threads = num_threads;
-            ceres::Solver::Summary summary;
-            ceres::Solve(options, &problem, &summary);
-            clone_frame->pose = rpyxyz2se3(rpyxyz) * map_frame->pose;
-            score_ground = std::min((double)summary.num_residual_blocks_reduced / 10, 20.0);
-            score_ground -= 2 * summary.final_cost / summary.num_residual_blocks_reduced;
-        }
-        if (!map_frame->feature_lidar->points_surf.empty())
-        {
-            adapt::Problem problem;
-            association_->ScanToMapWithSegmented(clone_frame, map_frame, rpyxyz, problem);
-            ceres::Solver::Options options;
-            options.linear_solver_type = ceres::DENSE_QR;
-            options.max_num_iterations = 4;
-            options.num_threads = num_threads;
-            ceres::Solver::Summary summary;
-            ceres::Solve(options, &problem, &summary);
-            clone_frame->pose = rpyxyz2se3(rpyxyz) * map_frame->pose;
-            score_surf = std::min((double)summary.num_residual_blocks_reduced / 10, 30.0);
-            score_surf -= 2 * summary.final_cost / summary.num_residual_blocks_reduced;
-        }
-    }
-
-    frame->loop_closure->relative_o_c = clone_frame->pose * old_frame->pose.inverse();
-    frame->loop_closure->score += score_ground + score_surf;
-    return true;
+    return false;
 }
-
-// bool Relocator::SearchInAera(const BRIEF descriptor, const std::map<unsigned long, BRIEF> &descriptors_old, unsigned long &best_id)
-// {
-//     cv::Point2f best_pt;
-//     int best_distance = 256;
-//     for (auto &pair_desciptor : descriptors_old)
-//     {
-//         int distance = Hamming(descriptor, pair_desciptor.second);
-//         if (distance < best_distance)
-//         {
-//             best_distance = distance;
-//             best_id = pair_desciptor.first;
-//         }
-//     }
-//     return best_distance < 160;
-// }
-
-// int Relocator::Hamming(const BRIEF &a, const BRIEF &b)
-// {
-//     BRIEF xor_of_bitset = a ^ b;
-//     int dis = xor_of_bitset.count();
-//     return dis;
-// }
 
 void Relocator::BuildProblem(Frames &active_kfs, adapt::Problem &problem)
 {
@@ -337,7 +214,7 @@ void Relocator::CorrectLoop(double old_time, double start_time, double end_time)
     adapt::Problem problem;
     PoseGraph::Instance().BuildProblem(active_sections, new_submap, problem);
 
-    // update new submap frams
+    // update new submap frames
     SE3d old_pose = (--new_submap_kfs.end())->second->pose;
     {
         // build new submap pose graph
@@ -392,7 +269,7 @@ void Relocator::CorrectLoop(double old_time, double start_time, double end_time)
         }
     }
 
-    // PoseGraph::Instance().Optimize(active_sections, new_submap, problem);
+    PoseGraph::Instance().Optimize(active_sections, new_submap, problem);
 }
 
 } // namespace lvio_fusion
