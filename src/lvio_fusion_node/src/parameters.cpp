@@ -4,49 +4,49 @@ string IMU_TOPIC;
 string LIDAR_TOPIC;
 string NAVSAT_TOPIC;
 string IMAGE0_TOPIC, IMAGE1_TOPIC;
-string result_path, ground_truth_path;
-int use_imu, use_lidar, use_navsat, use_loop, use_semantic, use_adapt, train;
+string result_path;
+int use_imu, use_lidar, num_of_cam, use_navsat, use_loop, is_semantic;
 
 void read_parameters(string config_file)
 {
-    FILE *f = fopen(config_file.c_str(), "r");
-    if (f == NULL)
+    FILE *fh = fopen(config_file.c_str(), "r");
+    if (fh == NULL)
     {
         ROS_WARN("config_file dosen't exist; wrong config_file path");
         ROS_BREAK();
         return;
     }
-    fclose(f);
+    fclose(fh);
 
-    cv::FileStorage settings(config_file, cv::FileStorage::READ);
-    if (!settings.isOpened())
+    cv::FileStorage fsSettings(config_file, cv::FileStorage::READ);
+    if (!fsSettings.isOpened())
     {
         cerr << "ERROR: Wrong path to settings" << endl;
     }
 
-    settings["use_imu"] >> use_imu;
-    settings["use_lidar"] >> use_lidar;
-    settings["use_navsat"] >> use_navsat;
-    settings["use_loop"] >> use_loop;
-    settings["use_semantic"] >> use_semantic;
-    settings["use_adapt"] >> use_adapt;
-    settings["train"] >> train;
-    settings["result_path"] >> result_path;
-    settings["ground_truth_path"] >> ground_truth_path;
-    settings["image0_topic"] >> IMAGE0_TOPIC;
-    settings["image1_topic"] >> IMAGE1_TOPIC;
+    fsSettings["use_imu"] >> use_imu;
+    fsSettings["use_lidar"] >> use_lidar;
+    fsSettings["use_navsat"] >> use_navsat;
+    fsSettings["use_loop"] >> use_loop;
+    fsSettings["num_of_cam"] >> num_of_cam;
+    fsSettings["is_semantic"] >> is_semantic;
+    fsSettings["result_path"] >> result_path;
+    if (num_of_cam == 2)
+    {
+        fsSettings["image0_topic"] >> IMAGE0_TOPIC;
+        fsSettings["image1_topic"] >> IMAGE1_TOPIC;
+    }
     if (use_imu)
     {
-        settings["imu_topic"] >> IMU_TOPIC;
+        fsSettings["imu_topic"] >> IMU_TOPIC;
     }
     if (use_lidar)
     {
-        settings["lidar_topic"] >> LIDAR_TOPIC;
+        fsSettings["lidar_topic"] >> LIDAR_TOPIC;
     }
     if (use_navsat)
     {
-        settings["navsat_topic"] >> NAVSAT_TOPIC;
+        fsSettings["navsat_topic"] >> NAVSAT_TOPIC;
     }
-    train = /*use_imu &&*/ use_lidar && train;
-    settings.release();
+    fsSettings.release();
 }

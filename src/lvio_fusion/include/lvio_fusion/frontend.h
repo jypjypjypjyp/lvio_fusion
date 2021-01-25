@@ -2,8 +2,8 @@
 #define lvio_fusion_FRONTEND_H
 
 #include "lvio_fusion/common.h"
+#include "lvio_fusion/frame.h"
 #include "lvio_fusion/imu/initializer.h"
-#include "lvio_fusion/visual/matcher.h"
 
 namespace lvio_fusion
 {
@@ -15,6 +15,7 @@ enum class FrontendStatus
     BUILDING,
     INITIALIZING,
     TRACKING_GOOD,
+    TRACKING_BAD,
     TRACKING_TRY,
     LOST
 };
@@ -45,11 +46,11 @@ public:
     Frame::Ptr last_frame;
     Frame::Ptr last_key_frame;
     SE3d relative_i_j;
-        //NEWADD
+    //NEWADD
     imu::Preintegration::Ptr  ImuPreintegratedFromLastKF;
     std::list<imuPoint> imuData_buf;
     imuPoint last_imuData;
-
+    bool imuEmpty=true;
     //NEWADDEND
     std::mutex mutex;
 
@@ -58,7 +59,7 @@ private:
 
     bool Reset();
 
-    int TrackLastFrame(Frame::Ptr last_frame);
+    int TrackLastFrame();
 
     void CreateKeyframe(bool need_new_features = true);
 
@@ -68,17 +69,15 @@ private:
 
     int TriangulateNewPoints();
 
-    void UndistortKeyPoints();
-
     // data
     std::weak_ptr<Backend> backend_;
-    ORBMatcher mather_; 
     std::unordered_map<unsigned long, Vector3d> position_cache_;
     SE3d last_frame_pose_cache_;
 
     // params
     int num_features_;
     int num_features_init_;
+    int num_features_tracking_;
     int num_features_tracking_bad_;
     int num_features_needed_for_keyframe_;
 };

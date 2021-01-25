@@ -7,12 +7,6 @@
 namespace lvio_fusion
 {
 
-enum class CameraModel
-{
-    Pinhole,
-    KANNALA_BRANDT
-};
-
 // Pinhole stereo camera model
 class Camera : public Sensor
 {
@@ -21,13 +15,7 @@ public:
 
     static int Create(double fx, double fy, double cx, double cy, const SE3d &extrinsic)
     {
-        devices_.push_back(Camera::Ptr(new Camera(fx, fy, cx, cy, 0.0, 0.0, 0.0, 0.0, extrinsic)));
-        return devices_.size() - 1;
-    }
-
-    static int Create(double fx, double fy, double cx, double cy, double k1, double k2, double p1, double p2, const SE3d &extrinsic)
-    {
-        devices_.push_back(Camera::Ptr(new Camera(fx, fy, cx, cy, k1, k2, p1, p2, extrinsic)));
+        devices_.push_back(Camera::Ptr(new Camera(fx, fy, cx, cy, extrinsic)));
         return devices_.size() - 1;
     }
 
@@ -39,6 +27,14 @@ public:
     static Camera::Ptr &Get(int id = 0)
     {
         return devices_[id];
+    }
+
+    // return intrinsic matrix
+    Matrix3d K() const
+    {
+        Matrix3d k;
+        k << fx, 0, cx, 0, fy, cy, 0, 0, 1;
+        return k;
     }
 
     // coordinate transform: world, sensor, pixel
@@ -78,16 +74,10 @@ public:
     }
 
     double fx = 0, fy = 0, cx = 0, cy = 0; // Camera intrinsics
-    double k1 = 0, k2 = 0, p1 = 0, p2 = 0; // Camera intrinsics
-    cv::Mat K, D;
 
 private:
-    Camera(double fx, double fy, double cx, double cy, double k1, double k2, double p1, double p2, const SE3d &extrinsic)
-        : fx(fx), fy(fy), cx(cx), cy(cy), k1(k1), k2(k2), p1(p1), p2(p2), Sensor(extrinsic)
-    {
-        K = (cv::Mat_<double>(3, 3) << fx, 0.0, cx, 0.0, fy, cy, 0.0, 0.0, 1.0);
-        D = (cv::Mat_<double>(5, 1) << k1, k2, p1, p2, 0);
-    }
+    Camera(double fx, double fy, double cx, double cy, const SE3d &extrinsic)
+        : fx(fx), fy(fy), cx(cx), cy(cy), Sensor(extrinsic) {}
     Camera(const Camera &);
     Camera &operator=(const Camera &);
 

@@ -1,8 +1,8 @@
 #include "lvio_fusion/frame.h"
-#include "lvio_fusion/map.h"
 #include "lvio_fusion/visual/feature.h"
+#include "lvio_fusion/map.h"
 #include "lvio_fusion/visual/landmark.h"
-
+#include <opencv2/core/eigen.hpp>
 namespace lvio_fusion
 {
 
@@ -37,7 +37,7 @@ void Frame::RemoveFeature(visual::Feature::Ptr feature)
 //NOTE:semantic map
 LabelType Frame::GetLabelType(int x, int y)
 {
-    for (auto &obj : objects)
+    for (auto obj : objects)
     {
         if (obj.xmin < x && obj.xmax > x && obj.ymin < y && obj.ymax > y)
         {
@@ -49,10 +49,10 @@ LabelType Frame::GetLabelType(int x, int y)
 
 void Frame::UpdateLabel()
 {
-    for (auto &pair_feature : features_left)
+    for (auto pair_feature : features_left)
     {
-        auto landmark = pair_feature.second->landmark.lock();
-        landmark->label = GetLabelType(pair_feature.second->keypoint.x, pair_feature.second->keypoint.y);
+        auto camera_point = pair_feature.second->landmark.lock();
+        camera_point->label = GetLabelType(pair_feature.second->keypoint.x, pair_feature.second->keypoint.y);
     }
 }
 //NEWADD

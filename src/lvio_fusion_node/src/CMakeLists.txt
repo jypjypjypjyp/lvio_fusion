@@ -3,5 +3,6 @@ add_executable(lvio_fusion_node
         parameters.cpp
         visualization.cpp)
 
+add_dependencies(lvio_fusion_node object_detector_gencpp)
 target_link_libraries(lvio_fusion_node ${THIRD_PARTY_LIBS})
 target_compile_features(lvio_fusion_node PRIVATE cxx_std_14)

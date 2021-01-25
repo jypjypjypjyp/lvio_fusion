@@ -12,10 +12,9 @@ namespace lvio_fusion
 // [A, B, C]
 struct Section
 {
-    double A = 0;   // for submap: the old time of loop;    for section: the begining of turning
-    double B = 0;   // for submap: the begining of loop;    for section: the ending of turning
-    double C = 0;   // for submap: ths ending of loop;      for section: the ending of straight line
-    SE3d pose;      // temp storage of A's old pose
+    double A = 0; // time of before the first frame
+    double B = 0; // time of before the first loop frame
+    double C = 0; // the last frame
 };
 
 typedef std::map<double, Section> Atlas;
@@ -27,29 +26,27 @@ public:
 
     void SetFrontend(Frontend::Ptr frontend) { frontend_ = frontend; }
 
-    Section& AddSubMap(double old_time, double start_time, double end_time);
+    void AddSubMap(double old_time, double start_time, double end_time);
 
-    Atlas GetActiveSections(Frames &active_kfs, double &old_time, double start_time);
+    std::map<double, SE3d> GetActiveSubMaps(Frames &active_kfs, double &old_time, double start_time);
 
     Atlas GetSections(double start, double end);
 
-    void BuildProblem(Atlas &sections, Section &submap, adapt::Problem &problem);
+    void BuildProblem(Atlas &sections, adapt::Problem &problem);
 
-    void Optimize(Atlas &sections, Section &submap, adapt::Problem &problem);
+    void Optimize(Atlas &sections, adapt::Problem &problem);
 
     void ForwardPropagate(SE3d transfrom, double start_time);
 
-    void Propagate(SE3d transfrom, const Frames& forward_kfs);
-
-    void ForwardPropagate(Section section);
+    void ForwardPropagate(SE3d transfrom, const Frames& forward_kfs);
 
 private:
     void UpdateSections(double time);
 
     Frontend::Ptr frontend_;
 
-    Atlas submaps_;      // loop submaps [end : {old, start, end}]
-    Atlas sections_;    // sections [A : {A, B, C}]
+    Atlas atlas_;    // loop altas
+    Atlas sections_; // sections
 };
 
 } // namespace lvio_fusion

@@ -19,13 +19,11 @@ class Frame
 public:
     typedef std::shared_ptr<Frame> Ptr;
 
-    Frame() {}
+      Frame():ImuBias(Bias(0,0,0,0,0,0)),Vw(Vector3d::Zero()){ }//NEWADD
 
     void AddFeature(visual::Feature::Ptr feature);
 
     void RemoveFeature(visual::Feature::Ptr feature);
-
-    void Clear();
 
     //NOTE: semantic map
     void UpdateLabel();
@@ -40,14 +38,15 @@ public:
     visual::Features features_left;          // extracted features in left image
     visual::Features features_right;         // corresponding features in right image, only for this frame
     lidar::Feature::Ptr feature_lidar;       // extracted features in lidar point cloud
-    imu::Preintegration::Ptr preintegration; // imu pre integration
-    imu::Preintegration::Ptr preintegrationFrame; // imu pre integration from last frame NEWADD
+    imu::Preintegration::Ptr preintegration; // imu pre integration from last key frame
+    imu::Preintegration::Ptr preintegrationFrame; // imu pre integration from last frame
     
     navsat::Feature::Ptr feature_navsat;     // navsat point
     cv::Mat descriptors;                     // orb descriptors
     loop::LoopClosure::Ptr loop_closure;     // loop closure
     Weights weights;
     SE3d pose;
+
     //NEWADD
     Frame::Ptr last_keyframe;
     Vector3d Vw;// IMU linear velocity

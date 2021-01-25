@@ -42,7 +42,6 @@ public:
 
     bool initialized = false;
     std::map<double, Vector3d> raw;
-    double finished = 0;
 
 private:
     Navsat() : Sensor(SE3d()) {}
@@ -53,6 +52,7 @@ private:
 
     PoseGraph::Ptr pose_graph_;
 
+    double A_, B_, C_; // three points on the ground level
     static std::vector<Navsat::Ptr> devices_;
 };
 

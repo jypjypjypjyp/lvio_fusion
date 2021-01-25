@@ -15,7 +15,6 @@
 #include <vector>
 
 // define the commonly included file to avoid a long include list
-#define EIGEN_USE_BLAS
 #include <Eigen/Core>
 #include <Eigen/Geometry>
 
@@ -51,8 +50,6 @@ public:
     NotImplemented() : std::logic_error("Function not yet implemented"){};
 };
 
-// system config
 extern double epsilon;
-extern int num_threads;
 
 #endif // lvio_fusion_COMMON_H

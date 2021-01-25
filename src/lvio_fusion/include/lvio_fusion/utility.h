@@ -390,16 +390,7 @@ inline Matrix3d NormalizeRotation(const Matrix3d &R_)
     cv::cv2eigen(U*Vt,uvt);
     return uvt;
 }
-template <typename T>
-inline Matrix<T,3,3>  NormalizeRotation_(const Matrix<T,3,3> &R_)
-{ 
-    cv::Mat_<T> U,w,Vt;
-    cv::Mat_<T> R=(cv::Mat_<T>(3,3)<<T(R_(0,0)),T(R_(0,1)),T(R_(0,2)),T(R_(1,0)),T(R_(1,1)),T(R_(1,2)),T(R_(2,0)),T(R_(2,1)),T(R_(2,2)));
-    cv::SVDecomp(R,w,U,Vt,cv::SVD::FULL_UV);
-    Matrix<T,3,3> uvt;
-    cv::cv2eigen(U*Vt,uvt);
-    return uvt;
-}
+
 
 inline Eigen::Matrix3d RightJacobianSO3(const double x, const double y, const double z)
 {
@@ -423,6 +414,13 @@ inline Eigen::Matrix3d RightJacobianSO3(const Eigen::Vector3d &v)
     return RightJacobianSO3(v[0],v[1],v[2]);
 }
 
+
+inline Eigen::Matrix3d Skew(const Eigen::Vector3d &w)
+{
+    Eigen::Matrix3d W;
+    W << 0.0, -w[2], w[1],w[2], 0.0, -w[0],-w[1],  w[0], 0.0;
+    return W;
+}
 //NEWADDEND
 
 } // namespace lvio_fusion

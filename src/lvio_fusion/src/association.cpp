@@ -1,4 +1,5 @@
 #include "lvio_fusion/lidar/association.h"
+#include "lvio_fusion/adapt/agent.h"
 #include "lvio_fusion/adapt/problem.h"
 #include "lvio_fusion/ceres/lidar_error.hpp"
 #include "lvio_fusion/ceres/loop_error.hpp"
@@ -20,17 +21,17 @@ namespace lvio_fusion
 
 void FeatureAssociation::AddScan(double time, Point3Cloud::Ptr new_scan)
 {
-    static double finished = 0;
+    static double head = 0;
     raw_point_clouds_[time] = new_scan;
 
-    Frames new_kfs = Map::Instance().GetKeyFrames(finished, time);
-    for (auto &pair_kf : new_kfs)
+    Frames new_kfs = Map::Instance().GetKeyFrames(head, time);
+    for (auto pair_kf : new_kfs)
     {
         PointICloud point_cloud;
         if (AlignScan(pair_kf.first, point_cloud))
         {
             Process(point_cloud, pair_kf.second);
-            finished = pair_kf.first + epsilon;
+            head = pair_kf.first + epsilon;
         }
     }
 }
@@ -222,7 +223,7 @@ inline void FeatureAssociation::Sensor2Robot(PointICloud &in, PointICloud &out)
 {
     Sophus::SE3f tf_se3 = Lidar::Get()->extrinsic.cast<float>();
     float *tf = tf_se3.data();
-    for (auto &point_in : in)
+    for (auto point_in : in)
     {
         PointI point_out;
         ceres::SE3TransformPoint(tf, point_in.data, point_out.data);
@@ -297,15 +298,17 @@ void FeatureAssociation::ScanToMapWithGround(Frame::Ptr frame, Frame::Ptr map_fr
             Vector3d last_point_c(points_ground_last[points_index[2]].x,
                                   points_ground_last[points_index[2]].y,
                                   points_ground_last[points_index[2]].z);
+            double weights[1] = {curr_point.norm() > 5 ? 10.0 : 1.0};
             ceres::CostFunction *cost_function;
-            cost_function = LidarPlaneErrorRPZ::Create(curr_point, last_point_a, last_point_b, last_point_c, map_frame->pose, para, frame->weights.lidar_ground);
+            cost_function = LidarPlaneErrorRPZ::Create(curr_point, last_point_a, last_point_b, last_point_c, map_frame->pose, para, weights);
             problem.AddResidualBlock(ProblemType::LidarPlaneErrorRPZ, cost_function, loss_function, para + 1, para + 2, para + 5);
         }
     }
 
     if (frame->id == map_frame->id + 1)
     {
-        ceres::CostFunction *cost_function = PoseErrorRPZ::Create(para, frame->weights.visual);
+        Agent::Instance()->UpdateWeights(problem, frame->weights);
+        ceres::CostFunction *cost_function = PoseErrorRPZ::Create(para, frame->weights.lidar_ground);
         problem.AddResidualBlock(ProblemType::Other, cost_function, NULL, para + 1, para + 2, para + 5);
     }
 }
@@ -355,15 +358,17 @@ void FeatureAssociation::ScanToMapWithSegmented(Frame::Ptr frame, Frame::Ptr map
             Vector3d last_point_c(points_surf_last[points_index[2]].x,
                                   points_surf_last[points_index[2]].y,
                                   points_surf_last[points_index[2]].z);
+            double weights[1] = {1};
             ceres::CostFunction *cost_function;
-            cost_function = LidarPlaneErrorYXY::Create(curr_point, last_point_a, last_point_b, last_point_c, map_frame->pose, para, frame->weights.lidar_surf);
+            cost_function = LidarPlaneErrorYXY::Create(curr_point, last_point_a, last_point_b, last_point_c, map_frame->pose, para, weights);
             problem.AddResidualBlock(ProblemType::LidarPlaneErrorYXY, cost_function, loss_function, para, para + 3, para + 4);
         }
     }
 
     if (frame->id == map_frame->id + 1)
     {
-        ceres::CostFunction *cost_function = PoseErrorYXY::Create(para, frame->weights.visual);
+        Agent::Instance()->UpdateWeights(problem, frame->weights);
+        ceres::CostFunction *cost_function = PoseErrorYXY::Create(para, frame->weights.lidar_surf);
         problem.AddResidualBlock(ProblemType::Other, cost_function, NULL, para, para + 3, para + 4);
     }
 }

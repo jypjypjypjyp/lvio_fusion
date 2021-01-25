@@ -24,7 +24,7 @@ visual::Landmark::Ptr Landmark::Create(Vector3d position)
 
 void Landmark::Clear()
 {
-    for (auto &pair_feature : observations)
+    for (auto pair_feature : observations)
     {
         auto feature = pair_feature.second;
         feature->frame.lock()->features_left.erase(id);

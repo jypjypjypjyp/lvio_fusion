@@ -7,7 +7,7 @@
 #include <ceres/ceres.h>
 namespace lvio_fusion
 {
- bool showGSIMU(const  double *  parameters0,const  double *  parameters1,const  double *  parameters2,const  double *  parameters3,const  double *  parameters4,imu::Preintegration::Ptr mpInt,SE3d current_pose,SE3d last_pose)  
+ bool showGSIMU(const  double *  parameters0,const  double *  parameters1,const  double *  parameters2,const  double *  parameters3,const  double *  parameters4,imu::Preintegration::Ptr mpInt,SE3d current_pose,SE3d last_pose,double time)  
     {
     //    Quaterniond Qi(last_pose.rotationMatrix());
        Matrix3d Qi=last_pose.rotationMatrix();
@@ -27,7 +27,7 @@ namespace lvio_fusion
         // Eigen::AngleAxisd pitchAngle(AngleAxisd(eulerAngle(1),Vector3d::UnitY()));
         // Eigen::AngleAxisd yawAngle(AngleAxisd(eulerAngle(2),Vector3d::UnitZ()));
         Matrix3d Rwg=rwg.toRotationMatrix();
-        LOG(INFO)<<Rwg;
+       // LOG(INFO)<<Rwg;
         // Rwg= yawAngle*pitchAngle*rollAngle;
         Vector3d g;
          g<< 0, 0, -G;
@@ -49,26 +49,82 @@ namespace lvio_fusion
         
   Matrix<double, 9, 1> residual;
         residual<<er,ev,ep;
+        //         LOG(INFO)<<"\nInertialGSError residual "<<residual.transpose()<<"   "<<time;
+        // LOG(INFO)<<"\ndV "<<dV.transpose()<< "  dP "<<dP.transpose()<<"\ndR\n"<<dR;
+        // LOG(INFO)<<"\nQi\n"<</*tcb.inverse()*/Qi;
+        // LOG(INFO)<<"\nQj\n"<</*tcb.inverse()*/Qj;
+
+        // LOG(INFO)<<"BA "<<b1.linearized_ba.transpose()<<" BG "<<b1.linearized_bg.transpose();
     //    LOG(INFO)<<"\nInertialGSError residual :  er "<<residual.transpose()<<" dT "<<mpInt->dT;
     //            LOG(INFO)<<"\ndV "<<dV.transpose()<< "  dP "<<dP.transpose()<<"\ndR\n"<<dR;
     //     LOG(INFO)<<"\nQi"<<tcb.inverse()*Qi;
-    //        Matrix<double ,9,9> Info=mpInt->C.block<9,9>(0,0).inverse();
-    //      Info = (Info+Info.transpose())/2;
-    //      Eigen::SelfAdjointEigenSolver<Eigen::Matrix<double,9,9> > es(Info);
-    //      Eigen::Matrix<double,9,1> eigs = es.eigenvalues();
-    //      for(int i=0;i<9;i++)
-    //          if(eigs[i]<1e-12)
-    //              eigs[i]=0;
-    //      Matrix<double, 9,9> sqrt_info = es.eigenvectors()*eigs.asDiagonal()*es.eigenvectors().transpose();
-       Matrix<double, 9,9> sqrt_info =LLT<Matrix<double, 9, 9>>(mpInt->C.block<9,9>(0,0).inverse()).matrixL().transpose();
-        sqrt_info/=InfoScale;
+           Matrix<double ,9,9> Info=mpInt->C.block<9,9>(0,0).inverse();
+         Info = (Info+Info.transpose())/2;
+         Eigen::SelfAdjointEigenSolver<Eigen::Matrix<double,9,9> > es(Info);
+         Eigen::Matrix<double,9,1> eigs = es.eigenvalues();
+         for(int i=0;i<9;i++)
+             if(eigs[i]<1e-12)
+                 eigs[i]=0;
+         Matrix<double, 9,9> sqrt_info = es.eigenvectors()*eigs.asDiagonal()*es.eigenvectors().transpose();
+    //   Matrix<double, 9,9> sqrt_info =LLT<Matrix<double, 9, 9>>(mpInt->C.block<9,9>(0,0).inverse()).matrixL().transpose();
+        //sqrt_info/=InfoScale;
       //  assert(residual[0]<10&&residual[1]<10&&residual[2]<10&&residual[3]<10&&residual[4]<10&&residual[5]<10&&residual[6]<10&&residual[7]<10&&residual[8]<10);
+      //LOG(INFO)<<sqrt_info;
         residual = sqrt_info* residual;
     //    LOG(INFO)<<"InertialGSError sqrt_info* residual :  er "<<residual.transpose()<<" dT "<<mpInt->dT;
     //     LOG(INFO)<<"                Qi "<<Qi.eulerAngles(0,1,2).transpose()<<" Qj "<<Qj.eulerAngles(0,1,2).transpose()<<"dQ"<<dR.eulerAngles(0,1,2).transpose();
     //     LOG(INFO)<<"                Pi "<<Pi.transpose()<<" Pj "<<Pj.transpose()<<"dP"<<dP.transpose();
     //     LOG(INFO)<<"                Vi "<<Vi.transpose()<<" Vj "<<Vj.transpose()<<"dV"<<dV.transpose();
     //      LOG(INFO)<<"                 Bai "<< accBias.transpose()<<"  Bgi "<<  gyroBias.transpose();
+
+            Bias delta_bias=mpInt->GetDeltaBias(b1);
+            Vector3d dbg=delta_bias.linearized_bg;
+            Matrix3d Rwb1 =Qi;
+            Matrix3d Rbw1 = Rwb1.transpose();
+            Matrix3d Rwb2 = Qj;
+            MatrixXd Gm = MatrixXd::Zero(3,2);
+            Gm(0,1) = -G;
+            Gm(1,0) = G;
+            double s = Scale;
+            Eigen::MatrixXd dGdTheta = Rwg*Gm;
+            Eigen::Matrix3d eR = dR.transpose()*Rbw1*Rwb2;
+            Eigen::Vector3d er_ = LogSO3(eR);
+            Eigen::Matrix3d invJr = InverseRightJacobianSO3(er_);
+             Matrix3d JRg=mpInt->JRg;
+            Matrix3d JVg=mpInt->JVg;
+            Matrix3d JPg=mpInt->JPg;
+            Matrix3d JVa=mpInt->JVa;
+            Matrix3d JPa=mpInt->JPa;
+                Matrix<double, 9, 3, RowMajor> jacobian_v_i;
+                jacobian_v_i.setZero();
+                jacobian_v_i.block<3, 3>(3,0)=-s*Rbw1;
+                jacobian_v_i.block<3, 3>(6,0)= -s*Rbw1*dt;
+                //jacobian_v_i=sqrt_info *jacobian_v_i;
+    LOG(INFO)<<"\njacobian_v_i"<<jacobian_v_i;
+                Matrix<double, 9, 3, RowMajor> jacobian_v_j;
+                jacobian_v_j.setZero();
+                jacobian_v_j.block<3, 3>(3,0)= s*Rbw1;
+                //jacobian_v_j=sqrt_info *jacobian_v_j;
+    LOG(INFO)<<"\njacobian_v_j"<<jacobian_v_j;
+                Matrix<double, 9, 3, RowMajor> jacobian_bg;
+                jacobian_bg.setZero();
+                jacobian_bg.block<3, 3>(0,0)= -invJr*eR.transpose()*RightJacobianSO3(JRg*dbg)*JRg;
+                jacobian_bg.block<3, 3>(3,0)=-JVg;
+                jacobian_bg.block<3, 3>(6,0)=-JPg;
+                //jacobian_bg=sqrt_info *jacobian_bg;
+    LOG(INFO)<<"\njacobian_bg"<<jacobian_bg;
+                Matrix<double, 9, 3, RowMajor> jacobian_ba;
+                jacobian_ba.setZero();
+                jacobian_ba.block<3, 3>(3,0)=-JVa;
+                jacobian_ba.block<3, 3>(6,0)=-JPa;
+                //jacobian_ba=sqrt_info *jacobian_ba;
+    LOG(INFO)<<"\njacobian_ba"<<jacobian_ba;
+                Matrix<double, 9,4, RowMajor> jacobian_Rwg;
+                jacobian_Rwg.setZero();
+                jacobian_Rwg.block<3,2>(3,0) = -Rbw1*dGdTheta*dt;
+                jacobian_Rwg.block<3,2>(6,0) = -0.5*Rbw1*dGdTheta*dt*dt;
+                //jacobian_Rwg=sqrt_info *jacobian_Rwg;
+    LOG(INFO)<<"\n jacobian_Rwg"<<jacobian_Rwg;
         return true;
     }
 
@@ -80,19 +136,19 @@ Bias InertialOptimization(Frames &key_frames, Eigen::Matrix3d &Rwg, double &scal
     //先验BIAS约束
     auto para_gyroBias=key_frames.begin()->second->ImuBias.linearized_bg.data();
     problem.AddParameterBlock(para_gyroBias, 3);
-    ceres::CostFunction *cost_function = PriorGyroError3::Create(Vector3d::Zero(),priorG);
+    ceres::CostFunction *cost_function = PriorGyroError::Create(Vector3d::Zero(),priorG);
     problem.AddResidualBlock(cost_function,NULL,para_gyroBias);
 
     auto para_accBias=key_frames.begin()->second->ImuBias.linearized_ba.data();
     problem.AddParameterBlock(para_accBias, 3);
-    cost_function = PriorAccError3::Create(Vector3d::Zero(),priorA);
+    cost_function = PriorAccError::Create(Vector3d::Zero(),priorA);
     problem.AddResidualBlock(cost_function,NULL,para_accBias);
     
     //优化重力、BIAS和速度的边
     Quaterniond rwg(Rwg);
-    LOG(INFO)<<rwg.w()<<" "<<rwg.x()<<" "<<rwg.y()<<" "<<rwg.z();
+    //LOG(INFO)<<rwg.w()<<" "<<rwg.x()<<" "<<rwg.y()<<" "<<rwg.z();
     SO3d RwgSO3(rwg);
-LOG(INFO)<<rwg.toRotationMatrix();
+//LOG(INFO)<<rwg.toRotationMatrix();
     auto para_rwg=RwgSO3.data();
     //LOG(INFO)<<para_rwg[0]<<" "<<para_rwg[1]<<" "<<para_rwg[2]<<" "<<para_rwg[3];
 
@@ -100,7 +156,6 @@ LOG(INFO)<<rwg.toRotationMatrix();
     problem.AddParameterBlock(para_rwg, SO3d::num_parameters,local_parameterization);
     Frame::Ptr last_frame;
     Frame::Ptr current_frame;
-    double *para_scale=&scale;
     for(Frames::iterator iter = key_frames.begin(); iter != key_frames.end(); iter++)
     {
         current_frame=iter->second;
@@ -115,11 +170,11 @@ LOG(INFO)<<rwg.toRotationMatrix();
         if (last_frame)
         {
             auto para_v_last = last_frame->Vw.data();
-            cost_function = InertialGSError3::Create(current_frame->preintegration,current_frame->pose,last_frame->pose);
+            cost_function = InertialGSError::Create(current_frame->preintegration,current_frame->pose,last_frame->pose);
             problem.AddResidualBlock(cost_function, NULL,para_v_last,  para_v,para_gyroBias,para_accBias,para_rwg);
-           // LOG(INFO)<<current_frame->preintegration->dV.transpose();
+           //LOG(INFO)<<current_frame->preintegration->dV.transpose();
 
-            // showGSIMU(para_v_last,  para_v,para_gyroBias,para_accBias,para_rwg,current_frame->preintegration,current_frame->pose,last_frame->pose);
+           // showGSIMU(para_v_last,  para_v,para_gyroBias,para_accBias,para_rwg,current_frame->preintegration,current_frame->pose,last_frame->pose,current_frame->time-1.40364e+09+8.60223e+07);
                 // LOG(INFO)<<"InertialOptimization ckf: "<<current_frame->id<<"  lkf: "<<last_frame->id<<"  t"<<current_frame->preintegration->dT;
                 // LOG(INFO)<<"     current pose: "<<current_frame->pose.translation().transpose(); 
                 // LOG(INFO)<<"     last pose: "<<last_frame->pose.translation().transpose();
@@ -131,8 +186,9 @@ LOG(INFO)<<rwg.toRotationMatrix();
 
     ceres::Solver::Options options;
     options.linear_solver_type = ceres::DENSE_SCHUR;
-    options.max_solver_time_in_seconds = 0.1;
+    //options.max_solver_time_in_seconds = 0.1;
     // options.max_num_iterations =1;
+    options.trust_region_strategy_type = ceres::DOGLEG;
     options.num_threads = 4;
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
@@ -173,8 +229,8 @@ LOG(INFO)<<rwg.toRotationMatrix();
             tcb<<0.0148655429818, -0.999880929698, 0.00414029679422,
             0.999557249008, 0.0149672133247, 0.025715529948,
             -0.0257744366974, 0.00375618835797, 0.999660727178;
-        LOG(INFO)<<current_frame->preintegration->dV.transpose();
-        LOG(INFO)<<"InertialOptimization  "<<current_frame->time-1.40364e+09/*+8.60223e+07*/<<"   Vwb1  "<<current_frame->Vw.transpose()*tcb;//<<"\nR: \n"<<tcb.inverse()*current_frame->pose.rotationMatrix();
+       //LOG(INFO)<<current_frame->preintegration->dV.transpose();
+        LOG(INFO)<<"InertialOptimization  "<<current_frame->time-1.40364e+09+8.60223e+07<<"   Vwb1  "<<current_frame->Vw.transpose()/*tcb*/<<"  Pose  "<<current_frame->pose.translation().transpose()/*tcb*/;//<<"\nR: \n"<<tcb.inverse()*current_frame->pose.rotationMatrix();
     }
     LOG(INFO)<<"BIAS   a "<<bias_.linearized_ba.transpose()<<" g "<<bias_.linearized_bg.transpose();
     
@@ -206,13 +262,10 @@ LOG(INFO)<<rwg.toRotationMatrix();
         const Vector3d ep = Qi.toRotationMatrix().inverse()*((Pj - Pi - Vi*dt) - g*dt*dt/2) - dP;
         Matrix<double, 9, 1> residual;
         residual<<er,ev,ep;
-                    Matrix3d tcb;
-            tcb<<0.0148655429818, -0.999880929698, 0.00414029679422,
-            0.999557249008, 0.0149672133247, 0.025715529948,
-            -0.0257744366974, 0.00375618835797, 0.999660727178;
-        LOG(INFO)<<"\nInertialError residual "<<residual.transpose();
-        LOG(INFO)<<"\ndV "<<dV.transpose()<< "  dP "<<dP.transpose()<<"\ndR\n"<<dR;
-        LOG(INFO)<<"\nVi"<<(tcb.inverse()*Vi).transpose()<<"Pi"<<(tcb.inverse()*Pi).transpose()<<"\nQi\n"<<tcb.inverse()*Qi.toRotationMatrix();
+        LOG(INFO)<<"\n FullInertialBA residual "<<residual.transpose()<<"   "<<time;
+        // LOG(INFO)<<"BA "<<b1.linearized_ba.transpose()<<" BG "<<b1.linearized_bg.transpose();
+        // LOG(INFO)<<"\ndV "<<dV.transpose()<< "  dP "<<dP.transpose()<<"\ndR\n"<<dR;
+        // LOG(INFO)<<"\nVj"<<(Vj).transpose()<<"Pj"<<(Pj).transpose()<<"\nQj\n"<<Qj.toRotationMatrix();
         //    Matrix<double ,9,9> Info=mpInt->C.block<9,9>(0,0).inverse();
         //  Info = (Info+Info.transpose())/2;
         //  Eigen::SelfAdjointEigenSolver<Eigen::Matrix<double,9,9> > es(Info);
@@ -222,7 +275,7 @@ LOG(INFO)<<rwg.toRotationMatrix();
         //          eigs[i]=0;
         //  Matrix<double, 9,9> sqrt_info = es.eigenvectors()*eigs.asDiagonal()*es.eigenvectors().transpose();
         Matrix<double, 9,9> sqrt_info =LLT<Matrix<double, 9, 9>>( mpInt->C.block<9,9>(0,0).inverse()).matrixL().transpose();
-        sqrt_info/=InfoScale;
+        //sqrt_info/=InfoScale;
         // LOG(INFO)<<"InertialError sqrt_info "<<sqrt_info;
         //assert(!isnan(residual[0])&&!isnan(residual[1])&&!isnan(residual[2])&&!isnan(residual[3])&&!isnan(residual[4])&&!isnan(residual[5])&&!isnan(residual[6])&&!isnan(residual[7])&&!isnan(residual[8]));
         residual = sqrt_info* residual;
@@ -231,49 +284,184 @@ LOG(INFO)<<rwg.toRotationMatrix();
         // LOG(INFO)<<"                Pi "<<Pi.transpose()<<" Pj "<<Pj.transpose()<<"dP"<<dP.transpose();
         // LOG(INFO)<<"                Vi "<<Vi.transpose()<<" Vj "<<Vj.transpose()<<"dV"<<dV.transpose();
         // LOG(INFO)<<"             Bai "<< accBias.transpose()<<"  Bgi "<<  gyroBias.transpose();
+
+             Bias  b2(accBias(0,0),accBias(1,0),accBias(2,0),gyroBias(0,0),gyroBias(1,0),gyroBias(2,0));
+            Bias delta_bias=mpInt->GetDeltaBias(b2);
+            Vector3d dbg=delta_bias.linearized_bg;
+            Matrix3d Rwb1 =Qi.toRotationMatrix();
+            //Matrix3d Rbw1 = Rwb1.transpose();
+            Matrix3d Rbw1 = (Qi.inverse()).toRotationMatrix();
+            Matrix3d Rwb2 = Qj.toRotationMatrix();
+
+            Eigen::Matrix3d eR = dR.transpose()*Rbw1*Rwb2;
+            Eigen::Vector3d er_ = LogSO3(eR);
+            Eigen::Matrix3d invJr = InverseRightJacobianSO3(er_);
+            Matrix3d JRg=mpInt->JRg;
+            Matrix3d JVg=mpInt->JVg;
+            Matrix3d JPg=mpInt->JPg;
+            Matrix3d JVa=mpInt->JVa;
+            Matrix3d JPa=mpInt->JPa;
+               Matrix<double, 9, 7, RowMajor> jacobian_pose_i;
+                jacobian_pose_i.setZero();
+                jacobian_pose_i.block<3, 3>(0,0)=  -invJr*Rwb2.transpose()*Rwb1;
+                jacobian_pose_i.block<3, 3>(3,0)= Skew(Rbw1*((Vj - Vi)- g*dt));
+                jacobian_pose_i.block<3, 3>(6,0)=  Skew(Rbw1*((Pj - Pi- Vi*dt)- 0.5*g*dt*dt));
+                jacobian_pose_i.block<3, 3>(6,4)=  -Matrix3d::Identity();
+               //  jacobian_pose_i=sqrt_info *jacobian_pose_i;
+                LOG(INFO)<<"\njacobian_pose_i"<<jacobian_pose_i;
+                Matrix<double, 9, 3, RowMajor> jacobian_v_i;
+                jacobian_v_i.setZero();
+                jacobian_v_i.block<3, 3>(3,0)=-Rbw1;
+                jacobian_v_i.block<3, 3>(6,0)= -Rbw1*dt;
+               // jacobian_v_i=sqrt_info*jacobian_v_i;
+                 LOG(INFO)<<"\njacobian_v_i"<<jacobian_v_i;
+                Matrix<double, 9, 3, RowMajor> jacobian_bg;
+                jacobian_bg.setZero();
+                jacobian_bg.block<3, 3>(0,0)= -invJr*eR.transpose()*RightJacobianSO3(JRg*dbg)*JRg;
+                jacobian_bg.block<3, 3>(3,0)=-JVg;
+                jacobian_bg.block<3, 3>(6,0)=-JPg;
+                //jacobian_bg=sqrt_info*jacobian_bg;
+                LOG(INFO)<<"\njacobian_bg"<<jacobian_bg;
+                Matrix<double, 9, 3, RowMajor> jacobian_ba;
+                jacobian_ba.setZero();
+                jacobian_ba.block<3, 3>(3,0)=-JVa;
+                jacobian_ba.block<3, 3>(6,0)=-JPa;
+                //jacobian_ba=sqrt_info*jacobian_ba;
+                LOG(INFO)<<"\njacobian_ba"<<jacobian_ba;
+                Matrix<double, 9, 7, RowMajor> jacobian_pose_j;
+                jacobian_pose_j.setZero();
+                jacobian_pose_j.block<3, 3>(0,0)=invJr;
+                jacobian_pose_j.block<3, 3>(6,4)=Rbw1*Rwb2;
+                //jacobian_pose_j=sqrt_info *jacobian_pose_j;
+                LOG(INFO)<<"\njacobian_pose_j"<<jacobian_pose_j;
+                Matrix<double, 9, 3, RowMajor> jacobian_v_j;
+                jacobian_v_j.setZero();
+                jacobian_v_j.block<3, 3>(3,0)= Rbw1;
+                //jacobian_v_j=sqrt_info *jacobian_v_j;
+                LOG(INFO)<<"\njacobian_v_j"<<jacobian_v_j;
          return true;
     }
 
-Bias FullInertialBA(Frames &key_frames, Matrix3d Rwg, double priorG, double priorA)
+Bias FullInertialBA(Frames &key_frames, Matrix3d Rwg, double priorG=1e2, double priorA=1e6)
 {
     ceres::Problem problem;
-    
+      ceres::CostFunction *cost_function ;
     ceres::LocalParameterization *local_parameterization = new ceres::ProductParameterization(
             new ceres::EigenQuaternionParameterization(),
             new ceres::IdentityParameterization(3));
     ceres::LossFunction *loss_function = new ceres::HuberLoss(1.0);
     double start_time = key_frames.begin()->first;
-    for (auto pair_kf : key_frames)
-    {
-        auto frame = pair_kf.second;
-        double *para_kf = frame->pose.data();
-        problem.AddParameterBlock(para_kf, SE3d::num_parameters, local_parameterization);
-        for (auto pair_feature : frame->features_left)
-        {
-            auto feature = pair_feature.second;
-            auto landmark = feature->landmark.lock();
-            auto first_frame = landmark->FirstFrame().lock();
-            ceres::CostFunction *cost_function;
-                cost_function = PoseOnlyReprojectionError::Create(cv2eigen(feature->keypoint), landmark->ToWorld(), Camera::Get(), frame->weights.visual);
-                problem.AddResidualBlock(cost_function, loss_function, para_kf);
-        }
-    }
+  std::vector<Vector3d>  Ps;
+        std::vector<Matrix3d>  Rs;
+    std::vector<Vector3d>  Vs;
+        Ps.reserve(10);
+        Rs.reserve(10);
+        Vs.reserve(10);
+        Vs[0]<< 0.26398885250091553,  0.13074664771556854 ,0.052110094577074051;
+        Vs[1]<<0.27814435958862305, 0.16502836346626282, 0.10260432958602905;
+        Vs[2]<< 0.30439004302024841,   0.20504598319530487, -0.034762419760227203;
+        Vs[3]<<0.38809829950332642 , 0.18391759693622589, -0.19162872433662415;
+        Vs[4]<<0.43383324146270752,  0.27216625213623047, -0.17158563435077667;
+        Vs[5]<<0.44212883710861206,  0.39110857248306274, 0.042390212416648865 ;
+        Vs[6]<< 0.43623760342597961, 0.37755176424980164 ,0.16418531537055969;
+        Vs[7]<<0.40898382663726807, 0.40347582101821899 ,0.13281315565109253;
+        Vs[8]<<0.41809707880020142 ,  0.38235160708427429 ,-0.011100620031356812;
+        Vs[9]<<0.45420143008232117 ,    0.341154545545578 ,-0.067993417382240295 ;
+
+        Ps[0]<<0.064798988401889801, 0.0026885510887950659 , 0.023270642384886742;
+        Ps[1]<<0.13383278250694275 ,0.033715441823005676 ,0.054873757064342499;
+        Ps[2]<< 0.20337608456611633 ,0.083536639809608459 ,0.063480690121650696;
+        Ps[3]<< 0.2898789644241333 , 0.13055914640426636, 0.033043459057807922;
+        Ps[4]<<0.3942166268825531  , 0.18909266591072083 ,-0.021480655297636986;
+        Ps[5]<<0.50463390350341797 , 0.27341970801353455 ,-0.03707466647028923;
+        Ps[6]<<0.61334025859832764 ,  0.37086197733879089, -0.011849086731672287;
+        Ps[7]<<0.71995759010314941 , 0.46686416864395142 ,0.034153938293457031;
+        Ps[8]<<0.81975811719894409 , 0.56860911846160889 ,0.048397514969110489;
+        Ps[9]<<0.930076003074646  ,0.65801626443862915, 0.037731535732746124;
+
+        Rs[0]<<-0.01669120229780674 ,    0.9978448748588562 , -0.063459374010562897,
+    0.3524135947227478   , 0.06526637077331543  ,  0.93356567621231079,
+   0.93569546937942505 ,-0.0067816171795129776 ,  -0.35274350643157959;
+        Rs[1]<<-0.0086139719933271408,    0.99961918592453003,  -0.026218974962830544,
+   0.36063376069068909  , 0.027560945600271225   , 0.93230020999908447,
+   0.93266773223876953 ,-0.0014246385544538498,   -0.36073386669158936;
+         Rs[2]<<0.029590632766485214  , 0.99950265884399414,  0.010900553315877914,
+  0.33506354689598083, -0.020192869007587433  , 0.94197899103164673,
+  0.94173061847686768 ,-0.024221379309892654 , -0.33549448847770691;
+         Rs[3]<<0.062492750585079193  , 0.99413597583770752,  0.088251747190952301,
+  0.35331389307975769 , -0.10473461449146271  , 0.92962348461151123,
+  0.93341517448425293, -0.026914151385426521 , -0.35778722167015076;
+         Rs[4]<<0.092648528516292572 ,  0.97711557149887085  , 0.19147187471389771,
+  0.36995589733123779,   -0.2123139500617981,   0.90446418523788452,
+  0.92441803216934204 ,-0.012961131520569324,  -0.38116025924682617;
+         Rs[5]<< 0.098780959844589233    ,0.96405947208404541   , 0.24664060771465302,
+   0.32807028293609619  ,   -0.265546053647995 ,   0.90656232833862305,
+   0.93947434425354004 ,-0.0086356094107031822,   -0.34251022338867188;
+         Rs[6]<< 0.095531485974788666  ,  0.96040183305740356,    0.26172924041748047,
+   0.31925582885742188 ,  -0.27860298752784729  ,  0.90579026937484741,
+   0.94284117221832275 ,-0.0029728906229138374 ,  -0.33322927355766296;
+         Rs[7]<<0.075329318642616272,  0.96354383230209351  ,0.25672733783721924,
+ 0.33532589673995972, -0.26694267988204956 , 0.90349215269088745,
+ 0.93908560276031494,  0.01802789606153965, -0.34320986270904541;
+         Rs[8]<<0.087499983608722687   , 0.96699768304824829 ,   0.23928886651992798,
+   0.33325240015983582,   -0.25478485226631165 ,   0.90775954723358154,
+   0.93876862525939941, 0.00031465664505958557   ,-0.34454801678657532;
+         Rs[9]<<0.087173908948898315,    0.96891272068023682 ,   0.23153591156005859,
+   0.32010272145271301,   -0.24733929336071014 ,   0.91452580690383911,
+   0.94336360692977905, -0.0056075043976306915 ,  -0.33171316981315613;
+
+
+    // for (auto pair_kf : key_frames)
+    // {
+    //     auto frame = pair_kf.second;
+    //     double *para_kf = frame->pose.data();
+    //     problem.AddParameterBlock(para_kf, SE3d::num_parameters, local_parameterization);
+    //     for (auto pair_feature : frame->features_left)
+    //     {
+    //         auto feature = pair_feature.second;
+    //         auto landmark = feature->landmark.lock();
+    //         auto first_frame = landmark->FirstFrame().lock();
+    //             cost_function = PoseOnlyReprojectionError::Create(cv2eigen(feature->keypoint), landmark->ToWorld(), Camera::Get(), frame->weights.visual);
+    //             problem.AddResidualBlock(cost_function, loss_function, para_kf);
+    //     }
+    // }
 
     Frame::Ptr pIncKF=key_frames.begin()->second;
-    double* para_gyroBias;
-    double* para_accBias;
-    para_gyroBias=pIncKF->ImuBias.linearized_bg.data();
-    problem.AddParameterBlock(para_gyroBias, 3);   
-    para_accBias=pIncKF->ImuBias.linearized_ba.data();
-    problem.AddParameterBlock(para_accBias, 3);   
+    Bias mybias(-0.058658524769291551,-0.0060310475755657005,-0.0037879087969964597,-0.0043304018657809229,   0.02121154999869438,  0.079632863001392246);
+    pIncKF->SetNewBias(mybias);
+
+    //先验BIAS约束
+    auto para_gyroBias=key_frames.begin()->second->ImuBias.linearized_bg.data();
+    problem.AddParameterBlock(para_gyroBias, 3);
+    cost_function = PriorGyroError::Create(Vector3d::Zero(),priorG);
+    problem.AddResidualBlock(cost_function,NULL,para_gyroBias);
+
+    auto para_accBias=key_frames.begin()->second->ImuBias.linearized_ba.data();
+    problem.AddParameterBlock(para_accBias, 3);
+    cost_function = PriorAccError::Create(Vector3d::Zero(),priorA);
+    problem.AddResidualBlock(cost_function,NULL,para_accBias);
+
 
     Frame::Ptr last_frame;
     Frame::Ptr current_frame;
-    int i=key_frames.size();
+    int i=0;
+    //优化重力、BIAS和速度的边
+    Matrix3d Rwg_;
+    Rwg_<<1,0,0,
+    0,1,0,
+    0,0,1;
+    Quaterniond rwg(Rwg_);
+    SO3d RwgSO3(rwg);
+    auto para_rwg=RwgSO3.data();
+    ceres::LocalParameterization *local_parameterization_ = new ceres::EigenQuaternionParameterization();
+    problem.AddParameterBlock(para_rwg, SO3d::num_parameters,local_parameterization_);
+
     for (auto kf_pair : key_frames)
     {
-        i--;
         current_frame = kf_pair.second;
+        current_frame->SetPose((Rs[i]),Ps[i]);
+        current_frame->SetVelocity(Vs[i]);
+        i++;
         if (!current_frame->bImu||!current_frame->last_keyframe||!current_frame->preintegration->isPreintegrated)
         {
             last_frame=current_frame;
@@ -281,15 +469,19 @@ Bias FullInertialBA(Frames &key_frames, Matrix3d Rwg, double priorG, double prio
         }
         auto para_kf = current_frame->pose.data();
         auto para_v = current_frame->Vw.data();
-        //problem.AddParameterBlock(para_kf, SE3d::num_parameters, local_parameterization);
+        problem.AddParameterBlock(para_kf, SE3d::num_parameters, local_parameterization);
         problem.AddParameterBlock(para_v, 3);
+        //problem.SetParameterBlockConstant(para_kf);
         if (last_frame && last_frame->bImu)
         {
             auto para_kf_last = last_frame->pose.data();
             auto para_v_last = last_frame->Vw.data();
-            ceres::CostFunction *cost_function =InertialError3::Create(current_frame->preintegration,Rwg);
+            // cost_function = InertialGSError::Create(current_frame->preintegration,current_frame->pose,last_frame->pose);
+            // problem.AddResidualBlock(cost_function, NULL,para_v_last,  para_v,para_gyroBias,para_accBias,para_rwg);
+            cost_function =InertialError::Create(current_frame->preintegration,Rwg);
             problem.AddResidualBlock(cost_function, NULL, para_kf_last, para_v_last,  para_gyroBias,para_accBias, para_kf, para_v);
-            // showIMUErrorINIT(para_kf_last, para_v_last,  para_gyroBias,para_accBias, para_kf, para_v,current_frame->preintegration,current_frame->time-1.40364e+09);
+            
+           //showIMUErrorINIT(para_kf_last, para_v_last,  para_gyroBias,para_accBias, para_kf, para_v,current_frame->preintegration,current_frame->time-1.40364e+09);
             //LOG(INFO)<<current_frame->preintegration->dV.transpose();
                 // LOG(INFO)<<"FullInertialBA ckf: "<<current_frame->id<<"  lkf: "<<last_frame->id;
                 // LOG(INFO)<<"     current pose: "<<current_frame->pose.translation().transpose(); 
@@ -300,21 +492,17 @@ Bias FullInertialBA(Frames &key_frames, Matrix3d Rwg, double priorG, double prio
         last_frame = current_frame;
     }
     //epa  para_accBias
-    ceres::CostFunction *cost_function = PriorAccError3::Create(Vector3d::Zero(),priorA);
-    problem.AddResidualBlock(cost_function, NULL, para_accBias);
-    //epg para_gyroBias
-    cost_function = PriorGyroError3::Create(Vector3d::Zero(),priorG);
-    problem.AddResidualBlock(cost_function, NULL, para_gyroBias);
+
     //solve
     ceres::Solver::Options options;
-    options.linear_solver_type = ceres::DENSE_SCHUR;
-
+    options.linear_solver_type = ceres::DENSE_QR;
+    //options.trust_region_strategy_type = ceres::DOGLEG;
     //options.max_solver_time_in_seconds =0.01;
-    options.max_num_iterations=4;
+    //options.max_num_iterations=1;
     options.num_threads = 4;
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
-    summary.FullReport();
+    LOG(INFO)<<summary.FullReport();
     //数据恢复
     Bias lastBias;
     for(Frames::iterator iter = key_frames.begin(); iter != key_frames.end(); iter++)
@@ -329,10 +517,11 @@ Bias FullInertialBA(Frames &key_frames, Matrix3d Rwg, double priorG, double prio
             tcb<<0.0148655429818, -0.999880929698, 0.00414029679422,
             0.999557249008, 0.0149672133247, 0.025715529948,
             -0.0257744366974, 0.00375618835797, 0.999660727178;
-             LOG(INFO)<<"FullInertialBA  "<<current_frame->time-1.40364e+09/*+8.60223e+07*/<<"   Vwb1  "<<current_frame->Vw.transpose()*tcb;//<<"\nR: \n"<<tcb.inverse()*current_frame->pose.rotationMatrix();
+             LOG(INFO)<<"FullInertialBA  "<<current_frame->time-1.40364e+09+8.60223e+07<<"   Vwb1  "<<current_frame->Vw.transpose()/*tcb*/;//<<"\nR: \n"<<tcb.inverse()*current_frame->pose.rotationMatrix();
+              LOG(INFO)<<"BIAS   a "<<bias.linearized_ba.transpose()<<" g "<<bias.linearized_bg.transpose();
         }
     }
-    LOG(INFO)<<"BIAS   a "<<lastBias.linearized_ba.transpose()<<" g "<<lastBias.linearized_bg.transpose();
+   
     return lastBias;
 }
 
@@ -381,47 +570,47 @@ bool  Initializer::estimate_Vel_Rwg(std::vector< Frame::Ptr > Key_frames)
         times[8]=-3369.0364444255829+1.40364e+09;
         times[9]=-3368.7864444255829+1.40364e+09;
 
-        Ps[0]<<0.065222919, -0.020706384, -0.0080546029;
-        Ps[1]<<0.13616742, -0.058817036, 0.0072276667;
-        Ps[2]<<0.20901129, -0.080879375, 0.049652021;
-        Ps[3]<<0.29620379, -0.06541203, 0.10217573;
-        Ps[4]<<0.40279835, -0.031201176, 0.1734584;
-        Ps[5]<<0.51777601, -0.043059722, 0.25133854;
-        Ps[6]<<0.63387346, -0.098639309, 0.33116522;
-        Ps[7]<<0.74413091, -0.17301267, 0.40232551;
-        Ps[8]<<0.8524515, -0.21914294, 0.48539206;
-        Ps[9]<<0.96178234, -0.24136597, 0.57736999;
+        Ps[0]<<0.06522291898727417,  -0.020706383511424065, -0.0080546028912067413;
+        Ps[1]<<0.13613715767860413, -0.058799892663955688, 0.0072450097650289536;
+        Ps[2]<<0.20871648192405701, -0.081828892230987549,   0.0480351522564888;
+        Ps[3]<<0.29609397053718567 ,-0.066805832087993622 , 0.098691508173942566;
+        Ps[4]<<0.40373173356056213, -0.033361699432134628,   0.16807201504707336;
+        Ps[5]<<0.51825058460235596, -0.044621579349040985 ,   0.2478640228509903;
+        Ps[6]<<0.63246965408325195, -0.099659904837608337,   0.32880464196205139;
+        Ps[7]<<0.74487757682800293 ,-0.17267747223377228 , 0.39758417010307312;
+        Ps[8]<<0.85390764474868774, -0.22209919989109039  ,0.48088574409484863;
+        Ps[9]<<0.96590858697891235 ,-0.24328972399234772  , 0.5664251446723938;
 
-        Rs[0]<<0.014865543, 0.99955726, -0.025774436,
- -0.99988091, 0.014967213, 0.0037561883,
- 0.004140297, 0.02571553, 0.99966073;
-        Rs[1]<<0.02330914, 0.99966568, 0.011186309,
- -0.99964893, 0.023164896, 0.012855336,
- 0.012591908, -0.011482023, 0.9998548;
-         Rs[2]<<0.060608804, 0.99696088, 0.048944756,
- -0.99803007, 0.061323836, -0.013240544,
- -0.016201781, -0.048045844, 0.99871373;
-         Rs[3]<<0.09429688, 0.98763293, 0.125257,
- -0.99554151, 0.093261078, 0.014121025,
- 0.0022647865, -0.12603012, 0.99202383;
-         Rs[4]<<0.1250338, 0.9658913, 0.22676101,
- -0.99195409, 0.11713015, 0.048036538,
- 0.019837528, -0.23094268, 0.97276509;
-         Rs[5]<<0.12968302, 0.95051467, 0.28231922,
- -0.99123859, 0.13147354, 0.012678154,
- -0.025066735, -0.28148985, 0.95923674;
-         Rs[6]<<0.12596861, 0.94638234, 0.29747662,
- -0.99144405, 0.13044167, 0.0048512854,
- -0.034212172, -0.29554254, 0.95471686;
-         Rs[7]<<0.10662873, 0.95030564, 0.29248849,
- -0.99415302, 0.10693514, 0.014989348,
- -0.017032834, -0.29237658, 0.9561516;
-         Rs[8]<<0.11873601, 0.95415813, 0.2747435,
- -0.99274176, 0.1194065, 0.014346188,
- -0.019117631, -0.27445278, 0.96141052;
-         Rs[9]<<0.11800467, 0.95603567, 0.26845971,
- -0.99247038, 0.12248512, 5.95483e-05,
- -0.032825392, -0.26644534, 0.96329099;
+        Rs[0]<<0.014865542761981487  ,  0.9995572566986084 ,-0.025774436071515083,
+ -0.99988090991973877 ,  0.01496721338480711, 0.0037561883218586445,
+0.0041402969509363174 , 0.025715529918670654  , 0.99966073036193848;
+        Rs[1]<<0.02328638918697834  , 0.99966609477996826  ,0.011202013120055199,
+ -0.99964964389801025  ,0.023142058402299881,  0.012845958583056927,
+ 0.012582430616021156, -0.011497229337692261   , 0.9998546838760376;
+         Rs[2]<<0.060271583497524261 ,  0.99697595834732056,  0.049052443355321884,
+ -0.99805265665054321,  0.060982070863246918, -0.013117516413331032,
+-0.016069166362285614  ,-0.04816630482673645   ,0.99871009588241577;
+         Rs[3]<<0.093869097530841827 , 0.98765230178833008,  0.12542553246021271,
+-0.99558126926422119, 0.092799536883831024, 0.014356276020407677,
+0.002539576031267643 ,-0.12621892988681793,  0.99199920892715454;
+         Rs[4]<<0.12436866015195847 ,  0.9659963846206665  ,0.22667919099330902,
+-0.99202841520309448 , 0.11638070642948151, 0.048323389142751694,
+0.020299136638641357 ,-0.23088215291500092,  0.97276997566223145;
+         Rs[5]<<0.12924505770206451   ,0.95053976774215698,   0.28243556618690491,
+ -0.99130213260650635 ,  0.13098053634166718,   0.01281241700053215,
+-0.024814853444695473, -0.28163495659828186 ,  0.95920073986053467;
+         Rs[6]<<  0.12557829916477203,   0.94633334875106812,   0.29779744148254395,
+ -0.99149954319000244,   0.13001641631126404 ,0.0049428287893533707,
+-0.034040987491607666 , -0.29588669538497925  , 0.95461630821228027;
+         Rs[7]<<0.10622923076152802,  0.95037174224853516 , 0.29241910576820374,
+-0.99419659376144409 , 0.10654130578041077 ,0.014906318858265877,
+-0.01698816753923893, -0.29230555891990662 , 0.95617407560348511;
+         Rs[8]<< 0.11840683966875076 ,  0.95419967174530029  , 0.27474141120910645,
+ -0.99278897047042847   ,0.11897563189268112 , 0.014655625447630882,
+-0.018703140318393707 , -0.27449560165405273  ,   0.961406409740448;
+         Rs[9]<< 0.11787890642881393,    0.95622467994689941   , 0.26784160733222961,
+  -0.99249660968780518,    0.12227194011211395 ,0.00027999875601381063,
+ -0.032481767237186432  , -0.26586490869522095   ,  0.9634629487991333;
 
 dVs[0]<<2.3447235, 0.031738445, -0.88403594;
 dVs[1]<<2.3447235, 0.031738445, -0.88403594;
@@ -799,42 +988,43 @@ Cs[9]<<7.2250002e-09, 2.0828163e-17, 2.2627446e-17, -6.3372092e-11, 2.7986602e-0
         int i=1;
         for(std::vector<Frame::Ptr>::iterator iter_keyframe = Key_frames.begin()+1; iter_keyframe!=Key_frames.end(); iter_keyframe++) 
         {
-            if(!(*iter_keyframe)->last_keyframe)
-            {
-                continue;
-            }
             if(!(*iter_keyframe)->preintegration->isPreintegrated)
             {
                 return false;
             }   
-            // if(firstframe)
-            // {
-            //     (*iter_keyframe)->last_keyframe->time=times[0];
-            //  (*iter_keyframe)->last_keyframe->pose=SE3d(Quaterniond(tcb*Rs[i]),tcb*Ps[0]);
-            //   (*iter_keyframe)->last_keyframe->preintegration->dT=0.25;
-            //   (*iter_keyframe)->last_keyframe->preintegration->dV=dVs[0];
-            //   (*iter_keyframe)->last_keyframe->preintegration->dP=dPs[0];
-            //   (*iter_keyframe)->last_keyframe->preintegration->dR=dRs[0];
-            //     (*iter_keyframe)->last_keyframe->preintegration->C=Cs[0];
-            //         (*iter_keyframe)->last_keyframe->preintegration->JRg=JRgs[0];
-            //       (*iter_keyframe)->last_keyframe->preintegration->JVg=JVgs[0];
-            //       (*iter_keyframe)->last_keyframe->preintegration->JVa=JVas[0];
-            //       (*iter_keyframe)->last_keyframe->preintegration->JPg=JPgs[0];
-            //       (*iter_keyframe)->last_keyframe->preintegration->JPa=JPas[0];
-            //     firstframe=false;
-            // }
-            // (*iter_keyframe)->time=times[i];
-            //  (*iter_keyframe)->pose=SE3d(Quaterniond(tcb*Rs[i]),tcb*Ps[i]);
-            //   (*iter_keyframe)->preintegration->dT=0.25;
-            //   (*iter_keyframe)->preintegration->dV=dVs[i];
-            //   (*iter_keyframe)->preintegration->dP=dPs[i];
-            //   (*iter_keyframe)->preintegration->dR=dRs[i];
-            //     (*iter_keyframe)->preintegration->C=Cs[i];
-            //       (*iter_keyframe)->preintegration->JRg=JRgs[i];
-            //       (*iter_keyframe)->preintegration->JVg=JVgs[i];
-            //       (*iter_keyframe)->preintegration->JVa=JVas[i];
-            //       (*iter_keyframe)->preintegration->JPg=JPgs[i];
-            //       (*iter_keyframe)->preintegration->JPa=JPas[i];
+            if(!(*iter_keyframe)->last_keyframe)
+            {
+                continue;
+            }
+
+            if(firstframe)
+            {
+                (*iter_keyframe)->last_keyframe->time=times[0];
+             (*iter_keyframe)->last_keyframe->pose=SE3d(Quaterniond(Rs[0]),Ps[0]);
+              (*iter_keyframe)->last_keyframe->preintegration->dT=0.25;
+              (*iter_keyframe)->last_keyframe->preintegration->dV=dVs[0];
+              (*iter_keyframe)->last_keyframe->preintegration->dP=dPs[0];
+              (*iter_keyframe)->last_keyframe->preintegration->dR=dRs[0];
+                (*iter_keyframe)->last_keyframe->preintegration->C=Cs[0];
+                    (*iter_keyframe)->last_keyframe->preintegration->JRg=JRgs[0];
+                  (*iter_keyframe)->last_keyframe->preintegration->JVg=JVgs[0];
+                  (*iter_keyframe)->last_keyframe->preintegration->JVa=JVas[0];
+                  (*iter_keyframe)->last_keyframe->preintegration->JPg=JPgs[0];
+                  (*iter_keyframe)->last_keyframe->preintegration->JPa=JPas[0];
+                firstframe=false;
+            }
+            (*iter_keyframe)->time=times[i];
+             (*iter_keyframe)->pose=SE3d(Quaterniond(Rs[i]),Ps[i]);
+              (*iter_keyframe)->preintegration->dT=0.25;
+              (*iter_keyframe)->preintegration->dV=dVs[i];
+              (*iter_keyframe)->preintegration->dP=dPs[i];
+              (*iter_keyframe)->preintegration->dR=dRs[i];
+                (*iter_keyframe)->preintegration->C=Cs[i];
+                  (*iter_keyframe)->preintegration->JRg=JRgs[i];
+                  (*iter_keyframe)->preintegration->JVg=JVgs[i];
+                  (*iter_keyframe)->preintegration->JVa=JVas[i];
+                  (*iter_keyframe)->preintegration->JPg=JPgs[i];
+                  (*iter_keyframe)->preintegration->JPa=JPas[i];
 
             i++;
             dirG -= (*iter_keyframe)->last_keyframe->GetImuRotation()*(*iter_keyframe)->preintegration->GetUpdatedDeltaVelocity();
@@ -842,7 +1032,7 @@ Cs[9]<<7.2250002e-09, 2.0828163e-17, 2.2627446e-17, -6.3372092e-11, 2.7986602e-0
             (*iter_keyframe)->SetVelocity(velocity);
             (*iter_keyframe)->last_keyframe->SetVelocity(velocity);
                 
-            LOG(INFO)<<"InitializeIMU  "<<(*iter_keyframe)->time-1.40364e+09/*+8.60223e+07*/<<"   Vwb1  "<<(tcb.inverse()*velocity).transpose()<<"  dt " <<(*iter_keyframe)->preintegration->dT;
+            LOG(INFO)<<"InitializeIMU  "<<(*iter_keyframe)->time-1.40364e+09/*+8.60223e+07*/<<"   Vwb1  "<<(/*tcb.inverse()*/velocity).transpose()<<"  p  "<<(*iter_keyframe)->GetImuPosition().transpose()/*tcb*/<<"  dt " <<(*iter_keyframe)->preintegration->dT;
            // LOG(INFO)<<"current  "<<(*iter_keyframe)->id<<"   last  "<< (*(iter_keyframe))->last_keyframe->id;
             // LOG(INFO)<<"current  "<<(tcb.inverse()*(*iter_keyframe)->GetImuPosition()).transpose()<<"   last  "<< (tcb.inverse()*(*(iter_keyframe))->last_keyframe->GetImuPosition()).transpose();
             //LOG(INFO)<<"  dP "<<(*iter_keyframe)->preintegration->dP.transpose()<<"  dV "<<(*iter_keyframe)->preintegration->dV.transpose();
@@ -861,10 +1051,10 @@ Cs[9]<<7.2250002e-09, 2.0828163e-17, 2.2627446e-17, -6.3372092e-11, 2.7986602e-0
         Rwg = ExpSO3(vzg);
         //Rwg=Matrix3d::Identity();
         Vector3d g;
-         g<< 0, 0, -G;
+         g<< 0, 0, -9.8007;
          g=Rwg*g;
         // LOG(INFO)<<"dirG "<<(tcb.inverse()*dirG).transpose();
-       // LOG(INFO)<<"INITG "<<(tcb.inverse()*g).transpose();
+       LOG(INFO)<<"INITG "<<(/*tcb.inverse()*/g).transpose();
     } 
     else
     {
@@ -876,11 +1066,9 @@ Cs[9]<<7.2250002e-09, 2.0828163e-17, 2.2627446e-17, -6.3372092e-11, 2.7986602e-0
 }
 
 
-bool  Initializer::InitializeIMU(Frames keyframes)
+bool  Initializer::InitializeIMU(Frames keyframes,double priorA,double priorG)
 {
     
-    double priorA=1e5;
-    double priorG=1e2;
     double minTime=20.0;  // 初始化需要的最小时间间隔
     // 按时间顺序收集初始化imu使用的KF
     std::list< Frame::Ptr > KeyFrames_list;
@@ -922,20 +1110,22 @@ bool  Initializer::InitializeIMU(Frames keyframes)
         // dirG<<-0.15915923848354485 ,  9.1792672332077689,   3.4306621858045498;
         // dirG=tcb*dirG;
         dirG = dirG/dirG.norm();
-        Vector3d  gI(0.0, 0.0, -1.0);//沿-z的归一化的重力数值
-        // 计算旋转轴
-        Vector3d v = gI.cross(dirG);
-        const double nv = v.norm();
-        // 计算旋转角
-        const double cosg = gI.dot(dirG);
-        const double ang = acos(cosg);
-        // 计算mRwg，与-Z旋转偏差
-        Vector3d vzg = v*ang/nv;
-        Rwg = ExpSO3(vzg);
+        if(!(dirG[0]==0&&dirG[1]==0&&dirG[2]==-1)){
+            Vector3d  gI(0.0, 0.0, -1.0);//沿-z的归一化的重力数值
+            // 计算旋转轴
+            Vector3d v = gI.cross(dirG);
+            const double nv = v.norm();
+            // 计算旋转角
+            const double cosg = gI.dot(dirG);
+            const double ang = acos(cosg);
+            // 计算mRwg，与-Z旋转偏差
+            Vector3d vzg = v*ang/nv;
+            Rwg = ExpSO3(vzg);
+        }
                         Vector3d g2;
          g2<< 0, 0, -G;
          g2=Rwg*g2;
-     LOG(INFO)<<"OPTG "<<(tcb.inverse()*g2).transpose()<<"\n"<<tcb.inverse()*Rwg;
+     LOG(INFO)<<"OPTG "<<(/*tcb.inverse()*/g2).transpose();//<<"\n"<<tcb.inverse()*/Rwg;
 
     if (Scale<1e-1)
     {
@@ -951,8 +1141,15 @@ bool  Initializer::InitializeIMU(Frames keyframes)
     }
 
     // 进行完全惯性优化
-    if(!initialized)
+  //  if(!initialized)
+//   if(priorG!=0)
+//     {
         Bias lastBias=FullInertialBA(keyframes,Rwg, priorG, priorA);
+    // }   
+    // else
+    // {
+    //     Bias lastBias=FullInertialBA(keyframes,Rwg);
+    // }
     // frontend_.lock()->UpdateFrameIMU(lastBias);
     frontend_.lock()->last_key_frame->bImu = true;
     bimu=true;

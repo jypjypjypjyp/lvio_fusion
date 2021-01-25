@@ -6,11 +6,13 @@ namespace lvio_fusion
 
 struct Weights
 {
-    double visual = 1;
-    double lidar_ground = 1;
-    double lidar_surf = 1;
-    double pose_graph = 1;
-    bool updated = false;
+    double visual[2] = {1, 1};
+    double navsat[1] = {10};
+    double pose[7] = {1, 1, 1, 1, 1, 1, 1};
+    double lidar_ground[3] = {1, 1, 1};
+    double lidar_surf[3] = {2, 2, 2};
+    double imu[9] = {1, 1, 1, 1, 1, 1, 1, 1, 1};
+    double pose_graph[6] = {1, 1, 1, 1, 1, 1};
 };
 
 } // namespace lvio_fusion

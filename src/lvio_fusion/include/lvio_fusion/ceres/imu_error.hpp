@@ -10,7 +10,6 @@ namespace lvio_fusion
 {
 
 const double G=9.81007;
-const double InfoScale=1;
 
 class PriorGyroError:public ceres::SizedCostFunction<3, 3>
 {
@@ -18,10 +17,14 @@ public:
     PriorGyroError(const Vector3d &bprior_,const double &priorG_):bprior(bprior_),priorG(priorG_){}
     virtual bool Evaluate(double const *const *parameters, double *residuals, double **jacobians) const
     {
+            Matrix3d info=priorG*Matrix3d::Identity();
+            Matrix3d sqrt_info=LLT<Matrix3d>(info).matrixL().transpose();
             Vector3d gyroBias(parameters[0][0], parameters[0][1], parameters[0][2]);
-            residuals[0]=priorG*(bprior[0]-gyroBias[0]);
-            residuals[1]=priorG*(bprior[1]-gyroBias[1]);
-            residuals[2]=priorG*(bprior[2]-gyroBias[2]);
+            residuals[0]=(bprior[0]-gyroBias[0]);
+            residuals[1]=(bprior[1]-gyroBias[1]);
+            residuals[2]=(bprior[2]-gyroBias[2]);
+               Eigen::Map<Vector3d> residual(residuals);
+            residual = sqrt_info* residual;
             //LOG(INFO)<<" PriorGyroError: "<<residuals[0]<<" "<<residuals[1]<<" "<<residuals[2]<<"    gyroBias  "<<gyroBias.transpose();
             if (jacobians)
             {
@@ -29,7 +32,7 @@ public:
             {
                 Eigen::Map<Matrix<double, 3, 3, RowMajor>>  jacobian_pg(jacobians[0]);
                 jacobian_pg.setZero();
-                jacobian_pg.block<3, 3>(0, 0) =- priorG*Matrix3d::Identity();
+                jacobian_pg.block<3, 3>(0, 0) =- sqrt_info*Matrix3d::Identity();
             }
             }
             return true;
@@ -50,10 +53,14 @@ public:
     PriorAccError(const Vector3d &bprior_,const double &priorA_):bprior(bprior_),priorA(priorA_){}
     virtual bool Evaluate(double const *const *parameters, double *residuals, double **jacobians) const
     {
+          Matrix3d info=priorA*Matrix3d::Identity();
+            Matrix3d sqrt_info=LLT<Matrix3d>(info).matrixL().transpose();
             Vector3d accBias(parameters[0][0], parameters[0][1], parameters[0][2]);
-            residuals[0]=priorA*(bprior[0]-accBias[0]);
-            residuals[1]=priorA*(bprior[1]-accBias[1]);
-            residuals[2]=priorA*(bprior[2]-accBias[2]);
+            residuals[0]=(bprior[0]-accBias[0]);
+            residuals[1]=(bprior[1]-accBias[1]);
+            residuals[2]=(bprior[2]-accBias[2]);
+                           Eigen::Map<Vector3d> residual(residuals);
+            residual = sqrt_info* residual;
             //LOG(INFO)<<" PriorAccError: "<<residuals[0]<<" "<<residuals[1]<<" "<<residuals[2]<<"   accBias  "<<accBias.transpose();
             if (jacobians)
             {
@@ -61,7 +68,7 @@ public:
                 {
                     Eigen::Map<Matrix<double, 3, 3, RowMajor>>  jacobian_pg(jacobians[0]);
                     jacobian_pg.setZero();
-                    jacobian_pg.block<3, 3>(0, 0) =-priorA*Matrix3d::Identity();
+                    jacobian_pg.block<3, 3>(0, 0) =-sqrt_info*Matrix3d::Identity();
 
                 }
             }
@@ -97,7 +104,7 @@ public:
         Vector3d Vj(parameters[1][0], parameters[1][1], parameters[1][2]);
         Vector3d gyroBias(parameters[2][0], parameters[2][1], parameters[2][2]);
         Vector3d accBias(parameters[3][0], parameters[3][1], parameters[3][2]);
-        Quaterniond rwg(parameters[4][0], parameters[4][1], parameters[4][2], parameters[4][3]);
+        Quaterniond rwg(parameters[4][3],parameters[4][0], parameters[4][1], parameters[4][2]);
         // double Scale=parameters[5][0];
         double Scale=1.0;
         double dt=(mpInt->dT);
@@ -107,10 +114,7 @@ public:
         Matrix3d Rwg=rwg.toRotationMatrix();
         // Rwg= yawAngle*pitchAngle*rollAngle;
         Vector3d g=Rwg*gl;
-        Matrix3d tcb;
-            tcb<<0.0148655429818, -0.999880929698, 0.00414029679422,
-            0.999557249008, 0.0149672133247, 0.025715529948,
-            -0.0257744366974, 0.00375618835797, 0.999660727178;
+
         // LOG(INFO)<<"G  "<<(g).transpose()<<"Rwg"<<parameters4[0]<<" "<< parameters4[1]<<" "<< parameters4[2]<<" "<<parameters4[3];
         const Bias  b1(accBias(0,0),accBias(1,0),accBias(2,0),gyroBias(0,0),gyroBias(1,0),gyroBias(2,0));
         Matrix3d dR = (mpInt->GetDeltaRotation(b1));
@@ -124,16 +128,16 @@ public:
        Eigen::Map<Matrix<double, 9, 1>> residual(residuals);
         residual<<er,ev,ep;
        //LOG(INFO)<<"InertialGSError residual :  er "<<residual.transpose()<<" dT "<<mpInt->dT;
-    //        Matrix<double ,9,9> Info=mpInt->C.block<9,9>(0,0).inverse();
-    //      Info = (Info+Info.transpose())/2;
-    //      Eigen::SelfAdjointEigenSolver<Eigen::Matrix<double,9,9> > es(Info);
-    //      Eigen::Matrix<double,9,1> eigs = es.eigenvalues();
-    //      for(int i=0;i<9;i++)
-    //          if(eigs[i]<1e-12)
-    //              eigs[i]=0;
-    //      Matrix<double, 9,9> sqrt_info = es.eigenvectors()*eigs.asDiagonal()*es.eigenvectors().transpose();
-       Matrix<double, 9,9> sqrt_info =LLT<Matrix<double, 9, 9>>(mpInt->C.block<9,9>(0,0).inverse()).matrixL().transpose();
-        sqrt_info/=InfoScale;
+           Matrix<double ,9,9> Info=mpInt->C.block<9,9>(0,0).inverse();
+         Info = (Info+Info.transpose())/2;
+         Eigen::SelfAdjointEigenSolver<Eigen::Matrix<double,9,9> > es(Info);
+         Eigen::Matrix<double,9,1> eigs = es.eigenvalues();
+         for(int i=0;i<9;i++)
+             if(eigs[i]<1e-12)
+                 eigs[i]=0;
+         Matrix<double, 9,9> info_ = es.eigenvectors()*eigs.asDiagonal()*es.eigenvectors().transpose();
+       Matrix<double, 9,9> sqrt_info =LLT<Matrix<double, 9, 9>>(info_).matrixL().transpose();
+    
       //  assert(residual[0]<10&&residual[1]<10&&residual[2]<10&&residual[3]<10&&residual[4]<10&&residual[5]<10&&residual[6]<10&&residual[7]<10&&residual[8]<10);
         residual = sqrt_info* residual;
     //    LOG(INFO)<<"InertialGSError sqrt_info* residual :  er "<<residual.transpose()<<" dT "<<mpInt->dT;
@@ -162,7 +166,7 @@ public:
                 Eigen::Map<Matrix<double, 9, 3, RowMajor>> jacobian_v_i(jacobians[0]);
                 jacobian_v_i.setZero();
                 jacobian_v_i.block<3, 3>(3,0)=-s*Rbw1;
-                jacobian_v_i.block<3, 3>(4,0)= -s*Rbw1*dt;
+                jacobian_v_i.block<3, 3>(6,0)= -s*Rbw1*dt;
                 jacobian_v_i=sqrt_info *jacobian_v_i;
             }
             if(jacobians[1])
@@ -238,40 +242,42 @@ public:
         Quaterniond Qj(parameters[4][3], parameters[4][0], parameters[4][1], parameters[4][2]);
         Vector3d Pj(parameters[4][4], parameters[4][5], parameters[4][6]);
         Vector3d Vj(parameters[5][0], parameters[5][1], parameters[5][2]);
-        double dt=(mpInt->dT);
+              double dt=(mpInt->dT);
         Vector3d g;
          g<< 0, 0, -G;
-
-        const Bias  b1(accBias(0,0),accBias(1,0),accBias(2,0),gyroBias(0,0),gyroBias(1,0),gyroBias(2,0));
+         Bias  b1(accBias(0,0),accBias(1,0),accBias(2,0),gyroBias(0,0),gyroBias(1,0),gyroBias(2,0));
         Matrix3d dR = mpInt->GetDeltaRotation(b1);
         Vector3d dV = mpInt->GetDeltaVelocity(b1);
         Vector3d dP =mpInt->GetDeltaPosition(b1);
-        
-        const Vector3d er = LogSO3(dR.transpose()*Qi.toRotationMatrix().transpose()*Qj.toRotationMatrix());
-        const Vector3d ev = Qi.toRotationMatrix().transpose()*((Vj - Vi) - g*dt) - dV;
-        const Vector3d ep = Qi.toRotationMatrix().transpose()*((Pj - Pi - Vi*dt) - g*dt*dt/2) - dP;
-       Eigen::Map<Matrix<double, 9, 1>> residual(residuals);
+      
+        Vector3d er=  LogSO3(dR.inverse()*Qi.toRotationMatrix().inverse()*Qj.toRotationMatrix());
+         Vector3d ev = Qi.inverse()*((Vj - Vi) - g*dt) - dV;
+         Vector3d ep = Qi.inverse()*((Pj - Pi - Vi*dt) - g*dt*dt/2) - dP;
+        Eigen::Map<Matrix<double, 9, 1>> residual(residuals);
         residual<<er,ev,ep;
-        //LOG(INFO)<<"InertialError residual "<<residual.transpose();
-        Matrix<double, 9,9> sqrt_info =LLT<Matrix<double, 9, 9>>( mpInt->C.block<9,9>(0,0).inverse()).matrixL().transpose();
-
-         //   LOG(INFO)<<"InertialError sqrt_info "<<sqrt_info;
-        sqrt_info/=InfoScale;
-        //assert(!isnan(residual[0])&&!isnan(residual[1])&&!isnan(residual[2])&&!isnan(residual[3])&&!isnan(residual[4])&&!isnan(residual[5])&&!isnan(residual[6])&&!isnan(residual[7])&&!isnan(residual[8]));
+        // LOG(INFO)<<"FullInertialBA residual "<<residual.transpose();
+        //  // LOG(INFO)<<"\ndV "<<dV.transpose()<< "  dP "<<dP.transpose()<<"\ndR\n"<<dR;
+        // LOG(INFO)<<"\nVj"<<(Vj).transpose()<<"Pj"<<(Pj).transpose()<<"\nQj\n"<<Qj.toRotationMatrix();
+        Matrix<double ,9,9> Info=mpInt->C.block<9,9>(0,0).inverse();
+        Info = (Info+Info.transpose())/2;
+        Eigen::SelfAdjointEigenSolver<Eigen::Matrix<double,9,9> > es(Info);
+         Eigen::Matrix<double,9,1> eigs = es.eigenvalues();
+         for(int i=0;i<9;i++)
+             if(eigs[i]<1e-12)
+                 eigs[i]=0;
+        Matrix<double, 9,9> info_ = es.eigenvectors()*eigs.asDiagonal()*es.eigenvectors().transpose();
+        Matrix<double, 9,9> sqrt_info =LLT<Matrix<double, 9, 9>>( info_).matrixL().transpose();
         residual = sqrt_info* residual;
-        LOG(INFO)<<"IMUError:  r "<<residual.transpose()<<"  "<<mpInt->dT;
-        // LOG(INFO)<<"                Pi "<<Pi.transpose()*Rwg<<" Pj "<<Pj.transpose()*Rwg;
-        // LOG(INFO)<<"                Vi "<<Vi.transpose()*Rwg<<" Vj "<<Vj.transpose()*Rwg;
-         //LOG(INFO)<<"                 Bai "<< accBias.transpose()*Rwg<<"  Bgi "<<  gyroBias.transpose()*Rwg;
- if (jacobians)
+        if (jacobians)
         {
-            Bias delta_bias=mpInt->GetDeltaBias(b1);
+             Bias  b2(accBias(0,0),accBias(1,0),accBias(2,0),gyroBias(0,0),gyroBias(1,0),gyroBias(2,0));
+            Bias delta_bias=mpInt->GetDeltaBias(b2);
             Vector3d dbg=delta_bias.linearized_bg;
             Matrix3d Rwb1 =Qi.toRotationMatrix();
-            Matrix3d Rbw1 = Rwb1.transpose();
+            //Matrix3d Rbw1 = Rwb1.transpose();
+            Matrix3d Rbw1 = (Qi.inverse()).toRotationMatrix();
             Matrix3d Rwb2 = Qj.toRotationMatrix();
 
-            Eigen::Matrix3d dR = mpInt->GetDeltaRotation(b1);
             Eigen::Matrix3d eR = dR.transpose()*Rbw1*Rwb2;
             Eigen::Vector3d er_ = LogSO3(eR);
             Eigen::Matrix3d invJr = InverseRightJacobianSO3(er_);
@@ -280,10 +286,12 @@ public:
                 Eigen::Map<Matrix<double, 9, 7, RowMajor>> jacobian_pose_i(jacobians[0]);
                 jacobian_pose_i.setZero();
                 jacobian_pose_i.block<3, 3>(0,0)=  -invJr*Rwb2.transpose()*Rwb1;
-                jacobian_pose_i.block<3, 3>(3,0)= skew_symmetric(Rbw1*((Vj - Vi)- g*dt));
-                jacobian_pose_i.block<3, 3>(6,0)=  skew_symmetric(Rbw1*((Pj - Pi- Vi*dt)- 0.5*g*dt*dt));
+                jacobian_pose_i.block<3, 3>(3,0)= Skew(Rbw1*((Vj - Vi)- g*dt));
+                jacobian_pose_i.block<3, 3>(6,0)=  Skew(Rbw1*((Pj - Pi- Vi*dt)- 0.5*g*dt*dt));
                 jacobian_pose_i.block<3, 3>(6,4)=  -Matrix3d::Identity();
+                               LOG(INFO)<<jacobian_pose_i;
                  jacobian_pose_i=sqrt_info *jacobian_pose_i;
+  
             }
             if(jacobians[1])
             {
@@ -348,11 +356,12 @@ public:
 
     virtual bool Evaluate(double const *const *parameters, double *residuals, double **jacobians) const
     {
+             Matrix3d sqrt_info=LLT<Matrix3d>(priorG).matrixL().transpose();
             residuals[0]=parameters[1][0]-parameters[0][0];
             residuals[1]=parameters[1][1]-parameters[0][1];
             residuals[2]=parameters[1][2]-parameters[0][2];
             Eigen::Map<Matrix<double, 3, 1>>  residual(residuals);
-            residual = priorG * residual;
+            residual = sqrt_info * residual;
             //LOG(INFO)<<" GyroRWError: "<<residuals[0]<<" "<<residuals[1]<<" "<<residuals[2]<<" priorG "<<priorG.block<1,1>(0,0);
             if (jacobians)
             {
@@ -360,13 +369,13 @@ public:
                 {
                     Eigen::Map<Matrix<double, 3, 3, RowMajor>>  jacobian_pg1(jacobians[0]);
                     jacobian_pg1.setZero();
-                    jacobian_pg1.block<3, 3>(0, 0) = -priorG * Matrix3d::Identity();
+                    jacobian_pg1.block<3, 3>(0, 0) = -sqrt_info * Matrix3d::Identity();
                 }
                if(jacobians[1])
                 {
                     Eigen::Map<Matrix<double, 3, 3, RowMajor>>  jacobian_pg2(jacobians[1]);
                     jacobian_pg2.setZero();
-                    jacobian_pg2.block<3, 3>(0, 0) = priorG * Matrix3d::Identity();
+                    jacobian_pg2.block<3, 3>(0, 0) = sqrt_info * Matrix3d::Identity();
                 }
             }
             return true;
@@ -385,11 +394,12 @@ public:
 
    virtual bool Evaluate(double const *const *parameters, double *residuals, double **jacobians) const
     {
+          Matrix3d sqrt_info=LLT<Matrix3d>(priorA).matrixL().transpose();
             residuals[0]=parameters[1][0]-parameters[0][0];
             residuals[1]=parameters[1][1]-parameters[0][1];
             residuals[2]=parameters[1][2]-parameters[0][2];
             Eigen::Map<Matrix<double, 3, 1>>  residual(residuals);
-             residual = priorA * residual;
+             residual = sqrt_info * residual;
            //LOG(INFO)<<" AccRWError: "<<residuals[0]<<" "<<residuals[1]<<" "<<residuals[2]<<" priorA "<<priorA.block<1,1>(0,0);
             if (jacobians)
             {
@@ -397,14 +407,14 @@ public:
                 {
                     Eigen::Map<Matrix<double, 3, 3, RowMajor>>  jacobian_pa1(jacobians[0]);
                     jacobian_pa1.setZero();
-                    jacobian_pa1.block<3, 3>(0, 0) = - priorA *Matrix3d::Identity();
+                    jacobian_pa1.block<3, 3>(0, 0) = - sqrt_info *Matrix3d::Identity();
 
                 }
                if(jacobians[1])
                 {
                     Eigen::Map<Matrix<double, 3, 3, RowMajor>>  jacobian_pa2(jacobians[1]);
                     jacobian_pa2.setZero();
-                    jacobian_pa2.block<3, 3>(0, 0) =  priorA *Matrix3d::Identity();
+                    jacobian_pa2.block<3, 3>(0, 0) =  sqrt_info *Matrix3d::Identity();
                 }
             }
             return true;
@@ -425,10 +435,15 @@ public:
     PriorGyroError2(const Vector3d &bprior_,const double &priorG_):bprior(bprior_),priorG(priorG_){}
     bool operator()(const double*  parameters0, double* residuals) const 
     {
+            Matrix3d info=priorG*Matrix3d::Identity();
+            Matrix3d sqrt_info=LLT<Matrix3d>(info).matrixL().transpose();
             Vector3d gyroBias(parameters0[0], parameters0[1], parameters0[2]);
-            residuals[0]=priorG*(bprior[0]-gyroBias[0]);
-            residuals[1]=priorG*(bprior[1]-gyroBias[1]);
-            residuals[2]=priorG*(bprior[2]-gyroBias[2]);
+            residuals[0]=(bprior[0]-gyroBias[0]);
+            residuals[1]=(bprior[1]-gyroBias[1]);
+            residuals[2]=(bprior[2]-gyroBias[2]);
+            Eigen::Map<Vector3d> residual(residuals);
+            residual = sqrt_info* residual;
+
            // LOG(INFO)<<" PriorGyroError: "<<residuals[0]<<" "<<residuals[1]<<" "<<residuals[2]<<"    gyroBias  "<<gyroBias.transpose();
             return true;
 
@@ -448,10 +463,14 @@ public:
     PriorAccError2(const Vector3d &bprior_,const double &priorA_):bprior(bprior_),priorA(priorA_){}
      bool operator()(const double*  parameters0, double* residuals) const 
     {
+           Matrix3d info=priorA*Matrix3d::Identity();
+            Matrix3d sqrt_info=LLT<Matrix3d>(info).matrixL().transpose();
             Vector3d accBias(parameters0[0], parameters0[1], parameters0[2]);
-           residuals[0]=priorA*(bprior[0]-accBias[0]);
-            residuals[1]=priorA*(bprior[1]-accBias[1]);
-            residuals[2]=priorA*(bprior[2]-accBias[2]);
+           residuals[0]=(bprior[0]-accBias[0]);
+            residuals[1]=(bprior[1]-accBias[1]);
+            residuals[2]=(bprior[2]-accBias[2]);
+            Eigen::Map<Vector3d> residual(residuals);
+            residual = sqrt_info* residual;
             //LOG(INFO)<<" PriorAccError: "<<residuals[0]<<" "<<residuals[1]<<" "<<residuals[2]<<"   accBias  "<<accBias.transpose();
             return true;
 
@@ -486,26 +505,18 @@ public:
         Vector3d Vj(parameters1[0], parameters1[1], parameters1[2]);
         Vector3d gyroBias(parameters2[0], parameters2[1], parameters2[2]);
         Vector3d accBias(parameters3[0], parameters3[1], parameters3[2]);
-        Quaterniond rwg(parameters4[0], parameters4[1], parameters4[2], parameters4[3]);
+        Quaterniond rwg(parameters4[3],parameters4[0], parameters4[1], parameters4[2]);
         // double Scale=parameters[5][0];
         double Scale=1.0;
         double dt=(mpInt->dT);
-        // Eigen::AngleAxisd rollAngle(AngleAxisd(eulerAngle(0),Vector3d::UnitX()));
-        // Eigen::AngleAxisd pitchAngle(AngleAxisd(eulerAngle(1),Vector3d::UnitY()));
-        // Eigen::AngleAxisd yawAngle(AngleAxisd(eulerAngle(2),Vector3d::UnitZ()));
-        Matrix3d Rwg=rwg.toRotationMatrix();
-        // Rwg= yawAngle*pitchAngle*rollAngle;
-        Vector3d g=Rwg*gl;
-        Matrix3d tcb;
-            tcb<<0.0148655429818, -0.999880929698, 0.00414029679422,
-            0.999557249008, 0.0149672133247, 0.025715529948,
-            -0.0257744366974, 0.00375618835797, 0.999660727178;
+        //Matrix3d Rwg=rwg.toRotationMatrix();
+        Vector3d g=rwg*gl;
         // LOG(INFO)<<"G  "<<(g).transpose()<<"Rwg"<<parameters4[0]<<" "<< parameters4[1]<<" "<< parameters4[2]<<" "<<parameters4[3];
         const Bias  b1(accBias(0,0),accBias(1,0),accBias(2,0),gyroBias(0,0),gyroBias(1,0),gyroBias(2,0));
         Matrix3d dR = (mpInt->GetDeltaRotation(b1));
         Vector3d dV = (mpInt->GetDeltaVelocity(b1));
         Vector3d dP =(mpInt->GetDeltaPosition(b1));
-        Quaterniond corrected_delta_q(dR);
+      //  Quaterniond corrected_delta_q(dR);
        const Vector3d er=  LogSO3(dR.transpose()*Qi.transpose()*Qj);
         // const Vector3d er =  2 * (corrected_delta_q.inverse() * (Qi.inverse() * Qj)).vec();
         const Vector3d ev = Qi.inverse()*(Scale*(Vj - Vi) - g*dt) - dV;
@@ -514,19 +525,19 @@ public:
        Eigen::Map<Matrix<double, 9, 1>> residual(residuals);
         residual<<er,ev,ep;
        //LOG(INFO)<<"InertialGSError residual :  er "<<residual.transpose()<<" dT "<<mpInt->dT;
-    //        Matrix<double ,9,9> Info=mpInt->C.block<9,9>(0,0).inverse();
-    //      Info = (Info+Info.transpose())/2;
-    //      Eigen::SelfAdjointEigenSolver<Eigen::Matrix<double,9,9> > es(Info);
-    //      Eigen::Matrix<double,9,1> eigs = es.eigenvalues();
-    //      for(int i=0;i<9;i++)
-    //          if(eigs[i]<1e-12)
-    //              eigs[i]=0;
-    //      Matrix<double, 9,9> sqrt_info = es.eigenvectors()*eigs.asDiagonal()*es.eigenvectors().transpose();
-       Matrix<double, 9,9> sqrt_info =LLT<Matrix<double, 9, 9>>(mpInt->C.block<9,9>(0,0).inverse()).matrixL().transpose();
-        sqrt_info/=InfoScale;
+           Matrix<double ,9,9> Info=mpInt->C.block<9,9>(0,0).inverse();
+         Info = (Info+Info.transpose())/2;
+         Eigen::SelfAdjointEigenSolver<Eigen::Matrix<double,9,9> > es(Info);
+         Eigen::Matrix<double,9,1> eigs = es.eigenvalues();
+         for(int i=0;i<9;i++)
+             if(eigs[i]<1e-12)
+                 eigs[i]=0;
+         Matrix<double, 9,9> info_ = es.eigenvectors()*eigs.asDiagonal()*es.eigenvectors().transpose();
+        Matrix<double, 9,9> sqrt_info =LLT<Matrix<double, 9, 9>>( info_).matrixL().transpose();
+        
       //  assert(residual[0]<10&&residual[1]<10&&residual[2]<10&&residual[3]<10&&residual[4]<10&&residual[5]<10&&residual[6]<10&&residual[7]<10&&residual[8]<10);
         residual = sqrt_info* residual;
-       LOG(INFO)<<"InertialGSError sqrt_info* residual :  er "<<residual.transpose()<<" dT "<<mpInt->dT;
+      // LOG(INFO)<<"InertialGSError sqrt_info* residual :  er "<<residual.transpose()<<" dT "<<mpInt->dT;
     //     LOG(INFO)<<"                Qi "<<Qi.eulerAngles(0,1,2).transpose()<<" Qj "<<Qj.eulerAngles(0,1,2).transpose()<<"dQ"<<dR.eulerAngles(0,1,2).transpose();
     //     LOG(INFO)<<"                Pi "<<Pi.transpose()<<" Pj "<<Pj.transpose()<<"dP"<<dP.transpose();
     //     LOG(INFO)<<"                Vi "<<Vi.transpose()<<" Vj "<<Vj.transpose()<<"dV"<<dV.transpose();
@@ -580,21 +591,26 @@ public:
         const Vector3d ep = Qi.inverse()*((Pj - Pi - Vi*dt) - g*dt*dt/2) - dP;
         Eigen::Map<Matrix<double, 9, 1>> residual(residuals);
         residual<<er,ev,ep;
-        //LOG(INFO)<<"InertialError residual "<<residual.transpose();
-        //    Matrix<double ,9,9> Info=mpInt->C.block<9,9>(0,0).inverse();
-        //  Info = (Info+Info.transpose())/2;
-        //  Eigen::SelfAdjointEigenSolver<Eigen::Matrix<double,9,9> > es(Info);
-        //  Eigen::Matrix<double,9,1> eigs = es.eigenvalues();
-        //  for(int i=0;i<9;i++)
-        //      if(eigs[i]<1e-12)
-        //          eigs[i]=0;
-        //  Matrix<double, 9,9> sqrt_info = es.eigenvectors()*eigs.asDiagonal()*es.eigenvectors().transpose();
-        Matrix<double, 9,9> sqrt_info =LLT<Matrix<double, 9, 9>>( mpInt->C.block<9,9>(0,0).inverse()).matrixL().transpose();
-        sqrt_info/=InfoScale;
+        // if(parameters2[0]==-0.0043304018657809229){
+            LOG(INFO)<<"\n FullInertialBA residual "<<residual.transpose();
+        // LOG(INFO)<<"\ndV "<<dV.transpose()<< "  dP "<<dP.transpose()<<"\ndR\n"<<dR;
+        // LOG(INFO)<<"\nVj"<<(Vj).transpose()<<"Pj"<<(Pj).transpose()<<"\nQj\n"<<Qj.toRotationMatrix();
+        LOG(INFO)<<"BA "<<accBias.transpose()<<" BG "<<gyroBias.transpose();  
+        //}
+           Matrix<double ,9,9> Info=mpInt->C.block<9,9>(0,0).inverse();
+         Info = (Info+Info.transpose())/2;
+         Eigen::SelfAdjointEigenSolver<Eigen::Matrix<double,9,9> > es(Info);
+         Eigen::Matrix<double,9,1> eigs = es.eigenvalues();
+         for(int i=0;i<9;i++)
+             if(eigs[i]<1e-12)
+                 eigs[i]=0;
+         Matrix<double, 9,9> info_ = es.eigenvectors()*eigs.asDiagonal()*es.eigenvectors().transpose();
+        Matrix<double, 9,9> sqrt_info =LLT<Matrix<double, 9, 9>>( info_).matrixL().transpose();
+        
         // LOG(INFO)<<"InertialError sqrt_info "<<sqrt_info;
         //assert(!isnan(residual[0])&&!isnan(residual[1])&&!isnan(residual[2])&&!isnan(residual[3])&&!isnan(residual[4])&&!isnan(residual[5])&&!isnan(residual[6])&&!isnan(residual[7])&&!isnan(residual[8]));
         residual = sqrt_info* residual;
-        LOG(INFO)<<"IMUError:  r "<<residual.transpose()<<"  "<<mpInt->dT;
+        //LOG(INFO)<<"IMUError:  r "<<residual.transpose()<<"  "<<mpInt->dT;
         // LOG(INFO)<<"                Qi "<<Qi.toRotationMatrix().eulerAngles(0,1,2).transpose()<<" Qj "<<Qj.toRotationMatrix().eulerAngles(0,1,2).transpose()<<"dQ"<<dR.eulerAngles(0,1,2).transpose();
         // LOG(INFO)<<"                Pi "<<Pi.transpose()<<" Pj "<<Pj.transpose()<<"dP"<<dP.transpose();
         // LOG(INFO)<<"                Vi "<<Vi.transpose()<<" Vj "<<Vj.transpose()<<"dV"<<dV.transpose();
@@ -623,7 +639,7 @@ public:
             residuals[2]=parameters1[2]-parameters0[2];
             Eigen::Map<Matrix<double, 3, 1>>  residual(residuals);
             //assert(parameters1[0]<2&&parameters1[1]<2&&parameters1[2]<2&&parameters0[0]<2&&parameters0[1]<2&&parameters0[2]<2);
-            residual = priorG/InfoScale * residual;
+            residual = priorG* residual;
             //LOG(INFO)<<" GyroRWError: "<<residuals[0]<<" "<<residuals[1]<<" "<<residuals[2]<<" priorG "<<priorG.block<1,1>(0,0);
             return true;
     }
@@ -646,7 +662,7 @@ public:
             residuals[2]=parameters1[2]-parameters0[2];
             Eigen::Map<Matrix<double, 3, 1>>  residual(residuals);
             //assert(parameters1[0]<2&&parameters1[1]<2&&parameters1[2]<2&&parameters0[0]<2&&parameters0[1]<2&&parameters0[2]<2);
-            residual = priorA/InfoScale * residual;
+            residual = priorA* residual;
             //LOG(INFO)<<" AccRWError: "<<residuals[0]<<" "<<residuals[1]<<" "<<residuals[2]<<" priorA "<<priorA.block<1,1>(0,0);
             return true;
     }
@@ -681,9 +697,13 @@ public:
     template <typename T>
     bool operator()(const T*  parameters0, T* residuals) const 
     {
-            residuals[0]=T(priorG)*(T(bprior[0])-parameters0[0]);
-            residuals[1]=T(priorG)*(T(bprior[1])-parameters0[1]);
-            residuals[2]=T(priorG)*(T(bprior[2])-parameters0[2]);
+            Matrix<T, 3,3> info =Matrix<T,3,3>::Identity()*T(priorG);
+            Matrix<T, 3,3> sqrt_info =LLT<Matrix<T, 3 ,3>>(info).matrixL().transpose();
+            residuals[0]=(T(bprior[0])-parameters0[0]);
+            residuals[1]=(T(bprior[1])-parameters0[1]);
+            residuals[2]=(T(bprior[2])-parameters0[2]);
+            Eigen::Map<Matrix<T, 3, 1>> residual(residuals);
+            residual = sqrt_info* residual;
            // LOG(INFO)<<" PriorGyroError: "<<residuals[0]<<" "<<residuals[1]<<" "<<residuals[2]<<"    gyroBias  "<<gyroBias.transpose();
             return true;
 
@@ -704,9 +724,13 @@ public:
     template <typename T>
      bool operator()(const T*  parameters0, T* residuals) const 
     {
-            residuals[0]=T(priorA)*(T(bprior[0])-parameters0[0]);
-            residuals[1]=T(priorA)*(T(bprior[1])-parameters0[1]);
-            residuals[2]=T(priorA)*(T(bprior[2])-parameters0[2]);
+            Matrix<T, 3,3> info =Matrix<T,3,3>::Identity()*T(priorA);
+            Matrix<T, 3,3> sqrt_info =LLT<Matrix<T, 3 ,3>>(info).matrixL().transpose();
+            residuals[0]=(T(bprior[0])-parameters0[0]);
+            residuals[1]=(T(bprior[1])-parameters0[1]);
+            residuals[2]=(T(bprior[2])-parameters0[2]);
+            Eigen::Map<Matrix<T, 3, 1>> residual(residuals);
+            residual = sqrt_info* residual;
             //LOG(INFO)<<" PriorAccError: "<<residuals[0]<<" "<<residuals[1]<<" "<<residuals[2]<<"   accBias  "<<accBias.transpose();
             return true;
 
@@ -755,18 +779,10 @@ public:
         // double Scale=parameters[5][0];
         T Scale=T(1.0);
         T dt=T(mpInt->dT);
-        // Eigen::AngleAxisd rollAngle(AngleAxisd(eulerAngle(0),Vector3d::UnitX()));
-        // Eigen::AngleAxisd pitchAngle(AngleAxisd(eulerAngle(1),Vector3d::UnitY()));
-        // Eigen::AngleAxisd yawAngle(AngleAxisd(eulerAngle(2),Vector3d::UnitZ()));
-        Matrix<T,3,3>  Rwg=rwg.toRotationMatrix();
-        // Rwg= yawAngle*pitchAngle*rollAngle;
+        // Matrix<T,3,3>  Rwg=rwg.toRotationMatrix();
         Matrix<T,3,1> g( T(0), T(0), T(-G));
-        g=Rwg*g;
-                    Matrix3d tcb;
-            tcb<<0.0148655429818, -0.999880929698, 0.00414029679422,
-            0.999557249008, 0.0149672133247, 0.025715529948,
-            -0.0257744366974, 0.00375618835797, 0.999660727178;
-            //  LOG(INFO)<<rwg.w()<<" "<<rwg.x()<<" "<<rwg.y()<<" "<<rwg.z()<<" "<<(tcb.transpose()*g).transpose();
+        g=rwg*g;
+        //LOG(INFO)<<"g "<<(g).transpose();
         Matrix<T,3,1> dbg(parameters2[0]- T(mpInt->b.linearized_bg[0]),parameters2[1]- T(mpInt->b.linearized_bg[1]),parameters2[2]- T(mpInt->b.linearized_bg[2]));
         Matrix<T,3,1> dba(parameters3[0]- T(mpInt->b.linearized_ba[0]),parameters3[1]- T(mpInt->b.linearized_ba[1]),parameters3[2] - T(mpInt->b.linearized_ba[2]));
         
@@ -800,7 +816,8 @@ public:
         Matrix<T,3,1> JRg_dbg=(JRg_*dbg);
         Matrix<T,3,3> dR_ExpSO3_=(dR_*ExpSO3_(JRg_dbg));
         Quaternion<T> qdR_ExpSO3_(dR_ExpSO3_);
-        Matrix<T,3,3> dR = qdR_ExpSO3_.toRotationMatrix();//NormalizeRotation_(dR_ExpSO3_);
+        Matrix<T,3,3> dR = qdR_ExpSO3_.toRotationMatrix();
+        //Matrix<T,3,3> dR =NormalizeRotation_(dR_ExpSO3_);
         Matrix<T,3,1> dV = dV_ + JVg_*dbg + JVa_*dba;
         Matrix<T,3,1> dP =dP_ + JPg_*dbg + JPa_*dba;
       
@@ -811,7 +828,7 @@ public:
         
        Eigen::Map<Matrix<T, 9, 1>> residual(residuals);
         residual<<er,ev,ep;
-    //    LOG(INFO)<<"InertialGSError residual :  er "<<residuals[0]<<" "<<residuals[1]<<" "<<residuals[2]<<"ev"<<residuals[3]<<" "<<residuals[4]<<" "<<residuals[5]<<"ep"<<residuals[6]<<" "<<residuals[7]<<" "<<residuals[8]<<" dT "<<mpInt->dT;
+    //    LOG(INFO)<<"InertialGSError residual :  er "<<residuals[0]<<" "<<residuals[1]<<" "<<residuals[2]<<"ev"<<residuals[3]<<" "<<residuals[4]<<" "<<residuals[5]<<"ep"<<residuals[6]<<" "<<residuals[7]<<" "<<residuals[8]<<" b "<<parameters2[0];
     //        Matrix<double ,9,9> Info=mpInt->C.block<9,9>(0,0).inverse();
     //      Info = (Info+Info.transpose())/2;
     //      Eigen::SelfAdjointEigenSolver<Eigen::Matrix<double,9,9> > es(Info);
@@ -820,8 +837,13 @@ public:
     //          if(eigs[i]<1e-12)
     //              eigs[i]=0;
     //      Matrix<double, 9,9> sqrt_info = es.eigenvectors()*eigs.asDiagonal()*es.eigenvectors().transpose();
-             Matrix<T, 9,9> sqrt_info =LLT<Matrix<T, 9, 9>>( (mpInt->C.block<9,9>(0,0).inverse()).cast<T>()).matrixL().transpose();
-     //Matrix<T, 9,9> sqrt_info =sqrt_info_.cast<T>();
+      //       Matrix<T, 9,9> sqrt_info =LLT<Matrix<T, 9, 9>>( (mpInt->C.block<9,9>(0,0).inverse()).cast<T>()).matrixL().transpose();
+    Matrix<T, 9,9> info =sqrt_info_.cast<T>();
+    Matrix<T, 9,9> sqrt_info =LLT<Matrix<T, 9, 9>>(info).matrixL().transpose();
+
+
+   //  LOG(INFO)<<sqrt_info;
+        //    sqrt_info/=T(1000);
       //  assert(residual[0]<10&&residual[1]<10&&residual[2]<10&&residual[3]<10&&residual[4]<10&&residual[5]<10&&residual[6]<10&&residual[7]<10&&residual[8]<10);
         residual = sqrt_info* residual;
     //    LOG(INFO)<<"InertialGSError sqrt_info* residual :  er "<<residual.transpose()<<" dT "<<mpInt->dT;
@@ -858,6 +880,8 @@ public:
              if(eigs[i]<1e-12)
                  eigs[i]=0;
          sqrt_info_ = es.eigenvectors()*eigs.asDiagonal()*es.eigenvectors().transpose();
+        // LOG(INFO)<<"InertialError sqrt_info "<<sqrt_info_;
+
         }
 template <typename T>
      bool operator()(const T*  parameters0, const T*  parameters1, const T*  parameters2, const T*  parameters3, const T*  parameters4, const T*  parameters5, T* residuals) const 
@@ -874,7 +898,7 @@ template <typename T>
          g<< T(0), T(0), T(-G);
         // g=Rwg*g;
 
-        Matrix<T,3,1> dbg(parameters2[0]- T(mpInt->b.linearized_bg[0]),parameters2[1]- T(mpInt->b.linearized_bg[1]),parameters2[2]- T(mpInt->b.linearized_bg[2]));
+     Matrix<T,3,1> dbg(parameters2[0]- T(mpInt->b.linearized_bg[0]),parameters2[1]- T(mpInt->b.linearized_bg[1]),parameters2[2]- T(mpInt->b.linearized_bg[2]));
         Matrix<T,3,1> dba(parameters3[0]- T(mpInt->b.linearized_ba[0]),parameters3[1]- T(mpInt->b.linearized_ba[1]),parameters3[2] - T(mpInt->b.linearized_ba[2]));
         
         Matrix<T,3,3> JRg_;
@@ -907,18 +931,26 @@ template <typename T>
         Matrix<T,3,1> JRg_dbg=(JRg_*dbg);
         Matrix<T,3,3> dR_ExpSO3_=(dR_*ExpSO3_(JRg_dbg));
         Quaternion<T> qdR_ExpSO3_(dR_ExpSO3_);
-        Matrix<T,3,3> dR = qdR_ExpSO3_.toRotationMatrix();//NormalizeRotation_(dR_ExpSO3_);
+        Matrix<T,3,3> dR = qdR_ExpSO3_.toRotationMatrix();
+        //Matrix<T,3,3> dR =NormalizeRotation_(dR_ExpSO3_);
         Matrix<T,3,1> dV = dV_ + JVg_*dbg + JVa_*dba;
         Matrix<T,3,1> dP =dP_ + JPg_*dbg + JPa_*dba;
+      
 
       Matrix<T,3,3> eR= (dR.transpose()*Qi.toRotationMatrix().transpose()*Qj.toRotationMatrix());
         const Matrix<T,3,1> er =   LogSO3_(eR);
-        const Matrix<T,3,1> ev = Qi.toRotationMatrix().transpose()*((Vj - Vi) - g*dt) - dV;
-        const Matrix<T,3,1> ep = Qi.toRotationMatrix().transpose()*((Pj - Pi - Vi*dt) - g*dt*dt/T(2)) - dP;
+        const Matrix<T,3,1> ev = Qi.inverse()*(Vj - Vi - g*dt) - dV;
+        const Matrix<T,3,1> ep = Qi.inverse()*(Pj - Pi - Vi*dt - g*dt*dt/T(2)) - dP;
         Eigen::Map<Matrix<T, 9, 1>> residual(residuals);
         residual<<er,ev,ep;
-        // LOG(INFO)<<"eR:\n"<<eR;
-        // LOG(INFO)<<"InertialError residual: er "<<residuals[0]<<" "<<residuals[1]<<" "<<residuals[2]<<"ev"<<residuals[3]<<" "<<residuals[4]<<" "<<residuals[5]<<"ep"<<residuals[6]<<" "<<residuals[7]<<" "<<residuals[8]<<" dT "<<mpInt->dT;
+// if(parameters2[0]==T(-0.0043304018657809229)){
+//             LOG(INFO)<<"\n FullInertialBA residual "<<residual.transpose();
+//         LOG(INFO)<<"\ndV "<<dV.transpose()<< "  dP "<<dP.transpose()<<"\ndR\n"<<dR;
+//         LOG(INFO)<<"\nVj"<<(Vj).transpose()<<"Pj"<<(Pj).transpose()<<"\nQj\n"<<Qj.toRotationMatrix();
+//         LOG(INFO)<<"BA "<<dba.transpose()<<" BG "<<dbg.transpose();  
+// }
+      // LOG(INFO)<<"eR:\n"<<eR;
+        //  LOG(INFO)<<"InertialError residual: er "<<residuals[0]<<" "<<residuals[1]<<" "<<residuals[2]<<"ev"<<residuals[3]<<" "<<residuals[4]<<" "<<residuals[5]<<"ep"<<residuals[6]<<" "<<residuals[7]<<" "<<residuals[8]<<" dT "<<mpInt->dT;
         //    Matrix<double ,9,9> Info=mpInt->C.block<9,9>(0,0).inverse();
         //  Info = (Info+Info.transpose())/2;
         //  Eigen::SelfAdjointEigenSolver<Eigen::Matrix<double,9,9> > es(Info);
@@ -927,14 +959,17 @@ template <typename T>
         //      if(eigs[i]<1e-12)
         //          eigs[i]=0;
         //  Matrix<double, 9,9> sqrt_info = es.eigenvectors()*eigs.asDiagonal()*es.eigenvectors().transpose();
-        Matrix<T, 9,9> sqrt_info =LLT<Matrix<T, 9, 9>>( (mpInt->C.block<9,9>(0,0).inverse()).cast<T>()).matrixL().transpose();
-        //Matrix<T, 9,9> sqrt_info =sqrt_info_.cast<T>();
+       // Matrix<T, 9,9> sqrt_info =LLT<Matrix<T, 9, 9>>( (mpInt->C.block<9,9>(0,0).inverse()).cast<T>()).matrixL().transpose();
+    Matrix<T, 9,9> info =sqrt_info_.cast<T>();
+    Matrix<T, 9,9> sqrt_info =LLT<Matrix<T, 9, 9>>(info).matrixL().transpose();
+
+        // sqrt_info/=T(1e6);
         //LOG(INFO)<<"InertialError sqrt_info "<<sqrt_info;
         //assert(!isnan(residual[0])&&!isnan(residual[1])&&!isnan(residual[2])&&!isnan(residual[3])&&!isnan(residual[4])&&!isnan(residual[5])&&!isnan(residual[6])&&!isnan(residual[7])&&!isnan(residual[8]));
         //assert(sqrt_info(0,0)<1e9);
         residual = sqrt_info* residual;
 
-        // LOG(INFO)<<"IMUError:  r "<<residual.transpose()<<"  "<<mpInt->dT;
+       // LOG(INFO)<<"IMUError:  r "<<residual.transpose()<<"  "<<mpInt->dT;
         // LOG(INFO)<<"                Qi "<<Qi.toRotationMatrix().eulerAngles(0,1,2).transpose()<<" Qj "<<Qj.toRotationMatrix().eulerAngles(0,1,2).transpose()<<"dQ"<<dR.eulerAngles(0,1,2).transpose();
         // LOG(INFO)<<"                Pi "<<Pi.transpose()<<" Pj "<<Pj.transpose()<<"dP"<<dP.transpose();
         // LOG(INFO)<<"                Vi "<<Vi.transpose()<<" Vj "<<Vj.transpose()<<"dV"<<dV.transpose();
@@ -958,11 +993,17 @@ public:
 template <typename T>
     bool operator()(const T*  parameters0, const T*  parameters1,T* residuals) const 
     {
-            residuals[0]=T(priorG(0,0)) *(parameters1[0]-parameters0[0]);
-            residuals[1]=T(priorG(1,1)) *(parameters1[1]-parameters0[1]);
-            residuals[2]=T(priorG(2,2)) *(parameters1[2]-parameters0[2]);
-
-            //LOG(INFO)<<" AccRWError: "<<residuals[0]<<" "<<residuals[1]<<" "<<residuals[2]<<" priorA "<<priorA.block<1,1>(0,0);
+            Matrix<T, 3,3> info;
+            info<<T(priorG(0,0)),T(priorG(0,1)),T(priorG(0,2)),
+            T(priorG(1,0)),T(priorG(1,1)),T(priorG(1,2)),
+            T(priorG(2,0)),T(priorG(2,1)),T(priorG(2,2));
+            Matrix<T, 3,3> sqrt_info =LLT<Matrix<T, 3 ,3>>(info).matrixL().transpose();
+            residuals[0]=(parameters1[0]-parameters0[0]);
+            residuals[1]=(parameters1[1]-parameters0[1]);
+            residuals[2]=(parameters1[2]-parameters0[2]);
+            Eigen::Map<Matrix<T, 3, 1>> residual(residuals);
+            residual = sqrt_info* residual;
+            //LOG(INFO)<<" GyroRWError: "<<residuals[0]<<" "<<residuals[1]<<" "<<residuals[2]<<" priorG "<<priorG.block<1,1>(0,0);
             return true;
     }
     static ceres::CostFunction *Create(const Matrix3d &priorB_)
@@ -977,12 +1018,18 @@ class AccRWError3
 public:
     AccRWError3(const Matrix3d &priorA_):priorA(priorA_){}
 template <typename T>
-    bool operator()(const T*  parameters0, const T*  parameters1,T* residuals) const 
-    {
-            residuals[0]=T(priorA(0,0)) *(parameters1[0]-parameters0[0]);
-            residuals[1]=T(priorA(1,1)) *(parameters1[1]-parameters0[1]);
-            residuals[2]=T(priorA(2,2)) *(parameters1[2]-parameters0[2]);
-
+    bool operator()(const T*  parameters0, const T*  parameters1,T* residuals) const
+    { 
+            Matrix<T, 3,3> info;
+            info<<T(priorA(0,0)),T(priorA(0,1)),T(priorA(0,2)),
+            T(priorA(1,0)),T(priorA(1,1)),T(priorA(1,2)),
+            T(priorA(2,0)),T(priorA(2,1)),T(priorA(2,2));
+            Matrix<T, 3,3> sqrt_info =LLT<Matrix<T, 3 ,3>>(info).matrixL().transpose();
+            residuals[0]=(parameters1[0]-parameters0[0]);
+            residuals[1]=(parameters1[1]-parameters0[1]);
+            residuals[2]=(parameters1[2]-parameters0[2]);
+            Eigen::Map<Matrix<T, 3, 1>> residual(residuals);
+            residual = sqrt_info* residual;
             //LOG(INFO)<<" AccRWError: "<<residuals[0]<<" "<<residuals[1]<<" "<<residuals[2]<<" priorA "<<priorA.block<1,1>(0,0);
             return true;
     }

@@ -13,7 +13,8 @@ class Feature
 public:
     typedef std::shared_ptr<Feature> Ptr;
 
-    Feature(double time) : time(time) {}
+    Feature(double time)
+        : time(time){}
 
     double time;
 };
