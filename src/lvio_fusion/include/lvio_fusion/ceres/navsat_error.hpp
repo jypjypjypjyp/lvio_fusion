@@ -73,10 +73,10 @@ private:
     SE3d pose_;
 };
 
-class NavsatRXError
+class NavsatRError
 {
 public:
-    NavsatRXError(Vector3d p0, Vector3d p1, SE3d pose)
+    NavsatRError(Vector3d p0, Vector3d p1, SE3d pose)
         : x0_(p0.x()), y0_(p0.y()), z0_(p0.z()),
           x1_(p1.x()), y1_(p1.y()), z1_(p1.z()),
           pose_(pose)
@@ -84,9 +84,9 @@ public:
     }
 
     template <typename T>
-    bool operator()(const T *r, const T *x, T *residuals) const
+    bool operator()(const T *r, T *residuals) const
     {
-        T pose[7], tf[7], relative_pose[7]=  {r[0], r[1], r[2], r[3], x[0], T(0), T(0)};
+        T pose[7], tf[7], relative_pose[7]=  {r[0], r[1], r[2], r[3], T(0), T(0), T(0)};
         ceres::Cast(pose_.data(), SE3d::num_parameters, pose);
         ceres::SE3Product(pose, relative_pose, tf);
         T p1[3] = {T(x1_), T(y1_), T(z1_)};
@@ -100,7 +100,7 @@ public:
 
     static ceres::CostFunction *Create(Vector3d p0, Vector3d p1, SE3d pose)
     {
-        return (new ceres::AutoDiffCostFunction<NavsatRXError, 3, 4, 1>(new NavsatRXError(p0, p1, pose)));
+        return (new ceres::AutoDiffCostFunction<NavsatRError, 3, 4>(new NavsatRError(p0, p1, pose)));
     }
 
 private:

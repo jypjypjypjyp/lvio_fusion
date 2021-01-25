@@ -139,6 +139,7 @@ void Backend::Optimize()
     static double forward = 0;
     std::unique_lock<std::mutex> lock(mutex);
     Frames active_kfs = Map::Instance().GetKeyFrames(finished);
+    SE3d old_pose = (--active_kfs.end())->second->pose;
 
     if (update_weights_)
     {
@@ -213,21 +214,23 @@ void Backend::Optimize()
     }
 
     // propagate to the last frame
+    SE3d new_pose = (--active_kfs.end())->second->pose;
+    SE3d transform = new_pose * old_pose.inverse();
     forward = (--active_kfs.end())->first + epsilon;
-    ForwardPropagate(forward);
+    ForwardPropagate(transform, forward);
     finished = forward - window_size_;
 }
 
-void Backend::ForwardPropagate(double time)
+void Backend::ForwardPropagate(SE3d transform, double time)
 {
     std::unique_lock<std::mutex> lock(frontend_.lock()->mutex);
-
     Frame::Ptr last_frame = frontend_.lock()->last_frame;
     Frames active_kfs = Map::Instance().GetKeyFrames(time);
     if (active_kfs.find(last_frame->time) == active_kfs.end())
     {
         active_kfs[last_frame->time] = last_frame;
     }
+    PoseGraph::Instance().Propagate(transform, active_kfs);
 
     adapt::Problem problem;
     BuildProblem(active_kfs, problem);

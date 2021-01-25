@@ -51,7 +51,7 @@ private:
 
     void Optimize();
 
-    void ForwardPropagate(double time);
+    void ForwardPropagate(SE3d transform, double time);
 
     void BuildProblem(Frames &active_kfs, adapt::Problem &problem);
 

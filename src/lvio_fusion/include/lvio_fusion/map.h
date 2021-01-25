@@ -46,6 +46,7 @@ public:
 
     // norm vector and point of the ground plane
     Vector3d ground_norm, ground_point;
+    bool end = false;
 
 private:
     Map() {}

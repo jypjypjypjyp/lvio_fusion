@@ -79,17 +79,28 @@ Atlas PoseGraph::GetActiveSections(Frames &active_kfs, double &old_time, double 
 void PoseGraph::UpdateSections(double time)
 {
     static double finished = 0;
-    if (time < finished)
-        return;
-    Frames active_kfs = Map::Instance().GetKeyFrames(finished, time);
-    finished = time + epsilon;
-
     static Frame::Ptr last_frame;
     static Vector3d last_heading(1, 0, 0);
     static bool turning = false;
     static int num = 0;
     static double accumulate_degree = 0;
     static Section current_section;
+    if (Map::Instance().end)
+    {
+        if (!turning)
+        {
+            Frame::Ptr last_frame = (--Map::Instance().keyframes.end())->second;
+            current_section.C = last_frame->time;
+            sections_[current_section.A] = current_section;
+            turning = true;
+        }
+        return;
+    }
+
+    if (time < finished)
+        return;
+    Frames active_kfs = Map::Instance().GetKeyFrames(finished, time);
+    finished = time + epsilon;
     for (auto &pair_kf : active_kfs)
     {
         Vector3d heading = pair_kf.second->pose.so3() * Vector3d::UnitX();
@@ -97,9 +108,11 @@ void PoseGraph::UpdateSections(double time)
         {
             double degree = vectors_degree_angle(last_heading, heading);
             accumulate_degree += degree;
-            if (!turning && (degree >= 3 || accumulate_degree > 20))
+            // go straight requires degree is larger than 3 or accumulated degree is larger than 20
+            if (!turning && (degree >= 3 || accumulate_degree > 15))
             {
-                if (num > 10)
+                // if we have enough keyframes, create new section
+                if (num >= 10)
                 {
                     current_section.C = pair_kf.first;
                     sections_[current_section.A] = current_section;
@@ -108,6 +121,7 @@ void PoseGraph::UpdateSections(double time)
                 }
                 turning = true;
             }
+            // turning requires degree is lower than 1 or num is larger than 10
             else if (turning && (degree < 1 || num > 10))
             {
                 current_section.B = pair_kf.first;
@@ -193,7 +207,7 @@ void PoseGraph::Optimize(Atlas &sections, Section &submap, adapt::Problem &probl
     Propagate(transfrom, forward_kfs);
 }
 
-void PoseGraph::ForwardPropagate(SE3d transfrom, double start_time)
+void PoseGraph::ForwardPropagate(SE3d transform, double start_time)
 {
     std::unique_lock<std::mutex> lock(frontend_->mutex);
     Frames forward_kfs = Map::Instance().GetKeyFrames(start_time);
@@ -202,7 +216,7 @@ void PoseGraph::ForwardPropagate(SE3d transfrom, double start_time)
     {
         forward_kfs[last_frame->time] = last_frame;
     }
-    Propagate(transfrom, forward_kfs);
+    Propagate(transform, forward_kfs);
     frontend_->UpdateCache();
 }
 
