@@ -53,6 +53,10 @@ private:
 
     void Initialize();
 
+    void OptimizeR(Frame::Ptr frame, double time);
+
+    void OptimizeX(Frame::Ptr frame, double time);
+
     static std::vector<Navsat::Ptr> devices_;
 
 };

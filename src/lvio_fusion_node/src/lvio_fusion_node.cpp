@@ -351,6 +351,11 @@ void keyboard_process()
                 start_train();
             }
             break;
+        case 'e':
+            lvio_fusion::Map::Instance().end = true;
+            estimator->backend->UpdateMap();
+            ROS_WARN("Final Navsat Optimization!");
+            break;
         default:
             break;
         }

@@ -60,6 +60,8 @@ private:
 
     Atlas submaps_;      // loop submaps [end : {old, start, end}]
     Atlas sections_;    // sections [A : {A, B, C}]
+
+    double end_time_;
 };
 
 } // namespace lvio_fusion
