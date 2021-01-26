@@ -108,7 +108,7 @@ double Navsat::Optimize(double time)
     {
         // optimize point A's rotation
         auto frame_A = Map::Instance().keyframes[pair.second.A];
-        OptimizeRP(frame_A, time);
+        OptimizeRPY(frame_A, time);
         OptimizeY(frame_A, pair.second.C, time);
 
         // optimize (A-C)'s X
@@ -132,7 +132,7 @@ double Navsat::Optimize(double time)
     return sections.begin()->second.A;
 }
 
-void Navsat::OptimizeRP(Frame::Ptr frame, double time)
+void Navsat::OptimizeRPY(Frame::Ptr frame, double time)
 {
     SE3d old_pose = frame->pose;
     adapt::Problem problem;
@@ -141,15 +141,16 @@ void Navsat::OptimizeRP(Frame::Ptr frame, double time)
     //NOTE: the real order of rpy is y p r
     problem.AddParameterBlock(para + 2, 1);
     problem.AddParameterBlock(para + 1, 1);
+    problem.AddParameterBlock(para + 0, 1);
 
     for (auto &pair_kf : active_kfs)
     {
         auto position = pair_kf.second->pose.translation();
         if (pair_kf.second->feature_navsat)
         {
-            ceres::CostFunction *cost_function = NavsatRPError::Create(
+            ceres::CostFunction *cost_function = NavsatRPYError::Create(
                 GetFixPoint(pair_kf.second), frame->pose.inverse() * position, frame->pose);
-            problem.AddResidualBlock(ProblemType::Other, cost_function, NULL, para + 2, para + 1);
+            problem.AddResidualBlock(ProblemType::Other, cost_function, NULL, para + 2, para + 1, para);
         }
     }
 
@@ -163,7 +164,7 @@ void Navsat::OptimizeRP(Frame::Ptr frame, double time)
     PoseGraph::Instance().Propagate(transform, Map::Instance().GetKeyFrames(frame->time + epsilon, time));
 }
 
-void Navsat::OptimizeY(Frame::Ptr frame, double C,  double time)
+void Navsat::OptimizeY(Frame::Ptr frame, double C, double time)
 {
     SE3d old_pose = frame->pose;
     adapt::Problem problem;
