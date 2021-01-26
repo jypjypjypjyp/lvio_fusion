@@ -149,7 +149,6 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
 
         if (relocator)
         {
-            relocator->SetFeatureAssociation(association);
             relocator->SetMapping(mapping);
         }
     }

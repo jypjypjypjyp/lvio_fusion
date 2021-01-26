@@ -220,11 +220,11 @@ void PoseGraph::ForwardPropagate(SE3d transform, double start_time)
     frontend_->UpdateCache();
 }
 
-void PoseGraph::Propagate(SE3d transfrom, const Frames &forward_kfs)
+void PoseGraph::Propagate(SE3d transform, const Frames &forward_kfs)
 {
     for (auto &pair_kf : forward_kfs)
     {
-        pair_kf.second->pose = transfrom * pair_kf.second->pose;
+        pair_kf.second->pose = transform * pair_kf.second->pose;
     }
 }
 

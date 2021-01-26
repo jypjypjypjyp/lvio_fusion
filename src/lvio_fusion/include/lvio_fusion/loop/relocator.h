@@ -30,8 +30,8 @@ private:
     enum Mode
     {
         None = 0,
-        Visual = 1,
-        Lidar = 2,
+        VisualOnly = 1,
+        LidarOnly = 2,
         VisualAndLidar = 3
     };
 
@@ -44,12 +44,10 @@ private:
     bool RelocateByImage(Frame::Ptr frame, Frame::Ptr old_frame);
 
     bool RelocateByPoints(Frame::Ptr frame, Frame::Ptr old_frame);
-
-    void BuildProblem(Frames &active_kfs, adapt::Problem &problem);
-
-    void BuildProblemWithRelocated(Frames &active_kfs, adapt::Problem &problem);
-
+    
     void CorrectLoop(double old_time, double start_time, double end_time);
+
+    void UpdateNewSubmap(Frame::Ptr best_frame, Frames &new_submap_kfs);
 
     Mapping::Ptr mapping_;
     Backend::Ptr backend_;

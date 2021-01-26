@@ -105,7 +105,7 @@ void Mapping::Optimize(Frames &active_kfs)
                     options.max_num_iterations = 2;
                     options.num_threads = num_threads;
                     ceres::Solver::Summary summary;
-                    // ceres::Solve(options, &problem, &summary);
+                    ceres::Solve(options, &problem, &summary);
                     pair_kf.second->pose = rpyxyz2se3(rpyxyz) * map_frame->pose;
                 }
                 if (!map_frame->feature_lidar->points_surf.empty())
@@ -117,7 +117,7 @@ void Mapping::Optimize(Frames &active_kfs)
                     options.max_num_iterations = 2;
                     options.num_threads = num_threads;
                     ceres::Solver::Summary summary;
-                    // ceres::Solve(options, &problem, &summary);
+                    ceres::Solve(options, &problem, &summary);
                     pair_kf.second->pose = rpyxyz2se3(rpyxyz) * map_frame->pose;
                 }
             }

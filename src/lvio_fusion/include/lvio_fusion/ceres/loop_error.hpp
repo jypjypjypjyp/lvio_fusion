@@ -141,6 +141,39 @@ private:
     double weight_;
 };
 
+class PoseRError
+{
+public:
+    PoseRError(SE3d relocated, SE3d unrelocated, SE3d base)
+        : relocated_(relocated), unrelocated_(SE3d(base.so3().inverse(), Vector3d::Zero()) * unrelocated) {}
+
+    template <typename T>
+    bool operator()(const T *r, T *residuals) const
+    {
+        T tf[7] = {r[0], r[1], r[2], r[3], T(0), T(0), T(0)};
+        T unrelocated[7];
+        ceres::Cast(unrelocated_.data(), SE3d::num_parameters, unrelocated);
+        T tf_unrelocated[7];
+        ceres::SE3Product(tf, unrelocated, tf_unrelocated);
+        residuals[0] = T(relocated_.data()[0]) - tf_unrelocated[0];
+        residuals[1] = T(relocated_.data()[1]) - tf_unrelocated[1];
+        residuals[2] = T(relocated_.data()[2]) - tf_unrelocated[2];
+        residuals[3] = T(relocated_.data()[3]) - tf_unrelocated[3];
+        residuals[4] = T(relocated_.data()[4]) - tf_unrelocated[4];
+        residuals[5] = T(relocated_.data()[5]) - tf_unrelocated[5];
+        residuals[6] = T(relocated_.data()[6]) - tf_unrelocated[6];
+        return true;
+    }
+
+    static ceres::CostFunction *Create(SE3d relocated, SE3d unrelocated, SE3d base)
+    {
+        return (new ceres::AutoDiffCostFunction<PoseRError, 7, 4>(new PoseRError(relocated, unrelocated, base)));
+    }
+
+private:
+    SE3d relocated_, unrelocated_;
+};
+
 } // namespace lvio_fusion
 
 #endif // lvio_fusion_LOOP_ERROR_H

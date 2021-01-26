@@ -143,9 +143,9 @@ void Backend::Optimize()
 
     if (update_weights_)
     {
-        for (auto pair : active_kfs)
+        for (auto &pair_kf : active_kfs)
         {
-            if (!pair.second->weights.updated)
+            if (!pair_kf.second->weights.updated)
             {
             }
         }
@@ -173,7 +173,7 @@ void Backend::Optimize()
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
 
-    if (mapping_)
+    if (Lidar::Num() && mapping_)
     {
         mapping_->Optimize(active_kfs);
     }

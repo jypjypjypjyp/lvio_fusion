@@ -1,11 +1,8 @@
 #include "lvio_fusion/loop/relocator.h"
-#include "lvio_fusion/ceres/lidar_error.hpp"
 #include "lvio_fusion/ceres/loop_error.hpp"
 #include "lvio_fusion/map.h"
 #include "lvio_fusion/utility.h"
-#include "lvio_fusion/visual/camera.h"
-#include "lvio_fusion/visual/feature.h"
-#include "lvio_fusion/visual/landmark.h"
+#include "lvio_fusion/manager.h"
 
 #include <opencv2/core/eigen.hpp>
 #include <pcl/filters/voxel_grid.h>
@@ -66,6 +63,7 @@ void Relocator::DetectorLoop()
 
 bool Relocator::DetectLoop(Frame::Ptr frame, Frame::Ptr &old_frame)
 {
+    // the distances of 3 old frames is smaller than threshold
     Frames candidate_kfs = Map::Instance().GetKeyFrames(0, backend_->finished - 30);
     double min_distance = 10;
     for (auto &pair_kf : candidate_kfs)
@@ -92,10 +90,10 @@ bool Relocator::DetectLoop(Frame::Ptr frame, Frame::Ptr &old_frame)
     }
     if (old_frame)
     {
-        loop::LoopClosure::Ptr loop_constraint = loop::LoopClosure::Ptr(new loop::LoopClosure());
-        loop_constraint->frame_old = old_frame;
-        loop_constraint->relocated = false;
-        frame->loop_closure = loop_constraint;
+        loop::LoopClosure::Ptr loop_closure = loop::LoopClosure::Ptr(new loop::LoopClosure());
+        loop_closure->frame_old = old_frame;
+        loop_closure->relocated = false;
+        frame->loop_closure = loop_closure;
         return true;
     }
     return false;
@@ -105,9 +103,9 @@ bool Relocator::Relocate(Frame::Ptr frame, Frame::Ptr old_frame)
 {
     frame->loop_closure->score = 0;
     // put it on the same level
-    SE3d pose = frame->pose;
-    pose.translation().z() = old_frame->pose.translation().z();
-    frame->loop_closure->relative_o_c = pose * old_frame->pose.inverse();
+    SE3d init_pose = frame->pose;
+    init_pose.translation().z() = old_frame->pose.translation().z();
+    frame->loop_closure->relative_o_c = init_pose * old_frame->pose.inverse();
     // check its orientation
     double rpyxyz_o[6], rpyxyz_i[6], rpy_o_i[3];
     se32rpyxyz(frame->pose, rpyxyz_i);
@@ -115,28 +113,27 @@ bool Relocator::Relocate(Frame::Ptr frame, Frame::Ptr old_frame)
     rpy_o_i[0] = rpyxyz_i[0] - rpyxyz_o[0];
     rpy_o_i[1] = rpyxyz_i[1] - rpyxyz_o[1];
     rpy_o_i[2] = rpyxyz_i[2] - rpyxyz_o[2];
-    if ((mode_ == Mode::Visual || mode_ == Mode::VisualAndLidar) && Vector3d(rpy_o_i[0], rpy_o_i[1], rpy_o_i[2]).norm() < 0.1)
+    if ((mode_ == Mode::VisualOnly || mode_ == Mode::VisualAndLidar) && Vector3d(rpy_o_i[0], rpy_o_i[1], rpy_o_i[2]).norm() < 0.1)
     {
         RelocateByImage(frame, old_frame);
     }
-    if ((mode_ == Mode::Lidar || mode_ == Mode::VisualAndLidar) && mapping_ && frame->feature_lidar && old_frame->feature_lidar)
+    if ((mode_ == Mode::LidarOnly || mode_ == Mode::VisualAndLidar) && Lidar::Num() && mapping_ && frame->feature_lidar && old_frame->feature_lidar)
     {
         RelocateByPoints(frame, old_frame);
     }
-    if (mode_ == Mode::None || frame->loop_closure->score > 20)
+    if (mode_ == Mode::None || frame->loop_closure->score > 0) // 0 is the base score
     {
         return true;
     }
-    frame->loop_closure.reset();
     return false;
 }
 
 bool Relocator::RelocateByImage(Frame::Ptr frame, Frame::Ptr old_frame)
 {
     int score = matcher_.Relocate(old_frame, frame, frame->loop_closure->relative_o_c);
-    if (score > 10)
+    frame->loop_closure->score += score - 20;
+    if (score > 0)
     {
-        frame->loop_closure->score += score;
         return true;
     }
     return false;
@@ -145,131 +142,146 @@ bool Relocator::RelocateByImage(Frame::Ptr frame, Frame::Ptr old_frame)
 bool Relocator::RelocateByPoints(Frame::Ptr frame, Frame::Ptr old_frame)
 {
     int score = mapping_->Relocate(old_frame, frame, frame->loop_closure->relative_o_c);
-    if (score > 10)
+    frame->loop_closure->score += score - 20;
+    if (score > 0)
     {
-        frame->loop_closure->score += score;
         return true;
     }
     return false;
 }
 
-void Relocator::BuildProblem(Frames &active_kfs, adapt::Problem &problem)
-{
-    ceres::LocalParameterization *local_parameterization = new ceres::ProductParameterization(
-        new ceres::EigenQuaternionParameterization(),
-        new ceres::IdentityParameterization(3));
-
-    Frame::Ptr last_frame;
-    for (auto &pair_kf : active_kfs)
-    {
-        auto frame = pair_kf.second;
-        double *para_kf = frame->pose.data();
-        problem.AddParameterBlock(para_kf, SE3d::num_parameters, local_parameterization);
-        if (last_frame)
-        {
-            double *para_last_kf = last_frame->pose.data();
-            ceres::CostFunction *cost_function;
-            cost_function = PoseGraphError::Create(last_frame->pose, frame->pose, frame->weights.pose_graph);
-            problem.AddResidualBlock(ProblemType::Other, cost_function, NULL, para_last_kf, para_kf);
-        }
-        last_frame = frame;
-    }
-}
-
-void Relocator::BuildProblemWithRelocated(Frames &active_kfs, adapt::Problem &problem)
-{
-    ceres::LocalParameterization *local_parameterization = new ceres::ProductParameterization(
-        new ceres::EigenQuaternionParameterization(),
-        new ceres::IdentityParameterization(3));
-
-    double start_time = active_kfs.begin()->first;
-
-    // loop constraint
-    for (auto &pair_kf : active_kfs)
-    {
-        auto frame = pair_kf.second;
-        if (frame->loop_closure && frame->loop_closure->relocated)
-        {
-            double *para_kf = frame->pose.data();
-            problem.SetParameterBlockConstant(para_kf);
-
-            auto old_frame = frame->loop_closure->frame_old;
-            if (old_frame->time >= start_time)
-            {
-                double *para_old_kf = old_frame->pose.data();
-                problem.SetParameterBlockConstant(para_old_kf);
-            }
-        }
-    }
-}
-
 void Relocator::CorrectLoop(double old_time, double start_time, double end_time)
 {
+    std::unique_lock<std::mutex> lock(backend_->mutex, std::defer_lock);
     // build the pose graph and submaps
     Frames active_kfs = Map::Instance().GetKeyFrames(old_time, end_time);
     Frames new_submap_kfs = Map::Instance().GetKeyFrames(start_time, end_time);
     Frames all_kfs = active_kfs;
-    Atlas active_sections = PoseGraph::Instance().GetActiveSections(active_kfs, old_time, start_time);
-    Section &new_submap = PoseGraph::Instance().AddSubMap(old_time, start_time, end_time);
-    adapt::Problem problem;
-    PoseGraph::Instance().BuildProblem(active_sections, new_submap, problem);
 
     // update new submap frames
     SE3d old_pose = (--new_submap_kfs.end())->second->pose;
     {
-        // build new submap pose graph
-        adapt::Problem problem;
-        BuildProblem(new_submap_kfs, problem);
-
-        // relocate new submaps
-        std::map<double, double> score_table;
+        // update frames in the new submap
+        double max_score = -1;
+        Frame::Ptr best_frame;
         for (auto &pair_kf : new_submap_kfs)
         {
-            Relocate(pair_kf.second, pair_kf.second->loop_closure->frame_old);
-            score_table[-pair_kf.second->loop_closure->score] = pair_kf.first;
-        }
-        int max_num_relocated = 1;
-        for (auto &pair : score_table)
-        {
-            if (max_num_relocated-- == 0)
-                break;
-            auto frame = new_submap_kfs[pair.second];
-            frame->loop_closure->relocated = true;
-            frame->pose = frame->loop_closure->relative_o_c * frame->loop_closure->frame_old->pose;
+            if (Relocate(pair_kf.second, pair_kf.second->loop_closure->frame_old))
+            {
+                if (pair_kf.second->loop_closure->score > max_score)
+                {
+                    max_score = pair_kf.second->loop_closure->score;
+                    best_frame = pair_kf.second;
+                }
+            }
         }
 
-        BuildProblemWithRelocated(new_submap_kfs, problem);
-        ceres::Solver::Options options;
-        options.linear_solver_type = ceres::SPARSE_NORMAL_CHOLESKY;
-        options.num_threads = 1;
-        ceres::Solver::Summary summary;
-        ceres::Solve(options, &problem, &summary);
-
-        for (auto &pair_kf : new_submap_kfs)
+        if (best_frame)
         {
-            Relocate(pair_kf.second, pair_kf.second->loop_closure->frame_old);
-            pair_kf.second->loop_closure->relocated = true;
-            pair_kf.second->pose = pair_kf.second->loop_closure->relative_o_c * pair_kf.second->loop_closure->frame_old->pose;
+            lock.lock();
+            // UpdateNewSubmap(best_frame, new_submap_kfs);
+        }
+        else
+        {
+            for (auto &pair_kf : new_submap_kfs)
+            {
+                pair_kf.second->loop_closure.reset();
+            }
+            return;
         }
     }
     SE3d new_pose = (--new_submap_kfs.end())->second->pose;
 
     // forward propogate
+    SE3d transform = old_pose.inverse() * new_pose;
+    // PoseGraph::Instance().ForwardPropagate(transform, end_time + epsilon);
+    // if (Lidar::Num() && mapping_)
+    // {
+    //     Frames mapping_kfs = Map::Instance().GetKeyFrames(end_time + epsilon);
+    //     for (auto &pair : mapping_kfs)
+    //     {
+    //         mapping_->ToWorld(pair.second);
+    //     }
+    // }
+    // fix navsat
+    if (Navsat::Num())
     {
-        std::unique_lock<std::mutex> lock1(backend_->mutex);
-        SE3d transform = old_pose.inverse() * new_pose;
-        PoseGraph::Instance().ForwardPropagate(transform, end_time + epsilon);
-        if (mapping_)
+        Navsat::Get()->fix = transform.translation();
+    }
+
+    // Atlas active_sections = PoseGraph::Instance().GetActiveSections(active_kfs, old_time, start_time);
+    // Section &new_submap = PoseGraph::Instance().AddSubMap(old_time, start_time, end_time);
+    // adapt::Problem problem;
+    // PoseGraph::Instance().BuildProblem(active_sections, new_submap, problem);
+
+    // PoseGraph::Instance().Optimize(active_sections, new_submap, problem);
+}
+
+void Relocator::UpdateNewSubmap(Frame::Ptr best_frame, Frames &new_submap_kfs)
+{
+    // optimize the best frame's rotation
+    SE3d new_pose = best_frame->pose;
+    {
+        adapt::Problem problem;
+        SE3d base = best_frame->pose;
+        best_frame->pose = best_frame->loop_closure->relative_o_c * best_frame->pose;
+        double *para = best_frame->pose.data();
+        problem.AddParameterBlock(para, 4, new ceres::EigenQuaternionParameterization());
+
+        for (auto &pair_kf : new_submap_kfs)
         {
-            Frames mapping_kfs = Map::Instance().GetKeyFrames(end_time + epsilon);
-            for (auto &pair : mapping_kfs)
+            if (pair_kf.second != best_frame && pair_kf.second->loop_closure->score > 0)
             {
-                mapping_->ToWorld(pair.second);
+                ceres::CostFunction *cost_function = PoseRError::Create(
+                    pair_kf.second->loop_closure->relative_o_c * pair_kf.second->loop_closure->frame_old->pose, pair_kf.second->pose, base);
+                problem.AddResidualBlock(ProblemType::Other, cost_function, NULL, para);
             }
+        }
+
+        ceres::Solver::Options options;
+        options.linear_solver_type = ceres::DENSE_QR;
+        ceres::Solver::Summary summary;
+        ceres::Solve(options, &problem, &summary);
+    }
+    SE3d old_pose = best_frame->pose;
+    SE3d transform = new_pose * old_pose.inverse();
+    for (auto &pair_kf : new_submap_kfs)
+    {
+        if (pair_kf.second != best_frame)
+        {
+            pair_kf.second->pose = transform * pair_kf.second->pose;
         }
     }
 
-    PoseGraph::Instance().Optimize(active_sections, new_submap, problem);
+    // optimize other frames' X
+    // for (auto &pair_kf : new_submap_kfs)
+    // {
+    //     if (pair_kf.second == best_frame)
+    //         continue;
+    //     adapt::Problem problem;
+    //     Frames active_kfs = Map::Instance().GetKeyFrames(frame->time, time);
+    //     SE3d relative_pose;
+    //     double *para = relative_pose.data() + 4;
+    //     problem.AddParameterBlock(para, 1);
+
+    //     for (auto &pair_kf : active_kfs)
+    //     {
+    //         ;
+    //         auto position = pair_kf.second->pose.translation();
+    //         if (pair_kf.second->feature_navsat)
+    //         {
+    //             ceres::CostFunction *cost_function = NavsatXError::Create(
+    //                 GetPoint(pair_kf.second->feature_navsat->time), frame->pose.inverse() * position, frame->pose);
+    //             problem.AddResidualBlock(ProblemType::Other, cost_function, NULL, para);
+    //         }
+    //     }
+
+    //     ceres::Solver::Options options;
+    //     options.linear_solver_type = ceres::DENSE_QR;
+    //     ceres::Solver::Summary summary;
+    //     ceres::Solve(options, &problem, &summary);
+    //     frame->pose = frame->pose * relative_pose;
+    // }
 }
 
 } // namespace lvio_fusion

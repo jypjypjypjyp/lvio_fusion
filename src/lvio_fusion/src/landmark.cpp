@@ -35,7 +35,7 @@ void Landmark::Clear()
 
     int num = 0;
     Frames a = Map::Instance().GetKeyFrames(FirstFrame().lock()->time);
-    for (auto i : a)
+    for (auto &i : a)
     {
         if (i.second->features_left.find(id) != i.second->features_left.end())
         {
