@@ -21,7 +21,7 @@ public:
     {
         T relative_i_j[7], Twc1_inverse[7], rpyxyz[6];
         ceres::SE3Inverse(Twc1, Twc1_inverse);
-        ceres::SE3Product(Twc2, Twc1_inverse, relative_i_j);
+        ceres::SE3Product(Twc1_inverse, Twc2, relative_i_j);
         ceres::SE3ToRpyxyz(relative_i_j, rpyxyz);
         residuals[0] = T(weight_) * T(0); //(rpyxyz[0] - rpyxyz_[0]);
         residuals[1] = T(weight_) * T(0); //(rpyxyz[1] - rpyxyz_[1]);

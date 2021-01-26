@@ -95,7 +95,7 @@ void Mapping::Optimize(Frames &active_kfs)
             if (map_frame->feature_lidar && pair_kf.second->feature_lidar)
             {
                 double rpyxyz[6];
-                se32rpyxyz(pair_kf.second->pose * map_frame->pose.inverse(), rpyxyz); // relative_i_j
+                se32rpyxyz(map_frame->pose.inverse() * pair_kf.second->pose, rpyxyz); // relative_i_j
                 if (!map_frame->feature_lidar->points_ground.empty())
                 {
                     adapt::Problem problem;
@@ -106,7 +106,7 @@ void Mapping::Optimize(Frames &active_kfs)
                     options.num_threads = num_threads;
                     ceres::Solver::Summary summary;
                     ceres::Solve(options, &problem, &summary);
-                    pair_kf.second->pose = rpyxyz2se3(rpyxyz) * map_frame->pose;
+                    pair_kf.second->pose = map_frame->pose * rpyxyz2se3(rpyxyz);
                 }
                 if (!map_frame->feature_lidar->points_surf.empty())
                 {
@@ -118,7 +118,7 @@ void Mapping::Optimize(Frames &active_kfs)
                     options.num_threads = num_threads;
                     ceres::Solver::Summary summary;
                     ceres::Solve(options, &problem, &summary);
-                    pair_kf.second->pose = rpyxyz2se3(rpyxyz) * map_frame->pose;
+                    pair_kf.second->pose = map_frame->pose * rpyxyz2se3(rpyxyz);
                 }
             }
         }
@@ -188,7 +188,7 @@ int Mapping::Relocate(Frame::Ptr last_frame, Frame::Ptr current_frame, SE3d &rel
     // init relative pose
     Frame::Ptr clone_frame = Frame::Ptr(new Frame());
     *clone_frame = *current_frame;
-    clone_frame->pose = clone_frame->loop_closure->relative_o_c * last_frame->pose;
+    clone_frame->pose = last_frame->pose * clone_frame->loop_closure->relative_o_c;
 
     // build two pointclouds
     Frame::Ptr old_frame_prev = Map::Instance().GetKeyFrames(0, last_frame->time, 1).begin()->second;
@@ -202,7 +202,7 @@ int Mapping::Relocate(Frame::Ptr last_frame, Frame::Ptr current_frame, SE3d &rel
     for (int i = 0; i < 4; i++)
     {
         double rpyxyz[6];
-        se32rpyxyz(clone_frame->pose * map_frame->pose.inverse(), rpyxyz); // relative_i_j
+        se32rpyxyz(map_frame->pose.inverse() * clone_frame->pose, rpyxyz); // relative_i_j
         if (!map_frame->feature_lidar->points_ground.empty())
         {
             adapt::Problem problem;
@@ -213,7 +213,7 @@ int Mapping::Relocate(Frame::Ptr last_frame, Frame::Ptr current_frame, SE3d &rel
             options.num_threads = num_threads;
             ceres::Solver::Summary summary;
             ceres::Solve(options, &problem, &summary);
-            clone_frame->pose = rpyxyz2se3(rpyxyz) * map_frame->pose;
+            clone_frame->pose = map_frame->pose * rpyxyz2se3(rpyxyz) ;
             score_ground = std::min((double)summary.num_residual_blocks_reduced / 10, 20.0);
             score_ground -= 2 * summary.final_cost / summary.num_residual_blocks_reduced;
         }
@@ -227,13 +227,13 @@ int Mapping::Relocate(Frame::Ptr last_frame, Frame::Ptr current_frame, SE3d &rel
             options.num_threads = num_threads;
             ceres::Solver::Summary summary;
             ceres::Solve(options, &problem, &summary);
-            clone_frame->pose = rpyxyz2se3(rpyxyz) * map_frame->pose;
+            clone_frame->pose = map_frame->pose * rpyxyz2se3(rpyxyz) ;
             score_surf = std::min((double)summary.num_residual_blocks_reduced / 10, 30.0);
             score_surf -= 2 * summary.final_cost / summary.num_residual_blocks_reduced;
         }
     }
 
-    relative_o_c = clone_frame->pose * last_frame->pose.inverse();
+    relative_o_c = last_frame->pose.inverse() * clone_frame->pose;
     return score_ground + score_surf;
 }
 

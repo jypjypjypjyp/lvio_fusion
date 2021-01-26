@@ -70,7 +70,7 @@ public:
         rpyxyz[5] = *z;
         ceres::RpyxyzToSE3(rpyxyz, relative_i_j);
         ceres::Cast(Twc1_.data(), SE3d::num_parameters, Twc1);
-        ceres::SE3Product(relative_i_j, Twc1, Twc2);
+        ceres::SE3Product(Twc1, relative_i_j, Twc2);
         origin_error_(Twc2, residual);
         residual[0] = T(weight_) * residual[0];
         return true;
@@ -106,7 +106,7 @@ public:
         rpyxyz[4] = *y;
         ceres::RpyxyzToSE3(rpyxyz, relative_i_j);
         ceres::Cast(Twc1_.data(), SE3d::num_parameters, Twc1);
-        ceres::SE3Product(relative_i_j, Twc1, Twc2);
+        ceres::SE3Product(Twc1, relative_i_j, Twc2);
         origin_error_(Twc2, residual);
         residual[0] = T(weight_) * residual[0];
         return true;

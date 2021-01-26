@@ -105,7 +105,7 @@ bool Relocator::Relocate(Frame::Ptr frame, Frame::Ptr old_frame)
     // put it on the same level
     SE3d init_pose = frame->pose;
     init_pose.translation().z() = old_frame->pose.translation().z();
-    frame->loop_closure->relative_o_c = init_pose * old_frame->pose.inverse();
+    frame->loop_closure->relative_o_c = old_frame->pose.inverse() * init_pose;
     // check its orientation
     double rpyxyz_o[6], rpyxyz_i[6], rpy_o_i[3];
     se32rpyxyz(frame->pose, rpyxyz_i);
@@ -224,7 +224,7 @@ void Relocator::UpdateNewSubmap(Frame::Ptr best_frame, Frames &new_submap_kfs)
     {
         adapt::Problem problem;
         SE3d base = best_frame->pose;
-        best_frame->pose = best_frame->loop_closure->relative_o_c * best_frame->pose;
+        best_frame->pose = best_frame->pose * best_frame->loop_closure->relative_o_c;
         double *para = best_frame->pose.data();
         problem.AddParameterBlock(para, 4, new ceres::EigenQuaternionParameterization());
 
@@ -233,7 +233,7 @@ void Relocator::UpdateNewSubmap(Frame::Ptr best_frame, Frames &new_submap_kfs)
             if (pair_kf.second != best_frame && pair_kf.second->loop_closure->score > 0)
             {
                 ceres::CostFunction *cost_function = PoseRError::Create(
-                    pair_kf.second->loop_closure->relative_o_c * pair_kf.second->loop_closure->frame_old->pose, pair_kf.second->pose, base);
+                    pair_kf.second->loop_closure->frame_old->pose * pair_kf.second->loop_closure->relative_o_c, pair_kf.second->pose, base);
                 problem.AddResidualBlock(ProblemType::Other, cost_function, NULL, para);
             }
         }

@@ -177,7 +177,7 @@ int ORBMatcher::Relocate(Frame::Ptr last_frame, Frame::Ptr current_frame, SE3d &
         cv::Rodrigues(rvec, cv_R);
         Matrix3d R;
         cv::cv2eigen(cv_R, R);
-        relative_o_c = (last_frame->pose * Camera::Get()->extrinsic * SE3d(SO3d(R), Vector3d(tvec.at<double>(0, 0), tvec.at<double>(1, 0), tvec.at<double>(2, 0)))).inverse();
+        relative_o_c = (Camera::Get()->extrinsic * SE3d(SO3d(R), Vector3d(tvec.at<double>(0, 0), tvec.at<double>(1, 0), tvec.at<double>(2, 0))) * last_frame->pose).inverse();
         num_good_pts = inliers.rows;
     }
     return std::min(num_good_pts / 2, 50);

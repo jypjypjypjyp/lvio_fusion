@@ -41,7 +41,7 @@ Vector3d Navsat::GetFixPoint(Frame::Ptr frame)
 {
     if (frame->loop_closure)
     {
-        return (frame->loop_closure->relative_o_c * frame->loop_closure->frame_old->pose).translation();
+        return (frame->loop_closure->frame_old->pose * frame->loop_closure->relative_o_c).translation();
     }
     return fix + GetPoint(frame->feature_navsat->time);
 }
@@ -106,21 +106,10 @@ double Navsat::Optimize(double time)
     SE3d transform;
     for (auto &pair : sections)
     {
-        SE3d old_pose, new_pose;
         // optimize point A's rotation
         auto frame_A = Map::Instance().keyframes[pair.second.A];
-        old_pose = frame_A->pose;
         OptimizeRP(frame_A, time);
-        new_pose = frame_A->pose;
-        // section propagate
-        transform = new_pose * old_pose.inverse();
-        PoseGraph::Instance().Propagate(transform, Map::Instance().GetKeyFrames(pair.second.A + epsilon, time));
-        old_pose = frame_A->pose;
-        OptimizeYaw(frame_A, pair.second.C);
-        new_pose = frame_A->pose;
-        // section propagate
-        transform = new_pose * old_pose.inverse();
-        PoseGraph::Instance().Propagate(transform, Map::Instance().GetKeyFrames(pair.second.A + epsilon, time));
+        OptimizeY(frame_A, pair.second.C, time);
 
         // optimize (A-C)'s X
         Frames AC_kfs = Map::Instance().GetKeyFrames(pair.second.A, pair.second.C);
@@ -129,12 +118,7 @@ double Navsat::Optimize(double time)
             auto frame = pair_kf.second;
             if (frame->feature_navsat && (frame->pose.translation() - GetFixPoint(frame)).norm() > 0.2)
             {
-                old_pose = frame->pose;
                 OptimizeX(frame, time);
-                new_pose = frame->pose;
-                // section propagate
-                transform = new_pose * old_pose.inverse();
-                PoseGraph::Instance().Propagate(transform, Map::Instance().GetKeyFrames(frame->time + epsilon, time));
             }
         }
         finished = pair.second.A;
@@ -150,13 +134,13 @@ double Navsat::Optimize(double time)
 
 void Navsat::OptimizeRP(Frame::Ptr frame, double time)
 {
+    SE3d old_pose = frame->pose;
     adapt::Problem problem;
     Frames active_kfs = Map::Instance().GetKeyFrames(frame->time, time);
-    double rpyxyz[6] = {0};
-    double *para_roll = rpyxyz;
-    double *para_pitch = rpyxyz + 1;
-    problem.AddParameterBlock(para_roll, 1);
-    problem.AddParameterBlock(para_pitch, 1);
+    double para[6] = {0, 0, 0, 0, 0, 0};
+    //NOTE: the real order of rpy is y p r
+    problem.AddParameterBlock(para + 2, 1);
+    problem.AddParameterBlock(para + 1, 1);
 
     for (auto &pair_kf : active_kfs)
     {
@@ -165,7 +149,7 @@ void Navsat::OptimizeRP(Frame::Ptr frame, double time)
         {
             ceres::CostFunction *cost_function = NavsatRPError::Create(
                 GetFixPoint(pair_kf.second), frame->pose.inverse() * position, frame->pose);
-            problem.AddResidualBlock(ProblemType::Other, cost_function, NULL, para_roll, para_pitch);
+            problem.AddResidualBlock(ProblemType::Other, cost_function, NULL, para + 2, para + 1);
         }
     }
 
@@ -173,15 +157,18 @@ void Navsat::OptimizeRP(Frame::Ptr frame, double time)
     options.linear_solver_type = ceres::DENSE_QR;
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
-    frame->pose = frame->pose * rpyxyz2se3(rpyxyz);
+    frame->pose = frame->pose * rpyxyz2se3(para);
+    SE3d new_pose = frame->pose;
+    SE3d transform = new_pose * old_pose.inverse();
+    PoseGraph::Instance().Propagate(transform, Map::Instance().GetKeyFrames(frame->time + epsilon, time));
 }
 
-void Navsat::OptimizeYaw(Frame::Ptr frame, double time)
+void Navsat::OptimizeY(Frame::Ptr frame, double C,  double time)
 {
+    SE3d old_pose = frame->pose;
     adapt::Problem problem;
-    Frames active_kfs = Map::Instance().GetKeyFrames(frame->time, time);
-    double rpyxyz[6] = {0};
-    double *para = rpyxyz + 2;
+    Frames active_kfs = Map::Instance().GetKeyFrames(frame->time, C);
+    double para[6] = {0, 0, 0, 0, 0, 0};
     problem.AddParameterBlock(para, 1);
 
     for (auto &pair_kf : active_kfs)
@@ -189,7 +176,7 @@ void Navsat::OptimizeYaw(Frame::Ptr frame, double time)
         auto position = pair_kf.second->pose.translation();
         if (pair_kf.second->feature_navsat)
         {
-            ceres::CostFunction *cost_function = NavsatYawError::Create(
+            ceres::CostFunction *cost_function = NavsatYError::Create(
                 GetFixPoint(pair_kf.second), frame->pose.inverse() * position, frame->pose);
             problem.AddResidualBlock(ProblemType::Other, cost_function, NULL, para);
         }
@@ -199,16 +186,19 @@ void Navsat::OptimizeYaw(Frame::Ptr frame, double time)
     options.linear_solver_type = ceres::DENSE_QR;
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
-    frame->pose = frame->pose * rpyxyz2se3(rpyxyz);
+    frame->pose = frame->pose * rpyxyz2se3(para);
+    SE3d new_pose = frame->pose;
+    SE3d transform = new_pose * old_pose.inverse();
+    PoseGraph::Instance().Propagate(transform, Map::Instance().GetKeyFrames(frame->time + epsilon, time));
 }
 
 void Navsat::OptimizeX(Frame::Ptr frame, double time)
 {
+    SE3d old_pose = frame->pose;
     adapt::Problem problem;
     Frames active_kfs = Map::Instance().GetKeyFrames(frame->time, frame->time + 5);
-    SE3d relative_pose;
-    double *para = relative_pose.data() + 4;
-    problem.AddParameterBlock(para, 1);
+    double para[6] = {0, 0, 0, 0, 0, 0};
+    problem.AddParameterBlock(para + 3, 1);
 
     for (auto &pair_kf : active_kfs)
     {
@@ -217,7 +207,7 @@ void Navsat::OptimizeX(Frame::Ptr frame, double time)
         {
             ceres::CostFunction *cost_function = NavsatXError::Create(
                 GetFixPoint(pair_kf.second), frame->pose.inverse() * position, frame->pose);
-            problem.AddResidualBlock(ProblemType::Other, cost_function, NULL, para);
+            problem.AddResidualBlock(ProblemType::Other, cost_function, NULL, para + 3);
         }
     }
 
@@ -225,7 +215,10 @@ void Navsat::OptimizeX(Frame::Ptr frame, double time)
     options.linear_solver_type = ceres::DENSE_QR;
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
-    frame->pose = frame->pose * relative_pose;
+    frame->pose = frame->pose * rpyxyz2se3(para);
+    SE3d new_pose = frame->pose;
+    SE3d transform = new_pose * old_pose.inverse();
+    PoseGraph::Instance().Propagate(transform, Map::Instance().GetKeyFrames(frame->time + epsilon, time));
 }
 
 } // namespace lvio_fusion

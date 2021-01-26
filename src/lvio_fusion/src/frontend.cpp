@@ -91,7 +91,7 @@ void Frontend::AddImu(double time, Vector3d acc, Vector3d gyr)
 
 bool Frontend::Track()
 {
-    current_frame->pose = relative_i_j * last_frame_pose_cache_;
+    current_frame->pose = last_frame_pose_cache_ * relative_i_j;
     Frame::Ptr base_frame = status == FrontendStatus::TRACKING_TRY ? last_key_frame : last_frame;
     int num_inliers = TrackLastFrame(base_frame);
     if(num_inliers < num_features_tracking_bad_)
@@ -129,8 +129,8 @@ bool Frontend::Track()
     }
 
     // smooth trajectory
-    current_frame->pose = se3_slerp(current_frame->pose, relative_i_j * last_frame_pose_cache_, 0.5);
-    relative_i_j = current_frame->pose * last_frame_pose_cache_.inverse();
+    current_frame->pose = se3_slerp(current_frame->pose, last_frame_pose_cache_ * relative_i_j, 0.5);
+    relative_i_j = last_frame_pose_cache_.inverse() * current_frame->pose;
     return true;
 }
 
