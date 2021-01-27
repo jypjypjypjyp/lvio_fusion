@@ -59,38 +59,50 @@ Vector3d Navsat::GetAroundPoint(double time)
 void Navsat::Initialize()
 {
     Frames keyframes = Map::Instance().keyframes;
-
-    ceres::Problem problem;
-    ceres::LocalParameterization *local_parameterization = new ceres::ProductParameterization(
-        new ceres::EigenQuaternionParameterization(),
-        new ceres::IdentityParameterization(1));
-
-    problem.AddParameterBlock(extrinsic.data(), 5, local_parameterization);
-
-    for (auto &pair_kf : keyframes)
     {
-        auto position = pair_kf.second->pose.translation();
-        if (pair_kf.second->feature_navsat)
+        ceres::Problem problem;
+        problem.AddParameterBlock(extrinsic.data(), 4, new ceres::EigenQuaternionParameterization());
+
+        for (auto &pair_kf : keyframes)
         {
-            ceres::CostFunction *cost_function = NavsatInitError::Create(position, GetRawPoint(pair_kf.second->feature_navsat->time));
-            problem.AddResidualBlock(cost_function, NULL, extrinsic.data());
+            auto position = pair_kf.second->pose.translation();
+            if (pair_kf.second->feature_navsat)
+            {
+                ceres::CostFunction *cost_function = NavsatInitRError::Create(position, GetRawPoint(pair_kf.second->feature_navsat->time));
+                problem.AddResidualBlock(cost_function, NULL, extrinsic.data());
+            }
         }
+
+        ceres::Solver::Options options;
+        options.linear_solver_type = ceres::DENSE_QR;
+        ceres::Solver::Summary summary;
+        ceres::Solve(options, &problem, &summary);
+    }
+    {
+        ceres::Problem problem;
+        ceres::LocalParameterization *local_parameterization = new ceres::ProductParameterization(
+            new ceres::EigenQuaternionParameterization(),
+            new ceres::IdentityParameterization(1));
+
+        problem.AddParameterBlock(extrinsic.data(), 5, local_parameterization);
+
+        for (auto &pair_kf : keyframes)
+        {
+            auto position = pair_kf.second->pose.translation();
+            if (pair_kf.second->feature_navsat)
+            {
+                ceres::CostFunction *cost_function = NavsatInitRXError::Create(position, GetRawPoint(pair_kf.second->feature_navsat->time));
+                problem.AddResidualBlock(cost_function, NULL, extrinsic.data());
+            }
+        }
+
+        ceres::Solver::Options options;
+        options.linear_solver_type = ceres::DENSE_QR;
+        ceres::Solver::Summary summary;
+        ceres::Solve(options, &problem, &summary);
     }
 
-    ceres::Solver::Options options;
-    options.linear_solver_type = ceres::DENSE_QR;
-    options.num_threads = 1;
-    ceres::Solver::Summary summary;
-    ceres::Solve(options, &problem, &summary);
-
     Optimize((--keyframes.end())->first);
-
-    // Vector3d A = Map::Instance().keyframes.begin()->second->pose.translation(),
-    //          B = Map::Instance().keyframes[PoseGraph::Instance().GetSections(0, finished).begin()->second.C]->pose.translation(),
-    //          C = (--Map::Instance().keyframes.end())->second->pose.translation();
-    // ground_norm = (A - B).cross(A - C);
-    // ground_point = A;
-
     initialized = true;
 }
 
@@ -113,7 +125,7 @@ double Navsat::Optimize(double time)
         OptimizeY(frame_A, pair.second.C, time);
 
         // optimize (A-C)'s X
-        Frames AC_kfs = Map::Instance().GetKeyFrames(pair.second.A, pair.second.C);
+        Frames AC_kfs = Map::Instance().GetKeyFrames(pair.second.A + epsilon, pair.second.C);
         for (auto &pair_kf : AC_kfs)
         {
             auto frame = pair_kf.second;

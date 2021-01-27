@@ -4,7 +4,7 @@
 use_imu: 0
 use_lidar: 0
 use_navsat: 1
-use_loop: 1             # 0 for only odometry, 1 for whole system
+use_loop: 0             # 0 for only odometry, 1 for whole system
 use_semantic: 0
 train: 0
 
