@@ -305,7 +305,7 @@ void FeatureAssociation::ScanToMapWithGround(Frame::Ptr frame, Frame::Ptr map_fr
 
     if (frame->id == map_frame->id + 1)
     {
-        ceres::CostFunction *cost_function = PoseErrorRPZ::Create(para, frame->weights.visual);
+        ceres::CostFunction *cost_function = PoseErrorRPZ::Create(para, frame->features_left.size() * frame->weights.visual);
         problem.AddResidualBlock(ProblemType::Other, cost_function, NULL, para + 1, para + 2, para + 5);
     }
 }
@@ -363,7 +363,7 @@ void FeatureAssociation::ScanToMapWithSegmented(Frame::Ptr frame, Frame::Ptr map
 
     if (frame->id == map_frame->id + 1)
     {
-        ceres::CostFunction *cost_function = PoseErrorYXY::Create(para, frame->weights.visual);
+        ceres::CostFunction *cost_function = PoseErrorYXY::Create(para, frame->features_left.size() * frame->weights.visual);
         problem.AddResidualBlock(ProblemType::Other, cost_function, NULL, para, para + 3, para + 4);
     }
 }

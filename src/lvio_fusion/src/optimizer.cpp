@@ -80,7 +80,7 @@ void PoseGraph::UpdateSections(double time)
 {
     static double finished = 0;
     static Frame::Ptr last_frame;
-    static Vector3d last_heading(1, 0, 0);
+    static Vector3d last_ori(1, 0, 0), A_ori(1, 0, 0), B_ori(1, 0, 0);
     static bool turning = false;
     static int num = 0;
     static double accumulate_degree = 0;
@@ -106,26 +106,27 @@ void PoseGraph::UpdateSections(double time)
         Vector3d heading = pair_kf.second->pose.so3() * Vector3d::UnitX();
         if (last_frame)
         {
-            double degree = vectors_degree_angle(last_heading, heading);
-            accumulate_degree += degree;
-            // go straight requires degree is larger than 3 or accumulated degree is larger than 20
-            if (!turning && (degree >= 3 || accumulate_degree > 15))
+            double degree = vectors_degree_angle(last_ori, heading);
+            double total_degree = vectors_degree_angle(A_ori, heading);
+            // turning requires
+            if (!turning && (degree >= 5 || vectors_degree_angle(B_ori, heading) > 20))
             {
-                // if we have enough keyframes, create new section
-                if (num >= 10)
+                // if we have enough keyframes and total degree, create new section
+                if (num >= 10 && total_degree > 20 && total_degree < 160)
                 {
                     current_section.C = pair_kf.first;
                     sections_[current_section.A] = current_section;
                     current_section.A = pair_kf.first;
+                    A_ori = heading;
                     num = 0;
                 }
                 turning = true;
             }
-            // turning requires degree is lower than 1 or num is larger than 10
-            else if (turning && (degree < 1 || num > 10))
+            // go straight requires
+            else if (turning && (degree < 1 || num > 20))
             {
                 current_section.B = pair_kf.first;
-                accumulate_degree = 0;
+                B_ori = heading;
                 turning = false;
             }
             num++;
@@ -136,7 +137,7 @@ void PoseGraph::UpdateSections(double time)
             current_section.B = pair_kf.first;
         }
         last_frame = pair_kf.second;
-        last_heading = heading;
+        last_ori = heading;
     }
 }
 

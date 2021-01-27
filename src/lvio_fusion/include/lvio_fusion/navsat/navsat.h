@@ -53,7 +53,7 @@ private:
     void Initialize();
 
     void OptimizeRPY(Frame::Ptr frame, double time);
-    void OptimizeY(Frame::Ptr frame, double C, double time);
+    void OptimizeY(Frame::Ptr frame, double end, double time);
     void OptimizeX(Frame::Ptr frame, double time);
 
     static std::vector<Navsat::Ptr> devices_;

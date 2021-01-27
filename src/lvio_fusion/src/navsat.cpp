@@ -96,8 +96,6 @@ void Navsat::Initialize()
 
 double Navsat::Optimize(double time)
 {
-    auto t1 = std::chrono::steady_clock::now();
-    static double finished = 0;
     // get secions
     auto sections = PoseGraph::Instance().GetSections(finished, time);
     if (sections.empty())
@@ -108,7 +106,10 @@ double Navsat::Optimize(double time)
     {
         // optimize point A's rotation
         auto frame_A = Map::Instance().keyframes[pair.second.A];
-        OptimizeRPY(frame_A, time);
+        if (time > pair.second.C + 3)
+        {
+            OptimizeRPY(frame_A, time);
+        }
         OptimizeY(frame_A, pair.second.C, time);
 
         // optimize (A-C)'s X
@@ -123,12 +124,7 @@ double Navsat::Optimize(double time)
         }
         finished = pair.second.A;
     }
-    auto t2 = std::chrono::steady_clock::now();
-    auto time_used = std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);
-    LOG(INFO) << "Navsat cost time: " << time_used.count() << " seconds.";
 
-    // forward propagate
-    PoseGraph::Instance().ForwardPropagate(transform, time + epsilon);
     return sections.begin()->second.A;
 }
 
@@ -164,11 +160,11 @@ void Navsat::OptimizeRPY(Frame::Ptr frame, double time)
     PoseGraph::Instance().Propagate(transform, Map::Instance().GetKeyFrames(frame->time + epsilon, time));
 }
 
-void Navsat::OptimizeY(Frame::Ptr frame, double C, double time)
+void Navsat::OptimizeY(Frame::Ptr frame, double end, double time)
 {
     SE3d old_pose = frame->pose;
     adapt::Problem problem;
-    Frames active_kfs = Map::Instance().GetKeyFrames(frame->time, C);
+    Frames active_kfs = Map::Instance().GetKeyFrames(frame->time, end);
     double para[6] = {0, 0, 0, 0, 0, 0};
     problem.AddParameterBlock(para, 1);
 
