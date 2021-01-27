@@ -105,8 +105,8 @@ void Preintegration::SetNewBias(const Bias &bu_)
     delta_bias(1) = bu_.linearized_bg[1]-b.linearized_bg[1];
     delta_bias(2) = bu_.linearized_bg[2]-b.linearized_bg[2];
     delta_bias(3) = bu_.linearized_ba[0]-b.linearized_ba[0];
-    delta_bias(4) = bu_.linearized_bg[1]-b.linearized_bg[1];
-    delta_bias(5) = bu_.linearized_bg[2]-b.linearized_bg[2];
+    delta_bias(4) = bu_.linearized_ba[1]-b.linearized_ba[1];
+    delta_bias(5) = bu_.linearized_ba[2]-b.linearized_ba[2];
 }
 
 // 过去更新bias后的delta_R

@@ -15,7 +15,7 @@ lidar_topic: '/lslidar_point_cloud'
 image0_topic: '/camera/infra1/image_rect_raw'
 image1_topic: '/camera/infra2/image_rect_raw'
 color_topic: '/camera/color/image_raw'
-result_path: '/home/zoet/Projects.new/lvio-fusion/result/result.csv'
+result_path: '/home/zoet/Projects/lvio-fusion/result/result.csv'
 
 # camera1 intrinsics
 camera1.fx: 385.7544860839844
@@ -122,4 +122,4 @@ num_features_needed_for_keyframe: 60
 delay: 3
 
 # loop
-voc_path: '/home/zoet/Projects.new/lvio_fusion/misc/orbvoc.dbow3'
+voc_path: '/home/zoet/Projects/lvio_fusion/misc/orbvoc.dbow3'

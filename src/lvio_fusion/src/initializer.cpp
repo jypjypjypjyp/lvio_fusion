@@ -136,12 +136,12 @@ Bias InertialOptimization(Frames &key_frames, Eigen::Matrix3d &Rwg, double &scal
     //先验BIAS约束
     auto para_gyroBias=key_frames.begin()->second->ImuBias.linearized_bg.data();
     problem.AddParameterBlock(para_gyroBias, 3);
-    ceres::CostFunction *cost_function = PriorGyroError::Create(Vector3d::Zero(),priorG);
+    ceres::CostFunction *cost_function = PriorGyroError2::Create(Vector3d::Zero(),priorG);
     problem.AddResidualBlock(cost_function,NULL,para_gyroBias);
 
     auto para_accBias=key_frames.begin()->second->ImuBias.linearized_ba.data();
     problem.AddParameterBlock(para_accBias, 3);
-    cost_function = PriorAccError::Create(Vector3d::Zero(),priorA);
+    cost_function = PriorAccError2::Create(Vector3d::Zero(),priorA);
     problem.AddResidualBlock(cost_function,NULL,para_accBias);
     
     //优化重力、BIAS和速度的边
@@ -170,7 +170,7 @@ Bias InertialOptimization(Frames &key_frames, Eigen::Matrix3d &Rwg, double &scal
         if (last_frame)
         {
             auto para_v_last = last_frame->Vw.data();
-            cost_function = InertialGSError::Create(current_frame->preintegration,current_frame->pose,last_frame->pose);
+            cost_function = InertialGSError2::Create(current_frame->preintegration,current_frame->pose,last_frame->pose);
             problem.AddResidualBlock(cost_function, NULL,para_v_last,  para_v,para_gyroBias,para_accBias,para_rwg);
            //LOG(INFO)<<current_frame->preintegration->dV.transpose();
 
@@ -411,24 +411,24 @@ Bias FullInertialBA(Frames &key_frames, Matrix3d Rwg, double priorG=1e2, double 
    0.94336360692977905, -0.0056075043976306915 ,  -0.33171316981315613;
 
 
-    // for (auto pair_kf : key_frames)
-    // {
-    //     auto frame = pair_kf.second;
-    //     double *para_kf = frame->pose.data();
-    //     problem.AddParameterBlock(para_kf, SE3d::num_parameters, local_parameterization);
-    //     for (auto pair_feature : frame->features_left)
-    //     {
-    //         auto feature = pair_feature.second;
-    //         auto landmark = feature->landmark.lock();
-    //         auto first_frame = landmark->FirstFrame().lock();
-    //             cost_function = PoseOnlyReprojectionError::Create(cv2eigen(feature->keypoint), landmark->ToWorld(), Camera::Get(), frame->weights.visual);
-    //             problem.AddResidualBlock(cost_function, loss_function, para_kf);
-    //     }
-    // }
+    for (auto pair_kf : key_frames)
+    {
+        auto frame = pair_kf.second;
+        double *para_kf = frame->pose.data();
+        problem.AddParameterBlock(para_kf, SE3d::num_parameters, local_parameterization);
+        for (auto pair_feature : frame->features_left)
+        {
+            auto feature = pair_feature.second;
+            auto landmark = feature->landmark.lock();
+            auto first_frame = landmark->FirstFrame().lock();
+                cost_function = PoseOnlyReprojectionError::Create(cv2eigen(feature->keypoint), landmark->ToWorld(), Camera::Get(), frame->weights.visual);
+                problem.AddResidualBlock(cost_function, loss_function, para_kf);
+        }
+    }
 
     Frame::Ptr pIncKF=key_frames.begin()->second;
-    Bias mybias(-0.058658524769291551,-0.0060310475755657005,-0.0037879087969964597,-0.0043304018657809229,   0.02121154999869438,  0.079632863001392246);
-    pIncKF->SetNewBias(mybias);
+    // Bias mybias(-0.058658524769291551,-0.0060310475755657005,-0.0037879087969964597,-0.0043304018657809229,   0.02121154999869438,  0.079632863001392246);
+    // pIncKF->SetNewBias(mybias);
 
     //先验BIAS约束
     auto para_gyroBias=key_frames.begin()->second->ImuBias.linearized_bg.data();
@@ -445,22 +445,11 @@ Bias FullInertialBA(Frames &key_frames, Matrix3d Rwg, double priorG=1e2, double 
     Frame::Ptr last_frame;
     Frame::Ptr current_frame;
     int i=0;
-    //优化重力、BIAS和速度的边
-    Matrix3d Rwg_;
-    Rwg_<<1,0,0,
-    0,1,0,
-    0,0,1;
-    Quaterniond rwg(Rwg_);
-    SO3d RwgSO3(rwg);
-    auto para_rwg=RwgSO3.data();
-    ceres::LocalParameterization *local_parameterization_ = new ceres::EigenQuaternionParameterization();
-    problem.AddParameterBlock(para_rwg, SO3d::num_parameters,local_parameterization_);
-
     for (auto kf_pair : key_frames)
     {
-        current_frame = kf_pair.second;
-        current_frame->SetPose((Rs[i]),Ps[i]);
-        current_frame->SetVelocity(Vs[i]);
+        // current_frame = kf_pair.second;
+        // current_frame->SetPose((Rs[i]),Ps[i]);
+        // current_frame->SetVelocity(Vs[i]);
         i++;
         if (!current_frame->bImu||!current_frame->last_keyframe||!current_frame->preintegration->isPreintegrated)
         {
@@ -476,8 +465,6 @@ Bias FullInertialBA(Frames &key_frames, Matrix3d Rwg, double priorG=1e2, double 
         {
             auto para_kf_last = last_frame->pose.data();
             auto para_v_last = last_frame->Vw.data();
-            // cost_function = InertialGSError::Create(current_frame->preintegration,current_frame->pose,last_frame->pose);
-            // problem.AddResidualBlock(cost_function, NULL,para_v_last,  para_v,para_gyroBias,para_accBias,para_rwg);
             cost_function =InertialError::Create(current_frame->preintegration,Rwg);
             problem.AddResidualBlock(cost_function, NULL, para_kf_last, para_v_last,  para_gyroBias,para_accBias, para_kf, para_v);
             
@@ -997,34 +984,34 @@ Cs[9]<<7.2250002e-09, 2.0828163e-17, 2.2627446e-17, -6.3372092e-11, 2.7986602e-0
                 continue;
             }
 
-            if(firstframe)
-            {
-                (*iter_keyframe)->last_keyframe->time=times[0];
-             (*iter_keyframe)->last_keyframe->pose=SE3d(Quaterniond(Rs[0]),Ps[0]);
-              (*iter_keyframe)->last_keyframe->preintegration->dT=0.25;
-              (*iter_keyframe)->last_keyframe->preintegration->dV=dVs[0];
-              (*iter_keyframe)->last_keyframe->preintegration->dP=dPs[0];
-              (*iter_keyframe)->last_keyframe->preintegration->dR=dRs[0];
-                (*iter_keyframe)->last_keyframe->preintegration->C=Cs[0];
-                    (*iter_keyframe)->last_keyframe->preintegration->JRg=JRgs[0];
-                  (*iter_keyframe)->last_keyframe->preintegration->JVg=JVgs[0];
-                  (*iter_keyframe)->last_keyframe->preintegration->JVa=JVas[0];
-                  (*iter_keyframe)->last_keyframe->preintegration->JPg=JPgs[0];
-                  (*iter_keyframe)->last_keyframe->preintegration->JPa=JPas[0];
-                firstframe=false;
-            }
-            (*iter_keyframe)->time=times[i];
-             (*iter_keyframe)->pose=SE3d(Quaterniond(Rs[i]),Ps[i]);
-              (*iter_keyframe)->preintegration->dT=0.25;
-              (*iter_keyframe)->preintegration->dV=dVs[i];
-              (*iter_keyframe)->preintegration->dP=dPs[i];
-              (*iter_keyframe)->preintegration->dR=dRs[i];
-                (*iter_keyframe)->preintegration->C=Cs[i];
-                  (*iter_keyframe)->preintegration->JRg=JRgs[i];
-                  (*iter_keyframe)->preintegration->JVg=JVgs[i];
-                  (*iter_keyframe)->preintegration->JVa=JVas[i];
-                  (*iter_keyframe)->preintegration->JPg=JPgs[i];
-                  (*iter_keyframe)->preintegration->JPa=JPas[i];
+            // if(firstframe)
+            // {
+            //     (*iter_keyframe)->last_keyframe->time=times[0];
+            //  (*iter_keyframe)->last_keyframe->pose=SE3d(Quaterniond(Rs[0]),Ps[0]);
+            //   (*iter_keyframe)->last_keyframe->preintegration->dT=0.25;
+            //   (*iter_keyframe)->last_keyframe->preintegration->dV=dVs[0];
+            //   (*iter_keyframe)->last_keyframe->preintegration->dP=dPs[0];
+            //   (*iter_keyframe)->last_keyframe->preintegration->dR=dRs[0];
+            //     (*iter_keyframe)->last_keyframe->preintegration->C=Cs[0];
+            //         (*iter_keyframe)->last_keyframe->preintegration->JRg=JRgs[0];
+            //       (*iter_keyframe)->last_keyframe->preintegration->JVg=JVgs[0];
+            //       (*iter_keyframe)->last_keyframe->preintegration->JVa=JVas[0];
+            //       (*iter_keyframe)->last_keyframe->preintegration->JPg=JPgs[0];
+            //       (*iter_keyframe)->last_keyframe->preintegration->JPa=JPas[0];
+            //     firstframe=false;
+            // }
+            // (*iter_keyframe)->time=times[i];
+            //  (*iter_keyframe)->pose=SE3d(Quaterniond(Rs[i]),Ps[i]);
+            //   (*iter_keyframe)->preintegration->dT=0.25;
+            //   (*iter_keyframe)->preintegration->dV=dVs[i];
+            //   (*iter_keyframe)->preintegration->dP=dPs[i];
+            //   (*iter_keyframe)->preintegration->dR=dRs[i];
+            //     (*iter_keyframe)->preintegration->C=Cs[i];
+            //       (*iter_keyframe)->preintegration->JRg=JRgs[i];
+            //       (*iter_keyframe)->preintegration->JVg=JVgs[i];
+            //       (*iter_keyframe)->preintegration->JVa=JVas[i];
+            //       (*iter_keyframe)->preintegration->JPg=JPgs[i];
+            //       (*iter_keyframe)->preintegration->JPa=JPas[i];
 
             i++;
             dirG -= (*iter_keyframe)->last_keyframe->GetImuRotation()*(*iter_keyframe)->preintegration->GetUpdatedDeltaVelocity();

@@ -249,8 +249,8 @@ public:
         Matrix3d dR = mpInt->GetDeltaRotation(b1);
         Vector3d dV = mpInt->GetDeltaVelocity(b1);
         Vector3d dP =mpInt->GetDeltaPosition(b1);
-      
-        Vector3d er=  LogSO3(dR.inverse()*Qi.toRotationMatrix().inverse()*Qj.toRotationMatrix());
+      Quaterniond corrected_delta_q(dR);
+        Vector3d er= 2 * (corrected_delta_q.inverse() * (Qi.inverse() * Qj)).vec();
          Vector3d ev = Qi.inverse()*((Vj - Vi) - g*dt) - dV;
          Vector3d ep = Qi.inverse()*((Pj - Pi - Vi*dt) - g*dt*dt/2) - dP;
         Eigen::Map<Matrix<double, 9, 1>> residual(residuals);
@@ -285,7 +285,7 @@ public:
             {
                 Eigen::Map<Matrix<double, 9, 7, RowMajor>> jacobian_pose_i(jacobians[0]);
                 jacobian_pose_i.setZero();
-                jacobian_pose_i.block<3, 3>(0,0)=  -invJr*Rwb2.transpose()*Rwb1;
+                jacobian_pose_i.block<3, 3>(0,0)= -(q_left(Qj.inverse() * Qi) * q_right(corrected_delta_q)).bottomRightCorner<3, 3>();
                 jacobian_pose_i.block<3, 3>(3,0)= Skew(Rbw1*((Vj - Vi)- g*dt));
                 jacobian_pose_i.block<3, 3>(6,0)=  Skew(Rbw1*((Pj - Pi- Vi*dt)- 0.5*g*dt*dt));
                 jacobian_pose_i.block<3, 3>(6,4)=  -Matrix3d::Identity();
@@ -305,7 +305,9 @@ public:
             {
                 Eigen::Map<Matrix<double, 9, 3, RowMajor>> jacobian_bg(jacobians[2]);
                 jacobian_bg.setZero();
-                jacobian_bg.block<3, 3>(0,0)= -invJr*eR.transpose()*RightJacobianSO3(JRg*dbg)*JRg;
+                Quaterniond delta_q(mpInt->dR);
+                // jacobian_bg.block<3, 3>(0,0)= -invJr*eR.transpose()*RightJacobianSO3(JRg*dbg)*JRg;
+                jacobian_bg.block<3, 3>(0,0)=  -q_left(Qj.inverse() * Qi * delta_q).bottomRightCorner<3, 3>() * JRg;
                 jacobian_bg.block<3, 3>(3,0)=-JVg;
                 jacobian_bg.block<3, 3>(6,0)=-JPg;
                 jacobian_bg=sqrt_info*jacobian_bg;
@@ -322,7 +324,8 @@ public:
             {
                 Eigen::Map<Matrix<double, 9, 7, RowMajor>> jacobian_pose_j(jacobians[4]);
                 jacobian_pose_j.setZero();
-                jacobian_pose_j.block<3, 3>(0,0)=invJr;
+                // jacobian_pose_j.block<3, 3>(0,0)=invJr;
+                jacobian_pose_j.block<3, 3>(0,0)= q_left(corrected_delta_q.inverse() * Qi.inverse() * Qj).bottomRightCorner<3, 3>();
                 jacobian_pose_j.block<3, 3>(6,4)=Rbw1*Rwb2;
                 jacobian_pose_j=sqrt_info *jacobian_pose_j;
             }
