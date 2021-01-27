@@ -173,24 +173,6 @@ void Backend::Optimize()
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
 
-    if (Lidar::Num() && mapping_)
-    {
-        mapping_->Optimize(active_kfs);
-    }
-
-    if (Navsat::Num() && Navsat::Get()->initialized)
-    {
-        double start_time = Navsat::Get()->Optimize((--active_kfs.end())->first);
-        if (start_time && mapping_)
-        {
-            Frames mapping_kfs = Map::Instance().GetKeyFrames(start_time);
-            for (auto &pair : mapping_kfs)
-            {
-                mapping_->ToWorld(pair.second);
-            }
-        }
-    }
-
     // reject outliers and clean the map
     for (auto &pair_kf : active_kfs)
     {
@@ -211,6 +193,24 @@ void Backend::Optimize()
                 Map::Instance().RemoveLandmark(landmark);
             }
         }
+    }
+
+    if (Navsat::Num() && Navsat::Get()->initialized)
+    {
+        double start_time = Navsat::Get()->Optimize((--active_kfs.end())->first);
+        if (start_time && mapping_)
+        {
+            Frames mapping_kfs = Map::Instance().GetKeyFrames(start_time, active_kfs.begin()->first - epsilon);
+            for (auto &pair : mapping_kfs)
+            {
+                mapping_->ToWorld(pair.second);
+            }
+        }
+    }
+
+    if (Lidar::Num() && mapping_)
+    {
+        mapping_->Optimize(active_kfs);
     }
 
     // propagate to the last frame

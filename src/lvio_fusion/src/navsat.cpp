@@ -106,9 +106,9 @@ double Navsat::Optimize(double time)
     {
         // optimize point A's rotation
         auto frame_A = Map::Instance().keyframes[pair.second.A];
-        if (time > pair.second.C + 10)
+        if (time > pair.second.C + 3)
         {
-            OptimizeRP(frame_A, time);
+            OptimizeRPY(frame_A, time);
         }
         OptimizeY(frame_A, pair.second.C, time);
 
@@ -125,12 +125,10 @@ double Navsat::Optimize(double time)
         finished = pair.second.A;
     }
 
-    // forward propagate
-    PoseGraph::Instance().ForwardPropagate(transform, time + epsilon);
     return sections.begin()->second.A;
 }
 
-void Navsat::OptimizeRP(Frame::Ptr frame, double time)
+void Navsat::OptimizeRPY(Frame::Ptr frame, double time)
 {
     SE3d old_pose = frame->pose;
     adapt::Problem problem;
@@ -139,15 +137,16 @@ void Navsat::OptimizeRP(Frame::Ptr frame, double time)
     //NOTE: the real order of rpy is y p r
     problem.AddParameterBlock(para + 2, 1);
     problem.AddParameterBlock(para + 1, 1);
+    problem.AddParameterBlock(para + 0, 1);
 
     for (auto &pair_kf : active_kfs)
     {
         auto position = pair_kf.second->pose.translation();
         if (pair_kf.second->feature_navsat)
         {
-            ceres::CostFunction *cost_function = NavsatRPError::Create(
+            ceres::CostFunction *cost_function = NavsatRPYError::Create(
                 GetFixPoint(pair_kf.second), frame->pose.inverse() * position, frame->pose);
-            problem.AddResidualBlock(ProblemType::Other, cost_function, NULL, para + 2, para + 1);
+            problem.AddResidualBlock(ProblemType::Other, cost_function, NULL, para + 2, para + 1, para);
         }
     }
 
@@ -161,11 +160,11 @@ void Navsat::OptimizeRP(Frame::Ptr frame, double time)
     PoseGraph::Instance().Propagate(transform, Map::Instance().GetKeyFrames(frame->time + epsilon, time));
 }
 
-void Navsat::OptimizeY(Frame::Ptr frame, double C, double time)
+void Navsat::OptimizeY(Frame::Ptr frame, double end, double time)
 {
     SE3d old_pose = frame->pose;
     adapt::Problem problem;
-    Frames active_kfs = Map::Instance().GetKeyFrames(frame->time, C);
+    Frames active_kfs = Map::Instance().GetKeyFrames(frame->time, end);
     double para[6] = {0, 0, 0, 0, 0, 0};
     problem.AddParameterBlock(para, 1);
 

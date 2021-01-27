@@ -102,7 +102,7 @@ void Mapping::Optimize(Frames &active_kfs)
                     association_->ScanToMapWithGround(pair_kf.second, map_frame, rpyxyz, problem);
                     ceres::Solver::Options options;
                     options.linear_solver_type = ceres::DENSE_QR;
-                    options.max_num_iterations = 2;
+                    options.max_num_iterations = 4;
                     options.num_threads = num_threads;
                     ceres::Solver::Summary summary;
                     ceres::Solve(options, &problem, &summary);
@@ -114,7 +114,7 @@ void Mapping::Optimize(Frames &active_kfs)
                     association_->ScanToMapWithSegmented(pair_kf.second, map_frame, rpyxyz, problem);
                     ceres::Solver::Options options;
                     options.linear_solver_type = ceres::DENSE_QR;
-                    options.max_num_iterations = 2;
+                    options.max_num_iterations = 4;
                     options.num_threads = num_threads;
                     ceres::Solver::Summary summary;
                     ceres::Solve(options, &problem, &summary);

@@ -38,10 +38,10 @@ private:
     double x1_, y1_, z1_;
 };
 
-class NavsatRPError
+class NavsatRPYError
 {
 public:
-    NavsatRPError(Vector3d p0, Vector3d p1, SE3d pose)
+    NavsatRPYError(Vector3d p0, Vector3d p1, SE3d pose)
         : x0_(p0.x()), y0_(p0.y()), z0_(p0.z()),
           x1_(p1.x()), y1_(p1.y()), z1_(p1.z()),
           pose_(pose)
@@ -49,10 +49,10 @@ public:
     }
 
     template <typename T>
-    bool operator()(const T *roll, const T *pitch, T *residuals) const
+    bool operator()(const T *roll, const T *pitch, const T *yaw, T *residuals) const
     {
         T pose[7], tf[7], relative_pose[7];
-        T rpyxyz[6] = {T(0), pitch[0], roll[0], T(0), T(0), T(0)};
+        T rpyxyz[6] = {yaw[0], pitch[0], roll[0], T(0), T(0), T(0)};
         ceres::RpyxyzToSE3(rpyxyz, relative_pose);
         ceres::Cast(pose_.data(), SE3d::num_parameters, pose);
         ceres::SE3Product(pose, relative_pose, tf);
@@ -67,7 +67,7 @@ public:
 
     static ceres::CostFunction *Create(Vector3d p0, Vector3d p1, SE3d pose)
     {
-        return (new ceres::AutoDiffCostFunction<NavsatRPError, 3, 1, 1>(new NavsatRPError(p0, p1, pose)));
+        return (new ceres::AutoDiffCostFunction<NavsatRPYError, 3, 1, 1, 1>(new NavsatRPYError(p0, p1, pose)));
     }
 
 private:

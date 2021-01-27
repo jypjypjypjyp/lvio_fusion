@@ -48,6 +48,7 @@ public:
     void Propagate(SE3d transfrom, const Frames& forward_kfs);
 
     void ForwardPropagate(Section section);
+    Atlas sections_;    // sections [A : {A, B, C}]
 
 private:
     PoseGraph() {}
@@ -59,7 +60,6 @@ private:
     Frontend::Ptr frontend_;
 
     Atlas submaps_;      // loop submaps [end : {old, start, end}]
-    Atlas sections_;    // sections [A : {A, B, C}]
 
     double end_time_;
 };
