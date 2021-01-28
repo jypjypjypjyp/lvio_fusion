@@ -79,7 +79,6 @@ void Navsat::Initialize()
 
     ceres::Solver::Options options;
     options.linear_solver_type = ceres::DENSE_QR;
-    options.num_threads = 1;
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
 
@@ -113,11 +112,11 @@ double Navsat::Optimize(double time)
         OptimizeY(frame_A, pair.second.C, time);
 
         // optimize (A-C)'s X
-        Frames AC_kfs = Map::Instance().GetKeyFrames(pair.second.A, pair.second.C);
+        Frames AC_kfs = Map::Instance().GetKeyFrames(pair.second.A + epsilon, pair.second.C);
         for (auto &pair_kf : AC_kfs)
         {
             auto frame = pair_kf.second;
-            if (frame->feature_navsat && (frame->pose.translation() - GetFixPoint(frame)).norm() > 0.2)
+            if (frame->feature_navsat && (frame->pose.translation() - GetFixPoint(frame)).norm() > 0.3)
             {
                 OptimizeX(frame, time);
             }

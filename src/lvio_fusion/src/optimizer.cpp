@@ -46,33 +46,14 @@ Atlas PoseGraph::GetActiveSections(Frames &active_kfs, double &old_time, double 
         }
     }
 
-    Atlas active_sections;
-    Frame::Ptr last_frame;
-    double start = 0;
-    for (auto &pair_kf : active_kfs)
+    Atlas active_sections = GetSections(old_time + epsilon, start_time - epsilon);
+    for (auto iter = active_sections.begin(); iter != active_sections.end(); iter++)
     {
-        if (last_frame)
+        if(active_kfs.find(iter->first) == active_kfs.end())
         {
-            if (last_frame->id + 1 != pair_kf.second->id)
-            {
-                auto sections = GetSections(start, last_frame->time);
-                for (auto &pair : sections)
-                {
-                    if (pair.second.C > last_frame->time)
-                        break;
-                    active_sections.insert(pair);
-                }
-                start = pair_kf.first;
-            }
+            iter = active_sections.erase(iter);
         }
-        else
-        {
-            start = pair_kf.first;
-        }
-        last_frame = pair_kf.second;
     }
-    Atlas sections = GetSections(start, start_time);
-    active_sections.insert(sections.begin(), sections.end());
     return active_sections;
 }
 
@@ -173,19 +154,19 @@ void PoseGraph::BuildProblem(Atlas &sections, Section &submap, adapt::Problem &p
         double *para = frame_A->pose.data();
         problem.AddParameterBlock(para, SE3d::num_parameters, local_parameterization);
         double *para_last_kf = last_frame->pose.data();
-        ceres::CostFunction *cost_function;
-        cost_function = PoseGraphError::Create(last_frame->pose, frame_A->pose, frame_A->weights.pose_graph);
+        ceres::CostFunction *cost_function = PoseGraphError::Create(last_frame->pose, frame_A->pose);
         problem.AddResidualBlock(ProblemType::Other, cost_function, NULL, para_last_kf, para);
         pair.second.pose = frame_A->pose;
         last_frame = frame_A;
     }
+    ceres::CostFunction *cost_function = PoseGraphError::Create(last_frame->pose, start_frame->pose);
+    problem.AddResidualBlock(ProblemType::Other, cost_function, NULL, last_frame->pose.data(), para_start);
 }
 
 void PoseGraph::Optimize(Atlas &sections, Section &submap, adapt::Problem &problem)
 {
     ceres::Solver::Options options;
     options.linear_solver_type = ceres::SPARSE_NORMAL_CHOLESKY;
-    options.num_threads = 1;
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
     LOG(INFO) << summary.FullReport();
@@ -197,7 +178,7 @@ void PoseGraph::Optimize(Atlas &sections, Section &submap, adapt::Problem &probl
         if (last_time)
         {
             SE3d transfrom = Map::Instance().keyframes[last_time]->pose * last_section.pose.inverse();
-            Frames forward_kfs = Map::Instance().GetKeyFrames(last_time + epsilon, pair.first);
+            Frames forward_kfs = Map::Instance().GetKeyFrames(last_time + epsilon, pair.first - epsilon);
             Propagate(transfrom, forward_kfs);
         }
         last_time = pair.first;
@@ -208,6 +189,7 @@ void PoseGraph::Optimize(Atlas &sections, Section &submap, adapt::Problem &probl
     Propagate(transfrom, forward_kfs);
 }
 
+// new pose = transform * old pose;
 void PoseGraph::ForwardPropagate(SE3d transform, double start_time)
 {
     std::unique_lock<std::mutex> lock(frontend_->mutex);
@@ -221,6 +203,7 @@ void PoseGraph::ForwardPropagate(SE3d transform, double start_time)
     frontend_->UpdateCache();
 }
 
+// new pose = transform * old pose;
 void PoseGraph::Propagate(SE3d transform, const Frames &forward_kfs)
 {
     for (auto &pair_kf : forward_kfs)

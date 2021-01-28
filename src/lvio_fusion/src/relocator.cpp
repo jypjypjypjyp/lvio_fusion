@@ -178,7 +178,12 @@ void Relocator::CorrectLoop(double old_time, double start_time, double end_time)
         if (best_frame)
         {
             lock.lock();
+            Atlas active_sections = PoseGraph::Instance().GetActiveSections(active_kfs, old_time, start_time);
+            Section &new_submap = PoseGraph::Instance().AddSubMap(old_time, start_time, end_time);
+            adapt::Problem problem;
+            PoseGraph::Instance().BuildProblem(active_sections, new_submap, problem);
             UpdateNewSubmap(best_frame, new_submap_kfs);
+            PoseGraph::Instance().Optimize(active_sections, new_submap, problem);
         }
         else
         {
@@ -190,7 +195,6 @@ void Relocator::CorrectLoop(double old_time, double start_time, double end_time)
         }
     }
     SE3d new_pose = (--new_submap_kfs.end())->second->pose;
-
     // forward propogate
     SE3d transform = old_pose.inverse() * new_pose;
     PoseGraph::Instance().ForwardPropagate(transform, end_time + epsilon);
@@ -199,13 +203,7 @@ void Relocator::CorrectLoop(double old_time, double start_time, double end_time)
     {
         Navsat::Get()->fix = transform.translation();
     }
-
-    Atlas active_sections = PoseGraph::Instance().GetActiveSections(active_kfs, old_time, start_time);
-    Section &new_submap = PoseGraph::Instance().AddSubMap(old_time, start_time, end_time);
-    adapt::Problem problem;
-    PoseGraph::Instance().BuildProblem(active_sections, new_submap, problem);
-    PoseGraph::Instance().Optimize(active_sections, new_submap, problem);
-
+    // update points cloud
     if (Lidar::Num() && mapping_)
     {
         Frames mapping_kfs = Map::Instance().GetKeyFrames(old_time);

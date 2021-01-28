@@ -10,76 +10,70 @@ namespace lvio_fusion
 class PoseGraphError
 {
 public:
-    PoseGraphError(SE3d last_frame, SE3d frame, double weight)
-        : weight_(weight)
-    {
-        se32rpyxyz(frame * last_frame.inverse(), rpyxyz_);
-    }
+    PoseGraphError(SE3d last_frame, SE3d frame) : transform_(frame * last_frame.inverse()) {}
 
     template <typename T>
     bool operator()(const T *Twc1, const T *Twc2, T *residuals) const
     {
-        T relative_i_j[7], Twc1_inverse[7], rpyxyz[6];
+        T Twc1_inverse[7], relative_i_j[7];
         ceres::SE3Inverse(Twc1, Twc1_inverse);
-        ceres::SE3Product(Twc1_inverse, Twc2, relative_i_j);
-        ceres::SE3ToRpyxyz(relative_i_j, rpyxyz);
-        residuals[0] = T(weight_) * T(0); //(rpyxyz[0] - rpyxyz_[0]);
-        residuals[1] = T(weight_) * T(0); //(rpyxyz[1] - rpyxyz_[1]);
-        residuals[2] = T(weight_) * T(0); //(rpyxyz[2] - rpyxyz_[2]);
-        residuals[3] = T(weight_) * (rpyxyz[3] - rpyxyz_[3]);
-        residuals[4] = T(weight_) * (rpyxyz[4] - rpyxyz_[4]);
-        residuals[5] = T(weight_) * (rpyxyz[5] - rpyxyz_[5]);
+        ceres::SE3Product(Twc2, Twc1_inverse, relative_i_j);
+        residuals[0] = T(transform_.data()[0]) - relative_i_j[0];
+        residuals[1] = T(transform_.data()[1]) - relative_i_j[1];
+        residuals[2] = T(transform_.data()[2]) - relative_i_j[2];
+        residuals[3] = T(transform_.data()[3]) - relative_i_j[3];
+        residuals[4] = T(transform_.data()[4]) - relative_i_j[4];
+        residuals[5] = T(transform_.data()[5]) - relative_i_j[5];
+        residuals[6] = T(transform_.data()[6]) - relative_i_j[6];
         return true;
     }
 
-    static ceres::CostFunction *Create(SE3d last_frame, SE3d frame, double weight)
+    static ceres::CostFunction *Create(SE3d last_frame, SE3d frame)
     {
-        return (new ceres::AutoDiffCostFunction<PoseGraphError, 6, 7, 7>(
-            new PoseGraphError(last_frame, frame, weight)));
+        return (new ceres::AutoDiffCostFunction<PoseGraphError, 7, 7, 7>(new PoseGraphError(last_frame, frame)));
     }
 
 private:
-    double rpyxyz_[6];
-    double weight_;
+    SE3d transform_;
 };
 
-class PoseError
-{
-public:
-    PoseError(double *pose, double weight)
-        : weight_(weight)
-    {
-        pose_[0] = pose[0];
-        pose_[1] = pose[1];
-        pose_[2] = pose[2];
-        pose_[3] = pose[3];
-        pose_[4] = pose[4];
-        pose_[5] = pose[5];
-        pose_[6] = pose[6];
-    }
+// class PoseError
+// {
+// public:
+//     PoseError(double *pose, double weight)
+//         : weight_(weight)
+//     {
+//         pose_[0] = pose[0];
+//         pose_[1] = pose[1];
+//         pose_[2] = pose[2];
+//         pose_[3] = pose[3];
+//         pose_[4] = pose[4];
+//         pose_[5] = pose[5];
+//         pose_[6] = pose[6];
+//     }
 
-    template <typename T>
-    bool operator()(const T *pose, T *residuals) const
-    {
-        residuals[0] = T(weight_) * (pose[0] - T(pose_[0]));
-        residuals[1] = T(weight_) * (pose[1] - T(pose_[1]));
-        residuals[2] = T(weight_) * (pose[2] - T(pose_[2]));
-        residuals[3] = T(weight_) * (pose[3] - T(pose_[3]));
-        residuals[4] = T(weight_) * (pose[4] - T(pose_[4]));
-        residuals[5] = T(weight_) * (pose[5] - T(pose_[5]));
-        residuals[6] = T(weight_) * (pose[6] - T(pose_[6]));
-        return true;
-    }
+//     template <typename T>
+//     bool operator()(const T *pose, T *residuals) const
+//     {
+//         residuals[0] = T(weight_) * (pose[0] - T(pose_[0]));
+//         residuals[1] = T(weight_) * (pose[1] - T(pose_[1]));
+//         residuals[2] = T(weight_) * (pose[2] - T(pose_[2]));
+//         residuals[3] = T(weight_) * (pose[3] - T(pose_[3]));
+//         residuals[4] = T(weight_) * (pose[4] - T(pose_[4]));
+//         residuals[5] = T(weight_) * (pose[5] - T(pose_[5]));
+//         residuals[6] = T(weight_) * (pose[6] - T(pose_[6]));
+//         return true;
+//     }
 
-    static ceres::CostFunction *Create(double *pose, double weight)
-    {
-        return (new ceres::AutoDiffCostFunction<PoseError, 7, 7>(new PoseError(pose, weight)));
-    }
+//     static ceres::CostFunction *Create(double *pose, double weight)
+//     {
+//         return (new ceres::AutoDiffCostFunction<PoseError, 7, 7>(new PoseError(pose, weight)));
+//     }
 
-private:
-    double pose_[7];
-    double weight_;
-};
+// private:
+//     double pose_[7];
+//     double weight_;
+// };
 
 class PoseErrorRPZ
 {

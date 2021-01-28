@@ -9,7 +9,6 @@ struct Weights
     double visual = 1;
     double lidar_ground = 1;
     double lidar_surf = 0.01;
-    double pose_graph = 1;
     bool updated = false;
 };
 
