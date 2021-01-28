@@ -90,10 +90,10 @@ void PoseGraph::UpdateSections(double time)
             double degree = vectors_degree_angle(last_ori, heading);
             double total_degree = vectors_degree_angle(A_ori, heading);
             // turning requires
-            if (!turning && (degree >= 5 || vectors_degree_angle(B_ori, heading) > 20))
+            if (!turning && (degree >= 5 || vectors_degree_angle(B_ori, heading) > 15))
             {
                 // if we have enough keyframes and total degree, create new section
-                if (num >= 10 && total_degree > 20 && total_degree < 160)
+                if (num >= 10 && total_degree > 10 && total_degree < 170)
                 {
                     current_section.C = pair_kf.first;
                     sections_[current_section.A] = current_section;
