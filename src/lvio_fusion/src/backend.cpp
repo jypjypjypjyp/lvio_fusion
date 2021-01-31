@@ -139,6 +139,8 @@ void Backend::Optimize()
     static double forward = 0;
     std::unique_lock<std::mutex> lock(mutex);
     Frames active_kfs = Map::Instance().GetKeyFrames(finished);
+    if (active_kfs.empty())
+        return;
     SE3d old_pose = (--active_kfs.end())->second->pose;
 
     // TODO: IMU

@@ -75,7 +75,7 @@ int ORBMatcher::Relocate(Frame::Ptr last_frame, Frame::Ptr current_frame,
             auto pt_fast_current = kps_fast_current[knn_matches[i][0].trainIdx].pt;
             if (distance(pt_fast_last, pt_fast_current) < 200 && mask.at<uchar>(pt_fast_current) != 0)
             {
-                cv::circle(mask, pt_fast_current, 10, 0, cv::FILLED);
+                cv::circle(mask, pt_fast_current, 20, 0, cv::FILLED);
                 kps_match_left.push_back(pt_fast_last);
                 kps_match_current.push_back(pt_fast_current);
             }

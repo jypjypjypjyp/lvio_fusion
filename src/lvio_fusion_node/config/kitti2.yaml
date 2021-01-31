@@ -2,16 +2,16 @@
 
 # flags
 use_imu: 0
-use_lidar: 0
+use_lidar: 1
 use_navsat: 1
-use_loop: 1             # 0 for only odometry, 1 for whole system
+use_loop: 0             # 0 for only odometry, 1 for whole system
 use_semantic: 0
 train: 0
 
 # ros parameters
-imu_topic: '/kitti/oxts/imu'
-lidar_topic: '/kitti/velo/pointcloud'
-navsat_topic: '/kitti/oxts/gps/fix'
+imu_topic: '/imu_raw'
+lidar_topic: '/points_raw'
+navsat_topic: '/gps/fix'
 image0_topic: '/kitti/camera_gray_left/image_raw'
 image1_topic: '/kitti/camera_gray_right/image_raw'
 color_topic: '/kitti/camera_color_left/image_raw'
@@ -84,7 +84,7 @@ base_to_lidar: !!opencv-matrix
 # number of features
 num_features: 200
 num_features_init: 50
-num_features_tracking_bad: 10
+num_features_tracking_bad: 20
 num_features_needed_for_keyframe: 60
 
 # backend

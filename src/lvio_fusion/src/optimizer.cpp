@@ -49,7 +49,7 @@ Atlas PoseGraph::GetActiveSections(Frames &active_kfs, double &old_time, double 
     Atlas active_sections = GetSections(old_time + epsilon, start_time - epsilon);
     for (auto iter = active_sections.begin(); iter != active_sections.end(); iter++)
     {
-        if(active_kfs.find(iter->first) == active_kfs.end())
+        if (active_kfs.find(iter->first) == active_kfs.end())
         {
             iter = active_sections.erase(iter);
         }
@@ -135,6 +135,9 @@ Atlas PoseGraph::GetSections(double start, double end)
 
 void PoseGraph::BuildProblem(Atlas &sections, Section &submap, adapt::Problem &problem)
 {
+    if (sections.empty())
+        return;
+
     ceres::LocalParameterization *local_parameterization = new ceres::ProductParameterization(
         new ceres::EigenQuaternionParameterization(),
         new ceres::IdentityParameterization(3));
@@ -165,6 +168,9 @@ void PoseGraph::BuildProblem(Atlas &sections, Section &submap, adapt::Problem &p
 
 void PoseGraph::Optimize(Atlas &sections, Section &submap, adapt::Problem &problem)
 {
+    if (sections.empty())
+        return;
+
     ceres::Solver::Options options;
     options.linear_solver_type = ceres::SPARSE_NORMAL_CHOLESKY;
     ceres::Solver::Summary summary;
