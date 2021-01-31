@@ -141,16 +141,6 @@ void Backend::Optimize()
     Frames active_kfs = Map::Instance().GetKeyFrames(finished);
     SE3d old_pose = (--active_kfs.end())->second->pose;
 
-    if (update_weights_)
-    {
-        for (auto &pair_kf : active_kfs)
-        {
-            if (!pair_kf.second->weights.updated)
-            {
-            }
-        }
-    }
-
     // TODO: IMU
     // imu init
     // if (imu_ && !initializer_->initialized)

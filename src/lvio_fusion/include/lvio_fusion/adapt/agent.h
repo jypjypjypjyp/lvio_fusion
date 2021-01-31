@@ -4,7 +4,6 @@
 #include "lvio_fusion/adapt/observation.h"
 #include "lvio_fusion/adapt/weights.h"
 #include "lvio_fusion/frame.h"
-#include "lvio_fusion/lidar/lidar.h"
 
 namespace lvio_fusion
 {
@@ -28,21 +27,17 @@ public:
         return instance_;
     }
 
-    void UpdateWeights(Frame::Ptr frame, Weights &weights)
-    {
-        Observation obs = frame->GetObservation();
-        core_->UpdateWeights(obs, weights);
-    }
+    void AgentLoop();
+
+    void UpdateWeights(Frame::Ptr frame);
 
 private:
-    Agent(Core *core)
-    {
-        core_ = core;
-    }
+    Agent(Core *core);
     Agent(const Agent &);
     Agent &operator=(const Agent &);
 
     Core *core_;
+    std::thread thread_;
     static Agent *instance_;
 };
 

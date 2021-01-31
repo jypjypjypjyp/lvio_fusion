@@ -58,13 +58,16 @@ void Frame::UpdateLabel()
 
 Observation Frame::GetObservation()
 {
+    if (Map::Instance().keyframes.find(id - 1) == Map::Instance().keyframes.end())
+        return Observation();
+        
     static int obs_rows = 4, obs_cols = 12;
     cv::Mat obs = cv::Mat::zeros(obs_rows, obs_cols, CV_16FC3);
     int height = image_left.rows, width = image_left.cols;
     for (auto &pair_feature : features_left)
     {
         auto observations = pair_feature.second->landmark.lock()->observations;
-        if (observations.find(id + 1) != observations.end())
+        if (observations.find(id - 1) != observations.end())
         {
             auto pt = pair_feature.second->keypoint;
             auto next_pt = observations[id + 1]->keypoint;
