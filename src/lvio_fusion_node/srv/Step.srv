@@ -1,11 +1,8 @@
 int32 id
-float64 visual
-float64 lidar_ground
-float64 lidar_surf
+float32 visual
+float32 lidar_ground
+float32 lidar_surf
 ---
-sensor_msgs/Image image
-sensor_msgs/PointCloud2 points_ground
-sensor_msgs/PointCloud2 points_surf
-float64[9] imu
-float64 reward
+float32[] obs
+float32 reward
 bool done

@@ -64,7 +64,7 @@ SE3d Environment::Optimize()
                 estimator_->association->ScanToMapWithGround(frame, map_frame, rpyxyz, problem);
                 ceres::Solver::Options options;
                 options.linear_solver_type = ceres::DENSE_QR;
-                options.max_num_iterations = 2;
+                options.max_num_iterations = 1;
                 options.num_threads = num_threads;
                 ceres::Solver::Summary summary;
                 ceres::Solve(options, &problem, &summary);
@@ -75,14 +75,14 @@ SE3d Environment::Optimize()
                 estimator_->association->ScanToMapWithSegmented(frame, map_frame, rpyxyz, problem);
                 ceres::Solver::Options options;
                 options.linear_solver_type = ceres::DENSE_QR;
-                options.max_num_iterations = 2;
+                options.max_num_iterations = 1;
                 options.num_threads = num_threads;
                 ceres::Solver::Summary summary;
                 ceres::Solve(options, &problem, &summary);
             }
         }
     }
-    
+
     return frame->pose;
 }
 
@@ -92,22 +92,20 @@ inline double compute_reward(SE3d result, SE3d ground_truth)
     se32rpyxyz(result, rpyxyz_result);
     se32rpyxyz(ground_truth, rpyxyz_ground_truth);
     VectorXd reward;
-    reward[0] = rpyxyz_result[0] - rpyxyz_ground_truth[0];
-    reward[1] = rpyxyz_result[1] - rpyxyz_ground_truth[1];
-    reward[2] = rpyxyz_result[2] - rpyxyz_ground_truth[2];
+    reward[0] = 3 * (rpyxyz_result[0] - rpyxyz_ground_truth[0]);
+    reward[1] = 3 * (rpyxyz_result[1] - rpyxyz_ground_truth[1]);
+    reward[2] = 3 * (rpyxyz_result[2] - rpyxyz_ground_truth[2]);
     reward[3] = rpyxyz_result[3] - rpyxyz_ground_truth[3];
     reward[4] = rpyxyz_result[4] - rpyxyz_ground_truth[4];
     reward[5] = rpyxyz_result[5] - rpyxyz_ground_truth[5];
-    return reward.norm();
+    return -reward.norm();
 }
 
-void Environment::Step(Weights *weights, Observation *obs, double *reward, bool *done)
+void Environment::Step(Weights &weights, std::vector<float> &obs, float *reward, bool *done)
 {
-    state_->second->weights = *weights;
+    state_->second->weights = weights;
     SE3d result = Optimize();
-
     *reward = compute_reward(result, state_->second->pose);
-
     state_++;
     if (state_ == frames_.end())
     {
@@ -115,9 +113,7 @@ void Environment::Step(Weights *weights, Observation *obs, double *reward, bool 
     }
     else
     {
-        obs->image = state_->second->image_left;
-        obs->points_ground = state_->second->feature_lidar->points_ground;
-        obs->points_surf = state_->second->feature_lidar->points_surf;
+        obs = state_->second->GetObservation();
         *done = false;
     }
 }

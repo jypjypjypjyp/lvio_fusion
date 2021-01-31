@@ -186,6 +186,7 @@ int Frontend::TrackLastFrame(Frame::Ptr base_frame)
             num_good_pts++;
         }
         cv::imshow("tracking", img_track);
+        cv::imwrite("/home/jyp/Pictures/demo.png", img_track);
         cv::waitKey(1);
     }
 

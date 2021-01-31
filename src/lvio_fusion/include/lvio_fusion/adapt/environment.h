@@ -18,7 +18,7 @@ class Environment
 public:
     typedef std::shared_ptr<Environment> Ptr;
 
-    static void Step(int id, Weights *weights, Observation *obs, double *reward, bool *done)
+    static void Step(int id, Weights &weights, Observation &obs, float *reward, bool *done)
     {
         environments_[id]->Step(weights, obs, reward, done);
     }
@@ -88,10 +88,9 @@ private:
         std::default_random_engine e;
         double time = u_(e);
         frames_ = Map::Instance().GetKeyFrames(time, 0, num_frames_per_env_);
-        state_ = frames_.begin();
     }
 
-    void Step(Weights *weights, Observation *obs, double *reward, bool *done);
+    void Step(Weights &weights, Observation &obs, float *reward, bool *done);
 
     SE3d Optimize();
 

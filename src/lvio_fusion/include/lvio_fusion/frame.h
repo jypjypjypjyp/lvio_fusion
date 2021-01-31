@@ -1,6 +1,7 @@
 #ifndef lvio_fusion_FRAME_H
 #define lvio_fusion_FRAME_H
 
+#include "lvio_fusion/adapt/observation.h"
 #include "lvio_fusion/adapt/weights.h"
 #include "lvio_fusion/common.h"
 #include "lvio_fusion/imu/preintegration.h"
@@ -24,6 +25,8 @@ public:
     void AddFeature(visual::Feature::Ptr feature);
 
     void RemoveFeature(visual::Feature::Ptr feature);
+
+    Observation GetObservation();
 
     void Clear();
 

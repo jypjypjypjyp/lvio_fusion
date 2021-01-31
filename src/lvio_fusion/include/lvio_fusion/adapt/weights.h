@@ -6,9 +6,10 @@ namespace lvio_fusion
 
 struct Weights
 {
-    double visual = 1;
-    double lidar_ground = 1;
-    double lidar_surf = 0.01;
+    // imu is a constant 1
+    float visual = 1;
+    float lidar_ground = 1;
+    float lidar_surf = 0.01;
     bool updated = false;
 };
 
