@@ -1,17 +1,12 @@
 #ifndef lvio_fusion_OBSERVATION_H
 #define lvio_fusion_OBSERVATION_H
 
-#include "lvio_fusion/common.h"
+#include <vector>
 
 namespace lvio_fusion
 {
 
-struct Observation
-{
-    cv::Mat image;
-    PointICloud points_ground;
-    PointICloud points_surf;
-};
+typedef std::vector<float> Observation;
 
 } // namespace lvio_fusion
 

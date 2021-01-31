@@ -56,4 +56,34 @@ void Frame::UpdateLabel()
     }
 }
 
+Observation Frame::GetObservation()
+{
+    static int obs_rows = 4, obs_cols = 12;
+    cv::Mat obs = cv::Mat::zeros(obs_rows, obs_cols, CV_16FC3);
+    int height = image_left.rows, width = image_left.cols;
+    for (auto &pair_feature : features_left)
+    {
+        auto observations = pair_feature.second->landmark.lock()->observations;
+        if (observations.find(id + 1) != observations.end())
+        {
+            auto pt = pair_feature.second->keypoint;
+            auto next_pt = observations[id + 1]->keypoint;
+            int row = (int)(pt.y / (height / obs_rows));
+            int col = (int)(pt.x / (width / obs_cols));
+            obs.at<cv::Vec3f>(row, col)[0] += 1;
+            obs.at<cv::Vec3f>(row, col)[1] += next_pt.x - pt.x;
+            obs.at<cv::Vec3f>(row, col)[2] += next_pt.y - pt.y;
+        }
+    }
+
+    for (auto iter = obs.begin<cv::Vec3f>(); iter != obs.end<cv::Vec3f>(); iter++)
+    {
+        float n = std::max(1.f, (*iter)[0]);
+        (*iter)[1] = (*iter)[1] / n;
+        (*iter)[2] = (*iter)[2] / n;
+    }
+
+    return obs;
+}
+
 } // namespace lvio_fusion

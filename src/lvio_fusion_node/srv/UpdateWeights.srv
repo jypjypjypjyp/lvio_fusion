@@ -1,5 +1,5 @@
-sensor_msgs/Image images
+float32[] obs
 ---
-float64 visual
-float64 lidar_ground
-float64 lidar_surf
+float32 visual
+float32 lidar_ground
+float32 lidar_surf

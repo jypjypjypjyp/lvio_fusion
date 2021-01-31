@@ -12,7 +12,7 @@ namespace lvio_fusion
 class Core
 {
 public:
-    virtual void UpdateWeights(Observation obs, Weights &weights){};
+    virtual void UpdateWeights(Observation &obs, Weights &weights){};
 };
 
 class Agent
@@ -30,15 +30,7 @@ public:
 
     void UpdateWeights(Frame::Ptr frame, Weights &weights)
     {
-        Observation obs;
-        obs.image = frame->image_left;
-        if (Lidar::Num())
-        {
-            obs.points_ground = frame->feature_lidar->points_ground;
-            obs.points_surf = frame->feature_lidar->points_surf;
-        }
-        obs.points_ground = frame->feature_lidar->points_ground;
-        obs.points_surf = frame->feature_lidar->points_surf;
+        Observation obs = frame->GetObservation();
         core_->UpdateWeights(obs, weights);
     }
 

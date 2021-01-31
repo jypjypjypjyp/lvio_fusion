@@ -235,10 +235,7 @@ bool step_callback(lvio_fusion_node::Step::Request &req,
     weights.visual = req.visual;
     weights.lidar_ground = req.lidar_ground;
     weights.lidar_surf = req.lidar_surf;
-    Environment::Step(req.id, &weights, &obs, &res.reward, (bool *)&res.done);
-    res.image = *cv_mat_to_msg(obs.image);
-    pcl::toROSMsg(obs.points_ground, res.points_ground);
-    pcl::toROSMsg(obs.points_surf, res.points_surf);
+    Environment::Step(req.id, weights, res.obs, &res.reward, (bool *)&res.done);
     return true;
 }
 
