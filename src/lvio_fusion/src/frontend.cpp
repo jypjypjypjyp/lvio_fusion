@@ -26,26 +26,19 @@ bool Frontend::AddFrame(lvio_fusion::Frame::Ptr frame)
     switch (status)
     {
     case FrontendStatus::BUILDING:
+    case FrontendStatus::LOST:
+        // Reset();
         InitMap();
         break;
     case FrontendStatus::INITIALIZING:
     case FrontendStatus::TRACKING_GOOD:
     case FrontendStatus::TRACKING_TRY:
-        if (Track())
+        Track();
+        //NOTE: semantic map
+        if (!current_frame->objects.empty())
         {
-            //NOTE: semantic map
-            if (!current_frame->objects.empty())
-            {
-                current_frame->UpdateLabel();
-            }
-            break;
+            current_frame->UpdateLabel();
         }
-        else
-            return false;
-    case FrontendStatus::LOST:
-        //TODO
-        Reset();
-        InitMap();
         break;
     }
     last_frame = current_frame;
@@ -92,29 +85,26 @@ void Frontend::AddImu(double time, Vector3d acc, Vector3d gyr)
 bool Frontend::Track()
 {
     current_frame->pose = last_frame_pose_cache_ * relative_i_j;
-    Frame::Ptr base_frame = status == FrontendStatus::TRACKING_TRY ? last_key_frame : last_frame;
-    int num_inliers = TrackLastFrame(base_frame);
-    if(num_inliers < num_features_tracking_bad_)
+    int num_inliers = TrackLastFrame(last_frame);
+    bool success = num_inliers > num_features_tracking_bad_ &&
+                   (current_frame->pose.translation() - last_frame_pose_cache_.translation()).norm() < 5;
+    if (!success)
     {
-        num_inliers = Relocate(base_frame);
-    }
-
-    if ((status != FrontendStatus::INITIALIZING && num_inliers < num_features_needed_for_keyframe_) ||
-        (status == FrontendStatus::INITIALIZING && current_frame->time - last_key_frame->time > 0.25))
-    {
-        CreateKeyframe();
+        num_inliers = Relocate(last_frame);
+        success = num_inliers > num_features_tracking_bad_ &&
+                  (current_frame->pose.translation() - last_frame_pose_cache_.translation()).norm() < 5;
     }
 
     if (status == FrontendStatus::INITIALIZING)
     {
-        if (!num_inliers)
+        if (!success)
         {
             status = FrontendStatus::BUILDING;
         }
     }
     else
     {
-        if (num_inliers && (current_frame->pose.translation() - last_frame->pose.translation()).norm() < 5)
+        if (success)
         {
             // tracking good
             status = FrontendStatus::TRACKING_GOOD;
@@ -123,14 +113,21 @@ bool Frontend::Track()
         {
             // tracking bad, but give a chance
             status = FrontendStatus::TRACKING_TRY;
+            current_frame->features_left.clear();
+            InitMap();
+            current_frame->pose = last_frame_pose_cache_ * relative_i_j;
             LOG(INFO) << "Lost, try again!";
-            return false;
         }
     }
 
+    if ((status == FrontendStatus::TRACKING_GOOD && num_inliers < num_features_needed_for_keyframe_) ||
+        (status == FrontendStatus::INITIALIZING && current_frame->time - last_key_frame->time > 0.25))
+    {
+        CreateKeyframe();
+    }
+
     // smooth trajectory
-    current_frame->pose = se3_slerp(current_frame->pose, last_frame_pose_cache_ * relative_i_j, 0.5);
-    relative_i_j = last_frame_pose_cache_.inverse() * current_frame->pose;
+    relative_i_j = se3_slerp(relative_i_j, last_frame_pose_cache_.inverse() * current_frame->pose, 0.5);
     return true;
 }
 
@@ -247,9 +244,8 @@ bool Frontend::InitMap()
 {
     int num_new_features = DetectNewFeatures();
     if (num_new_features < num_features_init_)
-    {
         return false;
-    }
+
     if (Imu::Num())
     {
         status = FrontendStatus::INITIALIZING;
@@ -261,9 +257,10 @@ bool Frontend::InitMap()
 
     // the first frame is a keyframe
     Map::Instance().InsertKeyFrame(current_frame);
+    last_key_frame = current_frame;
     LOG(INFO) << "Initial map created with " << num_new_features << " map points";
 
-    // update backend and loop because we have a new keyframe
+    // update backend because we have a new keyframe
     backend_.lock()->UpdateMap();
     return true;
 }
@@ -279,7 +276,7 @@ int Frontend::DetectNewFeatures()
         for (auto &pair_feature : current_frame->features_left)
         {
             auto feature = pair_feature.second;
-            cv::circle(mask, feature->keypoint, 10, 0, cv::FILLED);
+            cv::circle(mask, feature->keypoint, 20, 0, cv::FILLED);
         }
 
         std::vector<cv::Point2f> kps_left, kps_right; // must be point2f

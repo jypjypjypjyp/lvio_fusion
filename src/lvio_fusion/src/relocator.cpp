@@ -27,14 +27,15 @@ void Relocator::DetectorLoop()
     while (true)
     {
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        auto new_kfs = Map::Instance().GetKeyFrames(finished, Navsat::Num() ? Navsat::Get()->finished : backend_->finished);
+        double end = Navsat::Num() ? Navsat::Get()->finished : backend_->finished;
+        auto new_kfs = Map::Instance().GetKeyFrames(finished, end);
         if (new_kfs.empty())
             continue;
         for (auto &pair_kf : new_kfs)
         {
             Frame::Ptr frame = pair_kf.second, old_frame;
             // if last is loop and this is not loop, then correct all new loops
-            if (DetectLoop(frame, old_frame))
+            if (DetectLoop(frame, old_frame, end - 30))
             {
                 if (!last_old_frame)
                 {
@@ -60,10 +61,10 @@ void Relocator::DetectorLoop()
     }
 }
 
-bool Relocator::DetectLoop(Frame::Ptr frame, Frame::Ptr &old_frame)
+bool Relocator::DetectLoop(Frame::Ptr frame, Frame::Ptr &old_frame, double end)
 {
-    // the distances of 3 old frames is smaller than threshold
-    Frames candidate_kfs = Map::Instance().GetKeyFrames(0, backend_->finished - 30);
+    // the distances of 3 closest old frames is smaller than threshold
+    Frames candidate_kfs = Map::Instance().GetKeyFrames(0, end);
     double min_distance = 10;
     for (auto &pair_kf : candidate_kfs)
     {
@@ -196,14 +197,14 @@ void Relocator::CorrectLoop(double old_time, double start_time, double end_time)
     }
     SE3d new_pose = (--new_submap_kfs.end())->second->pose;
     // forward propogate
-    SE3d transform = old_pose.inverse() * new_pose;
+    SE3d transform = new_pose * old_pose.inverse();
     PoseGraph::Instance().ForwardPropagate(transform, end_time + epsilon);
     // fix navsat
     if (Navsat::Num())
     {
-        Navsat::Get()->fix = transform.translation();
+        Navsat::Get()->fix = new_pose.translation() - old_pose.translation();
     }
-    // update points cloud
+    // update pointscloud
     if (Lidar::Num() && mapping_)
     {
         Frames mapping_kfs = Map::Instance().GetKeyFrames(old_time);
@@ -222,23 +223,23 @@ void Relocator::UpdateNewSubmap(Frame::Ptr best_frame, Frames &new_submap_kfs)
         adapt::Problem problem;
         SE3d base = best_frame->pose;
         best_frame->pose = best_frame->loop_closure->frame_old->pose * best_frame->loop_closure->relative_o_c;
-        double *para = best_frame->pose.data();
+        SO3d r;
+        double *para = r.data();
         problem.AddParameterBlock(para, 4, new ceres::EigenQuaternionParameterization());
 
         for (auto &pair_kf : new_submap_kfs)
         {
-            if (pair_kf.second->loop_closure->score > 0)
-            {
-                ceres::CostFunction *cost_function = PoseRError::Create(
-                    pair_kf.second->loop_closure->frame_old->pose * pair_kf.second->loop_closure->relative_o_c, pair_kf.second->pose, base);
-                problem.AddResidualBlock(ProblemType::Other, cost_function, NULL, para);
-            }
+            ceres::CostFunction *cost_function = RelocateRError::Create(
+                best_frame->pose.inverse() * pair_kf.second->loop_closure->frame_old->pose * pair_kf.second->loop_closure->relative_o_c,
+                base.inverse() * pair_kf.second->pose);
+            problem.AddResidualBlock(ProblemType::Other, cost_function, NULL, para);
         }
 
         ceres::Solver::Options options;
         options.linear_solver_type = ceres::DENSE_QR;
         ceres::Solver::Summary summary;
         ceres::Solve(options, &problem, &summary);
+        best_frame->pose = best_frame->pose * SE3d(r, Vector3d::Zero());
     }
     SE3d new_pose = best_frame->pose;
     SE3d transform = new_pose * old_pose.inverse();

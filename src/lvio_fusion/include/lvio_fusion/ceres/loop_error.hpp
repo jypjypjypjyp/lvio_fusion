@@ -10,21 +10,21 @@ namespace lvio_fusion
 class PoseGraphError
 {
 public:
-    PoseGraphError(SE3d last_frame, SE3d frame) : transform_(frame * last_frame.inverse()) {}
+    PoseGraphError(SE3d last_frame, SE3d frame) : relative_i_j_(last_frame.inverse() * frame){}
 
     template <typename T>
     bool operator()(const T *Twc1, const T *Twc2, T *residuals) const
     {
         T Twc1_inverse[7], relative_i_j[7];
         ceres::SE3Inverse(Twc1, Twc1_inverse);
-        ceres::SE3Product(Twc2, Twc1_inverse, relative_i_j);
-        residuals[0] = T(transform_.data()[0]) - relative_i_j[0];
-        residuals[1] = T(transform_.data()[1]) - relative_i_j[1];
-        residuals[2] = T(transform_.data()[2]) - relative_i_j[2];
-        residuals[3] = T(transform_.data()[3]) - relative_i_j[3];
-        residuals[4] = T(transform_.data()[4]) - relative_i_j[4];
-        residuals[5] = T(transform_.data()[5]) - relative_i_j[5];
-        residuals[6] = T(transform_.data()[6]) - relative_i_j[6];
+        ceres::SE3Product(Twc1_inverse, Twc2, relative_i_j);
+        residuals[0] = T(relative_i_j_.data()[0]) - relative_i_j[0];
+        residuals[1] = T(relative_i_j_.data()[1]) - relative_i_j[1];
+        residuals[2] = T(relative_i_j_.data()[2]) - relative_i_j[2];
+        residuals[3] = T(relative_i_j_.data()[3]) - relative_i_j[3];
+        residuals[4] = T(relative_i_j_.data()[4]) - relative_i_j[4];
+        residuals[5] = T(relative_i_j_.data()[5]) - relative_i_j[5];
+        residuals[6] = T(relative_i_j_.data()[6]) - relative_i_j[6];
         return true;
     }
 
@@ -34,7 +34,7 @@ public:
     }
 
 private:
-    SE3d transform_;
+    SE3d relative_i_j_;
 };
 
 // class PoseError
@@ -135,33 +135,32 @@ private:
     double weight_;
 };
 
-class PoseRError
+class RelocateRError
 {
 public:
-    PoseRError(SE3d relocated, SE3d unrelocated, SE3d base)
-        : relocated_(relocated), unrelocated_(SE3d(base.so3().inverse(), Vector3d::Zero()) * unrelocated) {}
+    RelocateRError(SE3d relocated, SE3d unrelocated) : relocated_(relocated), unrelocated_(unrelocated) {}
 
     template <typename T>
     bool operator()(const T *r, T *residuals) const
     {
-        T tf[7] = {r[0], r[1], r[2], r[3], T(0), T(0), T(0)};
+        T R[7] = {r[0], r[1], r[2], r[3], T(0), T(0), T(0)};
         T unrelocated[7];
         ceres::Cast(unrelocated_.data(), SE3d::num_parameters, unrelocated);
-        T tf_unrelocated[7];
-        ceres::SE3Product(tf, unrelocated, tf_unrelocated);
-        residuals[0] = T(relocated_.data()[0]) - tf_unrelocated[0];
-        residuals[1] = T(relocated_.data()[1]) - tf_unrelocated[1];
-        residuals[2] = T(relocated_.data()[2]) - tf_unrelocated[2];
-        residuals[3] = T(relocated_.data()[3]) - tf_unrelocated[3];
-        residuals[4] = T(relocated_.data()[4]) - tf_unrelocated[4];
-        residuals[5] = T(relocated_.data()[5]) - tf_unrelocated[5];
-        residuals[6] = T(relocated_.data()[6]) - tf_unrelocated[6];
+        T R_unrelocated[7];
+        ceres::SE3Product(R, unrelocated, R_unrelocated);
+        residuals[0] = T(relocated_.data()[0]) - R_unrelocated[0];
+        residuals[1] = T(relocated_.data()[1]) - R_unrelocated[1];
+        residuals[2] = T(relocated_.data()[2]) - R_unrelocated[2];
+        residuals[3] = T(relocated_.data()[3]) - R_unrelocated[3];
+        residuals[4] = T(relocated_.data()[4]) - R_unrelocated[4];
+        residuals[5] = T(relocated_.data()[5]) - R_unrelocated[5];
+        residuals[6] = T(relocated_.data()[6]) - R_unrelocated[6];
         return true;
     }
 
-    static ceres::CostFunction *Create(SE3d relocated, SE3d unrelocated, SE3d base)
+    static ceres::CostFunction *Create(SE3d relocated, SE3d unrelocated)
     {
-        return (new ceres::AutoDiffCostFunction<PoseRError, 7, 4>(new PoseRError(relocated, unrelocated, base)));
+        return (new ceres::AutoDiffCostFunction<RelocateRError, 7, 4>(new RelocateRError(relocated, unrelocated)));
     }
 
 private:
