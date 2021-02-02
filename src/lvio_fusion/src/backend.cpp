@@ -174,15 +174,13 @@ void Backend::BuildProblem(Frames &active_kfs, adapt::Problem &problem,bool isim
             //     problem.SetParameterBlockConstant(para_bg);
             //     n--;
             // }
-            if(first){
-                problem.SetParameterBlockConstant(para_kf);
-                problem.SetParameterBlockConstant(para_v);
-                problem.SetParameterBlockConstant(para_ba);
-                problem.SetParameterBlockConstant(para_bg);
-                first=false;
-            }
+
             if (last_frame && last_frame->bImu&&last_frame->last_keyframe)
             {
+             if(first){
+                problem.SetParameterBlockConstant(para_kf);
+                first=false;
+            }
                 auto para_kf_last = last_frame->pose.data();
                 auto para_v_last = last_frame->Vw.data();
                 auto para_bg_last = last_frame->ImuBias.linearized_bg.data();//恢复

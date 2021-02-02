@@ -433,24 +433,25 @@ Bias FullInertialBA(Frames &key_frames, Matrix3d Rwg, double priorG=1e2, double 
     //先验BIAS约束
     auto para_gyroBias=key_frames.begin()->second->ImuBias.linearized_bg.data();
     problem.AddParameterBlock(para_gyroBias, 3);
-    cost_function = PriorGyroError::Create(Vector3d::Zero(),priorG);
+    cost_function = PriorGyroError2::Create(Vector3d::Zero(),priorG);
     problem.AddResidualBlock(cost_function,NULL,para_gyroBias);
 
     auto para_accBias=key_frames.begin()->second->ImuBias.linearized_ba.data();
     problem.AddParameterBlock(para_accBias, 3);
-    cost_function = PriorAccError::Create(Vector3d::Zero(),priorA);
+    cost_function = PriorAccError2::Create(Vector3d::Zero(),priorA);
     problem.AddResidualBlock(cost_function,NULL,para_accBias);
 
 
     Frame::Ptr last_frame;
     Frame::Ptr current_frame;
-    int i=0;
+    //int i=0;
+    bool first=true;
     for (auto kf_pair : key_frames)
     {
-        // current_frame = kf_pair.second;
+        current_frame = kf_pair.second;
         // current_frame->SetPose((Rs[i]),Ps[i]);
         // current_frame->SetVelocity(Vs[i]);
-        i++;
+        //i++;
         if (!current_frame->bImu||!current_frame->last_keyframe||!current_frame->preintegration->isPreintegrated)
         {
             last_frame=current_frame;
@@ -458,14 +459,19 @@ Bias FullInertialBA(Frames &key_frames, Matrix3d Rwg, double priorG=1e2, double 
         }
         auto para_kf = current_frame->pose.data();
         auto para_v = current_frame->Vw.data();
-        problem.AddParameterBlock(para_kf, SE3d::num_parameters, local_parameterization);
+       // problem.AddParameterBlock(para_kf, SE3d::num_parameters, local_parameterization);
         problem.AddParameterBlock(para_v, 3);
-        //problem.SetParameterBlockConstant(para_kf);
+
         if (last_frame && last_frame->bImu)
         {
+
             auto para_kf_last = last_frame->pose.data();
             auto para_v_last = last_frame->Vw.data();
-            cost_function =InertialError::Create(current_frame->preintegration,Rwg);
+            if(first){
+                first=false;
+                problem.SetParameterBlockConstant(para_kf_last);
+            }
+            cost_function =InertialError2::Create(current_frame->preintegration,Rwg);
             problem.AddResidualBlock(cost_function, NULL, para_kf_last, para_v_last,  para_gyroBias,para_accBias, para_kf, para_v);
             
            //showIMUErrorINIT(para_kf_last, para_v_last,  para_gyroBias,para_accBias, para_kf, para_v,current_frame->preintegration,current_frame->time-1.40364e+09);
@@ -482,7 +488,7 @@ Bias FullInertialBA(Frames &key_frames, Matrix3d Rwg, double priorG=1e2, double 
 
     //solve
     ceres::Solver::Options options;
-    options.linear_solver_type = ceres::DENSE_QR;
+    options.linear_solver_type = ceres::DENSE_SCHUR;
     //options.trust_region_strategy_type = ceres::DOGLEG;
     //options.max_solver_time_in_seconds =0.01;
     //options.max_num_iterations=1;
