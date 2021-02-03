@@ -101,7 +101,7 @@ inline double compute_reward(SE3d result, SE3d ground_truth)
     return -reward.norm();
 }
 
-void Environment::Step(Weights &weights, std::vector<float> &obs, float *reward, bool *done)
+void Environment::Step(Weights &weights, Observation &obs, float *reward, bool *done)
 {
     state_->second->weights = weights;
     SE3d result = Optimize();
