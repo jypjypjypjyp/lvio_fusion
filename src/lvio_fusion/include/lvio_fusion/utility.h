@@ -70,6 +70,19 @@ inline Vector3d closest_point_on_a_line(const Vector3d &A, const Vector3d &B, co
 };
 
 /**
+ * closest point on a plane
+ * @param norm norm
+ * @param A    A
+ * @param P    P
+ * @return closest point
+ */
+inline Vector3d closest_point_on_a_panel(const Vector3d &norm, const Vector3d &A, const Vector3d &P)
+{
+    auto t = (A - P).dot(norm) / norm.squaredNorm();
+    return P + t * norm;
+};
+
+/**
  * remove close points
  * @param cloud_in      input
  * @param cloud_out     output
@@ -267,6 +280,59 @@ inline double vectors_height(Vector3d v1, Vector3d v2)
     return v1.cross(v2).norm() / v1.norm();
 }
 
+inline double distance(cv::Point2f &pt1, cv::Point2f &pt2)
+{
+    double dx = pt1.x - pt2.x;
+    double dy = pt1.y - pt2.y;
+    return sqrt(dx * dx + dy * dy);
+}
+
+// double calculate optical flow
+inline int optical_flow(cv::Mat &prevImg, cv::Mat &nextImg,
+                        std::vector<cv::Point2f> &prevPts, std::vector<cv::Point2f> &nextPts,
+                        std::vector<uchar> &status)
+{
+    if (prevPts.empty())
+        return 0;
+
+    cv::Mat err;
+    cv::calcOpticalFlowPyrLK(
+        prevImg, nextImg, prevPts, nextPts, status, err, cv::Size(21, 21), 3,
+        cv::TermCriteria(cv::TermCriteria::COUNT + cv::TermCriteria::EPS, 30, 0.01),
+        cv::OPTFLOW_USE_INITIAL_FLOW);
+
+    std::vector<uchar> reverse_status;
+    std::vector<cv::Point2f> reverse_pts = prevPts;
+    cv::calcOpticalFlowPyrLK(
+        nextImg, prevImg, nextPts, reverse_pts, reverse_status, err, cv::Size(3, 3), 1,
+        cv::TermCriteria(cv::TermCriteria::COUNT + cv::TermCriteria::EPS, 30, 0.01),
+        cv::OPTFLOW_USE_INITIAL_FLOW);
+
+    int num_success_pts = 0;
+    for (size_t i = 0; i < status.size(); i++)
+    {
+        // clang-format off
+        if (status[i] && reverse_status[i] && distance(prevPts[i], reverse_pts[i]) <= 0.5
+        && nextPts[i].x >= 0 && nextPts[i].x < prevImg.cols
+        && nextPts[i].y >= 0 && nextPts[i].y < prevImg.rows)
+        // clang-format on
+        {
+            status[i] = 1;
+            num_success_pts++;
+        }
+        else
+            status[i] = 0;
+    }
+    return num_success_pts;
+}
+
+// SE3d slerp, the bigger s(0,1), the closer the result is to b
+inline SE3d se3_slerp(const SE3d &a, const SE3d &b, double s)
+{
+    Quaterniond q = a.unit_quaternion().slerp(s, b.unit_quaternion());
+    Vector3d t = s * b.translation() + (1 - s) * a.translation();
+    return SE3d(q, t);
+}
 //NEWADD
 inline Eigen::Vector3d LogSO3(const Eigen::Matrix3d &R)
 {
@@ -283,43 +349,6 @@ inline Eigen::Vector3d LogSO3(const Eigen::Matrix3d &R)
     else
         return theta*w/s;
 }
-template <typename T>
-inline Eigen::Matrix<T,3,1> LogSO3_(const Eigen::Matrix<T,3,3> &R)
-{
-    const T tr = R(0,0)+R(1,1)+R(2,2);
-    Eigen::Matrix<T,3,1> w;
-    w << (R(2,1)-R(1,2))/T(2), (R(0,2)-R(2,0))/T(2), (R(1,0)-R(0,1))/T(2);
-    const T costheta = (tr-T(1.0))*T(0.5);
-    if(costheta>T(1) || costheta<T(-1))
-        return w;
-    const T theta = acos(costheta);
-    const T s = sin(theta);
-    T s_;
-    if(s<T(0)){
-        s_=-s;
-    }
-    if(s_<T(1e-5))
-        return w;
-    else
-        return theta*w/s;
-}
-// inline Eigen::Vector3d LogSO3(const Quaterniond &QR)
-// {
-//     Eigen::Matrix3d R=QR.toRotationMatrix();
-//     const double tr = R(0,0)+R(1,1)+R(2,2);
-//     Eigen::Vector3d w;
-//     w << (R(2,1)-R(1,2))/2, (R(0,2)-R(2,0))/2, (R(1,0)-R(0,1))/2;
-//     const double costheta = (tr-1.0)*0.5f;
-//     if(costheta>1 || costheta<-1)
-//         return w;
-//     const double theta = acos(costheta);
-//     const double s = sin(theta);
-//     if(fabs(s)<1e-5)
-//         return w;
-//     else
-//         return theta*w/s;
-// }
-
 
 inline Eigen::Matrix3d InverseRightJacobianSO3(const double x, const double y, const double z)
 {
@@ -359,27 +388,6 @@ inline Matrix3d ExpSO3(const Vector3d &v)
     return ExpSO3(v(0),v(1),v(2));
 }
 
-template <typename T>
-inline Matrix<T,3,3> ExpSO3_(const T &x, const T &y, const T &z)
-{
-     Matrix<T,3,3> I =  Matrix<T,3,3>::Identity();
-    const T d2 = x*x+y*y+z*z;
-    const T d = sqrt(d2);
-    Matrix<T,3,3> W;
-   W << T(0), -z, y,
-            z, T(0), -x,
-            -y,  x, T(0);
-    if(d<T(1e-4))
-        return (I + W + T(0.5)*W*W);
-    else
-        return (I + W*sin(d)/d + W*W*(T(1.0)-cos(d))/d2);
-}
-template <typename T>
-inline Matrix<T,3,3> ExpSO3_(const Matrix<T,3,1>  &v)
-{
-    return ExpSO3_(v(0),v(1),v(2));
-}
-
 
 inline Matrix3d NormalizeRotation(const Matrix3d &R_)
 { 
@@ -392,36 +400,8 @@ inline Matrix3d NormalizeRotation(const Matrix3d &R_)
 }
 
 
-inline Eigen::Matrix3d RightJacobianSO3(const double x, const double y, const double z)
-{
-    const double d2 = x*x+y*y+z*z;
-    const double d = sqrt(d2);
-
-    Eigen::Matrix3d W;
-    W << 0.0, -z, y,z, 0.0, -x,-y,  x, 0.0;
-    if(d<1e-5)
-    {
-        return Eigen::Matrix3d::Identity();
-    }
-    else
-    {
-        return Eigen::Matrix3d::Identity() - W*(1.0-cos(d))/d2 + W*W*(d-sin(d))/(d2*d);
-    }
-}
-
-inline Eigen::Matrix3d RightJacobianSO3(const Eigen::Vector3d &v)
-{
-    return RightJacobianSO3(v[0],v[1],v[2]);
-}
 
 
-inline Eigen::Matrix3d Skew(const Eigen::Vector3d &w)
-{
-    Eigen::Matrix3d W;
-    W << 0.0, -w[2], w[1],w[2], 0.0, -w[0],-w[1],  w[0], 0.0;
-    return W;
-}
-//NEWADDEND
 
 } // namespace lvio_fusion
 

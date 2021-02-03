@@ -8,7 +8,6 @@ void Map::InsertKeyFrame(Frame::Ptr frame)
 {
     std::unique_lock<std::mutex> lock(mutex_local_kfs);
     Frame::current_frame_id++;
-    current_frame = frame;//NEWADD
     keyframes[frame->time] = frame;
 }
 
@@ -34,7 +33,7 @@ Frames Map::GetKeyFrames(double start, double end, int num)
     {
         auto start_iter = keyframes.lower_bound(start);
         auto end_iter = keyframes.upper_bound(end);
-        return start >= end ? Frames() : Frames(start_iter, end_iter);
+        return start > end ? Frames() : Frames(start_iter, end_iter);
     }
     else if (end == 0)
     {
@@ -77,7 +76,6 @@ SE3d Map::ComputePose(double time)
     Vector3d t = (1 - s) * frame1->pose.translation() + s * frame2->pose.translation();
     return SE3d(q, t);
 }
-
 //NEWADD
 void Map::ApplyScaledRotation(const Matrix3d &R)
 {

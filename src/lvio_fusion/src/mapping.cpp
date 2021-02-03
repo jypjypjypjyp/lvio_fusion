@@ -2,6 +2,7 @@
 #include "lvio_fusion/adapt/problem.h"
 #include "lvio_fusion/ceres/lidar_error.hpp"
 #include "lvio_fusion/lidar/lidar.h"
+#include "lvio_fusion/loop/pose_graph.h"
 #include "lvio_fusion/map.h"
 #include "lvio_fusion/utility.h"
 
@@ -40,7 +41,7 @@ void Mapping::BuildOldMapFrame(Frames old_frames, Frame::Ptr map_frame)
 {
     PointICloud points_surf_merged;
     PointICloud points_ground_merged;
-    for (auto pair_kf : old_frames)
+    for (auto &pair_kf : old_frames)
     {
         points_surf_merged += pointclouds_surf[pair_kf.first];
         points_ground_merged += pointclouds_ground[pair_kf.first];
@@ -65,7 +66,7 @@ void Mapping::BuildMapFrame(Frame::Ptr frame, Frame::Ptr map_frame)
         return;
     PointICloud points_surf_merged;
     PointICloud points_ground_merged;
-    for (auto pair_kf : last_frames)
+    for (auto &pair_kf : last_frames)
     {
         points_surf_merged += pointclouds_surf[pair_kf.first];
         points_ground_merged += pointclouds_ground[pair_kf.first];
@@ -84,44 +85,47 @@ void Mapping::BuildMapFrame(Frame::Ptr frame, Frame::Ptr map_frame)
 void Mapping::Optimize(Frames &active_kfs)
 {
     // NOTE: some place is good, don't need optimize too much.
-    for (auto pair_kf : active_kfs)
+    for (auto &pair_kf : active_kfs)
     {
         auto t1 = std::chrono::steady_clock::now();
-        Frame::Ptr map_frame = Frame::Ptr(new Frame());
-        BuildMapFrame(pair_kf.second, map_frame);
-        if (map_frame->feature_lidar && pair_kf.second->feature_lidar)
+        SE3d old_pose = pair_kf.second->pose;
         {
-            double rpyxyz[6];
-            se32rpyxyz(pair_kf.second->pose * map_frame->pose.inverse(), rpyxyz); // relative_i_j
-            if (!map_frame->feature_lidar->points_ground.empty())
+            auto map_frame = Frame::Ptr(new Frame());
+            BuildMapFrame(pair_kf.second, map_frame);
+            if (map_frame->feature_lidar && pair_kf.second->feature_lidar)
             {
-                adapt::Problem problem;
-                association_->ScanToMapWithGround(pair_kf.second, map_frame, rpyxyz, problem);
-                ceres::Solver::Options options;
-                options.linear_solver_type = ceres::DENSE_QR;
-                options.max_num_iterations = 4;
-                options.num_threads = 4;
-                ceres::Solver::Summary summary;
-                ceres::Solve(options, &problem, &summary);
-                pair_kf.second->pose = rpyxyz2se3(rpyxyz) * map_frame->pose;
-                LOG(INFO) << "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!";
-                LOG(INFO) << summary.BriefReport();
-            }
-            if (!map_frame->feature_lidar->points_surf.empty())
-            {
-                adapt::Problem problem;
-                association_->ScanToMapWithSegmented(pair_kf.second, map_frame, rpyxyz, problem);
-                ceres::Solver::Options options;
-                options.linear_solver_type = ceres::DENSE_QR;
-                options.max_num_iterations = 4;
-                options.num_threads = 4;
-                ceres::Solver::Summary summary;
-                ceres::Solve(options, &problem, &summary);
-                pair_kf.second->pose = rpyxyz2se3(rpyxyz) * map_frame->pose;
-                LOG(INFO) << "^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^";
-                LOG(INFO) << summary.BriefReport();
+                double rpyxyz[6];
+                se32rpyxyz(map_frame->pose.inverse() * pair_kf.second->pose, rpyxyz); // relative_i_j
+                if (!map_frame->feature_lidar->points_ground.empty())
+                {
+                    adapt::Problem problem;
+                    association_->ScanToMapWithGround(pair_kf.second, map_frame, rpyxyz, problem);
+                    ceres::Solver::Options options;
+                    options.linear_solver_type = ceres::DENSE_QR;
+                    options.max_num_iterations = 4;
+                    options.num_threads = num_threads;
+                    ceres::Solver::Summary summary;
+                    ceres::Solve(options, &problem, &summary);
+                    pair_kf.second->pose = map_frame->pose * rpyxyz2se3(rpyxyz);
+                }
+                if (!map_frame->feature_lidar->points_surf.empty())
+                {
+                    adapt::Problem problem;
+                    association_->ScanToMapWithSegmented(pair_kf.second, map_frame, rpyxyz, problem);
+                    ceres::Solver::Options options;
+                    options.linear_solver_type = ceres::DENSE_QR;
+                    options.max_num_iterations = 4;
+                    options.num_threads = num_threads;
+                    ceres::Solver::Summary summary;
+                    ceres::Solve(options, &problem, &summary);
+                    pair_kf.second->pose = map_frame->pose * rpyxyz2se3(rpyxyz);
+                }
             }
         }
+        SE3d new_pose = pair_kf.second->pose;
+        SE3d transform = new_pose * old_pose.inverse();
+        PoseGraph::Instance().Propagate(transform, Frames(++active_kfs.find(pair_kf.first), active_kfs.end()));
+
         ToWorld(pair_kf.second);
 
         auto t2 = std::chrono::steady_clock::now();
@@ -134,7 +138,7 @@ void Mapping::MergeScan(const PointICloud &in, SE3d Twc, PointICloud &out)
 {
     Sophus::SE3f tf_se3 = Twc.cast<float>();
     float *tf = tf_se3.data();
-    for (auto point_in : in)
+    for (auto &point_in : in)
     {
         PointI point_out;
         ceres::SE3TransformPoint(tf, point_in.data, point_out.data);
@@ -162,7 +166,7 @@ void Mapping::ToWorld(Frame::Ptr frame)
 PointRGBCloud Mapping::GetGlobalMap()
 {
     PointRGBCloud global_map;
-    for (auto pair_pc : pointclouds_color)
+    for (auto &pair_pc : pointclouds_color)
     {
         auto &pointcloud = pair_pc.second;
         global_map.insert(global_map.end(), pointcloud.begin(), pointcloud.end());
@@ -177,6 +181,60 @@ PointRGBCloud Mapping::GetGlobalMap()
         voxel_filter.filter(global_map);
     }
     return global_map;
+}
+
+int Mapping::Relocate(Frame::Ptr last_frame, Frame::Ptr current_frame, SE3d &relative_o_c)
+{
+    // init relative pose
+    Frame::Ptr clone_frame = Frame::Ptr(new Frame());
+    *clone_frame = *current_frame;
+    clone_frame->pose = last_frame->pose * clone_frame->loop_closure->relative_o_c;
+
+    // build two pointclouds
+    Frame::Ptr old_frame_prev = Map::Instance().GetKeyFrames(0, last_frame->time, 1).begin()->second;
+    Frame::Ptr old_frame_subs = Map::Instance().GetKeyFrames(last_frame->time, 0, 1).begin()->second;
+    Frames old_frames = {{last_frame->time, last_frame}, {old_frame_prev->time, old_frame_prev}, {old_frame_subs->time, old_frame_subs}};
+    Frame::Ptr map_frame = Frame::Ptr(new Frame());
+    BuildOldMapFrame(old_frames, map_frame);
+
+    // optimize
+    double score_ground, score_surf;
+    for (int i = 0; i < 4; i++)
+    {
+        double rpyxyz[6];
+        se32rpyxyz(map_frame->pose.inverse() * clone_frame->pose, rpyxyz); // relative_i_j
+        if (!map_frame->feature_lidar->points_ground.empty())
+        {
+            adapt::Problem problem;
+            association_->ScanToMapWithGround(clone_frame, map_frame, rpyxyz, problem);
+            ceres::Solver::Options options;
+            options.linear_solver_type = ceres::DENSE_QR;
+            options.max_num_iterations = 1;
+            options.num_threads = num_threads;
+            ceres::Solver::Summary summary;
+            ceres::Solve(options, &problem, &summary);
+            clone_frame->pose = map_frame->pose * rpyxyz2se3(rpyxyz) ;
+            score_ground = std::min((double)summary.num_residual_blocks_reduced / 10, 20.0);
+            score_ground -= 2 * summary.final_cost / summary.num_residual_blocks_reduced;
+        }
+        if (!map_frame->feature_lidar->points_surf.empty())
+        {
+            adapt::Problem problem;
+            association_->ScanToMapWithSegmented(clone_frame, map_frame, rpyxyz, problem);
+            ceres::Solver::Options options;
+            options.linear_solver_type = ceres::DENSE_QR;
+            options.max_num_iterations = 1;
+            options.num_threads = num_threads;
+            ceres::Solver::Summary summary;
+            ceres::Solve(options, &problem, &summary);
+            clone_frame->pose = map_frame->pose * rpyxyz2se3(rpyxyz) ;
+            score_surf = std::min((double)summary.num_residual_blocks_reduced / 10, 30.0);
+            score_surf -= 2 * summary.final_cost / summary.num_residual_blocks_reduced;
+        }
+    }
+
+    relative_o_c = last_frame->pose.inverse() * clone_frame->pose;
+    return score_ground + score_surf;
 }
 
 } // namespace lvio_fusion

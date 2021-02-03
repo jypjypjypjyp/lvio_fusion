@@ -19,59 +19,85 @@ class Preintegration
 public:
     typedef std::shared_ptr<Preintegration> Ptr;
 
-    static Preintegration::Ptr Create(Bias bias)
+    // static Preintegration::Ptr Create(Bias bias)
+    // {
+    //     Preintegration::Ptr new_preintegration(new Preintegration(bias));
+    //     return new_preintegration;
+    // }
+    static Preintegration::Ptr Create(const Bias b_)
     {
-        Preintegration::Ptr new_preintegration(new Preintegration(bias));
+        Preintegration::Ptr new_preintegration(new Preintegration( b_.linearized_ba, b_.linearized_bg));
         return new_preintegration;
     }
+    void Append(double dt, const Vector3d &acc, const Vector3d &gyr,const Vector3d &acc0_, const Vector3d &gyr0_)
+    {
+        if(dt_buf.size()==0){
+            acc0=acc0_;
+            gyr0=gyr0_;
+            linearized_acc=acc0_;
+            linearized_gyr=gyr0_;
+        }
+        dt_buf.push_back(dt);
+        acc_buf.push_back(acc);
+        gyr_buf.push_back(gyr);
+        Propagate(dt, acc, gyr);
+    }
+    void MidPointIntegration(double _dt,
+                             const Vector3d &_acc_0, const Vector3d &_gyr_0,
+                             const Vector3d &_acc_1, const Vector3d &_gyr_1,
+                             const Vector3d &delta_p, const Quaterniond &delta_q, const Vector3d &delta_v,
+                             const Vector3d &linearized_ba, const Vector3d &linearized_bg,
+                             Vector3d &result_delta_p, Quaterniond &result_delta_q, Vector3d &result_delta_v,
+                             Vector3d &result_linearized_ba, Vector3d &result_linearized_bg, bool update_jacobian);
 
-    void IntegrateNewMeasurement(const Vector3d &acceleration, const Vector3d  &angVel, const double &dt);
-    void Initialize(const Bias &b_);
+    void Propagate(double _dt, const Vector3d &_acc_1, const Vector3d &_gyr_1);
+void Repropagate(const Vector3d &_linearized_ba, const Vector3d &_linearized_bg);
+
+ 
+
+ Matrix<double, 15, 1> Evaluate(const Vector3d &Pi, const Quaterniond &Qi, const Vector3d &Vi, const Vector3d &Bai, const Vector3d &Bgi,
+                                   const Vector3d &Pj, const Quaterniond &Qj, const Vector3d &Vj, const Vector3d &Baj, const Vector3d &Bgj);
+
+ Matrix<double, 15, 1> Evaluate(const Vector3d &Pi, const Quaterniond &Qi, const Vector3d &Vi, const Vector3d &Bai, const Vector3d &Bgi,
+                                   const Vector3d &Pj, const Quaterniond &Qj, const Vector3d &Vj, const Vector3d &Baj, const Vector3d &Bgj,const Quaterniond &Rg);
+
+
+
+
     Vector3d GetUpdatedDeltaVelocity();
     void SetNewBias(const Bias &bu_);
-    Matrix3d GetUpdatedDeltaRotation();
+    Quaterniond GetUpdatedDeltaRotation();
     Vector3d GetUpdatedDeltaPosition();
-    Matrix3d GetDeltaRotation(const Bias &b_);
+    Quaterniond GetDeltaRotation(const Bias &b_);
     Vector3d GetDeltaVelocity(const Bias &b_);
     Vector3d  GetDeltaPosition(const Bias &b_);
-
     Bias GetDeltaBias(const Bias &b_);
-    void Reintegrate();
 
     std::vector<double> dt_buf;
     std::vector<Vector3d> acc_buf;
     std::vector<Vector3d> gyr_buf;
-
-
-
-    double dT;
-    Matrix<double,15,15> C;   //cov
-    Matrix<double, 6, 6> Nga, NgaWalk;
-    Bias b;
-    Matrix3d dR;
-    Vector3d dV, dP;
-    Matrix3d JRg, JVg, JVa, JPg, JPa; 
-    Vector3d avgA;
-    Vector3d avgW;
+    double dt;
+    Vector3d acc0, gyr0;
+    Vector3d acc1, gyr1;
+    Vector3d linearized_acc, linearized_gyr;
+    Vector3d linearized_ba, linearized_bg;
+    Matrix<double, 15, 15> jacobian, covariance;
+    Matrix<double, 15, 15> step_jacobian;
+    Matrix<double, 15, 18> step_V;
+    Matrix<double, 18, 18> noise;
+    double sum_dt;
+    Vector3d delta_p;
+    Quaterniond delta_q;
+    Vector3d delta_v;
+    Vector3d v0;
     Bias bu;
     Matrix<double,6,1> delta_bias;
 
-    bool isPreintegrated;
+    bool isBad=false;
+    
 private:
-    Preintegration(){Initialize(Bias(0,0,0,0,0,0));};
-
-    Preintegration(const Bias &b_)
-    {
-        Nga.setZero();
-        NgaWalk.setZero();
-        Nga.block<3,3>(0,0)= (Imu::Get()->GYR_N * Imu::Get()->GYR_N) * Matrix3d::Identity();
-        Nga.block<3,3>(3,3)= (Imu::Get()->ACC_N * Imu::Get()->ACC_N) * Matrix3d::Identity();
-        NgaWalk.block<3,3>(0,0)=(Imu::Get()->GYR_W * Imu::Get()->GYR_W) * Matrix3d::Identity();
-        NgaWalk.block<3,3>(3,3)= (Imu::Get()->ACC_W * Imu::Get()->ACC_W) * Matrix3d::Identity();
-        Initialize(b_);
-        isPreintegrated=false;
-    }
-
+        Preintegration() = default;
+     Preintegration(const Vector3d &_linearized_ba, const Vector3d &_linearized_bg);
     struct integrable
     {
         integrable(const Vector3d &a_, const Vector3d &w_ , const double &t_):a(a_),w(w_),t(t_){}

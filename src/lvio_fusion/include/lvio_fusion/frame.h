@@ -1,6 +1,7 @@
 #ifndef lvio_fusion_FRAME_H
 #define lvio_fusion_FRAME_H
 
+#include "lvio_fusion/adapt/observation.h"
 #include "lvio_fusion/adapt/weights.h"
 #include "lvio_fusion/common.h"
 #include "lvio_fusion/imu/preintegration.h"
@@ -19,11 +20,15 @@ class Frame
 public:
     typedef std::shared_ptr<Frame> Ptr;
 
-      Frame():ImuBias(Bias(0,0,0,0,0,0)),Vw(Vector3d::Zero()){ }//NEWADD
+    Frame() {}
 
     void AddFeature(visual::Feature::Ptr feature);
 
     void RemoveFeature(visual::Feature::Ptr feature);
+
+    Observation GetObservation();
+
+    void Clear();
 
     //NOTE: semantic map
     void UpdateLabel();
@@ -38,9 +43,8 @@ public:
     visual::Features features_left;          // extracted features in left image
     visual::Features features_right;         // corresponding features in right image, only for this frame
     lidar::Feature::Ptr feature_lidar;       // extracted features in lidar point cloud
-    imu::Preintegration::Ptr preintegration; // imu pre integration from last key frame
-    imu::Preintegration::Ptr preintegrationFrame; // imu pre integration from last frame
-    
+    imu::Preintegration::Ptr preintegration; // imu pre integration
+    imu::Preintegration::Ptr preintegrationFrame; // imu pre integration from last frame NEWADD
     navsat::Feature::Ptr feature_navsat;     // navsat point
     cv::Mat descriptors;                     // orb descriptors
     loop::LoopClosure::Ptr loop_closure;     // loop closure
@@ -63,6 +67,8 @@ public:
     void SetNewBias(const Bias &bias_);
     void SetPose(const Matrix3d &Rwb_,const Vector3d  &twb_);
     //NEWADDEND
+
+
 private:
     //NOTE: semantic map
     LabelType GetLabelType(int x, int y);

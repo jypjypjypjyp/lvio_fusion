@@ -30,10 +30,10 @@ public:
         return devices_[id];
     }
 
-    void SetPoseGraph(PoseGraph::Ptr pose_graph) { pose_graph_ = pose_graph; }
-
     void AddPoint(double time, double x, double y, double z);
 
+    Vector3d GetFixPoint(Frame::Ptr frame);
+    Vector3d GetRawPoint(double time);
     Vector3d GetPoint(double time);
 
     Vector3d GetAroundPoint(double time);
@@ -42,6 +42,8 @@ public:
 
     bool initialized = false;
     std::map<double, Vector3d> raw;
+    double finished = 0;
+    Vector3d fix;
 
 private:
     Navsat() : Sensor(SE3d()) {}
@@ -50,9 +52,10 @@ private:
 
     void Initialize();
 
-    PoseGraph::Ptr pose_graph_;
+    void OptimizeRPY(Frame::Ptr frame, double time);
+    void OptimizeY(Frame::Ptr frame, double end, double time);
+    void OptimizeX(Frame::Ptr frame, double time);
 
-    double A_, B_, C_; // three points on the ground level
     static std::vector<Navsat::Ptr> devices_;
 };
 

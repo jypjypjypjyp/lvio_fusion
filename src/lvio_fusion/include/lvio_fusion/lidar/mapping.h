@@ -22,7 +22,11 @@ public:
 
     void MergeScan(const PointICloud &in, SE3d from_pose, PointICloud &out);
 
+    void BuildMapFrame(Frame::Ptr frame, Frame::Ptr map_frame);
+
     void ToWorld(Frame::Ptr frame);
+
+    int Relocate(Frame::Ptr last_frame, Frame::Ptr current_frame, SE3d &relative_o_c);
 
     PointRGBCloud GetGlobalMap();
 
@@ -31,8 +35,6 @@ public:
     std::map<double, PointICloud> pointclouds_ground;
 
 private:
-    void BuildMapFrame(Frame::Ptr frame, Frame::Ptr map_frame);
-
     void Color(const PointICloud &points_ground, const PointICloud &points_surf, Frame::Ptr frame, PointRGBCloud &out);
 
     FeatureAssociation::Ptr association_;

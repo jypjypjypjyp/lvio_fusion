@@ -7,6 +7,7 @@
 
 namespace lvio_fusion
 {
+
 class Map
 {
 public:
@@ -39,15 +40,14 @@ public:
         keyframes.clear();
     }
     //NEWADD
-     int GetAllKeyFramesSize(){return keyframes.size();}
-    Frame::Ptr current_frame;
     bool mapUpdated=false;
     void ApplyScaledRotation(const Matrix3d &R);
     //NEWADDEND
     std::mutex mutex_local_kfs;
     Frames keyframes;
     visual::Landmarks landmarks;
-    
+    bool end = false;
+
 private:
     Map() {}
     Map(const Map &);

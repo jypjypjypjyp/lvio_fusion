@@ -2,9 +2,12 @@
 #include "lvio_fusion/config.h"
 #include "lvio_fusion/frame.h"
 #include "lvio_fusion/manager.h"
+
 #include <opencv2/core/eigen.hpp>
+#include <sys/sysinfo.h>
 
 double epsilon = 1e-3;
+int num_threads = std::min(8, std::max(1, (int)(0.75 * get_nprocs())));
 
 namespace lvio_fusion
 {
@@ -12,8 +15,10 @@ namespace lvio_fusion
 Estimator::Estimator(std::string &config_path)
     : config_file_path_(config_path) {}
 
-bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, int is_semantic)
+bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, int use_adapt)
 {
+    LOG(INFO) << "System info:\n\tepsilon: " << epsilon << "\n\tnum_threads: " << num_threads;
+
     // read from config file
     if (!Config::SetParameterFile(config_file_path_))
     {
@@ -21,6 +26,7 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
     }
 
     // read camera intrinsics and extrinsics
+    bool undistort = Config::Get<int>("undistort");
     cv::Mat cv_base_to_cam0 = Config::Get<cv::Mat>("base_to_cam0");
     cv::Mat cv_base_to_cam1 = Config::Get<cv::Mat>("base_to_cam1");
     Matrix4d base_to_cam0, base_to_cam1;
@@ -31,34 +37,51 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
     Quaterniond q_base_to_cam0(R_base_to_cam0);
     Vector3d t_base_to_cam0(0, 0, 0);
     t_base_to_cam0 << base_to_cam0(0, 3), base_to_cam0(1, 3), base_to_cam0(2, 3);
-    Camera::Create(Config::Get<double>("camera1.fx"),
-                   Config::Get<double>("camera1.fy"),
-                   Config::Get<double>("camera1.cx"),
-                   Config::Get<double>("camera1.cy"),
-                   SE3d(q_base_to_cam0, t_base_to_cam0));
-    LOG(INFO) << "Camera 1"
-              << " extrinsics: " << t_base_to_cam0.transpose();
+    if (undistort)
+    {
+        Camera::Create(Config::Get<double>("camera0.fx"),
+                       Config::Get<double>("camera0.fy"),
+                       Config::Get<double>("camera0.cx"),
+                       Config::Get<double>("camera0.cy"),
+                       Config::Get<double>("camera0.k1"),
+                       Config::Get<double>("camera0.k2"),
+                       Config::Get<double>("camera0.p1"),
+                       Config::Get<double>("camera0.p2"),
+                       SE3d(q_base_to_cam0, t_base_to_cam0));
+    }
+    else
+    {
+        Camera::Create(Config::Get<double>("camera0.fx"),
+                       Config::Get<double>("camera0.fy"),
+                       Config::Get<double>("camera0.cx"),
+                       Config::Get<double>("camera0.cy"),
+                       SE3d(q_base_to_cam0, t_base_to_cam0));
+    }
     // second camera
     Matrix3d R_base_to_cam1(base_to_cam1.block(0, 0, 3, 3));
     Quaterniond q_base_to_cam1(R_base_to_cam1);
     Vector3d t_base_to_cam1(0, 0, 0);
     t_base_to_cam1 << base_to_cam1(0, 3), base_to_cam1(1, 3), base_to_cam1(2, 3);
-    Camera::Create(Config::Get<double>("camera2.fx"),
-                   Config::Get<double>("camera2.fy"),
-                   Config::Get<double>("camera2.cx"),
-                   Config::Get<double>("camera2.cy"),
-                   SE3d(q_base_to_cam1, t_base_to_cam1));
-    LOG(INFO) << "Camera 2"
-              << " extrinsics: " << t_base_to_cam1.transpose();
-    // NEWADD
-    //read imu
-        double acc_n= Config::Get<double>("acc_n");
-        double gyr_n= Config::Get<double>("gyr_n");
-        double acc_w= Config::Get<double>("acc_w");
-        double gyr_w= Config::Get<double>("gyr_w");
-        double g_norm= Config::Get<double>("g_norm");
-
-    //NEWADDEND
+    if (undistort)
+    {
+        Camera::Create(Config::Get<double>("camera1.fx"),
+                       Config::Get<double>("camera1.fy"),
+                       Config::Get<double>("camera1.cx"),
+                       Config::Get<double>("camera1.cy"),
+                       Config::Get<double>("camera1.k1"),
+                       Config::Get<double>("camera1.k2"),
+                       Config::Get<double>("camera1.p1"),
+                       Config::Get<double>("camera1.p2"),
+                       SE3d(q_base_to_cam1, t_base_to_cam1));
+    }
+    else
+    {
+        Camera::Create(Config::Get<double>("camera1.fx"),
+                       Config::Get<double>("camera1.fy"),
+                       Config::Get<double>("camera1.cx"),
+                       Config::Get<double>("camera1.cy"),
+                       SE3d(q_base_to_cam1, t_base_to_cam1));
+    }
     // create components and links
     frontend = Frontend::Ptr(new Frontend(
         Config::Get<int>("num_features"),
@@ -68,43 +91,44 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
         Config::Get<int>("num_features_needed_for_keyframe")));
 
     backend = Backend::Ptr(new Backend(
-        Config::Get<double>("delay")));
+        Config::Get<double>("windows_size"),
+        use_adapt));
 
     frontend->SetBackend(backend);
-    flags += Flag::Stereo;
-
     backend->SetFrontend(frontend);
 
-    pose_graph = PoseGraph::Ptr(new PoseGraph);
-    pose_graph->SetFrontend(frontend);
+    PoseGraph::Instance().SetFrontend(frontend);
 
     if (use_loop)
     {
-        detector = LoopDetector::Ptr(new LoopDetector(
-            Config::Get<std::string>("voc_path")));
-        detector->SetFrontend(frontend);
-        detector->SetBackend(backend);
-        detector->SetPoseGraph(pose_graph);
+        relocator = Relocator::Ptr(new Relocator(
+            Config::Get<int>("relocator_mode")));
+        relocator->SetBackend(backend);
     }
 
     if (use_navsat)
     {
         Navsat::Create();
-        Navsat::Get()->SetPoseGraph(pose_graph);
-        flags += Flag::GNSS;
     }
 
     if (use_imu)
     {
-        double sf= sqrt(100);
-        Imu::Create(SE3d(q_base_to_cam0, t_base_to_cam0),acc_n/sf,acc_w/sf,gyr_n/sf,gyr_w/sf,g_norm/sf);//NEWADD
+         // NEWADD
+        //read imu
+        double acc_n= Config::Get<double>("acc_n");
+        double gyr_n= Config::Get<double>("gyr_n");
+        double acc_w= Config::Get<double>("acc_w");
+        double gyr_w= Config::Get<double>("gyr_w");
+        double g_norm= Config::Get<double>("g_norm");
+        double sf= sqrt(1);
+        Imu::Create(SE3d(q_base_to_cam0, t_base_to_cam0),acc_n/sf,acc_w/sf,gyr_n/sf,gyr_w/sf,g_norm/sf);
         initializer = Initializer::Ptr(new Initializer);
-        //NEWADD
+
         frontend->ImuPreintegratedFromLastKF=imu::Preintegration::Create(Bias());
         initializer->SetFrontend(frontend);
         //NEWADDEND
+        initializer = Initializer::Ptr(new Initializer);
         backend->SetInitializer(initializer);
-        flags += Flag::IMU;
     }
 
     if (use_lidar)
@@ -135,21 +159,11 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
 
         backend->SetMapping(mapping);
 
-        if (detector)
+        if (relocator)
         {
-            detector->SetFeatureAssociation(association);
-            detector->SetMapping(mapping);
+            relocator->SetMapping(mapping);
         }
-
-        flags += Flag::Laser;
     }
-
-    // semantic map
-    if (is_semantic)
-    {
-        flags += Flag::Semantic;
-    }
-
     return true;
 }
 
@@ -157,8 +171,8 @@ void Estimator::InputImage(double time, cv::Mat &left_image, cv::Mat &right_imag
 {
     Frame::Ptr new_frame = Frame::Create();
     new_frame->time = time;
-    new_frame->image_left = left_image;
-    new_frame->image_right = right_image;
+    cv::undistort(left_image, new_frame->image_left, Camera::Get(0)->K, Camera::Get(0)->D);
+    cv::undistort(right_image, new_frame->image_right, Camera::Get(1)->K, Camera::Get(1)->D);
     new_frame->objects = objects;
 
     auto t1 = std::chrono::steady_clock::now();
@@ -166,7 +180,7 @@ void Estimator::InputImage(double time, cv::Mat &left_image, cv::Mat &right_imag
     auto t2 = std::chrono::steady_clock::now();
     auto time_used =
         std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);
-    //LOG(INFO) << "VO status:" << (success ? "success" : "failed") << ",VO cost time: " << time_used.count() << " seconds.";
+    LOG(INFO) << "VO status:" << (success ? "success" : "failed") << ",VO cost time: " << time_used.count() << " seconds.";
 }
 
 void Estimator::InputPointCloud(double time, Point3Cloud::Ptr point_cloud)

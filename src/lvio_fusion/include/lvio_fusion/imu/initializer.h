@@ -18,6 +18,10 @@ public:
     bool  estimate_Vel_Rwg(std::vector< Frame::Ptr > Key_frames);
     bool InitializeIMU( Frames keyframes,double priorA=1e6,double priorG=1e2);
     void SetFrontend(std::shared_ptr<Frontend>  frontend) { frontend_ = frontend; }
+    //NEWADD
+ Vector3d ComputeGyroBias(const Frames &frames);
+ Vector3d ComputeVelocitiesAccBias(const Frames &frames);
+//NEWADDEND
     std::weak_ptr<Frontend> frontend_;
     bool initialized = false;//是否初始化完成
     bool bimu=false;//是否经过imu尺度优化
@@ -28,7 +32,7 @@ public:
     Eigen::Vector3d bg;
     Eigen::Vector3d ba;
     double Scale;                  //尺度
-    double FirstTs;   /// 用于imu初始化第一个可用关键帧的时间
+
 
 private:
     Vector3d g_;

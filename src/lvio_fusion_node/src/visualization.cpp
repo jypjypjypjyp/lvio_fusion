@@ -3,8 +3,6 @@
 
 #include <pcl_conversions/pcl_conversions.h>
 
-using namespace Eigen;
-
 ros::Publisher pub_path;
 ros::Publisher pub_navsat;
 ros::Publisher pub_points_cloud;
@@ -21,14 +19,14 @@ void register_pub(ros::NodeHandle &n)
 
 void publish_odometry(Estimator::Ptr estimator, double time)
 {
-    if (estimator->frontend->status == FrontendStatus::TRACKING_GOOD||estimator->frontend->status == FrontendStatus::INITIALIZING)
+    if (estimator->frontend->status == FrontendStatus::TRACKING_GOOD)
     {
         path.poses.clear();
-        for (auto frame : lvio_fusion::Map::Instance().keyframes)
+        for (auto &pair : lvio_fusion::Map::Instance().keyframes)
         {
-            auto pose = frame.second->pose;
+            auto pose = pair.second->pose;
             geometry_msgs::PoseStamped pose_stamped;
-            pose_stamped.header.stamp = ros::Time(frame.first);
+            pose_stamped.header.stamp = ros::Time(pair.first);
             pose_stamped.header.frame_id = "world";
             pose_stamped.pose.position.x = pose.translation().x();
             pose_stamped.pose.position.y = pose.translation().y();
@@ -38,11 +36,11 @@ void publish_odometry(Estimator::Ptr estimator, double time)
             pose_stamped.pose.orientation.y = pose.unit_quaternion().y();
             pose_stamped.pose.orientation.z = pose.unit_quaternion().z();
             path.poses.push_back(pose_stamped);
-            if (frame.second->loop_closure)
+            if (pair.second->loop_closure)
             {
-                auto position = frame.second->loop_closure->frame_old->pose.translation();
+                auto position = pair.second->loop_closure->frame_old->pose.translation();
                 geometry_msgs::PoseStamped pose_stamped_loop;
-                pose_stamped_loop.header.stamp = ros::Time(frame.first);
+                pose_stamped_loop.header.stamp = ros::Time(pair.first);
                 pose_stamped_loop.header.frame_id = "world";
                 pose_stamped_loop.pose.position.x = position.x();
                 pose_stamped_loop.pose.position.y = position.y();
@@ -60,14 +58,14 @@ void publish_odometry(Estimator::Ptr estimator, double time)
 void publish_navsat(Estimator::Ptr estimator, double time)
 {
     auto navsat = Navsat::Get();
-    static double head = 0;
+    static double finished = 0;
     static int i = 0;
     if (navsat->initialized)
     {
-        auto iter = navsat->raw.lower_bound(head);
+        auto iter = navsat->raw.upper_bound(finished);
         while (++iter != navsat->raw.end())
         {
-            if (++i % 100 == 0)
+            if (++i % 10 == 0)
             {
                 geometry_msgs::PoseStamped pose_stamped;
                 Vector3d point = navsat->GetPoint(iter->first);
@@ -79,7 +77,7 @@ void publish_navsat(Estimator::Ptr estimator, double time)
                 navsat_path.poses.push_back(pose_stamped);
             }
         }
-        head = (--iter)->first;
+        finished = (--iter)->first;
         navsat_path.header.stamp = ros::Time(time);
         navsat_path.header.frame_id = "world";
         pub_navsat.publish(navsat_path);
@@ -93,7 +91,7 @@ void publish_tf(Estimator::Ptr estimator, double time)
     tf::Quaternion tf_q;
     tf::Vector3 tf_t;
     // base_link
-    if (estimator->frontend->status == FrontendStatus::TRACKING_GOOD||estimator->frontend->status == FrontendStatus::INITIALIZING)
+    if (estimator->frontend->status == FrontendStatus::TRACKING_GOOD)
     {
         SE3d pose = estimator->frontend->current_frame->pose;
         Quaterniond pose_q = pose.unit_quaternion();

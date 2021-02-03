@@ -1,0 +1,6 @@
+evo==1.13.1
+gym==0.17.3
+tianshou==0.3.0.post1
+torch==1.7.1
+catkin-tools
+rospkg

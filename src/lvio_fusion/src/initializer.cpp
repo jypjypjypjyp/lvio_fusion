@@ -7,150 +7,23 @@
 #include <ceres/ceres.h>
 namespace lvio_fusion
 {
- bool showGSIMU(const  double *  parameters0,const  double *  parameters1,const  double *  parameters2,const  double *  parameters3,const  double *  parameters4,imu::Preintegration::Ptr mpInt,SE3d current_pose,SE3d last_pose,double time)  
-    {
-    //    Quaterniond Qi(last_pose.rotationMatrix());
-       Matrix3d Qi=last_pose.rotationMatrix();
-        Vector3d Pi=last_pose.translation();
-        Vector3d Vi(parameters0[0], parameters0[1], parameters0[2]);
-       Matrix3d Qj=current_pose.rotationMatrix();
-        // Quaterniond Qj(current_pose.rotationMatrix());
-        Vector3d Pj=current_pose.translation();
-        Vector3d Vj(parameters1[0], parameters1[1], parameters1[2]);
-        Vector3d gyroBias(parameters2[0], parameters2[1], parameters2[2]);
-        Vector3d accBias(parameters3[0], parameters3[1], parameters3[2]);
-        Quaterniond rwg(parameters4[3],parameters4[0], parameters4[1], parameters4[2]);
-        // double Scale=parameters[5][0];
-        double Scale=1.0;
-        double dt=(mpInt->dT);
-        // Eigen::AngleAxisd rollAngle(AngleAxisd(eulerAngle(0),Vector3d::UnitX()));
-        // Eigen::AngleAxisd pitchAngle(AngleAxisd(eulerAngle(1),Vector3d::UnitY()));
-        // Eigen::AngleAxisd yawAngle(AngleAxisd(eulerAngle(2),Vector3d::UnitZ()));
-        Matrix3d Rwg=rwg.toRotationMatrix();
-       // LOG(INFO)<<Rwg;
-        // Rwg= yawAngle*pitchAngle*rollAngle;
-        Vector3d g;
-         g<< 0, 0, -G;
-         g=Rwg*g;
-        Matrix3d tcb;
-            tcb<<0.0148655429818, -0.999880929698, 0.00414029679422,
-            0.999557249008, 0.0149672133247, 0.025715529948,
-            -0.0257744366974, 0.00375618835797, 0.999660727178;
-        // LOG(INFO)<<"G  "<<(g).transpose()<<"Rwg"<<parameters4[0]<<" "<< parameters4[1]<<" "<< parameters4[2]<<" "<<parameters4[3];
-        const Bias  b1(accBias(0,0),accBias(1,0),accBias(2,0),gyroBias(0,0),gyroBias(1,0),gyroBias(2,0));
-        Matrix3d dR = (mpInt->GetDeltaRotation(b1));
-        Vector3d dV = (mpInt->GetDeltaVelocity(b1));
-        Vector3d dP =(mpInt->GetDeltaPosition(b1));
-        Quaterniond corrected_delta_q(dR);
-       const Vector3d er=  LogSO3(dR.transpose()*Qi.transpose()*Qj);
-        // const Vector3d er =  2 * (corrected_delta_q.inverse() * (Qi.inverse() * Qj)).vec();
-        const Vector3d ev = Qi.inverse()*(Scale*(Vj - Vi) - g*dt) - dV;
-        const Vector3d ep = Qi.inverse()*(Scale*(Pj - Pi - Vi*dt) - g*dt*dt/2) - dP;
-        
-  Matrix<double, 9, 1> residual;
-        residual<<er,ev,ep;
-        //         LOG(INFO)<<"\nInertialGSError residual "<<residual.transpose()<<"   "<<time;
-        // LOG(INFO)<<"\ndV "<<dV.transpose()<< "  dP "<<dP.transpose()<<"\ndR\n"<<dR;
-        // LOG(INFO)<<"\nQi\n"<</*tcb.inverse()*/Qi;
-        // LOG(INFO)<<"\nQj\n"<</*tcb.inverse()*/Qj;
-
-        // LOG(INFO)<<"BA "<<b1.linearized_ba.transpose()<<" BG "<<b1.linearized_bg.transpose();
-    //    LOG(INFO)<<"\nInertialGSError residual :  er "<<residual.transpose()<<" dT "<<mpInt->dT;
-    //            LOG(INFO)<<"\ndV "<<dV.transpose()<< "  dP "<<dP.transpose()<<"\ndR\n"<<dR;
-    //     LOG(INFO)<<"\nQi"<<tcb.inverse()*Qi;
-           Matrix<double ,9,9> Info=mpInt->C.block<9,9>(0,0).inverse();
-         Info = (Info+Info.transpose())/2;
-         Eigen::SelfAdjointEigenSolver<Eigen::Matrix<double,9,9> > es(Info);
-         Eigen::Matrix<double,9,1> eigs = es.eigenvalues();
-         for(int i=0;i<9;i++)
-             if(eigs[i]<1e-12)
-                 eigs[i]=0;
-         Matrix<double, 9,9> sqrt_info = es.eigenvectors()*eigs.asDiagonal()*es.eigenvectors().transpose();
-    //   Matrix<double, 9,9> sqrt_info =LLT<Matrix<double, 9, 9>>(mpInt->C.block<9,9>(0,0).inverse()).matrixL().transpose();
-        //sqrt_info/=InfoScale;
-      //  assert(residual[0]<10&&residual[1]<10&&residual[2]<10&&residual[3]<10&&residual[4]<10&&residual[5]<10&&residual[6]<10&&residual[7]<10&&residual[8]<10);
-      //LOG(INFO)<<sqrt_info;
-        residual = sqrt_info* residual;
-    //    LOG(INFO)<<"InertialGSError sqrt_info* residual :  er "<<residual.transpose()<<" dT "<<mpInt->dT;
-    //     LOG(INFO)<<"                Qi "<<Qi.eulerAngles(0,1,2).transpose()<<" Qj "<<Qj.eulerAngles(0,1,2).transpose()<<"dQ"<<dR.eulerAngles(0,1,2).transpose();
-    //     LOG(INFO)<<"                Pi "<<Pi.transpose()<<" Pj "<<Pj.transpose()<<"dP"<<dP.transpose();
-    //     LOG(INFO)<<"                Vi "<<Vi.transpose()<<" Vj "<<Vj.transpose()<<"dV"<<dV.transpose();
-    //      LOG(INFO)<<"                 Bai "<< accBias.transpose()<<"  Bgi "<<  gyroBias.transpose();
-
-            Bias delta_bias=mpInt->GetDeltaBias(b1);
-            Vector3d dbg=delta_bias.linearized_bg;
-            Matrix3d Rwb1 =Qi;
-            Matrix3d Rbw1 = Rwb1.transpose();
-            Matrix3d Rwb2 = Qj;
-            MatrixXd Gm = MatrixXd::Zero(3,2);
-            Gm(0,1) = -G;
-            Gm(1,0) = G;
-            double s = Scale;
-            Eigen::MatrixXd dGdTheta = Rwg*Gm;
-            Eigen::Matrix3d eR = dR.transpose()*Rbw1*Rwb2;
-            Eigen::Vector3d er_ = LogSO3(eR);
-            Eigen::Matrix3d invJr = InverseRightJacobianSO3(er_);
-             Matrix3d JRg=mpInt->JRg;
-            Matrix3d JVg=mpInt->JVg;
-            Matrix3d JPg=mpInt->JPg;
-            Matrix3d JVa=mpInt->JVa;
-            Matrix3d JPa=mpInt->JPa;
-                Matrix<double, 9, 3, RowMajor> jacobian_v_i;
-                jacobian_v_i.setZero();
-                jacobian_v_i.block<3, 3>(3,0)=-s*Rbw1;
-                jacobian_v_i.block<3, 3>(6,0)= -s*Rbw1*dt;
-                //jacobian_v_i=sqrt_info *jacobian_v_i;
-    LOG(INFO)<<"\njacobian_v_i"<<jacobian_v_i;
-                Matrix<double, 9, 3, RowMajor> jacobian_v_j;
-                jacobian_v_j.setZero();
-                jacobian_v_j.block<3, 3>(3,0)= s*Rbw1;
-                //jacobian_v_j=sqrt_info *jacobian_v_j;
-    LOG(INFO)<<"\njacobian_v_j"<<jacobian_v_j;
-                Matrix<double, 9, 3, RowMajor> jacobian_bg;
-                jacobian_bg.setZero();
-                jacobian_bg.block<3, 3>(0,0)= -invJr*eR.transpose()*RightJacobianSO3(JRg*dbg)*JRg;
-                jacobian_bg.block<3, 3>(3,0)=-JVg;
-                jacobian_bg.block<3, 3>(6,0)=-JPg;
-                //jacobian_bg=sqrt_info *jacobian_bg;
-    LOG(INFO)<<"\njacobian_bg"<<jacobian_bg;
-                Matrix<double, 9, 3, RowMajor> jacobian_ba;
-                jacobian_ba.setZero();
-                jacobian_ba.block<3, 3>(3,0)=-JVa;
-                jacobian_ba.block<3, 3>(6,0)=-JPa;
-                //jacobian_ba=sqrt_info *jacobian_ba;
-    LOG(INFO)<<"\njacobian_ba"<<jacobian_ba;
-                Matrix<double, 9,4, RowMajor> jacobian_Rwg;
-                jacobian_Rwg.setZero();
-                jacobian_Rwg.block<3,2>(3,0) = -Rbw1*dGdTheta*dt;
-                jacobian_Rwg.block<3,2>(6,0) = -0.5*Rbw1*dGdTheta*dt*dt;
-                //jacobian_Rwg=sqrt_info *jacobian_Rwg;
-    LOG(INFO)<<"\n jacobian_Rwg"<<jacobian_Rwg;
-        return true;
-    }
-
+/*
 
 Bias InertialOptimization(Frames &key_frames, Eigen::Matrix3d &Rwg, double &scale, Eigen::Vector3d &bg, Eigen::Vector3d &ba, double priorG, double priorA)   
 {
     ceres::Problem problem;
-
+    ceres::CostFunction *cost_function ;
     //先验BIAS约束
-    auto para_gyroBias=key_frames.begin()->second->ImuBias.linearized_bg.data();
-    problem.AddParameterBlock(para_gyroBias, 3);
-    ceres::CostFunction *cost_function = PriorGyroError2::Create(Vector3d::Zero(),priorG);
-    problem.AddResidualBlock(cost_function,NULL,para_gyroBias);
+    // auto para_gyroBias=key_frames.begin()->second->ImuBias.linearized_bg.data();
+    // problem.AddParameterBlock(para_gyroBias, 3);
 
-    auto para_accBias=key_frames.begin()->second->ImuBias.linearized_ba.data();
-    problem.AddParameterBlock(para_accBias, 3);
-    cost_function = PriorAccError2::Create(Vector3d::Zero(),priorA);
-    problem.AddResidualBlock(cost_function,NULL,para_accBias);
-    
+    // auto para_accBias=key_frames.begin()->second->ImuBias.linearized_ba.data();
+    // problem.AddParameterBlock(para_accBias, 3);
+
     //优化重力、BIAS和速度的边
     Quaterniond rwg(Rwg);
-    //LOG(INFO)<<rwg.w()<<" "<<rwg.x()<<" "<<rwg.y()<<" "<<rwg.z();
     SO3d RwgSO3(rwg);
-//LOG(INFO)<<rwg.toRotationMatrix();
     auto para_rwg=RwgSO3.data();
-    //LOG(INFO)<<para_rwg[0]<<" "<<para_rwg[1]<<" "<<para_rwg[2]<<" "<<para_rwg[3];
 
         ceres::LocalParameterization *local_parameterization = new ceres::EigenQuaternionParameterization();
     problem.AddParameterBlock(para_rwg, SO3d::num_parameters,local_parameterization);
@@ -159,27 +32,25 @@ Bias InertialOptimization(Frames &key_frames, Eigen::Matrix3d &Rwg, double &scal
     for(Frames::iterator iter = key_frames.begin(); iter != key_frames.end(); iter++)
     {
         current_frame=iter->second;
-        if (!current_frame->last_keyframe||!current_frame->preintegration->isPreintegrated)
+        if (!current_frame->last_keyframe||current_frame->preintegration==nullptr)
         {
             last_frame=current_frame;
             continue;
         }
         auto para_v = current_frame->Vw.data();
+        auto para_accBias=current_frame->ImuBias.linearized_ba.data();
+        auto para_gyroBias=current_frame->ImuBias.linearized_bg.data();
         problem.AddParameterBlock(para_v, 3);   
-
+        problem.AddParameterBlock(para_gyroBias, 3);   
+        problem.AddParameterBlock(para_accBias, 3);   
         if (last_frame)
         {
             auto para_v_last = last_frame->Vw.data();
-            cost_function = InertialGSError2::Create(current_frame->preintegration,current_frame->pose,last_frame->pose);
-            problem.AddResidualBlock(cost_function, NULL,para_v_last,  para_v,para_gyroBias,para_accBias,para_rwg);
-           //LOG(INFO)<<current_frame->preintegration->dV.transpose();
-
+                    auto para_accBias_last=last_frame->ImuBias.linearized_ba.data();
+        auto para_gyroBias_last=last_frame->ImuBias.linearized_bg.data();
+            cost_function = ImuErrorG_::Create(current_frame->preintegration,current_frame->pose,last_frame->pose);
+            problem.AddResidualBlock(cost_function, NULL,para_v_last,para_accBias_last,para_gyroBias_last,para_v,para_accBias,para_gyroBias,para_rwg);
            // showGSIMU(para_v_last,  para_v,para_gyroBias,para_accBias,para_rwg,current_frame->preintegration,current_frame->pose,last_frame->pose,current_frame->time-1.40364e+09+8.60223e+07);
-                // LOG(INFO)<<"InertialOptimization ckf: "<<current_frame->id<<"  lkf: "<<last_frame->id<<"  t"<<current_frame->preintegration->dT;
-                // LOG(INFO)<<"     current pose: "<<current_frame->pose.translation().transpose(); 
-                // LOG(INFO)<<"     last pose: "<<last_frame->pose.translation().transpose();
-                // LOG(INFO)<<"     current velocity: "<<current_frame->Vw.transpose();
-                // LOG(INFO)<<"     last  velocity: "<<last_frame->Vw.transpose();
         }
         last_frame = current_frame;
     }
@@ -192,23 +63,96 @@ Bias InertialOptimization(Frames &key_frames, Eigen::Matrix3d &Rwg, double &scal
     options.num_threads = 4;
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
-    std::this_thread::sleep_for(std::chrono::seconds(3));
+     LOG(INFO)<<summary.FullReport();
+   // std::this_thread::sleep_for(std::chrono::seconds(3));
 
     //数据恢复
-    // Eigen::AngleAxisd rollAngle(AngleAxisd(rwg(0),Vector3d::UnitX()));
-    // Eigen::AngleAxisd pitchAngle(AngleAxisd(rwg(1),Vector3d::UnitY()));
-    // Eigen::AngleAxisd yawAngle(AngleAxisd(rwg(2),Vector3d::UnitZ()));
-    // Rwg= yawAngle*pitchAngle*rollAngle;
     Quaterniond rwg2(RwgSO3.data()[3],RwgSO3.data()[0],RwgSO3.data()[1],RwgSO3.data()[2]);
         Rwg=rwg2.toRotationMatrix();
-        Vector3d g;
-         g<< 0, 0, -G;
-         g=Rwg*g;
-                        Matrix3d tcb;
-            tcb<<0.0148655429818, -0.999880929698, 0.00414029679422,
-            0.999557249008, 0.0149672133247, 0.025715529948,
-            -0.0257744366974, 0.00375618835797, 0.999660727178;
-    //   LOG(INFO)<<"OPTG "<<(g).transpose()<<"Rwg"<<RwgSO3.data()[0]<<" "<<RwgSO3.data()[1]<<" "<<RwgSO3.data()[2]<<" "<<RwgSO3.data()[3];
+    // Bias bias_(para_accBias[0],para_accBias[1],para_accBias[2],para_gyroBias[0],para_gyroBias[1],para_gyroBias[2]);
+    // bg << para_gyroBias[0],para_gyroBias[1],para_gyroBias[2];
+    // ba <<para_accBias[0],para_accBias[1],para_accBias[2];
+    for(Frames::iterator iter = key_frames.begin(); iter != key_frames.end(); iter++)
+    {
+        current_frame=iter->second;
+        Vector3d dbg=current_frame->GetGyroBias()-bg;
+        if(dbg.norm() >0.01)
+        {
+            current_frame->SetNewBias(current_frame->GetImuBias());
+            current_frame->preintegration->Repropagate(current_frame->GetImuBias().linearized_ba,current_frame->GetImuBias().linearized_bg);
+        }
+       else
+        {
+            current_frame->SetNewBias(current_frame->GetImuBias());
+        }     
+
+        LOG(INFO)<<"InertialOptimization  "<<current_frame->time-1.40364e+09+8.60223e+07<<"   Vwb1  "<<current_frame->Vw.transpose()<<"  Pose  "<<current_frame->pose.translation().transpose();//<<"\nR: \n"<<tcb.inverse()*current_frame->pose.rotationMatrix();
+   LOG(INFO)<<"BIAS   a "<<current_frame->GetImuBias().linearized_ba.transpose()<<" g "<<current_frame->GetImuBias().linearized_bg.transpose();
+
+    }
+  //  LOG(INFO)<<"BIAS   a "<<bias_.linearized_ba.transpose()<<" g "<<bias_.linearized_bg.transpose();
+    
+    return Bias();
+}
+*/
+
+void InertialOptimization(Frames &key_frames, Eigen::Matrix3d &Rwg, double &scale, Eigen::Vector3d &bg, Eigen::Vector3d &ba, double priorG, double priorA)   
+{
+    ceres::Problem problem;
+    ceres::CostFunction *cost_function ;
+    //先验BIAS约束
+    auto para_gyroBias=key_frames.begin()->second->ImuBias.linearized_bg.data();
+    problem.AddParameterBlock(para_gyroBias, 3);
+
+    auto para_accBias=key_frames.begin()->second->ImuBias.linearized_ba.data();
+    problem.AddParameterBlock(para_accBias, 3);
+
+    //优化重力、BIAS和速度的边
+    Quaterniond rwg(Rwg);
+    SO3d RwgSO3(rwg);
+    auto para_rwg=RwgSO3.data();
+    
+        ceres::LocalParameterization *local_parameterization = new ceres::EigenQuaternionParameterization();
+    problem.AddParameterBlock(para_rwg, SO3d::num_parameters,local_parameterization);
+    //problem.SetParameterBlockConstant(para_rwg);
+    Frame::Ptr last_frame;
+    Frame::Ptr current_frame;
+    for(Frames::iterator iter = key_frames.begin(); iter != key_frames.end(); iter++)
+    {
+        current_frame=iter->second;
+        if (!current_frame->last_keyframe||current_frame->preintegration==nullptr)
+        {
+            last_frame=current_frame;
+            continue;
+        }
+        auto para_v = current_frame->Vw.data();
+        problem.AddParameterBlock(para_v, 3);   
+
+        if (last_frame)
+        {
+            auto para_v_last = last_frame->Vw.data();
+            cost_function = ImuErrorG::Create(current_frame->preintegration,current_frame->pose,last_frame->pose,priorA,priorG);
+            problem.AddResidualBlock(cost_function, NULL,para_v_last,para_accBias,para_gyroBias,para_v,para_rwg);
+           // showGSIMU(para_v_last,  para_v,para_gyroBias,para_accBias,para_rwg,current_frame->preintegration,current_frame->pose,last_frame->pose,current_frame->time-1.40364e+09+8.60223e+07);
+        }
+        last_frame = current_frame;
+    }
+
+    ceres::Solver::Options options;
+    options.linear_solver_type = ceres::DENSE_SCHUR;
+      options.trust_region_strategy_type = ceres::DOGLEG;
+    options.max_solver_time_in_seconds = 0.1;
+   //  options.max_num_iterations =4;
+  
+    options.num_threads = 4;
+    ceres::Solver::Summary summary;
+    ceres::Solve(options, &problem, &summary);
+     LOG(INFO)<<summary.BriefReport();
+   // std::this_thread::sleep_for(std::chrono::seconds(3));
+
+    //数据恢复
+    Quaterniond rwg2(RwgSO3.data()[3],RwgSO3.data()[0],RwgSO3.data()[1],RwgSO3.data()[2]);
+        Rwg=rwg2.toRotationMatrix();
     Bias bias_(para_accBias[0],para_accBias[1],para_accBias[2],para_gyroBias[0],para_gyroBias[1],para_gyroBias[2]);
     bg << para_gyroBias[0],para_gyroBias[1],para_gyroBias[2];
     ba <<para_accBias[0],para_accBias[1],para_accBias[2];
@@ -219,7 +163,7 @@ Bias InertialOptimization(Frames &key_frames, Eigen::Matrix3d &Rwg, double &scal
         if(dbg.norm() >0.01)
         {
             current_frame->SetNewBias(bias_);
-           // current_frame->preintegration->Reintegrate();
+            current_frame->preintegration->Repropagate(bias_.linearized_ba,bias_.linearized_bg);
         }
        else
         {
@@ -230,119 +174,40 @@ Bias InertialOptimization(Frames &key_frames, Eigen::Matrix3d &Rwg, double &scal
             0.999557249008, 0.0149672133247, 0.025715529948,
             -0.0257744366974, 0.00375618835797, 0.999660727178;
        //LOG(INFO)<<current_frame->preintegration->dV.transpose();
-        LOG(INFO)<<"InertialOptimization  "<<current_frame->time-1.40364e+09+8.60223e+07<<"   Vwb1  "<<current_frame->Vw.transpose()/*tcb*/<<"  Pose  "<<current_frame->pose.translation().transpose()/*tcb*/;//<<"\nR: \n"<<tcb.inverse()*current_frame->pose.rotationMatrix();
+        // LOG(INFO)<<"InertialOptimization  "<<current_frame->time-1.40364e+09+8.60223e+07<<"   Vwb1  "<<current_frame->Vw.transpose()/*tcb*/<<"  Pose  "<<current_frame->pose.translation().transpose()/*tcb*/;//<<"\nR: \n"<<tcb.inverse()*current_frame->pose.rotationMatrix();
     }
-    LOG(INFO)<<"BIAS   a "<<bias_.linearized_ba.transpose()<<" g "<<bias_.linearized_bg.transpose();
+    // LOG(INFO)<<"BIAS   a "<<bias_.linearized_ba.transpose()<<" g "<<bias_.linearized_bg.transpose();
     
-    return bias_;
+    return ;
 }
-     bool showIMUErrorINIT(const double*  parameters0, const double*  parameters1, const double*  parameters2, const double*  parameters3, const double*  parameters4, const double*  parameters5, imu::Preintegration::Ptr mpInt, double time)  
-    {
-        Quaterniond Qi(parameters0[3], parameters0[0], parameters0[1], parameters0[2]);
-        Vector3d Pi(parameters0[4], parameters0[5], parameters0[6]);
-        Vector3d Vi(parameters1[0], parameters1[1], parameters1[2]);
 
-        Vector3d gyroBias(parameters2[0], parameters2[1], parameters2[2]);
-        Vector3d accBias(parameters3[0], parameters3[1],parameters3[2]);
+    void recoverData(Frames active_kfs,SE3d old_pose)
+{
+    SE3d new_pose=active_kfs.begin()->second->pose;
+    Vector3d origin_P0=old_pose.translation();
+    Vector3d origin_R0=R2ypr( old_pose.rotationMatrix());
+  Vector3d origin_R00=R2ypr(new_pose.rotationMatrix());
+ double y_diff = origin_R0.x() - origin_R00.x();
+   Matrix3d rot_diff = ypr2R(Vector3d(y_diff, 0, 0));
+   if (abs(abs(origin_R0.y()) - 90) < 1.0 || abs(abs(origin_R00.y()) - 90) < 1.0)
+        {
+            rot_diff =old_pose.rotationMatrix() *new_pose.inverse().rotationMatrix();
+        }
+        for(auto kf_pair : active_kfs){
+            auto frame = kf_pair.second;
+            if(!frame->preintegration||!frame->last_keyframe||!frame->bImu){
+                    continue;
+            }
+            frame->SetPose(rot_diff * frame->pose.rotationMatrix(),rot_diff * (frame->pose.translation()-new_pose.translation())+origin_P0);
+            frame->SetVelocity(rot_diff*frame->Vw);
 
-        Quaterniond Qj(parameters4[3], parameters4[0], parameters4[1], parameters4[2]);
-        Vector3d Pj(parameters4[4], parameters4[5], parameters4[6]);
-        Vector3d Vj(parameters5[0], parameters5[1], parameters5[2]);
-        double dt=(mpInt->dT);
-        Vector3d g;
-         g<< 0, 0, -G;
-        // g=Rwg*g;
-        const Bias  b1(accBias(0,0),accBias(1,0),accBias(2,0),gyroBias(0,0),gyroBias(1,0),gyroBias(2,0));
-        Matrix3d dR = mpInt->GetDeltaRotation(b1);
-        Vector3d dV = mpInt->GetDeltaVelocity(b1);
-        Vector3d dP =mpInt->GetDeltaPosition(b1);
+            // Bias bias_(frame->ImuBias.linearized_ba[0],frame->ImuBias.linearized_ba[1],frame->ImuBias.linearized_ba[2],frame->ImuBias.linearized_bg[0],frame->ImuBias.linearized_bg[1],frame->ImuBias.linearized_bg[2]);
+            // frame->SetNewBias(bias_);
+           // LOG(INFO)<<"opt  TIME: "<<frame->time-1.40364e+09+8.60223e+07<<"    V  "<<frame->Vw.transpose()<<"    R  "<<frame->pose.rotationMatrix().eulerAngles(0,1,2).transpose()<<"    P  "<<frame->pose.translation().transpose();
+        }
+}
 
-        const Vector3d er = LogSO3(dR.inverse()*Qi.toRotationMatrix().inverse()*Qj.toRotationMatrix());
-        const Vector3d ev = Qi.toRotationMatrix().inverse()*((Vj - Vi) - g*dt) - dV;
-        const Vector3d ep = Qi.toRotationMatrix().inverse()*((Pj - Pi - Vi*dt) - g*dt*dt/2) - dP;
-        Matrix<double, 9, 1> residual;
-        residual<<er,ev,ep;
-        LOG(INFO)<<"\n FullInertialBA residual "<<residual.transpose()<<"   "<<time;
-        // LOG(INFO)<<"BA "<<b1.linearized_ba.transpose()<<" BG "<<b1.linearized_bg.transpose();
-        // LOG(INFO)<<"\ndV "<<dV.transpose()<< "  dP "<<dP.transpose()<<"\ndR\n"<<dR;
-        // LOG(INFO)<<"\nVj"<<(Vj).transpose()<<"Pj"<<(Pj).transpose()<<"\nQj\n"<<Qj.toRotationMatrix();
-        //    Matrix<double ,9,9> Info=mpInt->C.block<9,9>(0,0).inverse();
-        //  Info = (Info+Info.transpose())/2;
-        //  Eigen::SelfAdjointEigenSolver<Eigen::Matrix<double,9,9> > es(Info);
-        //  Eigen::Matrix<double,9,1> eigs = es.eigenvalues();
-        //  for(int i=0;i<9;i++)
-        //      if(eigs[i]<1e-12)
-        //          eigs[i]=0;
-        //  Matrix<double, 9,9> sqrt_info = es.eigenvectors()*eigs.asDiagonal()*es.eigenvectors().transpose();
-        Matrix<double, 9,9> sqrt_info =LLT<Matrix<double, 9, 9>>( mpInt->C.block<9,9>(0,0).inverse()).matrixL().transpose();
-        //sqrt_info/=InfoScale;
-        // LOG(INFO)<<"InertialError sqrt_info "<<sqrt_info;
-        //assert(!isnan(residual[0])&&!isnan(residual[1])&&!isnan(residual[2])&&!isnan(residual[3])&&!isnan(residual[4])&&!isnan(residual[5])&&!isnan(residual[6])&&!isnan(residual[7])&&!isnan(residual[8]));
-        residual = sqrt_info* residual;
-        // LOG(INFO)<<time<<"  IMUError:  r "<<residual.transpose()<<"  "<<mpInt->dT;
-        // LOG(INFO)<<"                Qi "<<Qi.toRotationMatrix().eulerAngles(0,1,2).transpose()<<" Qj "<<Qj.toRotationMatrix().eulerAngles(0,1,2).transpose()<<"dQ"<<dR.eulerAngles(0,1,2).transpose();
-        // LOG(INFO)<<"                Pi "<<Pi.transpose()<<" Pj "<<Pj.transpose()<<"dP"<<dP.transpose();
-        // LOG(INFO)<<"                Vi "<<Vi.transpose()<<" Vj "<<Vj.transpose()<<"dV"<<dV.transpose();
-        // LOG(INFO)<<"             Bai "<< accBias.transpose()<<"  Bgi "<<  gyroBias.transpose();
-
-             Bias  b2(accBias(0,0),accBias(1,0),accBias(2,0),gyroBias(0,0),gyroBias(1,0),gyroBias(2,0));
-            Bias delta_bias=mpInt->GetDeltaBias(b2);
-            Vector3d dbg=delta_bias.linearized_bg;
-            Matrix3d Rwb1 =Qi.toRotationMatrix();
-            //Matrix3d Rbw1 = Rwb1.transpose();
-            Matrix3d Rbw1 = (Qi.inverse()).toRotationMatrix();
-            Matrix3d Rwb2 = Qj.toRotationMatrix();
-
-            Eigen::Matrix3d eR = dR.transpose()*Rbw1*Rwb2;
-            Eigen::Vector3d er_ = LogSO3(eR);
-            Eigen::Matrix3d invJr = InverseRightJacobianSO3(er_);
-            Matrix3d JRg=mpInt->JRg;
-            Matrix3d JVg=mpInt->JVg;
-            Matrix3d JPg=mpInt->JPg;
-            Matrix3d JVa=mpInt->JVa;
-            Matrix3d JPa=mpInt->JPa;
-               Matrix<double, 9, 7, RowMajor> jacobian_pose_i;
-                jacobian_pose_i.setZero();
-                jacobian_pose_i.block<3, 3>(0,0)=  -invJr*Rwb2.transpose()*Rwb1;
-                jacobian_pose_i.block<3, 3>(3,0)= Skew(Rbw1*((Vj - Vi)- g*dt));
-                jacobian_pose_i.block<3, 3>(6,0)=  Skew(Rbw1*((Pj - Pi- Vi*dt)- 0.5*g*dt*dt));
-                jacobian_pose_i.block<3, 3>(6,4)=  -Matrix3d::Identity();
-               //  jacobian_pose_i=sqrt_info *jacobian_pose_i;
-                LOG(INFO)<<"\njacobian_pose_i"<<jacobian_pose_i;
-                Matrix<double, 9, 3, RowMajor> jacobian_v_i;
-                jacobian_v_i.setZero();
-                jacobian_v_i.block<3, 3>(3,0)=-Rbw1;
-                jacobian_v_i.block<3, 3>(6,0)= -Rbw1*dt;
-               // jacobian_v_i=sqrt_info*jacobian_v_i;
-                 LOG(INFO)<<"\njacobian_v_i"<<jacobian_v_i;
-                Matrix<double, 9, 3, RowMajor> jacobian_bg;
-                jacobian_bg.setZero();
-                jacobian_bg.block<3, 3>(0,0)= -invJr*eR.transpose()*RightJacobianSO3(JRg*dbg)*JRg;
-                jacobian_bg.block<3, 3>(3,0)=-JVg;
-                jacobian_bg.block<3, 3>(6,0)=-JPg;
-                //jacobian_bg=sqrt_info*jacobian_bg;
-                LOG(INFO)<<"\njacobian_bg"<<jacobian_bg;
-                Matrix<double, 9, 3, RowMajor> jacobian_ba;
-                jacobian_ba.setZero();
-                jacobian_ba.block<3, 3>(3,0)=-JVa;
-                jacobian_ba.block<3, 3>(6,0)=-JPa;
-                //jacobian_ba=sqrt_info*jacobian_ba;
-                LOG(INFO)<<"\njacobian_ba"<<jacobian_ba;
-                Matrix<double, 9, 7, RowMajor> jacobian_pose_j;
-                jacobian_pose_j.setZero();
-                jacobian_pose_j.block<3, 3>(0,0)=invJr;
-                jacobian_pose_j.block<3, 3>(6,4)=Rbw1*Rwb2;
-                //jacobian_pose_j=sqrt_info *jacobian_pose_j;
-                LOG(INFO)<<"\njacobian_pose_j"<<jacobian_pose_j;
-                Matrix<double, 9, 3, RowMajor> jacobian_v_j;
-                jacobian_v_j.setZero();
-                jacobian_v_j.block<3, 3>(3,0)= Rbw1;
-                //jacobian_v_j=sqrt_info *jacobian_v_j;
-                LOG(INFO)<<"\njacobian_v_j"<<jacobian_v_j;
-         return true;
-    }
-
-Bias FullInertialBA(Frames &key_frames, Matrix3d Rwg, double priorG=1e2, double priorA=1e6)
+void FullInertialBA(Frames &key_frames, Matrix3d Rwg, double priorG=1e2, double priorA=1e6)
 {
     ceres::Problem problem;
       ceres::CostFunction *cost_function ;
@@ -351,66 +216,7 @@ Bias FullInertialBA(Frames &key_frames, Matrix3d Rwg, double priorG=1e2, double 
             new ceres::IdentityParameterization(3));
     ceres::LossFunction *loss_function = new ceres::HuberLoss(1.0);
     double start_time = key_frames.begin()->first;
-  std::vector<Vector3d>  Ps;
-        std::vector<Matrix3d>  Rs;
-    std::vector<Vector3d>  Vs;
-        Ps.reserve(10);
-        Rs.reserve(10);
-        Vs.reserve(10);
-        Vs[0]<< 0.26398885250091553,  0.13074664771556854 ,0.052110094577074051;
-        Vs[1]<<0.27814435958862305, 0.16502836346626282, 0.10260432958602905;
-        Vs[2]<< 0.30439004302024841,   0.20504598319530487, -0.034762419760227203;
-        Vs[3]<<0.38809829950332642 , 0.18391759693622589, -0.19162872433662415;
-        Vs[4]<<0.43383324146270752,  0.27216625213623047, -0.17158563435077667;
-        Vs[5]<<0.44212883710861206,  0.39110857248306274, 0.042390212416648865 ;
-        Vs[6]<< 0.43623760342597961, 0.37755176424980164 ,0.16418531537055969;
-        Vs[7]<<0.40898382663726807, 0.40347582101821899 ,0.13281315565109253;
-        Vs[8]<<0.41809707880020142 ,  0.38235160708427429 ,-0.011100620031356812;
-        Vs[9]<<0.45420143008232117 ,    0.341154545545578 ,-0.067993417382240295 ;
-
-        Ps[0]<<0.064798988401889801, 0.0026885510887950659 , 0.023270642384886742;
-        Ps[1]<<0.13383278250694275 ,0.033715441823005676 ,0.054873757064342499;
-        Ps[2]<< 0.20337608456611633 ,0.083536639809608459 ,0.063480690121650696;
-        Ps[3]<< 0.2898789644241333 , 0.13055914640426636, 0.033043459057807922;
-        Ps[4]<<0.3942166268825531  , 0.18909266591072083 ,-0.021480655297636986;
-        Ps[5]<<0.50463390350341797 , 0.27341970801353455 ,-0.03707466647028923;
-        Ps[6]<<0.61334025859832764 ,  0.37086197733879089, -0.011849086731672287;
-        Ps[7]<<0.71995759010314941 , 0.46686416864395142 ,0.034153938293457031;
-        Ps[8]<<0.81975811719894409 , 0.56860911846160889 ,0.048397514969110489;
-        Ps[9]<<0.930076003074646  ,0.65801626443862915, 0.037731535732746124;
-
-        Rs[0]<<-0.01669120229780674 ,    0.9978448748588562 , -0.063459374010562897,
-    0.3524135947227478   , 0.06526637077331543  ,  0.93356567621231079,
-   0.93569546937942505 ,-0.0067816171795129776 ,  -0.35274350643157959;
-        Rs[1]<<-0.0086139719933271408,    0.99961918592453003,  -0.026218974962830544,
-   0.36063376069068909  , 0.027560945600271225   , 0.93230020999908447,
-   0.93266773223876953 ,-0.0014246385544538498,   -0.36073386669158936;
-         Rs[2]<<0.029590632766485214  , 0.99950265884399414,  0.010900553315877914,
-  0.33506354689598083, -0.020192869007587433  , 0.94197899103164673,
-  0.94173061847686768 ,-0.024221379309892654 , -0.33549448847770691;
-         Rs[3]<<0.062492750585079193  , 0.99413597583770752,  0.088251747190952301,
-  0.35331389307975769 , -0.10473461449146271  , 0.92962348461151123,
-  0.93341517448425293, -0.026914151385426521 , -0.35778722167015076;
-         Rs[4]<<0.092648528516292572 ,  0.97711557149887085  , 0.19147187471389771,
-  0.36995589733123779,   -0.2123139500617981,   0.90446418523788452,
-  0.92441803216934204 ,-0.012961131520569324,  -0.38116025924682617;
-         Rs[5]<< 0.098780959844589233    ,0.96405947208404541   , 0.24664060771465302,
-   0.32807028293609619  ,   -0.265546053647995 ,   0.90656232833862305,
-   0.93947434425354004 ,-0.0086356094107031822,   -0.34251022338867188;
-         Rs[6]<< 0.095531485974788666  ,  0.96040183305740356,    0.26172924041748047,
-   0.31925582885742188 ,  -0.27860298752784729  ,  0.90579026937484741,
-   0.94284117221832275 ,-0.0029728906229138374 ,  -0.33322927355766296;
-         Rs[7]<<0.075329318642616272,  0.96354383230209351  ,0.25672733783721924,
- 0.33532589673995972, -0.26694267988204956 , 0.90349215269088745,
- 0.93908560276031494,  0.01802789606153965, -0.34320986270904541;
-         Rs[8]<<0.087499983608722687   , 0.96699768304824829 ,   0.23928886651992798,
-   0.33325240015983582,   -0.25478485226631165 ,   0.90775954723358154,
-   0.93876862525939941, 0.00031465664505958557   ,-0.34454801678657532;
-         Rs[9]<<0.087173908948898315,    0.96891272068023682 ,   0.23153591156005859,
-   0.32010272145271301,   -0.24733929336071014 ,   0.91452580690383911,
-   0.94336360692977905, -0.0056075043976306915 ,  -0.33171316981315613;
-
-
+SE3d old_pose=key_frames.begin()->second->pose;
     for (auto pair_kf : key_frames)
     {
         auto frame = pair_kf.second;
@@ -427,60 +233,39 @@ Bias FullInertialBA(Frames &key_frames, Matrix3d Rwg, double priorG=1e2, double 
     }
 
     Frame::Ptr pIncKF=key_frames.begin()->second;
-    // Bias mybias(-0.058658524769291551,-0.0060310475755657005,-0.0037879087969964597,-0.0043304018657809229,   0.02121154999869438,  0.079632863001392246);
-    // pIncKF->SetNewBias(mybias);
 
     //先验BIAS约束
     auto para_gyroBias=key_frames.begin()->second->ImuBias.linearized_bg.data();
     problem.AddParameterBlock(para_gyroBias, 3);
-    cost_function = PriorGyroError2::Create(Vector3d::Zero(),priorG);
-    problem.AddResidualBlock(cost_function,NULL,para_gyroBias);
 
     auto para_accBias=key_frames.begin()->second->ImuBias.linearized_ba.data();
     problem.AddParameterBlock(para_accBias, 3);
-    cost_function = PriorAccError2::Create(Vector3d::Zero(),priorA);
-    problem.AddResidualBlock(cost_function,NULL,para_accBias);
-
 
     Frame::Ptr last_frame;
     Frame::Ptr current_frame;
-    //int i=0;
-    bool first=true;
+    int i=0;
     for (auto kf_pair : key_frames)
     {
         current_frame = kf_pair.second;
-        // current_frame->SetPose((Rs[i]),Ps[i]);
-        // current_frame->SetVelocity(Vs[i]);
-        //i++;
-        if (!current_frame->bImu||!current_frame->last_keyframe||!current_frame->preintegration->isPreintegrated)
+        i++;
+        if (!current_frame->bImu||!current_frame->last_keyframe||current_frame->preintegration==nullptr)
         {
             last_frame=current_frame;
             continue;
         }
         auto para_kf = current_frame->pose.data();
         auto para_v = current_frame->Vw.data();
-       // problem.AddParameterBlock(para_kf, SE3d::num_parameters, local_parameterization);
+        problem.AddParameterBlock(para_kf, SE3d::num_parameters, local_parameterization);
         problem.AddParameterBlock(para_v, 3);
-
         if (last_frame && last_frame->bImu)
         {
-
             auto para_kf_last = last_frame->pose.data();
             auto para_v_last = last_frame->Vw.data();
-            if(first){
-                first=false;
-                problem.SetParameterBlockConstant(para_kf_last);
-            }
-            cost_function =InertialError2::Create(current_frame->preintegration,Rwg);
-            problem.AddResidualBlock(cost_function, NULL, para_kf_last, para_v_last,  para_gyroBias,para_accBias, para_kf, para_v);
-            
+
+            cost_function =ImuErrorInit::Create(current_frame->preintegration,priorA,priorG);
+            problem.AddResidualBlock(cost_function, NULL, para_kf_last, para_v_last, para_accBias,para_gyroBias, para_kf, para_v);
            //showIMUErrorINIT(para_kf_last, para_v_last,  para_gyroBias,para_accBias, para_kf, para_v,current_frame->preintegration,current_frame->time-1.40364e+09);
-            //LOG(INFO)<<current_frame->preintegration->dV.transpose();
-                // LOG(INFO)<<"FullInertialBA ckf: "<<current_frame->id<<"  lkf: "<<last_frame->id;
-                // LOG(INFO)<<"     current pose: "<<current_frame->pose.translation().transpose(); 
-                // LOG(INFO)<<"     last pose: "<<last_frame->pose.translation().transpose();
-                // LOG(INFO)<<"     current velocity: "<<current_frame->Vw.transpose();
-                // LOG(INFO)<<"     last  velocity: "<<last_frame->Vw.transpose();
+
         }
         last_frame = current_frame;
     }
@@ -489,14 +274,15 @@ Bias FullInertialBA(Frames &key_frames, Matrix3d Rwg, double priorG=1e2, double 
     //solve
     ceres::Solver::Options options;
     options.linear_solver_type = ceres::DENSE_SCHUR;
-    //options.trust_region_strategy_type = ceres::DOGLEG;
-    //options.max_solver_time_in_seconds =0.01;
-    //options.max_num_iterations=1;
+    options.trust_region_strategy_type = ceres::DOGLEG;
+    //options.max_solver_time_in_seconds =0.1;
+    options.max_num_iterations=4;
     options.num_threads = 4;
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
-    LOG(INFO)<<summary.FullReport();
+    LOG(INFO)<<summary.BriefReport();
     //数据恢复
+      //  recoverData(key_frames,old_pose);
     Bias lastBias;
     for(Frames::iterator iter = key_frames.begin(); iter != key_frames.end(); iter++)
     {
@@ -506,12 +292,100 @@ Bias FullInertialBA(Frames &key_frames, Matrix3d Rwg, double priorG=1e2, double 
             Bias bias(para_accBias[0],para_accBias[1],para_accBias[2],para_gyroBias[0],para_gyroBias[1],para_gyroBias[2]);
             current_frame->SetNewBias(bias);
             lastBias=bias;
-               Matrix3d tcb;
-            tcb<<0.0148655429818, -0.999880929698, 0.00414029679422,
-            0.999557249008, 0.0149672133247, 0.025715529948,
-            -0.0257744366974, 0.00375618835797, 0.999660727178;
-             LOG(INFO)<<"FullInertialBA  "<<current_frame->time-1.40364e+09+8.60223e+07<<"   Vwb1  "<<current_frame->Vw.transpose()/*tcb*/;//<<"\nR: \n"<<tcb.inverse()*current_frame->pose.rotationMatrix();
-              LOG(INFO)<<"BIAS   a "<<bias.linearized_ba.transpose()<<" g "<<bias.linearized_bg.transpose();
+            //  LOG(INFO)<<"FullInertialBA  "<<current_frame->time-1.40364e+09+8.60223e+07<<"   Vwb1  "<<current_frame->Vw.transpose();
+            //   LOG(INFO)<<"BIAS   a "<<bias.linearized_ba.transpose()<<" g "<<bias.linearized_bg.transpose();
+        }
+    }
+   
+    return ;
+}
+
+
+
+
+Bias FullInertialBA2(Frames &key_frames, Matrix3d Rwg)
+{
+    ceres::Problem problem;
+      ceres::CostFunction *cost_function ;
+    ceres::LocalParameterization *local_parameterization = new ceres::ProductParameterization(
+            new ceres::EigenQuaternionParameterization(),
+            new ceres::IdentityParameterization(3));
+    ceres::LossFunction *loss_function = new ceres::HuberLoss(1.0);
+    double start_time = key_frames.begin()->first;
+SE3d old_pose=key_frames.begin()->second->pose;
+    for (auto pair_kf : key_frames)
+    {
+        auto frame = pair_kf.second;
+        double *para_kf = frame->pose.data();
+        problem.AddParameterBlock(para_kf, SE3d::num_parameters, local_parameterization);
+        for (auto pair_feature : frame->features_left)
+        {
+            auto feature = pair_feature.second;
+            auto landmark = feature->landmark.lock();
+            auto first_frame = landmark->FirstFrame().lock();
+                cost_function = PoseOnlyReprojectionError::Create(cv2eigen(feature->keypoint), landmark->ToWorld(), Camera::Get(), frame->weights.visual);
+                problem.AddResidualBlock(cost_function, loss_function, para_kf);
+        }
+    }
+
+    Frame::Ptr pIncKF=key_frames.begin()->second;
+
+    Frame::Ptr last_frame;
+    Frame::Ptr current_frame;
+    int i=0;
+    for (auto kf_pair : key_frames)
+    {
+        current_frame = kf_pair.second;
+        i++;
+        if (!current_frame->bImu||!current_frame->last_keyframe||current_frame->preintegration==nullptr)
+        {
+            last_frame=current_frame;
+            continue;
+        }
+        auto para_kf = current_frame->pose.data();
+        auto para_v = current_frame->Vw.data();
+        auto para_gyroBias=current_frame->ImuBias.linearized_bg.data();
+        auto para_accBias=current_frame->ImuBias.linearized_ba.data();
+        problem.AddParameterBlock(para_kf, SE3d::num_parameters, local_parameterization);
+        problem.AddParameterBlock(para_v, 3);
+        problem.AddParameterBlock(para_gyroBias, 3);
+        problem.AddParameterBlock(para_accBias, 3);
+        if (last_frame && last_frame->bImu)
+        {
+            auto para_kf_last = last_frame->pose.data();
+            auto para_v_last = last_frame->Vw.data();
+            auto para_gyroBias_last=last_frame->ImuBias.linearized_bg.data();
+            auto para_accBias_last=last_frame->ImuBias.linearized_ba.data();
+            cost_function =ImuError::Create(current_frame->preintegration);
+            problem.AddResidualBlock(cost_function, NULL, para_kf_last, para_v_last, para_accBias_last,para_gyroBias_last, para_kf, para_v,para_accBias,para_gyroBias);
+
+        }
+        last_frame = current_frame;
+    }
+    //epa  para_accBias
+
+    //solve
+    ceres::Solver::Options options;
+    options.linear_solver_type = ceres::DENSE_SCHUR;
+    options.trust_region_strategy_type = ceres::DOGLEG;
+    //options.max_solver_time_in_seconds =0.01;
+    options.max_num_iterations=4;
+    options.num_threads = 4;
+    ceres::Solver::Summary summary;
+    ceres::Solve(options, &problem, &summary);
+    LOG(INFO)<<summary.BriefReport();
+    //数据恢复
+    
+    recoverData(key_frames,old_pose);
+    Bias lastBias;
+    for(Frames::iterator iter = key_frames.begin(); iter != key_frames.end(); iter++)
+    {
+        current_frame=iter->second;
+        if(current_frame->bImu&&current_frame->last_keyframe)
+        {
+            lastBias=current_frame->GetImuBias();
+             LOG(INFO)<<"FullInertialBA  "<<current_frame->time-1.40364e+09+8.60223e+07<<"   Vwb1  "<<current_frame->Vw.transpose();
+              LOG(INFO)<<"BIAS   a "<<current_frame->GetImuBias().linearized_ba.transpose()<<" g "<<current_frame->GetImuBias().linearized_bg.transpose();
         }
     }
    
@@ -520,458 +394,7 @@ Bias FullInertialBA(Frames &key_frames, Matrix3d Rwg, double priorG=1e2, double 
 
 bool  Initializer::estimate_Vel_Rwg(std::vector< Frame::Ptr > Key_frames)
 {
-     std::vector<double>  times;
-        std::vector<Vector3d>  Ps;
-        std::vector<Matrix3d>  Rs;
-
-        std::vector<Vector3d>  dVs;
-        std::vector<Vector3d>  dPs;
-        std::vector<Matrix3d>  dRs;
-        std::vector<Matrix<double,15,15>>  Cs;
-
-        std::vector<Matrix3d>  JRgs;
-        std::vector<Matrix3d>  JVgs;
-        std::vector<Matrix3d>  JVas;
-        std::vector<Matrix3d>  JPgs;
-        std::vector<Matrix3d>  JPas;
-
-        
-        times.reserve(10);
-        Ps.reserve(10);
-        Rs.reserve(10);
-       
-        dVs.reserve(10);
-        dPs.reserve(10);
-        dRs.reserve(10);
-        Cs.reserve(10);
-
-        JRgs.reserve(10);
-        JVgs.reserve(10);
-        JVas.reserve(10);
-        JPgs.reserve(10);
-        JPas.reserve(10);
-
-
-        times[0]=-3371.0364444255829+1.40364e+09;
-        times[1]=-3370.7864444255829+1.40364e+09;
-        times[2]=-3370.5364444255829+1.40364e+09;
-        times[3]=-3370.2864444255829+1.40364e+09;
-        times[4]=-3370.0364444255829+1.40364e+09;
-        times[5]=-3369.7864444255829 +1.40364e+09;
-        times[6]=-3369.5364444255829+1.40364e+09;
-        times[7]=-3369.2864444255829+1.40364e+09;
-        times[8]=-3369.0364444255829+1.40364e+09;
-        times[9]=-3368.7864444255829+1.40364e+09;
-
-        Ps[0]<<0.06522291898727417,  -0.020706383511424065, -0.0080546028912067413;
-        Ps[1]<<0.13613715767860413, -0.058799892663955688, 0.0072450097650289536;
-        Ps[2]<<0.20871648192405701, -0.081828892230987549,   0.0480351522564888;
-        Ps[3]<<0.29609397053718567 ,-0.066805832087993622 , 0.098691508173942566;
-        Ps[4]<<0.40373173356056213, -0.033361699432134628,   0.16807201504707336;
-        Ps[5]<<0.51825058460235596, -0.044621579349040985 ,   0.2478640228509903;
-        Ps[6]<<0.63246965408325195, -0.099659904837608337,   0.32880464196205139;
-        Ps[7]<<0.74487757682800293 ,-0.17267747223377228 , 0.39758417010307312;
-        Ps[8]<<0.85390764474868774, -0.22209919989109039  ,0.48088574409484863;
-        Ps[9]<<0.96590858697891235 ,-0.24328972399234772  , 0.5664251446723938;
-
-        Rs[0]<<0.014865542761981487  ,  0.9995572566986084 ,-0.025774436071515083,
- -0.99988090991973877 ,  0.01496721338480711, 0.0037561883218586445,
-0.0041402969509363174 , 0.025715529918670654  , 0.99966073036193848;
-        Rs[1]<<0.02328638918697834  , 0.99966609477996826  ,0.011202013120055199,
- -0.99964964389801025  ,0.023142058402299881,  0.012845958583056927,
- 0.012582430616021156, -0.011497229337692261   , 0.9998546838760376;
-         Rs[2]<<0.060271583497524261 ,  0.99697595834732056,  0.049052443355321884,
- -0.99805265665054321,  0.060982070863246918, -0.013117516413331032,
--0.016069166362285614  ,-0.04816630482673645   ,0.99871009588241577;
-         Rs[3]<<0.093869097530841827 , 0.98765230178833008,  0.12542553246021271,
--0.99558126926422119, 0.092799536883831024, 0.014356276020407677,
-0.002539576031267643 ,-0.12621892988681793,  0.99199920892715454;
-         Rs[4]<<0.12436866015195847 ,  0.9659963846206665  ,0.22667919099330902,
--0.99202841520309448 , 0.11638070642948151, 0.048323389142751694,
-0.020299136638641357 ,-0.23088215291500092,  0.97276997566223145;
-         Rs[5]<<0.12924505770206451   ,0.95053976774215698,   0.28243556618690491,
- -0.99130213260650635 ,  0.13098053634166718,   0.01281241700053215,
--0.024814853444695473, -0.28163495659828186 ,  0.95920073986053467;
-         Rs[6]<<  0.12557829916477203,   0.94633334875106812,   0.29779744148254395,
- -0.99149954319000244,   0.13001641631126404 ,0.0049428287893533707,
--0.034040987491607666 , -0.29588669538497925  , 0.95461630821228027;
-         Rs[7]<<0.10622923076152802,  0.95037174224853516 , 0.29241910576820374,
--0.99419659376144409 , 0.10654130578041077 ,0.014906318858265877,
--0.01698816753923893, -0.29230555891990662 , 0.95617407560348511;
-         Rs[8]<< 0.11840683966875076 ,  0.95419967174530029  , 0.27474141120910645,
- -0.99278897047042847   ,0.11897563189268112 , 0.014655625447630882,
--0.018703140318393707 , -0.27449560165405273  ,   0.961406409740448;
-         Rs[9]<< 0.11787890642881393,    0.95622467994689941   , 0.26784160733222961,
-  -0.99249660968780518,    0.12227194011211395 ,0.00027999875601381063,
- -0.032481767237186432  , -0.26586490869522095   ,  0.9634629487991333;
-
-dVs[0]<<2.3447235, 0.031738445, -0.88403594;
-dVs[1]<<2.3447235, 0.031738445, -0.88403594;
-dVs[2]<<2.1667569, 0.053861078, -0.80424124;
-dVs[3]<<2.1381314, 0.060161609, -0.77352905;
-dVs[4]<<2.2968798, -0.0060790498, -0.83733064;
-dVs[5]<<2.4576724, -0.0092556756, -0.95494056;
-dVs[6]<<2.3961983, 0.012277888, -0.90623295;
-dVs[7]<<2.280164, -0.023830272, -0.79988712;
-dVs[8]<<2.1523359, 0.039374165, -0.78354788;
-dVs[9]<<2.2297018, 0.020650063, -0.81908005;
-
-dPs[0]<<0.30222359, 0.0033914039, -0.11917488;
-dPs[1]<<0.30222359, 0.0033914039, -0.11917488;
-dPs[2]<<0.27263474, 0.0033063588, -0.098992005;
-dPs[3]<<0.26509905, 0.0059557888, -0.096052103;
-dPs[4]<<0.28023139, 0.0010054347, -0.098338224;
-dPs[5]<<0.30780178, -0.0029491552, -0.11862922;
-dPs[6]<<0.29872048, 0.00070572889, -0.11245655;
-dPs[7]<<0.29340258, -0.0033392629, -0.10331944;
-dPs[8]<<0.26878262, 0.0018882495, -0.097184241;
-dPs[9]<<0.27818239, 0.0014357395, -0.10081469;
-
-dRs[0]<<0.99957997, -0.028765343, -0.003512128,
- 0.02887797, 0.99886298, 0.037930958,
- 0.0024170396, -0.038016446, 0.99927413;
- dRs[1]<<0.99957997, -0.028765343, -0.003512128,
- 0.02887797, 0.99886298, 0.037930958,
- 0.0024170396, -0.038016446, 0.99927413;
- dRs[2]<<0.99781948, -0.05799586, 0.031508539,
- 0.056766864, 0.99764127, 0.038591918,
- -0.033672385, -0.036719132, 0.9987582;
- dRs[3]<<0.99849665, -0.051654968, -0.018335443,
- 0.052934483, 0.99554813, 0.077986255,
- 0.014225446, -0.07883957, 0.99678576;
- dRs[4]<<0.99874449, -0.046057943, -0.019698109,
- 0.047906399, 0.99311697, 0.106881,
- 0.014639816, -0.10769052, 0.99407667;
- dRs[5]<<0.9981823, -0.038267899, 0.046558287,
- 0.035708878, 0.99786925, 0.054606669,
- -0.048548765, -0.052844848, 0.99742192;
- dRs[6]<<0.99969095, -0.019444486, 0.015487486,
- 0.019203527, 0.99969453, 0.015557747,
- -0.015785255, -0.015255529, 0.99975902;
- dRs[7]<<0.99997574, 0.004440024, -0.0053650937,
- -0.0044567352, 0.99998522, -0.0031066926,
- 0.005351224, 0.0031305298, 0.99998075;
- dRs[8]<<0.99949545, -0.031516559, 0.0039502843,
- 0.03157948, 0.99935615, -0.01702822,
- -0.003411069, 0.017144388, 0.99984723;
- dRs[9]<<0.99958533, -0.022068495, 0.018498348,
- 0.022179889, 0.99973696, -0.0058382517,
- -0.018364638, 0.0062461193, 0.99981183;
-
-Cs[0]<<7.2250015e-09, 5.9243151e-18, -2.7183381e-16, -8.3455354e-11, 2.8973484e-09, -1.0313973e-10, -7.3885117e-12, 2.564608e-10, -8.5509213e-12, 0, 0, 0, 0, 0,0,
- 5.595857e-18, 7.2250015e-09, 2.792843e-17, -2.8709546e-09, -3.8835571e-10, -8.0315274e-09, -2.5420085e-10, -3.3313435e-11, -6.8295136e-10, 0, 0, 0, 0, 0,0,
- -2.7197161e-16, 2.8822486e-17, 7.2249993e-09, -2.3812005e-10, 8.021007e-09, -3.0530234e-10, -2.0850268e-11, 6.8201478e-10, -2.5961545e-11, 0, 0, 0, 0, 0,0,
- -8.3455354e-11, -2.8709548e-09, -2.3812011e-10, 1.0016101e-06, -1.9688147e-10, 4.4307686e-09, 1.2516234e-07, -1.8379243e-11, 4.2884027e-10, 0, 0, 0, 0, 0,0,
- 2.8973481e-09, -3.8835571e-10, 8.021007e-09, -1.9688152e-10, 1.0138386e-06, 7.1027031e-11, -1.7538217e-11, 1.2633694e-07, 6.338546e-12, 0, 0, 0, 0, 0,0,
- -1.0313971e-10, -8.0315266e-09, -3.0530228e-10, 4.4307678e-09, 7.102692e-11, 1.0122354e-06, 4.4360549e-10, 6.8960718e-12, 1.2617517e-07, 0, 0, 0, 0, 0,0,
- -7.3885108e-12, -2.5420085e-10, -2.0850269e-11, 1.2516232e-07, -1.7538216e-11, 4.4360551e-10, 2.0848727e-08, -1.6695664e-12, 4.5817947e-11, 0, 0, 0, 0, 0,0,
- 2.5646088e-10, -3.3313435e-11, 6.8201494e-10, -1.8379244e-11, 1.2633696e-07, 6.8960926e-12, -1.6695667e-12, 2.0969058e-08, 6.2737538e-13, 0, 0, 0, 0, 0,0,
- -8.5509204e-12, -6.829512e-10, -2.5961537e-11, 4.2884021e-10, 6.3385248e-12, 1.2617515e-07, 4.5817954e-11, 6.2737256e-13, 2.0951623e-08, 0, 0, 0, 0, 0,0,
- 0, 0, 0, 0, 0, 0, 0, 0, 0, 9.402204e-11, 0, 0, 0, 0,0,
- 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 9.402204e-11, 0, 0, 0,0,
- 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 9.402204e-11, 0, 0,0,
- 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2.2499994e-06, 0,0,
- 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2.2499994e-06,0,
- 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2.2499994e-06;
-Cs[1]<<7.2250015e-09, 5.9243151e-18, -2.7183381e-16, -8.3455354e-11, 2.8973484e-09, -1.0313973e-10, -7.3885117e-12, 2.564608e-10, -8.5509213e-12, 0, 0, 0, 0, 0,0,
- 5.595857e-18, 7.2250015e-09, 2.792843e-17, -2.8709546e-09, -3.8835571e-10, -8.0315274e-09, -2.5420085e-10, -3.3313435e-11, -6.8295136e-10, 0, 0, 0, 0, 0,0,
- -2.7197161e-16, 2.8822486e-17, 7.2249993e-09, -2.3812005e-10, 8.021007e-09, -3.0530234e-10, -2.0850268e-11, 6.8201478e-10, -2.5961545e-11, 0, 0, 0, 0, 0,0,
- -8.3455354e-11, -2.8709548e-09, -2.3812011e-10, 1.0016101e-06, -1.9688147e-10, 4.4307686e-09, 1.2516234e-07, -1.8379243e-11, 4.2884027e-10, 0, 0, 0, 0, 0,0,
- 2.8973481e-09, -3.8835571e-10, 8.021007e-09, -1.9688152e-10, 1.0138386e-06, 7.1027031e-11, -1.7538217e-11, 1.2633694e-07, 6.338546e-12, 0, 0, 0, 0, 0,0,
- -1.0313971e-10, -8.0315266e-09, -3.0530228e-10, 4.4307678e-09, 7.102692e-11, 1.0122354e-06, 4.4360549e-10, 6.8960718e-12, 1.2617517e-07, 0, 0, 0, 0, 0,0,
- -7.3885108e-12, -2.5420085e-10, -2.0850269e-11, 1.2516232e-07, -1.7538216e-11, 4.4360551e-10, 2.0848727e-08, -1.6695664e-12, 4.5817947e-11, 0, 0, 0, 0, 0,0,
- 2.5646088e-10, -3.3313435e-11, 6.8201494e-10, -1.8379244e-11, 1.2633696e-07, 6.8960926e-12, -1.6695667e-12, 2.0969058e-08, 6.2737538e-13, 0, 0, 0, 0, 0,0,
- -8.5509204e-12, -6.829512e-10, -2.5961537e-11, 4.2884021e-10, 6.3385248e-12, 1.2617515e-07, 4.5817954e-11, 6.2737256e-13, 2.0951623e-08, 0, 0, 0, 0, 0,0,
- 0, 0, 0, 0, 0, 0, 0, 0, 0, 9.402204e-11, 0, 0, 0, 0,0,
- 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 9.402204e-11, 0, 0, 0,0,
- 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 9.402204e-11, 0, 0,0,
- 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2.2499994e-06, 0,0,
- 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2.2499994e-06,0,
- 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2.2499994e-06;
- Cs[2]<<7.2249984e-09, -2.1890853e-16, -5.1527989e-16, -1.5439573e-10, 2.6288058e-09, -1.4344399e-10, -1.2900054e-11, 2.1228738e-10, -2.4383362e-11, 0, 0, 0, 0, 0,0,
- -2.2278984e-16, 7.225001e-09, 4.966755e-16, -2.8742075e-09, -4.4747167e-10, -7.6179481e-09, -2.3314942e-10, -3.6838092e-11, -6.3262745e-10, 0, 0, 0, 0, 0,0,
- -5.1544787e-16, 4.9712046e-16, 7.2249988e-09, -4.009362e-10, 7.7007671e-09, -2.8490871e-10, -2.062185e-11, 6.4003897e-10, -2.4080507e-11, 0, 0, 0, 0, 0,0,
- -1.5439573e-10, -2.8742078e-09, -4.0093617e-10, 1.0015575e-06, -3.5883485e-10, 4.0960271e-09, 1.2514083e-07, -3.1083448e-11, 3.8159104e-10, 0, 0, 0, 0, 0,0,
- 2.6288056e-09, -4.4747167e-10, 7.7007654e-09, -3.5883499e-10, 1.0124091e-06, 1.3589103e-10, -1.6159579e-11, 1.2615627e-07, 6.1033414e-12, 0, 0, 0, 0, 0,0,
- -1.4344401e-10, -7.6179507e-09, -2.8490876e-10, 4.0960275e-09, 1.3589085e-10, 1.010878e-06, 3.7369316e-10, 1.1476016e-11, 1.2601649e-07, 0, 0, 0, 0, 0,0,
- -1.2900056e-11, -2.3314942e-10, -2.0621845e-11, 1.2514086e-07, -1.6159574e-11, 3.7369319e-10, 2.0844869e-08, -1.4661955e-12, 3.7128252e-11, 0, 0, 0, 0, 0,0,
- 2.1228734e-10, -3.6838092e-11, 6.4003891e-10, -3.1083452e-11, 1.2615625e-07, 1.1476023e-11, -1.4661957e-12, 2.0946104e-08, 5.4024537e-13, 0, 0, 0, 0, 0,0,
- -2.4383363e-11, -6.3262767e-10, -2.4080508e-11, 3.8159106e-10, 6.1033392e-12, 1.2601647e-07, 3.7128255e-11, 5.4024612e-13, 2.0932518e-08, 0, 0, 0, 0, 0,0,
- 0, 0, 0, 0, 0, 0, 0, 0, 0, 9.402204e-11, 0, 0, 0, 0,0,
- 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 9.402204e-11, 0, 0, 0,0,
- 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 9.402204e-11, 0, 0,0,
- 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2.2499994e-06, 0,0,
- 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2.2499994e-06,0,
- 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2.2499994e-06;
- Cs[3]<<7.2249997e-09, 4.6187118e-16, -8.6971935e-16, -1.4961084e-10, 2.8613769e-09, -1.4619396e-10, -1.2197337e-11, 2.3312166e-10, -1.1330299e-11, 0, 0, 0, 0, 0,0,
- 4.6105639e-16, 7.2249997e-09, -1.7417221e-16, -2.7243219e-09, -7.4412609e-10, -7.611515e-09, -2.2188935e-10, -6.0712026e-11, -6.2126237e-10, 0, 0, 0, 0, 0,0,
- -8.6961056e-16, -1.735341e-16, 7.2250019e-09, -4.7237314e-10, 7.5570759e-09, -5.9993738e-10, -3.9121938e-11, 6.1679573e-10, -4.8976337e-11, 0, 0, 0, 0, 0,0,
- -1.4961088e-10, -2.7243223e-09, -4.7237303e-10, 1.0014207e-06, -3.6797421e-10, 3.9000563e-09, 1.2513036e-07, -3.3871069e-11, 3.5806216e-10, 0, 0, 0, 0, 0,0,
- 2.8613771e-09, -7.4412598e-10, 7.5570759e-09, -3.6797365e-10, 1.0122101e-06, 1.3288635e-10, -3.4552378e-11, 1.261206e-07, 1.2482808e-11, 0, 0, 0, 0, 0,0,
- -1.4619396e-10, -7.6115132e-09, -5.9993749e-10, 3.9000554e-09, 1.3288641e-10, 1.0108142e-06, 3.579467e-10, 1.2233126e-11, 1.2599247e-07, 0, 0, 0, 0, 0,0,
- -1.2197339e-11, -2.2188935e-10, -3.9121931e-11, 1.2513037e-07, -3.455242e-11, 3.5794678e-10, 2.0844031e-08, -3.3800339e-12, 3.5097897e-11, 0, 0, 0, 0, 0,0,
- 2.3312172e-10, -6.0712012e-11, 6.1679567e-10, -3.3871021e-11, 1.261206e-07, 1.2233111e-11, -3.3800265e-12, 2.0941066e-08, 1.2215803e-12, 0, 0, 0, 0, 0,0,
- -1.1330297e-11, -6.2126243e-10, -4.897633e-11, 3.5806216e-10, 1.2482817e-11, 1.2599247e-07, 3.5097897e-11, 1.2215813e-12, 2.0928507e-08, 0, 0, 0, 0, 0,0,
- 0, 0, 0, 0, 0, 0, 0, 0, 0, 9.402204e-11, 0, 0, 0, 0,0,
- 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 9.402204e-11, 0, 0, 0,0,
- 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 9.402204e-11, 0, 0,0,
- 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2.2499994e-06, 0,0,
- 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2.2499994e-06,0,
- 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2.2499994e-06;
- Cs[4]<<7.225001e-09, 4.9158145e-16, -1.2162363e-15, -1.4971133e-10, 3.2652432e-09, -4.7152421e-10, -1.1303794e-11, 2.4629457e-10, -3.4803303e-11, 0, 0, 0, 0, 0,0,
- 4.9051832e-16, 7.2250028e-09, -1.3593228e-16, -3.1333902e-09, -1.0420511e-09, -8.2696383e-09, -2.35438e-10, -8.3097793e-11, -6.6563038e-10, 0, 0, 0, 0, 0,0,
- -1.2160407e-15, -1.3685466e-16, 7.2250015e-09, -2.6427088e-10, 8.2189748e-09, -8.8892332e-10, -2.263132e-11, 6.6173333e-10, -7.1596604e-11, 0, 0, 0, 0, 0,0,
- -1.4971133e-10, -3.1333909e-09, -2.6427088e-10, 1.0017711e-06, 9.7134065e-11, 4.7537707e-09, 1.2514936e-07, 7.8406578e-12, 4.2579051e-10, 0, 0, 0, 0, 0,0,
- 3.2652427e-09, -1.0420512e-09, 8.2189766e-09, 9.7134169e-11, 1.0145516e-06, -3.6561455e-11, 3.206343e-12, 1.2630312e-07, -1.2220776e-12, 0, 0, 0, 0, 0,0,
- -4.7152415e-10, -8.2696365e-09, -8.8892355e-10, 4.7537703e-09, -3.6561709e-11, 1.0127824e-06, 4.0452286e-10, -2.7691007e-12, 1.2615382e-07, 0, 0, 0, 0, 0,0,
- -1.1303795e-11, -2.35438e-10, -2.2631317e-11, 1.2514931e-07, 3.2063575e-12, 4.0452286e-10, 2.0844805e-08, 2.073528e-13, 3.8850697e-11, 0, 0, 0, 0, 0,0,
- 2.4629448e-10, -8.3097793e-11, 6.6173345e-10, 7.8406457e-12, 1.2630314e-07, -2.7690918e-12, 2.0735003e-13, 2.0956044e-08, -7.4390581e-14, 0, 0, 0, 0, 0,0,
- -3.480331e-11, -6.6563022e-10, -7.1596597e-11, 4.257906e-10, -1.2220883e-12, 1.2615382e-07, 3.8850704e-11, -7.4389666e-14, 2.0942473e-08, 0, 0, 0, 0, 0,0,
- 0, 0, 0, 0, 0, 0, 0, 0, 0, 9.402204e-11, 0, 0, 0, 0,0,
- 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 9.402204e-11, 0, 0, 0,0,
- 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 9.402204e-11, 0, 0,0,
- 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2.2499994e-06, 0,0,
- 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2.2499994e-06,0,
- 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2.2499994e-06;
- Cs[5]<<7.2250028e-09, -5.1731891e-16, -4.5774248e-16, -1.2056001e-10, 2.9743015e-09, -2.9109007e-10, -9.8723148e-12, 2.3928451e-10, -2.6978994e-11, 0, 0, 0, 0, 0,0,
- -5.1767843e-16, 7.2250015e-09, 4.3117603e-16, -3.3938108e-09, -5.8907546e-10, -8.6658627e-09, -2.7429323e-10, -4.8646927e-11, -7.1996908e-10, 0, 0, 0, 0, 0,0,
- -4.5851826e-16, 4.3264865e-16, 7.2250006e-09, -2.0475344e-10, 8.8196455e-09, -4.732989e-10, -1.3794453e-11, 7.324874e-10, -3.9458194e-11, 0, 0, 0, 0, 0,0,
- -1.2056002e-10, -3.3938115e-09, -2.0475348e-10, 1.0021361e-06, -1.7044796e-11, 5.4882654e-09, 1.2519406e-07, -7.0733203e-13, 5.1121524e-10, 0, 0, 0, 0, 0,0,
- 2.9743015e-09, -5.8907529e-10, 8.8196446e-09, -1.7044586e-11, 1.0162446e-06, 6.8094913e-12, 3.6249068e-12, 1.2651266e-07, -1.3927001e-12, 0, 0, 0, 0, 0,0,
- -2.910901e-10, -8.6658662e-09, -4.7329884e-10, 5.4882663e-09, 6.8094259e-12, 1.0141088e-06, 5.0060328e-10, 2.7119762e-13, 1.2631853e-07, 0, 0, 0, 0, 0,0,
- -9.8723139e-12, -2.7429323e-10, -1.3794455e-11, 1.2519411e-07, 3.6248988e-12, 5.0060323e-10, 2.0850132e-08, 4.5397952e-13, 4.9791785e-11, 0, 0, 0, 0, 0,0,
- 2.3928451e-10, -4.8646923e-11, 7.3248768e-10, -7.0732954e-13, 1.2651265e-07, 2.7118748e-13, 4.5398106e-13, 2.0981387e-08, -1.7294635e-13, 0, 0, 0, 0, 0,0,
- -2.6978997e-11, -7.199692e-10, -3.9458201e-11, 5.1121529e-10, -1.3926939e-12, 1.2631854e-07, 4.9791789e-11, -1.7294629e-13, 2.0962494e-08, 0, 0, 0, 0, 0,0,
- 0, 0, 0, 0, 0, 0, 0, 0, 0, 9.402204e-11, 0, 0, 0, 0,0,
- 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 9.402204e-11, 0, 0, 0,0,
- 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 9.402204e-11, 0, 0,0,
- 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2.2499994e-06, 0,0,
- 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2.2499994e-06,0,
- 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2.2499994e-06;
- Cs[6]<<7.2250006e-09, -1.175144e-16, -8.7700203e-17, -6.1002599e-11, 3.0967873e-09, -9.5948111e-11, -5.0707815e-12, 2.561083e-10, -9.5681839e-12, 0, 0, 0, 0, 0,0,
- -1.1777585e-16, 7.2250006e-09, 1.4869424e-16, -3.2300462e-09, -1.9261492e-10, -8.5050926e-09, -2.6700819e-10, -1.5783066e-11, -6.9394063e-10, 0, 0, 0, 0, 0,0,
- -8.8820265e-17, 1.4907516e-16, 7.2249997e-09, -1.1769255e-10, 8.5543865e-09, -1.3129622e-10, -7.917049e-12, 6.9804967e-10, -1.0740089e-11, 0, 0, 0, 0, 0,0,
- -6.1002606e-11, -3.2300465e-09, -1.1769254e-10, 1.0019503e-06, -9.8145041e-11, 5.1137743e-09, 1.2518092e-07, -8.4264817e-12, 4.7016885e-10, 0, 0, 0, 0, 0,0,
- 3.0967877e-09, -1.926149e-10, 8.5543848e-09, -9.8144944e-11, 1.0153657e-06, 3.7348739e-11, -5.7036758e-12, 1.2641311e-07, 2.1704045e-12, 0, 0, 0, 0, 0,0,
- -9.5948124e-11, -8.5050935e-09, -1.3129622e-10, 5.1137752e-09, 3.7348881e-11, 1.0134172e-06, 4.7418719e-10, 3.2408269e-12, 1.2623222e-07, 0, 0, 0, 0, 0,0,
- -5.0707797e-12, -2.6700817e-10, -7.9170498e-12, 1.251809e-07, -5.7036927e-12, 4.7418719e-10, 2.0849129e-08, -4.9876753e-13, 4.6516426e-11, 0, 0, 0, 0, 0,0,
- 2.5610827e-10, -1.5783068e-11, 6.980494e-10, -8.4264609e-12, 1.2641314e-07, 3.2408234e-12, -4.9876509e-13, 2.0970079e-08, 1.9165099e-13, 0, 0, 0, 0, 0,0,
- -9.5681831e-12, -6.9394057e-10, -1.074009e-11, 4.701689e-10, 2.1704108e-12, 1.2623225e-07, 4.6516423e-11, 1.9165127e-13, 2.0952184e-08, 0, 0, 0, 0, 0,0,
- 0, 0, 0, 0, 0, 0, 0, 0, 0, 9.402204e-11, 0, 0, 0, 0,0,
- 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 9.402204e-11, 0, 0, 0,0,
- 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 9.402204e-11, 0, 0,0,
- 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2.2499994e-06, 0,0,
- 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2.2499994e-06,0,
- 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2.2499994e-06;
- Cs[7]<<7.2250015e-09, 5.8059807e-18, -1.2779755e-18, 1.258693e-11, 2.7772953e-09, -3.9048768e-11, 1.0606967e-12, 2.349127e-10, -2.5652367e-12, 0, 0, 0, 0, 0,0,
- 6.3519985e-18, 7.2250006e-09, 8.5343243e-18, -2.7351883e-09, 3.6657885e-11, -7.8303142e-09, -2.3136927e-10, 3.0915127e-12, -6.5937128e-10, 0, 0, 0, 0, 0,0,
- -1.3561357e-18, 8.4066928e-18, 7.2249993e-09, 8.2444024e-11, 7.8152738e-09, 2.4722452e-11, 6.2226968e-12, 6.5810229e-10, 2.0779476e-12, 0, 0, 0, 0, 0,0,
- 1.2586928e-11, -2.7351881e-09, 8.2444031e-11, 1.0014141e-06, 1.0578664e-10, 4.0402259e-09, 1.2513512e-07, 9.9196215e-12, 3.8473774e-10, 0, 0, 0, 0, 0,0,
- 2.7772955e-09, 3.6657892e-11, 7.8152755e-09, 1.0578663e-10, 1.0129645e-06, -3.7000774e-11, 9.0408046e-12, 1.2623435e-07, -3.1647625e-12, 0, 0, 0, 0, 0,0,
- -3.9048768e-11, -7.8303133e-09, 2.472245e-11, 4.0402259e-09, -3.7000757e-11, 1.0115522e-06, 3.8605677e-10, -3.4842402e-12, 1.2609929e-07, 0, 0, 0, 0, 0,0,
- 1.0606966e-12, -2.3136923e-10, 6.2226977e-12, 1.251351e-07, 9.0408046e-12, 3.8605671e-10, 2.0845032e-08, 9.133125e-13, 3.926303e-11, 0, 0, 0, 0, 0,0,
- 2.3491273e-10, 3.0915127e-12, 6.5810246e-10, 9.9196215e-12, 1.2623435e-07, -3.4842409e-12, 9.133125e-13, 2.0956776e-08, -3.2108994e-13, 0, 0, 0, 0, 0,0,
- -2.5652367e-12, -6.5937122e-10, 2.0779474e-12, 3.8473774e-10, -3.1647616e-12, 1.2609931e-07, 3.9263037e-11, -3.2108981e-13, 2.0942982e-08, 0, 0, 0, 0, 0,0,
- 0, 0, 0, 0, 0, 0, 0, 0, 0, 9.402204e-11, 0, 0, 0, 0,0,
- 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 9.402204e-11, 0, 0, 0,0,
- 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 9.402204e-11, 0, 0,0,
- 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2.2499994e-06, 0,0,
- 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2.2499994e-06,0,
- 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2.2499994e-06;
- Cs[8]<<7.2250019e-09, 3.2823162e-17, 1.3748998e-16, -8.7518458e-11, 2.768469e-09, -1.3917666e-11, -7.195345e-12, 2.2667712e-10, -9.7821083e-12, 0, 0, 0, 0, 0,0,
- 3.4870897e-17, 7.2250024e-09, -4.9519746e-19, -2.7979907e-09, 4.2648291e-11, -7.6295459e-09, -2.2895849e-10, 3.5457065e-12, -6.2757627e-10, 0, 0, 0, 0, 0,0,
- 1.3747136e-16, -1.7378031e-18, 7.2249988e-09, -1.794191e-10, 7.637178e-09, 1.3077639e-10, -6.1443797e-12, 6.2847216e-10, 1.0727681e-11, 0, 0, 0, 0, 0,0,
- -8.7518458e-11, -2.7979901e-09, -1.7941915e-10, 1.0014599e-06, -2.8532809e-10, 3.9656802e-09, 1.2513389e-07, -2.4630173e-11, 3.6677536e-10, 0, 0, 0, 0, 0,0,
- 2.7684688e-09, 4.2648281e-11, 7.6371753e-09, -2.8532787e-10, 1.0122842e-06, 1.045629e-10, -1.416285e-11, 1.2613621e-07, 5.1893715e-12, 0, 0, 0, 0, 0,0,
- -1.3917691e-11, -7.6295494e-09, 1.3077639e-10, 3.9656807e-09, 1.0456292e-10, 1.0108398e-06, 3.6523071e-10, 8.983864e-12, 1.2600293e-07, 0, 0, 0, 0, 0,0,
- -7.1953446e-12, -2.289585e-10, -6.144381e-12, 1.2513391e-07, -1.4162862e-11, 3.6523065e-10, 2.0844357e-08, -1.27251e-12, 3.603759e-11, 0, 0, 0, 0, 0,0,
- 2.2667708e-10, 3.5457065e-12, 6.2847205e-10, -2.4630159e-11, 1.2613621e-07, 8.983864e-12, -1.2725091e-12, 2.0943396e-08, 4.6419026e-13, 0, 0, 0, 0, 0,0,
- -9.7821118e-12, -6.2757638e-10, 1.0727682e-11, 3.6677544e-10, 5.1893689e-12, 1.2600296e-07, 3.6037603e-11, 4.6418988e-13, 2.0930308e-08, 0, 0, 0, 0, 0,0,
- 0, 0, 0, 0, 0, 0, 0, 0, 0, 9.402204e-11, 0, 0, 0, 0,0,
- 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 9.402204e-11, 0, 0, 0,0,
- 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 9.402204e-11, 0, 0,0,
- 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2.2499994e-06, 0,0,
- 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2.2499994e-06,0,
- 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2.2499994e-06;
-Cs[9]<<7.2250002e-09, 2.0828163e-17, 2.2627446e-17, -6.3372092e-11, 2.7986602e-09, -6.9253513e-11, -5.2538603e-12, 2.290501e-10, -9.3317836e-12, 0, 0, 0, 0, 0,0,
- 2.0009562e-17, 7.2249997e-09, 9.9285662e-17, -2.9450176e-09, -1.5593726e-11, -7.9092874e-09, -2.410829e-10, -1.2518027e-12, -6.5142125e-10, 0, 0, 0, 0, 0,0,
- 2.3490632e-17, 9.9377671e-17, 7.2250002e-09, -8.8997504e-11, 7.9620177e-09, 4.8139524e-11, -3.7114426e-12, 6.558174e-10, 3.8982086e-12, 0, 0, 0, 0, 0,0,
- -6.3372078e-11, -2.9450171e-09, -8.8997504e-11, 1.0016129e-06, -1.4033016e-10, 4.3325437e-09, 1.2514793e-07, -1.2365083e-11, 4.0057802e-10, 0, 0, 0, 0, 0,0,
- 2.7986606e-09, -1.5593728e-11, 7.9620186e-09, -1.4033016e-10, 1.0132637e-06, 5.2197736e-11, -8.0917061e-12, 1.2622661e-07, 3.0037442e-12, 0, 0, 0, 0, 0,0,
- -6.925352e-11, -7.9092883e-09, 4.8139527e-11, 4.3325454e-09, 5.2197722e-11, 1.0116546e-06, 3.982796e-10, 4.5676128e-12, 1.2607883e-07, 0, 0, 0, 0, 0,0,
- -5.2538607e-12, -2.4108288e-10, -3.7114426e-12, 1.2514793e-07, -8.0917139e-12, 3.9827949e-10, 2.0845695e-08, -7.7901363e-13, 3.9237606e-11, 0, 0, 0, 0, 0,0,
- 2.2905015e-10, -1.251803e-12, 6.5581734e-10, -1.2365075e-11, 1.2622662e-07, 4.5676128e-12, -7.7901271e-13, 2.095218e-08, 2.868481e-13, 0, 0, 0, 0, 0,0,
- -9.3317836e-12, -6.5142125e-10, 3.898209e-12, 4.0057802e-10, 3.0037435e-12, 1.2607883e-07, 3.9237613e-11, 2.8684797e-13, 2.0937728e-08, 0, 0, 0, 0, 0,0,
- 0, 0, 0, 0, 0, 0, 0, 0, 0, 9.402204e-11, 0, 0, 0, 0,0,
- 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 9.402204e-11, 0, 0, 0,0,
- 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 9.402204e-11, 0, 0,0,
- 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2.2499994e-06, 0,0,
- 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2.2499994e-06,0,
- 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2.2499994e-06;
-
-
- JRgs[0]<<-0.24995889, -0.0040205633, 0.00062931929,
- 0.0040311376, -0.24988842, 0.005364095,
- -0.00052224688, -0.0053719962, -0.24992748 ;
- JRgs[1]<<-0.24995889, -0.0040205633, 0.00062931929,
- 0.0040311376, -0.24988842, 0.005364095,
- -0.00052224688, -0.0053719962, -0.24992748 ;
- JRgs[2]<<-0.24978398, -0.0079874797, 0.0046310253,
- 0.0080888392, -0.24978678, 0.0041843047,
- -0.0044520581, -0.0043694102, -0.24989793;
- JRgs[3]<<-0.24987733, -0.0055860723, -0.0036885843,
- 0.0053773527, -0.24959148, 0.011309233,
- 0.0040181638, -0.011206218, -0.24964333;
- JRgs[4]<<-0.24989319, -0.0061603263, -0.0010150505,
- 0.0060570496, -0.24943921, 0.012949253,
- 0.0014446991, -0.012901656, -0.24953316;
- JRgs[5]<<-0.24979708, -0.0041762567, 0.0079295011,
- 0.0044098105, -0.24985309, 0.0056574955,
- -0.0077895205, -0.0058308002, -0.24975306;
- JRgs[6]<<-0.24998498, -0.001732833, -0.00040116059,
- 0.0017357692, -0.24998346, 0.0013882983,
- 0.00041721441, -0.0013916667, -0.24998884;
- JRgs[7]<<-0.24999802, 0.00052972208, -0.00050434918,
- -0.00052796362, -0.2499976, -0.00072379492,
- 0.00050631387, 0.00072187773, -0.24999797;
- JRgs[8]<<-0.2499537, -0.0041594789, 0.00059852534,
- 0.0041530817, -0.24994241, -0.0021157139,
- -0.00064547156, 0.0021032454, -0.24998695;
- JRgs[9]<<-0.24996237, -0.002611351, 0.0027322085,
- 0.0026014475, -0.24998021, -0.00071113673,
- -0.0027420279, 0.00067371462, -0.24997953;
-
-
- JVgs[0]<<0.00081479421, 0.099567488, 0.0054488527,
- -0.100917, 0.0036120738, -0.2775977,
- -0.0022036682, 0.27809447, 0.0028345673 ;
- JVgs[1]<<0.00081479421, 0.099567488, 0.0054488527,
- -0.100917, 0.0036120738, -0.2775977,
- -0.0022036682, 0.27809447, 0.0028345673 ;
- JVgs[2]<<0.001453312, 0.099846758, 0.01150535,
- -0.097680002, 0.0053974288, -0.26445422,
- -0.0059427414, 0.26375151, 0.0037543585;
- JVgs[3]<<0.0020404269, 0.095154226, 0.010866556,
- -0.094552658, 0.0074096574, -0.26422137,
- -0.0032079529, 0.26410186, 0.0053275875;
- JVgs[4]<<0.0016444079, 0.10887985, 0.0016855302,
- -0.11150527, 0.012432125, -0.2868171,
- 0.0067818086, 0.28784934, 0.010729348;
- JVgs[5]<<0.0016110964, 0.11763787, 0.0032375187,
- -0.1153432, 0.0081086438, -0.30124691,
- 0.0034336939, 0.30035108, 0.0064957598;
- JVgs[6]<<0.00095649081, 0.11180659, 0.0031655722,
- -0.10733828, 0.003163283, -0.29597434,
- 0.00030054164, 0.29433581, 0.0021627599;
- JVgs[7]<<-0.00010106902, 0.09465301, -0.0025328975,
- -0.095307805, -2.2342158e-05, -0.27070808,
- 0.0022862346, 0.27094027, 6.7211986e-05;
- JVgs[8]<<0.00091114157, 0.096789725, 0.0073082494,
- -0.096571244, -0.00057790102, -0.26398295,
- -0.0053595863, 0.26398823, -0.0014993658;
- JVgs[9]<<0.00080045569, 0.10191263, 0.0034399023,
- -0.10077594, 0.0001745576, -0.2740863,
- -0.0014782979, 0.27369025, -0.00064929936;
-
- JVas[0]<<-0.24996902, 0.0031162035, 0.0013437622,
- -0.0031393669, -0.24992697, -0.0040089916,
- -0.0012732258, 0.0040270146, -0.24995029 ;
- JVas[1]<<-0.24996902, 0.0031162035, 0.0013437622,
- -0.0031393669, -0.24992697, -0.0040089916,
- -0.0012732258, 0.0040270146, -0.24995029 ;
- JVas[2]<<-0.24985421, 0.0062338803, -0.0034168749,
- -0.0061395792, -0.24982548, -0.005110254,
- 0.003583116, 0.0049851108, -0.24990034;
- JVas[3]<<-0.24985684, 0.007391281, 0.00026429715,
- -0.00742803, -0.249661, -0.0082101421,
- 6.2281164e-05, 0.0082309255, -0.24979296;
- JVas[4]<<-0.24989004, 0.0054750345, 0.003255937,
- -0.005681965, -0.24941342, -0.013591644,
- -0.0028378936, 0.01367758, -0.24947912;
- JVas[5]<<-0.24987894, 0.0050255624, -0.0038130756,
- -0.0048556295, -0.24979353, -0.0075730807,
- 0.0040035094, 0.0074583059, -0.24979948;
- JVas[6]<<-0.24993582, 0.0030583444, -0.0042610099,
- -0.0030108541, -0.24996276, -0.0024702034,
- 0.0042972541, 0.0024115082, -0.24994399;
- JVas[7]<<-0.249997, -0.00057287654, 0.00082039629,
- 0.00057332165, -0.24999852, 4.7075813e-05,
- -0.00081986201, -4.9811813e-05, -0.2499982;
- JVas[8]<<-0.24996227, 0.0036494639, -0.00031274493,
- -0.0036530606, -0.24995026, 0.0021188133,
- 0.00026990645, -0.0021251382, -0.24998745;
- JVas[9]<<-0.24996786, 0.0028637107, -0.0018311953,
- -0.0028719171, -0.24997695, 0.00079449493,
- 0.0018192942, -0.00082425034, -0.24998757;
-
-  JPgs[0]<< 5.3704181e-05, 0.0088163931, 0.00045023012,
- -0.0089179548, 0.00022765771, -0.023609726,
- -0.00024330647, 0.023648463, 0.00017729003;
- JPgs[1]<<5.3704181e-05, 0.0088163931, 0.00045023012,
- -0.0089179548, 0.00022765771, -0.023609726,
- -0.00024330647, 0.023648463, 0.00017729003;
- JPgs[2]<<8.8562498e-05, 0.0080935135, 0.00049575832,
- -0.0079604192, 0.00034285753, -0.021966593,
- -0.00015546716, 0.0219207, 0.00024872998;
- JPgs[3]<<0.00012882614, 0.0077579524, 0.00085994083,
- -0.0076901228, 0.00043761099, -0.021575799,
- -0.00038352553, 0.021558329, 0.00030434554;
- JPgs[4]<<8.9141904e-05, 0.0081918519, 0.00014242517,
- -0.0083665773, 0.00074239273, -0.023113552,
- 0.00034246809, 0.02317719, 0.00065054215;
- JPgs[5]<<0.00010021385, 0.0095058177, 0.00011985402,
- -0.0093930569, 0.00052187347, -0.025003564,
- 0.00030425552, 0.024960237, 0.00042175062;
- JPgs[6]<<6.3660002e-05, 0.0092422506, 0.00018517573,
- -0.0089288726, 0.00020660987, -0.024133656,
- 4.063809e-05, 0.02401641, 0.00014071935;
- JPgs[7]<<-3.1337179e-06, 0.0080066361, -0.00018750556,
- -0.0080511346, 5.5821197e-06, -0.022799443,
- 0.00018252048, 0.022815196, 8.0167874e-06;
- JPgs[8]<<5.4548764e-05, 0.0079231402, 0.00031435574,
- -0.0079116728, -3.5992765e-05, -0.021722065,
- -0.00019800536, 0.021720586, -9.0848967e-05;
- JPgs[9]<<5.1516592e-05, 0.0083431527, 0.00016205988,
- -0.0082825422, 1.0856892e-05, -0.022564959,
- -3.7381997e-05, 0.022543095, -4.1067357e-05;
-
-  JPas[0]<<-0.031248037, 0.00025083456, 0.00014810846,
- -0.0002526888, -0.031245913, -0.00031468342,
- -0.00014415033, 0.00031615718, -0.031247057 ;
- JPas[1]<<-0.031248037, 0.00025083456, 0.00014810846,
- -0.0002526888, -0.031245913, -0.00031468342,
- -0.00014415033, 0.00031615718, -0.031247057 ;
- JPas[2]<<-0.031241983, 0.00048159817, -0.00026408851,
- -0.00047576398, -0.03123945, -0.00045061327,
- 0.0002743646, 0.00044372652, -0.031243555;
- JPas[3]<<-0.031239811, 0.00066114007, -7.4712065e-05,
- -0.00066075311, -0.031229496, -0.00061638688,
- 9.4698044e-05, 0.00061520992, -0.031238973;
- JPas[4]<<-0.031243095, 0.0004330576, 0.00030242561,
- -0.00044781168, -0.03121342, -0.0011292896,
- -0.00027709562, 0.0011351593, -0.031216763;
- JPas[5]<<-0.031243511, 0.0004270002, -0.00022822079,
- -0.00041839163, -0.031235857, -0.00066524581,
- 0.00024112443, 0.00065955595, -0.031237736;
- JPas[6]<<-0.031244026, 0.00027713104, -0.00046203355,
- -0.00027283063, -0.031247234, -0.00022817992,
- 0.00046474556, 0.00022298856, -0.031244561;
- JPas[7]<<-0.031249799, -3.1550622e-05, 7.4754287e-05,
- 3.1540338e-05, -0.031249911, -8.3322384e-06,
- -7.474477e-05, 8.1823118e-06, -0.03124986;
- JPas[8]<<-0.031247808, 0.00028908599, -2.1758335e-05,
- -0.00028927551, -0.031247066, 0.00017289969,
- 1.9189507e-05, -0.00017322256, -0.031249234;
- JPas[9]<<-0.03124808, 0.00024514552, -0.00012661511,
- -0.0002456175, -0.031248491, 7.037873e-05,
- 0.00012581001, -7.2036746e-05, -0.031249356;
-
-
-
-               Matrix3d tcb;
-            tcb<<0.0148655429818, -0.999880929698, 0.00414029679422,
-            0.999557249008, 0.0149672133247, 0.025715529948,
-            -0.0257744366974, 0.00375618835797, 0.999660727178;
+    
     if (!initialized)
     {
         Vector3d dirG = Vector3d::Zero();
@@ -981,7 +404,7 @@ Cs[9]<<7.2250002e-09, 2.0828163e-17, 2.2627446e-17, -6.3372092e-11, 2.7986602e-0
         int i=1;
         for(std::vector<Frame::Ptr>::iterator iter_keyframe = Key_frames.begin()+1; iter_keyframe!=Key_frames.end(); iter_keyframe++) 
         {
-            if(!(*iter_keyframe)->preintegration->isPreintegrated)
+            if((*iter_keyframe)->preintegration==nullptr)
             {
                 return false;
             }   
@@ -989,50 +412,17 @@ Cs[9]<<7.2250002e-09, 2.0828163e-17, 2.2627446e-17, -6.3372092e-11, 2.7986602e-0
             {
                 continue;
             }
-
-            // if(firstframe)
-            // {
-            //     (*iter_keyframe)->last_keyframe->time=times[0];
-            //  (*iter_keyframe)->last_keyframe->pose=SE3d(Quaterniond(Rs[0]),Ps[0]);
-            //   (*iter_keyframe)->last_keyframe->preintegration->dT=0.25;
-            //   (*iter_keyframe)->last_keyframe->preintegration->dV=dVs[0];
-            //   (*iter_keyframe)->last_keyframe->preintegration->dP=dPs[0];
-            //   (*iter_keyframe)->last_keyframe->preintegration->dR=dRs[0];
-            //     (*iter_keyframe)->last_keyframe->preintegration->C=Cs[0];
-            //         (*iter_keyframe)->last_keyframe->preintegration->JRg=JRgs[0];
-            //       (*iter_keyframe)->last_keyframe->preintegration->JVg=JVgs[0];
-            //       (*iter_keyframe)->last_keyframe->preintegration->JVa=JVas[0];
-            //       (*iter_keyframe)->last_keyframe->preintegration->JPg=JPgs[0];
-            //       (*iter_keyframe)->last_keyframe->preintegration->JPa=JPas[0];
-            //     firstframe=false;
-            // }
-            // (*iter_keyframe)->time=times[i];
-            //  (*iter_keyframe)->pose=SE3d(Quaterniond(Rs[i]),Ps[i]);
-            //   (*iter_keyframe)->preintegration->dT=0.25;
-            //   (*iter_keyframe)->preintegration->dV=dVs[i];
-            //   (*iter_keyframe)->preintegration->dP=dPs[i];
-            //   (*iter_keyframe)->preintegration->dR=dRs[i];
-            //     (*iter_keyframe)->preintegration->C=Cs[i];
-            //       (*iter_keyframe)->preintegration->JRg=JRgs[i];
-            //       (*iter_keyframe)->preintegration->JVg=JVgs[i];
-            //       (*iter_keyframe)->preintegration->JVa=JVas[i];
-            //       (*iter_keyframe)->preintegration->JPg=JPgs[i];
-            //       (*iter_keyframe)->preintegration->JPa=JPas[i];
-
             i++;
-            dirG -= (*iter_keyframe)->last_keyframe->GetImuRotation()*(*iter_keyframe)->preintegration->GetUpdatedDeltaVelocity();
-            velocity= ((*iter_keyframe)->GetImuPosition() - (*(iter_keyframe))->last_keyframe->GetImuPosition())/((*iter_keyframe)->preintegration->dT);
+            dirG += (*iter_keyframe)->last_keyframe->GetImuRotation()*(*iter_keyframe)->preintegration->GetUpdatedDeltaVelocity();
+            velocity= ((*iter_keyframe)->GetImuPosition() - (*(iter_keyframe))->last_keyframe->GetImuPosition())/((*iter_keyframe)->preintegration->sum_dt);
             (*iter_keyframe)->SetVelocity(velocity);
             (*iter_keyframe)->last_keyframe->SetVelocity(velocity);
                 
-            LOG(INFO)<<"InitializeIMU  "<<(*iter_keyframe)->time-1.40364e+09/*+8.60223e+07*/<<"   Vwb1  "<<(/*tcb.inverse()*/velocity).transpose()<<"  p  "<<(*iter_keyframe)->GetImuPosition().transpose()/*tcb*/<<"  dt " <<(*iter_keyframe)->preintegration->dT;
-           // LOG(INFO)<<"current  "<<(*iter_keyframe)->id<<"   last  "<< (*(iter_keyframe))->last_keyframe->id;
-            // LOG(INFO)<<"current  "<<(tcb.inverse()*(*iter_keyframe)->GetImuPosition()).transpose()<<"   last  "<< (tcb.inverse()*(*(iter_keyframe))->last_keyframe->GetImuPosition()).transpose();
-            //LOG(INFO)<<"  dP "<<(*iter_keyframe)->preintegration->dP.transpose()<<"  dV "<<(*iter_keyframe)->preintegration->dV.transpose();
+            // LOG(INFO)<<"InitializeIMU  "<<(*iter_keyframe)->time-1.40364e+09/*+8.60223e+07*/<<"   Vwb1  "<<(/*tcb.inverse()*/velocity).transpose()<<"  p  "<<(*iter_keyframe)->GetImuPosition().transpose()/*tcb*/<<"  sum_dt " <<(*iter_keyframe)->preintegration->sum_dt;
         }
         dirG = dirG/dirG.norm();
   
-        Vector3d  gI(0.0, 0.0, -1.0);//沿-z的归一化的重力数值
+        Vector3d  gI(0.0, 0.0, 1.0);//沿-z的归一化的重力数值
         // 计算旋转轴
         Vector3d v = gI.cross(dirG);
         const double nv = v.norm();
@@ -1041,27 +431,193 @@ Cs[9]<<7.2250002e-09, 2.0828163e-17, 2.2627446e-17, -6.3372092e-11, 2.7986602e-0
         const double ang = acos(cosg);
         // 计算mRwg，与-Z旋转偏差
         Vector3d vzg = v*ang/nv;
-        Rwg = ExpSO3(vzg);
-        //Rwg=Matrix3d::Identity();
+        if(bimu){
+            Rwg=Matrix3d::Identity();
+        }else{
+            Rwg = ExpSO3(vzg);
+        }//Rwg=Matrix3d::Identity();
         Vector3d g;
-         g<< 0, 0, -9.8007;
+         g<< 0, 0, 9.8007;
          g=Rwg*g;
-        // LOG(INFO)<<"dirG "<<(tcb.inverse()*dirG).transpose();
+            // LOG(INFO)<<"dirG "<<(tcb.inverse()*dirG).transpose();
        LOG(INFO)<<"INITG "<<(/*tcb.inverse()*/g).transpose();
+
+        // bool first=true;
+        // for(std::vector<Frame::Ptr>::iterator iter_keyframe = Key_frames.begin()+1; iter_keyframe!=Key_frames.end(); iter_keyframe++) 
+        // {
+        //     if((*iter_keyframe)->preintegration==nullptr)
+        //     {
+        //         return false;
+        //     }   
+        //     if(!(*iter_keyframe)->last_keyframe)
+        //     {
+        //         continue;
+        //     }
+        //     if(first){
+        //          velocity= ((*iter_keyframe)->GetImuPosition() - (*(iter_keyframe))->last_keyframe->GetImuPosition())/((*iter_keyframe)->preintegration->sum_dt);
+        //            (*iter_keyframe)->SetVelocity(velocity);
+        //               (*iter_keyframe)->last_keyframe->SetVelocity(velocity);
+        //         first=false;
+                     
+        //     LOG(INFO)<<"InitializeIMU  "<<(*iter_keyframe)->time-1.40364e+09/*+8.60223e+07*/<<"   Vwb1  "<<(/*tcb.inverse()*/velocity).transpose()<<"  p  "<<(*iter_keyframe)->GetImuPosition().transpose()/*tcb*/<<"  sum_dt " <<(*iter_keyframe)->preintegration->sum_dt;
+
+        //         continue;
+        //     }
+        //         velocity= ((*iter_keyframe)->last_keyframe->GetVelocity()-((*iter_keyframe)->preintegration->sum_dt)*g+ (*iter_keyframe)->last_keyframe->GetImuRotation()*(*iter_keyframe)->preintegration->GetUpdatedDeltaVelocity());
+        //     (*iter_keyframe)->SetVelocity(velocity);
+                
+        //     LOG(INFO)<<"InitializeIMU  "<<(*iter_keyframe)->time-1.40364e+09/*+8.60223e+07*/<<"   Vwb1  "<<(/*tcb.inverse()*/velocity).transpose()<<"  p  "<<(*iter_keyframe)->GetImuPosition().transpose()/*tcb*/<<"  sum_dt " <<(*iter_keyframe)->preintegration->sum_dt;
+        // }
+
     } 
     else
     {
         Rwg=Matrix3d::Identity();
-        bg = Map::Instance().current_frame->GetGyroBias();
-        ba =Map::Instance().current_frame->GetAccBias();
+        // bg = Map::Instance().current_frame->GetGyroBias();
+        // ba =Map::Instance().current_frame->GetAccBias();
     }
     return true;
 }
 
+Vector3d Initializer::ComputeGyroBias(const Frames &frames)
+{
+    const int N = frames.size();
+    std::vector<double> vbx;
+    vbx.reserve(N);
+    std::vector<double> vby;
+    vby.reserve(N);
+    std::vector<double> vbz;
+    vbz.reserve(N);
 
+    Matrix3d H = Matrix3d::Zero();
+    Vector3d grad = Vector3d::Zero();
+    bool first=true;
+    Frame::Ptr pF1;
+    for(auto iter:frames)
+    {
+        if(first){
+            pF1=iter.second;
+           first=false; 
+            continue;
+        }
+        Frame::Ptr pF2 = iter.second;
+        Matrix3d VisionR = pF1->GetImuRotation().transpose()*pF2->GetImuRotation();
+        Matrix3d JRg = pF2->preintegration-> jacobian.block<3, 3>(3, 12);
+        Matrix3d E = pF2->preintegrationFrame->GetUpdatedDeltaRotation().inverse().toRotationMatrix()*VisionR;
+        Vector3d e =  LogSO3(E);
+       // assert(fabs(pF2->time-pF1->time-pF2->preintegration->dT)<0.01);
+
+       Matrix3d J = -InverseRightJacobianSO3(e)*E.transpose()*JRg;
+        grad += J.transpose()*e;
+        H += J.transpose()*J;
+        pF1=iter.second;
+    }
+
+    Vector3d bg = -H.ldlt().solve( grad);
+    LOG(INFO)<<bg.transpose();
+    for(auto iter:frames)
+        {
+            Frame::Ptr pF = iter.second;
+            pF->ImuBias.linearized_ba=Vector3d::Zero();
+            pF->ImuBias.linearized_bg=bg;
+            pF->SetNewBias(pF->ImuBias);
+        }
+    return bg;
+}
+
+Vector3d Initializer::ComputeVelocitiesAccBias(const Frames &frames)
+{
+   const int N = frames.size();
+    const int nVar = 3*N +3; // 3 velocities/frame + acc bias
+    const int nEqs = 6*(N-1);
+
+    MatrixXd J(nEqs,nVar);
+    J.setZero();
+    VectorXd e(nEqs);
+    e.setZero();
+    Vector3d g;
+    g<<0,0,-9.81007;
+
+    int i=0;
+    bool first=true;
+    Frame::Ptr Frame1;
+    Frame::Ptr Frame2;
+    for(auto iter:frames)
+    {
+        if(first){
+            Frame1=iter.second;
+            first=false;
+            continue;
+        }
+
+        Frame2=iter.second;
+        Vector3d twb1 = Frame1->GetImuPosition();
+        Vector3d twb2 = Frame2->GetImuPosition();
+        Matrix3d Rwb1 = Frame1->GetImuRotation();
+        Vector3d dP12 = Frame2->preintegration->GetUpdatedDeltaPosition();
+        Vector3d dV12 = Frame2->preintegration->GetUpdatedDeltaVelocity();
+        Matrix3d JP12 = Frame2->preintegration-> jacobian.block<3, 3>(0, 9);
+        Matrix3d JV12 = Frame2->preintegration->jacobian.block<3, 3>(6, 9);
+        float t12 = Frame2->preintegration->sum_dt;
+        // Position p2=p1+v1*t+0.5*g*t^2+R1*dP12
+        J.block<3,3>(6*i,3*i)+= Matrix3d::Identity()*t12;
+        J.block<3,3>(6*i,3*N) += Rwb1*JP12;
+        e.block<3,1>(6*i,0) = twb2-twb1-0.5f*g*t12*t12-Rwb1*dP12;
+        // Velocity v2=v1+g*t+R1*dV12
+        J.block<3,3>(6*i+3,3*i)+= -Matrix3d::Identity();
+        J.block<3,3>(6*i+3,3*i+3)+=  Matrix3d::Identity();
+        J.block<3,3>(6*i+3,3*N) -= Rwb1*JV12;
+        e.block<3,1>(6*i+3,0) = g*t12+Rwb1*dV12;
+        Frame1=Frame2;
+        i++;
+    }
+
+    MatrixXd H = J.transpose()*J;
+    MatrixXd B = J.transpose()*e;
+     VectorXd x=H.ldlt().solve(B);
+     Vector3d ba;
+    ba(0) = x(3*N);
+    ba(1) = x(3*N+1);
+    ba(2) = x(3*N+2);
+ 
+ int i=0;
+    for(auto iter:frames)
+    {
+        Frame::Ptr pF = iter.second;
+        pF->preintegration->Repropagate(Vector3d::Zero(),bg);
+        pF->Vw=x.block<3,1>(3*i,0);
+        if(i>0)
+        {
+            pF->ImuBias.linearized_ba=ba;
+            pF->SetNewBias(pF->ImuBias);
+        }
+        i++;
+    }
+}
+
+void ApplyScaledRotation(const Matrix3d &R,Frames keyframes)
+{
+    //LOG(INFO)<<R;
+ SE3d pose0=keyframes.begin()->second->pose;
+     Matrix3d new_pose=R*pose0.rotationMatrix();
+    Vector3d origin_R0=R2ypr( pose0.rotationMatrix());
+  Vector3d origin_R00=R2ypr(new_pose);
+ double y_diff = origin_R0.x() - origin_R00.x();
+   Matrix3d rot_diff = ypr2R(Vector3d(y_diff, 0, 0));
+   if (abs(abs(origin_R0.y()) - 90) < 1.0 || abs(abs(origin_R00.y()) - 90) < 1.0)
+        {
+            rot_diff =pose0.rotationMatrix() *new_pose.inverse();
+        }
+    for(auto iter:keyframes)
+    {
+        Frame::Ptr keyframe=iter .second;
+        keyframe->SetPose(rot_diff*R*keyframe->pose.rotationMatrix(),rot_diff*R*(keyframe->pose.translation()-pose0.translation())+pose0.translation());
+        keyframe->Vw=rot_diff*R*keyframe->Vw;
+    }
+
+}
 bool  Initializer::InitializeIMU(Frames keyframes,double priorA,double priorG)
 {
-    
     double minTime=20.0;  // 初始化需要的最小时间间隔
     // 按时间顺序收集初始化imu使用的KF
     std::list< Frame::Ptr > KeyFrames_list;
@@ -1071,11 +627,6 @@ bool  Initializer::InitializeIMU(Frames keyframes,double priorA,double priorG)
         KeyFrames_list.push_front(iter->second);
     }
     std::vector< Frame::Ptr > Key_frames(KeyFrames_list.begin(),KeyFrames_list.end());
-    // imu计算初始时间
-    FirstTs=Key_frames.front()->time;
-    // LOG(INFO)<<FirstTs-Map::Instance().keyframes.begin()->second->time;
-    // if(FirstTs-Map::Instance().keyframes.begin()->second->time<minTime)
-    //     return false;
 
     const int N = Key_frames.size();  // 待处理的关键帧数目
 
@@ -1084,27 +635,19 @@ bool  Initializer::InitializeIMU(Frames keyframes,double priorA,double priorG)
     {
         return false;
     }
- 
-    // KF速度和重力方向优化
-    Scale=1.0;
-                Vector3d g;
-         g<< 0, 0, -G;
-         g=Rwg*g;
-                        Matrix3d tcb;
-            tcb<<0.0148655429818, -0.999880929698, 0.00414029679422,
-            0.999557249008, 0.0149672133247, 0.025715529948,
-            -0.0257744366974, 0.00375618835797, 0.999660727178;
-            //LOG(INFO)<<"INITG "<<(tcb.inverse()*g).transpose()<<"\n"<<Rwg;
-    Bias bias_=InertialOptimization(keyframes,Rwg, Scale, bg, ba, priorG, priorA);
+    if(priorA==0){
+        InertialOptimization(keyframes,Rwg, Scale, bg, ba, 1e1,1e4);
+    }
+    else{
+        InertialOptimization(keyframes,Rwg, Scale, bg, ba, priorG, priorA);
+    }
 
         Vector3d dirG;
-         dirG<< 0, 0, -G;
+         dirG<< 0, 0, G;
             dirG=Rwg*dirG;
-        // dirG<<-0.15915923848354485 ,  9.1792672332077689,   3.4306621858045498;
-        // dirG=tcb*dirG;
         dirG = dirG/dirG.norm();
-        if(!(dirG[0]==0&&dirG[1]==0&&dirG[2]==-1)){
-            Vector3d  gI(0.0, 0.0, -1.0);//沿-z的归一化的重力数值
+        if(!(dirG[0]==0&&dirG[1]==0&&dirG[2]==1)){
+            Vector3d  gI(0.0, 0.0, 1.0);//沿-z的归一化的重力数值
             // 计算旋转轴
             Vector3d v = gI.cross(dirG);
             const double nv = v.norm();
@@ -1115,16 +658,18 @@ bool  Initializer::InitializeIMU(Frames keyframes,double priorA,double priorG)
             Vector3d vzg = v*ang/nv;
             Rwg = ExpSO3(vzg);
         }
-                        Vector3d g2;
-         g2<< 0, 0, -G;
-         g2=Rwg*g2;
-     LOG(INFO)<<"OPTG "<<(/*tcb.inverse()*/g2).transpose();//<<"\n"<<tcb.inverse()*/Rwg;
+        Vector3d g2;
+        g2<< 0, 0, G;
+        g2=Rwg*g2;
+     LOG(INFO)<<"OPTG "<<(g2).transpose();//<<"\n"<<tcb.inverse()*/Rwg;
 
-    if (Scale<1e-1)
-    {
-        return false;
-    }
+   if(bimu==false||reinit==true){
     Map::Instance().ApplyScaledRotation(Rwg.inverse());
+   }
+   else{
+    ApplyScaledRotation(Rwg.inverse(),keyframes);
+
+   }
     // frontend_.lock()->UpdateFrameIMU(bias_);
     //更新关键帧中imu状态
     for(int i=0;i<N;i++)
@@ -1132,12 +677,17 @@ bool  Initializer::InitializeIMU(Frames keyframes,double priorA,double priorG)
         Frame::Ptr pKF2 = Key_frames[i];
         pKF2->bImu = true;
     }
-
+    //ComputeGyroBias(keyframes);
     // 进行完全惯性优化
   //  if(!initialized)
 //   if(priorG!=0)
 //     {
-        Bias lastBias=FullInertialBA(keyframes,Rwg, priorG, priorA);
+    if(priorA==0){
+      FullInertialBA2(keyframes,Rwg);
+    }
+    else{
+      FullInertialBA(keyframes,Rwg, priorG, priorA);
+    }
     // }   
     // else
     // {
@@ -1150,5 +700,9 @@ bool  Initializer::InitializeIMU(Frames keyframes,double priorA,double priorG)
     reinit=false;
     return true;
 }
+
+
+
+
 
 } // namespace lvio_fusioni

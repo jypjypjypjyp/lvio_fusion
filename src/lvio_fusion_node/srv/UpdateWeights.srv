@@ -1,0 +1,5 @@
+float32[] obs
+---
+float32 visual
+float32 lidar_ground
+float32 lidar_surf

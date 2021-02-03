@@ -1,0 +1,6 @@
+<launch>
+    <node name="rl_fusion" pkg="rl_fusion" type="rl_fusion_node" output="screen">
+        <param name="camera_height" value="1000"/>
+        <param name="obs_cols" value="1000"/>
+    </node>
+</launch>

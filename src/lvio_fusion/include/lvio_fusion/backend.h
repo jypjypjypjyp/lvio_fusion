@@ -26,7 +26,7 @@ class Backend
 public:
     typedef std::shared_ptr<Backend> Ptr;
 
-    Backend(double range);
+    Backend(double window_size, bool update_weights);
 
     void SetFrontend(std::shared_ptr<Frontend> frontend) { frontend_ = frontend; }
 
@@ -39,19 +39,21 @@ public:
     void Pause();
 
     void Continue();
-//NEWADD
-// Vector3d Backend::ComputeVelocitiesAccBias(const Frames &frames);
-// Vector3d Backend::ComputeGyroBias(const Frames &frames);
-//NEWADDEND
+
     BackendStatus status = BackendStatus::RUNNING;
     std::mutex mutex;
-    double head = 0;
-    Initializer::Ptr initializer_;//NEWADD
+    double finished = 0;
+
+    Initializer::Ptr GetInitializer() { return initializer_; } 
     bool isInitliazing=false;//NEWADD
+    double Tinit=-1;
     bool initA=false;
     bool initB=false;
+    double priorA=1e3;
+    double priorG=1e1;
     Frame::Ptr new_frame;
-    SE3d old_pose;
+    SE3d old_pose_imu;
+    void recoverData(Frames active_kfs);
 private:
     void BackendLoop();
 
@@ -59,19 +61,21 @@ private:
 
     void Optimize();
 
-    void ForwardPropagate(double time);
+    void ForwardPropagate(SE3d transform, double time);
 
     void BuildProblem(Frames &active_kfs, adapt::Problem &problem,bool isimu=true);
 
     std::weak_ptr<Frontend> frontend_;
     Mapping::Ptr mapping_;
+    Initializer::Ptr initializer_;
 
     std::thread thread_;
     std::mutex running_mutex_, pausing_mutex_;
     std::condition_variable running_;
     std::condition_variable pausing_;
     std::condition_variable map_update_;
-    const double delay_;
+    const double window_size_;
+    const bool update_weights_;
 };
 
 } // namespace lvio_fusion
