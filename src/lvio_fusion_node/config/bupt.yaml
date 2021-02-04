@@ -6,6 +6,7 @@ use_lidar: 0
 use_navsat: 0
 use_loop: 0             # 0 for only odometry, 1 for whole system
 use_semantic: 0
+use_adapt: 0
 train: 0
 
 # ros parameters

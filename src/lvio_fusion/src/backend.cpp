@@ -94,14 +94,12 @@ void Backend::BuildProblem(Frames &active_kfs, adapt::Problem &problem,bool isim
             }
         }
     }
-
-        //NEWADD
+ //NEWADD
     if (Imu::Num() && initializer_->initialized&&isimu)
     {
         Frame::Ptr last_frame;
         Frame::Ptr current_frame;
         bool first=true;
-        //int n=active_kfs.size();
         old_pose_imu=active_kfs.begin()->second->pose;
         for (auto kf_pair : active_kfs)
         {
@@ -119,11 +117,6 @@ void Backend::BuildProblem(Frames &active_kfs, adapt::Problem &problem,bool isim
             problem.AddParameterBlock(para_ba, 3);
             problem.AddParameterBlock(para_bg, 3);
 
-            // if(first){
-            //     problem.SetParameterBlockConstant(para_kf);
-    
-            //     first=false;
-            // }
             if (last_frame && last_frame->bImu&&last_frame->last_keyframe)
             {
                 auto para_kf_last = last_frame->pose.data();
@@ -132,7 +125,7 @@ void Backend::BuildProblem(Frames &active_kfs, adapt::Problem &problem,bool isim
                 auto para_ba_last =last_frame->ImuBias.linearized_ba.data();//恢复
                 ceres::CostFunction *cost_function = ImuError::Create(current_frame->preintegration);
                 problem.AddResidualBlock(ProblemType::IMUError,cost_function, NULL, para_kf_last, para_v_last,para_ba_last,para_bg_last, para_kf, para_v,para_ba,para_bg);
-               // showIMUError(para_kf_last, para_v_last,  para_bg_last,para_ba_last, para_kf, para_v,current_frame->preintegration,current_frame->time-1.40364e+09);
+               // showIMUError(para_kf_last, para_v_last,para_ba_last,para_bg_last, para_kf, para_v,para_ba,para_bg,current_frame->preintegration,current_frame->time-1.40364e+09+8.60223e+07);
             }
             last_frame = current_frame;
         }
@@ -147,34 +140,42 @@ double compute_reprojection_error(Vector2d ob, Vector3d pw, SE3d pose, Camera::P
     return error.norm();
 }
 
+void Backend::recoverData(Frames active_kfs)
+{
+    SE3d new_pose=active_kfs.begin()->second->pose;
+    Vector3d origin_P0=old_pose_imu.translation();
+    Vector3d origin_R0=R2ypr( old_pose_imu.rotationMatrix());
+  Vector3d origin_R00=R2ypr(new_pose.rotationMatrix());
+ double y_diff = origin_R0.x() - origin_R00.x();
+   Matrix3d rot_diff = ypr2R(Vector3d(y_diff, 0, 0));
+   if (abs(abs(origin_R0.y()) - 90) < 1.0 || abs(abs(origin_R00.y()) - 90) < 1.0)
+        {
+            rot_diff =old_pose_imu.rotationMatrix() *new_pose.inverse().rotationMatrix();
+        }
+        for(auto kf_pair : active_kfs){
+            auto frame = kf_pair.second;
+            if(!frame->preintegration||!frame->last_keyframe||!frame->bImu){
+                    continue;
+            }
+            frame->SetPose(rot_diff * frame->pose.rotationMatrix(),rot_diff * (frame->pose.translation()-new_pose.translation())+origin_P0);
+            frame->SetVelocity(rot_diff*frame->Vw);
+
+            Bias bias_(frame->ImuBias.linearized_ba[0],frame->ImuBias.linearized_ba[1],frame->ImuBias.linearized_ba[2],frame->ImuBias.linearized_bg[0],frame->ImuBias.linearized_bg[1],frame->ImuBias.linearized_bg[2]);
+            frame->SetNewBias(bias_);
+           // LOG(INFO)<<"opt  TIME: "<<frame->time-1.40364e+09+8.60223e+07<<"    V  "<<frame->Vw.transpose()<<"    R  "<<frame->pose.rotationMatrix().eulerAngles(0,1,2).transpose()<<"    P  "<<frame->pose.translation().transpose();
+        }
+}
 
 void Backend::Optimize()
 {
     static double forward = 0;
     std::unique_lock<std::mutex> lock(mutex);
     Frames active_kfs = Map::Instance().GetKeyFrames(finished);
+    LOG(INFO)<<"BACKEND IMU OPTIMIZER  ===>"<<active_kfs.size();
+
     if (active_kfs.empty())
         return;
     SE3d old_pose = (--active_kfs.end())->second->pose;
-
-    //NEWADD
-    std::list<SE3d> poses;
-    std::list<Vector3d> vs;
-    std::list<Vector3d> bas;
-    std::list<Vector3d> bgs;
-    if (Imu::Num() && initializer_->initialized){
-
-        for(auto iter:active_kfs)
-        {
-            Frame::Ptr frame=iter.second;
-            poses.push_back(frame->pose);
-            vs.push_back(frame->Vw);
-            bas.push_back(frame->ImuBias.linearized_ba);
-            bgs.push_back(frame->ImuBias.linearized_bg);
-        }
-    }
-    //NEWADDEND
-
 
     adapt::Problem problem;
     BuildProblem(active_kfs, problem);
@@ -185,52 +186,13 @@ void Backend::Optimize()
     options.num_threads = num_threads;
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
-
- //NEWADD
-
-    priorA=1e3;
-    priorG=1e1;
- if(summary.final_cost>1e8){
-      LOG(INFO)<<"OPT FAILED!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!";
-    if(true)
-    {
-    for(auto iter:active_kfs)
-    {
-        Frame::Ptr frame=iter.second;
-        frame->pose=poses.front();
-        frame->Vw=vs.front();
-       frame->ImuBias.linearized_ba=bas.front();
-       frame->ImuBias.linearized_bg=bgs.front();
-        poses.pop_front();
-        vs.pop_front();
-        bas.front();
-        bgs.front();
-    }
-      adapt::Problem problem_;
-    BuildProblem(active_kfs, problem,false);// test
-
-    ceres::Solver::Options options_;
-    options_.linear_solver_type = ceres::DENSE_SCHUR;
-    options_.trust_region_strategy_type = ceres::DOGLEG;
-    options_.max_solver_time_in_seconds = 2;
-    options_.num_threads = 4;
-    ceres::Solver::Summary summary_;
-    ceres::Solve(options_, &problem_, &summary_);
-    }
-    initializer_->initialized=false;
-    // priorA=0;
-    // priorG=0;
- }
-else{
+     //NEWADD
     if(Imu::Num()&&initializer_->initialized)
     {
         recoverData(active_kfs);
     }
-}
      new_frame=(--active_kfs.end())->second;
     //NEWADDEND
-
-
     // reject outliers and clean the map
     for (auto &pair_kf : active_kfs)
     {
@@ -284,14 +246,14 @@ void Backend::ForwardPropagate(SE3d transform, double time)
     std::unique_lock<std::mutex> lock(frontend_.lock()->mutex);
     Frame::Ptr last_frame = frontend_.lock()->last_frame;
     Frames active_kfs = Map::Instance().GetKeyFrames(time);
+    LOG(INFO)<<"BACKEND IMU ForwardPropagate  ===>"<<active_kfs.size();
     if (active_kfs.find(last_frame->time) == active_kfs.end())
     {
         active_kfs[last_frame->time] = last_frame;
     }
-
-
- //NEWADD
-
+        //NEWADD
+    double priorA=1e3;
+    double priorG=1e1;
         if(Imu::Num() && initializer_->initialized){
              double dt=0;
             if(Tinit!=-1)
@@ -334,13 +296,10 @@ void Backend::ForwardPropagate(SE3d transform, double time)
         isInitliazing=false;
     }    
 //NEWADDEND
-
-
-
     PoseGraph::Instance().Propagate(transform, active_kfs);
 
     adapt::Problem problem;
-    BuildProblem(active_kfs, problem,false);
+    BuildProblem(active_kfs, problem);
 
     ceres::Solver::Options options;
     options.linear_solver_type = ceres::DENSE_SCHUR;
@@ -348,8 +307,7 @@ void Backend::ForwardPropagate(SE3d transform, double time)
     options.num_threads = num_threads;
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
-
-//NEWADD
+ //NEWADD
     if(Imu::Num() && initializer_->initialized)
     {
 
@@ -364,24 +322,12 @@ void Backend::ForwardPropagate(SE3d transform, double time)
             Vector3d twb1=last_key_frame->GetImuPosition();
             Matrix3d Rwb1=last_key_frame->GetImuRotation();
             Vector3d Vwb1;
-            if(first||true)
-            {
-                Vwb1=last_key_frame->Vw;
-               // first=false;
-            } 
-            else
-            {
-                double t01=last_key_frame->preintegration->sum_dt;
-                Vector3d avgV=(current_key_frame->GetImuPosition()- last_last_key_frame->GetImuPosition())/((t01+t12));
-                 Vector3d Vwb0=last_last_key_frame->Vw;
-                Vwb1=t01*(avgV-Vwb0)/((t01+t12)/2)+Vwb0;  
-            }
-          //      LOG(INFO)<<      Vwb1.transpose();
+            Vwb1=last_key_frame->Vw;
+
             Matrix3d Rwb2=NormalizeRotation(Rwb1*current_key_frame->preintegration->GetDeltaRotation(last_key_frame->GetImuBias()).toRotationMatrix());
             Vector3d twb2=twb1 + Vwb1*t12 + 0.5f*t12*t12*Gz+ Rwb1*current_key_frame->preintegration->GetDeltaPosition(last_key_frame->GetImuBias());
             Vector3d Vwb2=Vwb1+t12*Gz+Rwb1*current_key_frame->preintegration->GetDeltaVelocity(last_key_frame->GetImuBias());
             current_key_frame->SetVelocity(Vwb2);
-           //  current_key_frame->SetPose(Rwb2,twb2);
             current_key_frame->SetNewBias(last_key_frame->GetImuBias());
             last_last_key_frame=last_key_frame;
             last_key_frame=current_key_frame;
@@ -391,16 +337,16 @@ void Backend::ForwardPropagate(SE3d transform, double time)
 
    if(Imu::Num()&&initializer_->initialized)
    {
-           Frames active_kfs_imu = Map::Instance().GetKeyFrames(time);
-    adapt::Problem problem_;
-   // BuildProblem(active_kfs_imu, problem_);
-    ceres::LocalParameterization *local_parameterization = new ceres::ProductParameterization(
+        Frames active_kfs_imu = Map::Instance().GetKeyFrames(time);
+        adapt::Problem problem_;
+        ceres::LocalParameterization *local_parameterization = new ceres::ProductParameterization(
         new ceres::EigenQuaternionParameterization(),
         new ceres::IdentityParameterization(3));
 
-    //NEWADD
-        Frame::Ptr last_frame;
+
+        Frame::Ptr last_frame=new_frame;
         Frame::Ptr current_frame;
+        bool first=true;
         if(active_kfs_imu.size()>0)
         old_pose_imu=active_kfs_imu.begin()->second->pose;
         for (auto kf_pair : active_kfs_imu)
@@ -426,9 +372,19 @@ void Backend::ForwardPropagate(SE3d transform, double time)
                 auto para_v_last = last_frame->Vw.data();
                 auto para_bg_last = last_frame->ImuBias.linearized_bg.data();//恢复
                 auto para_ba_last =last_frame->ImuBias.linearized_ba.data();//恢复
+                if(first){
+                    problem_.AddParameterBlock(para_kf_last, SE3d::num_parameters, local_parameterization);
+                    problem_.AddParameterBlock(para_v_last, 3);
+                    problem_.AddParameterBlock(para_bg_last, 3);
+                    problem_.AddParameterBlock(para_ba_last, 3);
+                    problem_.SetParameterBlockConstant(para_kf_last);
+                    problem_.SetParameterBlockConstant(para_v_last);
+                    problem_.SetParameterBlockConstant(para_bg_last);
+                    problem_.SetParameterBlockConstant(para_ba_last);
+                    first=false;
+                }
                 ceres::CostFunction *cost_function = ImuError::Create(current_frame->preintegration);
                 problem_.AddResidualBlock(ProblemType::IMUError,cost_function, NULL, para_kf_last, para_v_last,para_ba_last,para_bg_last, para_kf, para_v,para_ba,para_bg);
-               // showIMUError(para_kf_last, para_v_last,  para_bg_last,para_ba_last, para_kf, para_v,current_frame->preintegration,current_frame->time-1.40364e+09);
             }
             last_frame = current_frame;
         }
@@ -442,41 +398,11 @@ void Backend::ForwardPropagate(SE3d transform, double time)
     ceres::Solve(options_, &problem_, &summary_);
      LOG(INFO)<<"FORWARD  "<<summary_.BriefReport();
       recoverData(active_kfs_imu);
-    //   Map::Instance().mapUpdated=false;
          frontend_.lock()->UpdateFrameIMU((--active_kfs.end())->second->GetImuBias());
    }
     //NEWADDEND
 
-
-
     frontend_.lock()->UpdateCache();
-}
-
-//NEWADD
-void Backend::recoverData(Frames active_kfs)
-{
-    SE3d new_pose=active_kfs.begin()->second->pose;
-    Vector3d origin_P0=old_pose_imu.translation();
-    Vector3d origin_R0=R2ypr( old_pose_imu.rotationMatrix());
-    Vector3d origin_R00=R2ypr(new_pose.rotationMatrix());
-    double y_diff = origin_R0.x() - origin_R00.x();
-   Matrix3d rot_diff = ypr2R(Vector3d(y_diff, 0, 0));
-   if (abs(abs(origin_R0.y()) - 90) < 1.0 || abs(abs(origin_R00.y()) - 90) < 1.0)
-        {
-            rot_diff =old_pose_imu.rotationMatrix() *new_pose.inverse().rotationMatrix();
-        }
-        for(auto kf_pair : active_kfs){
-            auto frame = kf_pair.second;
-            if(!frame->preintegration||!frame->last_keyframe||!frame->bImu){
-                    continue;
-            }
-            frame->SetPose(rot_diff * frame->pose.rotationMatrix(),rot_diff * (frame->pose.translation()-new_pose.translation())+origin_P0);
-            frame->SetVelocity(rot_diff*frame->Vw);
-
-            Bias bias_(frame->ImuBias.linearized_ba[0],frame->ImuBias.linearized_ba[1],frame->ImuBias.linearized_ba[2],frame->ImuBias.linearized_bg[0],frame->ImuBias.linearized_bg[1],frame->ImuBias.linearized_bg[2]);
-            frame->SetNewBias(bias_);
-           // LOG(INFO)<<"opt  TIME: "<<frame->time-1.40364e+09+8.60223e+07<<"    V  "<<frame->Vw.transpose()<<"    R  "<<frame->pose.rotationMatrix().eulerAngles(0,1,2).transpose()<<"    P  "<<frame->pose.translation().transpose();
-        }
 }
 
 } // namespace lvio_fusion

@@ -388,7 +388,6 @@ inline Matrix3d ExpSO3(const Vector3d &v)
     return ExpSO3(v(0),v(1),v(2));
 }
 
-
 inline Matrix3d NormalizeRotation(const Matrix3d &R_)
 { 
     cv::Mat_<double> U,w,Vt;
@@ -399,10 +398,7 @@ inline Matrix3d NormalizeRotation(const Matrix3d &R_)
     return uvt;
 }
 
-
-
-
-
+//NEWADDEND
 } // namespace lvio_fusion
 
 #endif // lvio_fusion_UTILITY_H

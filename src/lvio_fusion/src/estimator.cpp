@@ -82,6 +82,7 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
                        Config::Get<double>("camera1.cy"),
                        SE3d(q_base_to_cam1, t_base_to_cam1));
     }
+
     // create components and links
     frontend = Frontend::Ptr(new Frontend(
         Config::Get<int>("num_features"),
@@ -113,7 +114,7 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
 
     if (use_imu)
     {
-         // NEWADD
+        // NEWADD
         //read imu
         double acc_n= Config::Get<double>("acc_n");
         double gyr_n= Config::Get<double>("gyr_n");
@@ -180,7 +181,7 @@ void Estimator::InputImage(double time, cv::Mat &left_image, cv::Mat &right_imag
     auto t2 = std::chrono::steady_clock::now();
     auto time_used =
         std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);
-    LOG(INFO) << "VO status:" << (success ? "success" : "failed") << ",VO cost time: " << time_used.count() << " seconds.";
+    //LOG(INFO) << "VO status:" << (success ? "success" : "failed") << ",VO cost time: " << time_used.count() << " seconds.";
 }
 
 void Estimator::InputPointCloud(double time, Point3Cloud::Ptr point_cloud)

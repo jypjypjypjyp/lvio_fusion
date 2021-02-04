@@ -7,94 +7,6 @@
 #include <ceres/ceres.h>
 namespace lvio_fusion
 {
-/*
-
-Bias InertialOptimization(Frames &key_frames, Eigen::Matrix3d &Rwg, double &scale, Eigen::Vector3d &bg, Eigen::Vector3d &ba, double priorG, double priorA)   
-{
-    ceres::Problem problem;
-    ceres::CostFunction *cost_function ;
-    //先验BIAS约束
-    // auto para_gyroBias=key_frames.begin()->second->ImuBias.linearized_bg.data();
-    // problem.AddParameterBlock(para_gyroBias, 3);
-
-    // auto para_accBias=key_frames.begin()->second->ImuBias.linearized_ba.data();
-    // problem.AddParameterBlock(para_accBias, 3);
-
-    //优化重力、BIAS和速度的边
-    Quaterniond rwg(Rwg);
-    SO3d RwgSO3(rwg);
-    auto para_rwg=RwgSO3.data();
-
-        ceres::LocalParameterization *local_parameterization = new ceres::EigenQuaternionParameterization();
-    problem.AddParameterBlock(para_rwg, SO3d::num_parameters,local_parameterization);
-    Frame::Ptr last_frame;
-    Frame::Ptr current_frame;
-    for(Frames::iterator iter = key_frames.begin(); iter != key_frames.end(); iter++)
-    {
-        current_frame=iter->second;
-        if (!current_frame->last_keyframe||current_frame->preintegration==nullptr)
-        {
-            last_frame=current_frame;
-            continue;
-        }
-        auto para_v = current_frame->Vw.data();
-        auto para_accBias=current_frame->ImuBias.linearized_ba.data();
-        auto para_gyroBias=current_frame->ImuBias.linearized_bg.data();
-        problem.AddParameterBlock(para_v, 3);   
-        problem.AddParameterBlock(para_gyroBias, 3);   
-        problem.AddParameterBlock(para_accBias, 3);   
-        if (last_frame)
-        {
-            auto para_v_last = last_frame->Vw.data();
-                    auto para_accBias_last=last_frame->ImuBias.linearized_ba.data();
-        auto para_gyroBias_last=last_frame->ImuBias.linearized_bg.data();
-            cost_function = ImuErrorG_::Create(current_frame->preintegration,current_frame->pose,last_frame->pose);
-            problem.AddResidualBlock(cost_function, NULL,para_v_last,para_accBias_last,para_gyroBias_last,para_v,para_accBias,para_gyroBias,para_rwg);
-           // showGSIMU(para_v_last,  para_v,para_gyroBias,para_accBias,para_rwg,current_frame->preintegration,current_frame->pose,last_frame->pose,current_frame->time-1.40364e+09+8.60223e+07);
-        }
-        last_frame = current_frame;
-    }
-
-    ceres::Solver::Options options;
-    options.linear_solver_type = ceres::DENSE_SCHUR;
-    //options.max_solver_time_in_seconds = 0.1;
-    // options.max_num_iterations =1;
-    options.trust_region_strategy_type = ceres::DOGLEG;
-    options.num_threads = 4;
-    ceres::Solver::Summary summary;
-    ceres::Solve(options, &problem, &summary);
-     LOG(INFO)<<summary.FullReport();
-   // std::this_thread::sleep_for(std::chrono::seconds(3));
-
-    //数据恢复
-    Quaterniond rwg2(RwgSO3.data()[3],RwgSO3.data()[0],RwgSO3.data()[1],RwgSO3.data()[2]);
-        Rwg=rwg2.toRotationMatrix();
-    // Bias bias_(para_accBias[0],para_accBias[1],para_accBias[2],para_gyroBias[0],para_gyroBias[1],para_gyroBias[2]);
-    // bg << para_gyroBias[0],para_gyroBias[1],para_gyroBias[2];
-    // ba <<para_accBias[0],para_accBias[1],para_accBias[2];
-    for(Frames::iterator iter = key_frames.begin(); iter != key_frames.end(); iter++)
-    {
-        current_frame=iter->second;
-        Vector3d dbg=current_frame->GetGyroBias()-bg;
-        if(dbg.norm() >0.01)
-        {
-            current_frame->SetNewBias(current_frame->GetImuBias());
-            current_frame->preintegration->Repropagate(current_frame->GetImuBias().linearized_ba,current_frame->GetImuBias().linearized_bg);
-        }
-       else
-        {
-            current_frame->SetNewBias(current_frame->GetImuBias());
-        }     
-
-        LOG(INFO)<<"InertialOptimization  "<<current_frame->time-1.40364e+09+8.60223e+07<<"   Vwb1  "<<current_frame->Vw.transpose()<<"  Pose  "<<current_frame->pose.translation().transpose();//<<"\nR: \n"<<tcb.inverse()*current_frame->pose.rotationMatrix();
-   LOG(INFO)<<"BIAS   a "<<current_frame->GetImuBias().linearized_ba.transpose()<<" g "<<current_frame->GetImuBias().linearized_bg.transpose();
-
-    }
-  //  LOG(INFO)<<"BIAS   a "<<bias_.linearized_ba.transpose()<<" g "<<bias_.linearized_bg.transpose();
-    
-    return Bias();
-}
-*/
 
 void InertialOptimization(Frames &key_frames, Eigen::Matrix3d &Rwg, double &scale, Eigen::Vector3d &bg, Eigen::Vector3d &ba, double priorG, double priorA)   
 {
@@ -133,7 +45,6 @@ void InertialOptimization(Frames &key_frames, Eigen::Matrix3d &Rwg, double &scal
             auto para_v_last = last_frame->Vw.data();
             cost_function = ImuErrorG::Create(current_frame->preintegration,current_frame->pose,last_frame->pose,priorA,priorG);
             problem.AddResidualBlock(cost_function, NULL,para_v_last,para_accBias,para_gyroBias,para_v,para_rwg);
-           // showGSIMU(para_v_last,  para_v,para_gyroBias,para_accBias,para_rwg,current_frame->preintegration,current_frame->pose,last_frame->pose,current_frame->time-1.40364e+09+8.60223e+07);
         }
         last_frame = current_frame;
     }
@@ -173,7 +84,6 @@ void InertialOptimization(Frames &key_frames, Eigen::Matrix3d &Rwg, double &scal
             tcb<<0.0148655429818, -0.999880929698, 0.00414029679422,
             0.999557249008, 0.0149672133247, 0.025715529948,
             -0.0257744366974, 0.00375618835797, 0.999660727178;
-       //LOG(INFO)<<current_frame->preintegration->dV.transpose();
         // LOG(INFO)<<"InertialOptimization  "<<current_frame->time-1.40364e+09+8.60223e+07<<"   Vwb1  "<<current_frame->Vw.transpose()/*tcb*/<<"  Pose  "<<current_frame->pose.translation().transpose()/*tcb*/;//<<"\nR: \n"<<tcb.inverse()*current_frame->pose.rotationMatrix();
     }
     // LOG(INFO)<<"BIAS   a "<<bias_.linearized_ba.transpose()<<" g "<<bias_.linearized_bg.transpose();
@@ -200,10 +110,6 @@ void InertialOptimization(Frames &key_frames, Eigen::Matrix3d &Rwg, double &scal
             }
             frame->SetPose(rot_diff * frame->pose.rotationMatrix(),rot_diff * (frame->pose.translation()-new_pose.translation())+origin_P0);
             frame->SetVelocity(rot_diff*frame->Vw);
-
-            // Bias bias_(frame->ImuBias.linearized_ba[0],frame->ImuBias.linearized_ba[1],frame->ImuBias.linearized_ba[2],frame->ImuBias.linearized_bg[0],frame->ImuBias.linearized_bg[1],frame->ImuBias.linearized_bg[2]);
-            // frame->SetNewBias(bias_);
-           // LOG(INFO)<<"opt  TIME: "<<frame->time-1.40364e+09+8.60223e+07<<"    V  "<<frame->Vw.transpose()<<"    R  "<<frame->pose.rotationMatrix().eulerAngles(0,1,2).transpose()<<"    P  "<<frame->pose.translation().transpose();
         }
 }
 
@@ -418,7 +324,6 @@ bool  Initializer::estimate_Vel_Rwg(std::vector< Frame::Ptr > Key_frames)
             (*iter_keyframe)->SetVelocity(velocity);
             (*iter_keyframe)->last_keyframe->SetVelocity(velocity);
                 
-            // LOG(INFO)<<"InitializeIMU  "<<(*iter_keyframe)->time-1.40364e+09/*+8.60223e+07*/<<"   Vwb1  "<<(/*tcb.inverse()*/velocity).transpose()<<"  p  "<<(*iter_keyframe)->GetImuPosition().transpose()/*tcb*/<<"  sum_dt " <<(*iter_keyframe)->preintegration->sum_dt;
         }
         dirG = dirG/dirG.norm();
   
@@ -435,39 +340,11 @@ bool  Initializer::estimate_Vel_Rwg(std::vector< Frame::Ptr > Key_frames)
             Rwg=Matrix3d::Identity();
         }else{
             Rwg = ExpSO3(vzg);
-        }//Rwg=Matrix3d::Identity();
+        }
         Vector3d g;
          g<< 0, 0, 9.8007;
          g=Rwg*g;
-            // LOG(INFO)<<"dirG "<<(tcb.inverse()*dirG).transpose();
-       LOG(INFO)<<"INITG "<<(/*tcb.inverse()*/g).transpose();
-
-        // bool first=true;
-        // for(std::vector<Frame::Ptr>::iterator iter_keyframe = Key_frames.begin()+1; iter_keyframe!=Key_frames.end(); iter_keyframe++) 
-        // {
-        //     if((*iter_keyframe)->preintegration==nullptr)
-        //     {
-        //         return false;
-        //     }   
-        //     if(!(*iter_keyframe)->last_keyframe)
-        //     {
-        //         continue;
-        //     }
-        //     if(first){
-        //          velocity= ((*iter_keyframe)->GetImuPosition() - (*(iter_keyframe))->last_keyframe->GetImuPosition())/((*iter_keyframe)->preintegration->sum_dt);
-        //            (*iter_keyframe)->SetVelocity(velocity);
-        //               (*iter_keyframe)->last_keyframe->SetVelocity(velocity);
-        //         first=false;
-                     
-        //     LOG(INFO)<<"InitializeIMU  "<<(*iter_keyframe)->time-1.40364e+09/*+8.60223e+07*/<<"   Vwb1  "<<(/*tcb.inverse()*/velocity).transpose()<<"  p  "<<(*iter_keyframe)->GetImuPosition().transpose()/*tcb*/<<"  sum_dt " <<(*iter_keyframe)->preintegration->sum_dt;
-
-        //         continue;
-        //     }
-        //         velocity= ((*iter_keyframe)->last_keyframe->GetVelocity()-((*iter_keyframe)->preintegration->sum_dt)*g+ (*iter_keyframe)->last_keyframe->GetImuRotation()*(*iter_keyframe)->preintegration->GetUpdatedDeltaVelocity());
-        //     (*iter_keyframe)->SetVelocity(velocity);
-                
-        //     LOG(INFO)<<"InitializeIMU  "<<(*iter_keyframe)->time-1.40364e+09/*+8.60223e+07*/<<"   Vwb1  "<<(/*tcb.inverse()*/velocity).transpose()<<"  p  "<<(*iter_keyframe)->GetImuPosition().transpose()/*tcb*/<<"  sum_dt " <<(*iter_keyframe)->preintegration->sum_dt;
-        // }
+       LOG(INFO)<<"INITG "<<(g).transpose();
 
     } 
     else
@@ -580,7 +457,7 @@ Vector3d Initializer::ComputeVelocitiesAccBias(const Frames &frames)
     ba(1) = x(3*N+1);
     ba(2) = x(3*N+2);
  
- int i=0;
+    i=0;
     for(auto iter:frames)
     {
         Frame::Ptr pF = iter.second;
@@ -593,11 +470,11 @@ Vector3d Initializer::ComputeVelocitiesAccBias(const Frames &frames)
         }
         i++;
     }
+    return ba;
 }
 
 void ApplyScaledRotation(const Matrix3d &R,Frames keyframes)
 {
-    //LOG(INFO)<<R;
  SE3d pose0=keyframes.begin()->second->pose;
      Matrix3d new_pose=R*pose0.rotationMatrix();
     Vector3d origin_R0=R2ypr( pose0.rotationMatrix());
@@ -661,7 +538,7 @@ bool  Initializer::InitializeIMU(Frames keyframes,double priorA,double priorG)
         Vector3d g2;
         g2<< 0, 0, G;
         g2=Rwg*g2;
-     LOG(INFO)<<"OPTG "<<(g2).transpose();//<<"\n"<<tcb.inverse()*/Rwg;
+     LOG(INFO)<<"OPTG "<<(g2).transpose();
 
    if(bimu==false||reinit==true){
     Map::Instance().ApplyScaledRotation(Rwg.inverse());
@@ -670,39 +547,25 @@ bool  Initializer::InitializeIMU(Frames keyframes,double priorA,double priorG)
     ApplyScaledRotation(Rwg.inverse(),keyframes);
 
    }
-    // frontend_.lock()->UpdateFrameIMU(bias_);
-    //更新关键帧中imu状态
+
     for(int i=0;i<N;i++)
     {
         Frame::Ptr pKF2 = Key_frames[i];
         pKF2->bImu = true;
     }
-    //ComputeGyroBias(keyframes);
-    // 进行完全惯性优化
-  //  if(!initialized)
-//   if(priorG!=0)
-//     {
+
     if(priorA==0){
       FullInertialBA2(keyframes,Rwg);
     }
     else{
       FullInertialBA(keyframes,Rwg, priorG, priorA);
     }
-    // }   
-    // else
-    // {
-    //     Bias lastBias=FullInertialBA(keyframes,Rwg);
-    // }
-    // frontend_.lock()->UpdateFrameIMU(lastBias);
-    frontend_.lock()->last_key_frame->bImu = true;
+
+   // frontend_.lock()->last_key_frame->bImu = true;
     bimu=true;
     initialized=true;
     reinit=false;
     return true;
 }
-
-
-
-
 
 } // namespace lvio_fusioni

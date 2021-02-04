@@ -39,21 +39,22 @@ public:
     void Pause();
 
     void Continue();
+//NEWADD
+    Initializer::Ptr GetInitializer() { return initializer_; } 
 
+    void recoverData(Frames active_kfs);
+
+    bool isInitliazing=false;
+    double Tinit=-1;
+    bool initA=false;
+    bool initB=false;
+    Frame::Ptr new_frame;
+    SE3d old_pose_imu;
+//NEWADDEND
     BackendStatus status = BackendStatus::RUNNING;
     std::mutex mutex;
     double finished = 0;
 
-    Initializer::Ptr GetInitializer() { return initializer_; } 
-    bool isInitliazing=false;//NEWADD
-    double Tinit=-1;
-    bool initA=false;
-    bool initB=false;
-    double priorA=1e3;
-    double priorG=1e1;
-    Frame::Ptr new_frame;
-    SE3d old_pose_imu;
-    void recoverData(Frames active_kfs);
 private:
     void BackendLoop();
 

@@ -67,8 +67,6 @@ public:
     void SetNewBias(const Bias &bias_);
     void SetPose(const Matrix3d &Rwb_,const Vector3d  &twb_);
     //NEWADDEND
-
-
 private:
     //NOTE: semantic map
     LabelType GetLabelType(int x, int y);

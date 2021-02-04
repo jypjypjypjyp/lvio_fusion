@@ -1,7 +1,7 @@
 #include <GeographicLib/LocalCartesian.hpp>
 #include <cv_bridge/cv_bridge.h>
-#include <opencv2/opencv.hpp>
 #include <opencv2/imgproc.hpp>
+#include <opencv2/opencv.hpp>
 #include <pcl_conversions/pcl_conversions.h>
 #include <ros/ros.h>
 #include <sensor_msgs/Image.h>
@@ -389,12 +389,9 @@ int main(int argc, char **argv)
         ROS_INFO("Load config_file: %s", config_file.c_str());
     }
     read_parameters(config_file);
-    Agent::SetCore(new Core());
     estimator = Estimator::Ptr(new Estimator(config_file));
     assert(estimator->Init(use_imu, use_lidar, use_navsat, use_loop, use_adapt) == true);
-
     ROS_WARN("Waiting for images...");
-
     register_pub(n);
     ros::Timer tf_timer = n.createTimer(ros::Duration(0.0001), tf_timer_callback);
     ros::Timer od_timer = n.createTimer(ros::Duration(1), od_timer_callback);
@@ -426,6 +423,10 @@ int main(int argc, char **argv)
     {
         sub_objects = n.subscribe("/lvio_fusion_node/output_objects", 10, objects_callback);
         pub_detector = n.advertise<sensor_msgs::Image>("/lvio_fusion_node/image_raw", 10);
+    }
+    if (use_adapt)
+    {
+        Agent::SetCore(new Core());
     }
     if (train)
     {

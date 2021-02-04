@@ -31,13 +31,11 @@ public:
         Vector3d Vj(parameters[5][0], parameters[5][1], parameters[5][2]);
         Vector3d Baj(parameters[6][0], parameters[6][1], parameters[6][2]);
         Vector3d Bgj(parameters[7][0], parameters[7][1], parameters[7][2]);
-
         Eigen::Map<Matrix<double, 15, 1>> residual(residuals);
         residual = preintegration_->Evaluate(Pi, Qi, Vi, Bai, Bgi, Pj, Qj, Vj, Baj, Bgj);
         Matrix<double, 15, 15> sqrt_info = LLT<Matrix<double, 15, 15>>(preintegration_->covariance.inverse()).matrixL().transpose();
         residual = sqrt_info * residual;
-        //LOG(INFO) << residual;
-        
+
         if (jacobians)
         {
             double sum_dt = preintegration_->sum_dt;
@@ -127,7 +125,6 @@ public:
 private:
     imu::Preintegration::Ptr preintegration_;
 };
-
 
 class ImuErrorInit : public ceres::SizedCostFunction<15, 7, 3, 3, 3, 7, 3>
 {
@@ -330,7 +327,6 @@ private:
     SE3d last_pose;
 
 };
-
 } // namespace lvio_fusion
 
 #endif //lvio_fusion_IMU_ERROR_H

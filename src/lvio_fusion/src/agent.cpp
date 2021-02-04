@@ -17,11 +17,14 @@ void Agent::AgentLoop()
     {
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
         auto new_kfs = Map::Instance().GetKeyFrames(finished);
-        for (auto pair_kf : new_kfs)
+        if (!new_kfs.empty())
         {
-            UpdateWeights(pair_kf.second);
+            for (auto pair_kf : new_kfs)
+            {
+                UpdateWeights(pair_kf.second);
+            }
+            finished = (--new_kfs.end())->first + epsilon;
         }
-        finished = (--new_kfs.end())->first + epsilon;
     }
 }
 

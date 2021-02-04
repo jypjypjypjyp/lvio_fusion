@@ -136,7 +136,7 @@ int ORBMatcher::Relocate(Frame::Ptr last_frame, Frame::Ptr current_frame,
             pbs.push_back(points_pb[index_points]);
             num_good_pts++;
         }
-        LOG(INFO) << "Matcher relocate by " << num_good_pts << " points.";
+       // LOG(INFO) << "Matcher relocate by " << num_good_pts << " points.";
     }
     return num_good_pts;
 }

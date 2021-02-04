@@ -6,6 +6,7 @@ use_lidar: 1
 use_navsat: 0
 use_loop: 0             # 0 for only odometry, 1 for whole system
 use_semantic: 0
+use_adapt: 0
 train: 0
 
 # ros parameters
@@ -33,7 +34,8 @@ camera1.cx: 323.1204833984375
 camera1.cy: 236.7432098388672
 
 # lidar parameters
-num_scans: 32           # only for 16, 32, 64
+num_scans: 32      
+use_adapt: 1     # only for 16, 32, 64
 horizon_scan: 2000
 ang_res_y: 1
 ang_bottom: 16

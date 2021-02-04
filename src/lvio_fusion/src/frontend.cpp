@@ -5,8 +5,6 @@
 #include "lvio_fusion/visual/camera.h"
 #include "lvio_fusion/visual/feature.h"
 #include "lvio_fusion/visual/landmark.h"
-#include "lvio_fusion/ceres/imu_error.hpp"
-#include "lvio_fusion/ceres/visual_error.hpp"
 
 #include <opencv2/core/eigen.hpp>
 
@@ -32,7 +30,6 @@ bool Frontend::AddFrame(lvio_fusion::Frame::Ptr frame)
         frame->preintegrationFrame =nullptr;
     }
     //NEWADDEND
-    
     current_frame = frame;
 
     switch (status)
@@ -60,7 +57,7 @@ bool Frontend::AddFrame(lvio_fusion::Frame::Ptr frame)
 
 void Frontend::AddImu(double time, Vector3d acc, Vector3d gyr)
 {
-   //NEWADD
+       //NEWADD
     imuPoint imuMeas(acc,gyr,time);
     imuData_buf.push_back(imuMeas);
     //NEWADDEND
@@ -175,7 +172,6 @@ void Frontend::PreintegrateIMU()
                     tstep = current_frame->time-last_frame->time;
                 }
                 if(tab==0)continue;
-            // LOG(INFO)<<"ACC "<<acc.transpose()<<" ANG "<<angVel.transpose()<<" t "<<tstep;
                 ImuPreintegratedFromLastKF->Append(tstep,acc,angVel,acc0,angVel0);
                 ImuPreintegratedFromLastFrame->Append(tstep,acc,angVel,acc0,angVel0);
             }
@@ -202,10 +198,11 @@ void Frontend::PreintegrateIMU()
 
 bool Frontend::Track()
 {
-    //NEWADD
+     //NEWADD
     if(Imu::Num())
     {
         PreintegrateIMU();
+        //current_frame->preintegration->PreintegrateIMU(imuDatafromlastframe,last_frame->time, current_frame->time);
         if(backend_.lock()->GetInitializer()->initialized)
         {
              PredictStateIMU();
@@ -225,9 +222,7 @@ bool Frontend::Track()
        }
     }
     //NEWADDEND
-
-    //current_frame->pose = last_frame_pose_cache_ * relative_i_j;
-    LocalBA();
+    // current_frame->pose = last_frame_pose_cache_ * relative_i_j;
     int num_inliers = TrackLastFrame(last_frame);
     bool success = num_inliers > num_features_tracking_bad_ &&
                    (current_frame->pose.translation() - last_frame_pose_cache_.translation()).norm() < 5;
@@ -329,11 +324,11 @@ int Frontend::TrackLastFrame(Frame::Ptr base_frame)
             num_good_pts++;
         }
         cv::imshow("tracking", img_track);
-        cv::imwrite("/home/jyp/Pictures/demo.png", img_track);
+        cv::imwrite("/home/zoet/Pictures/demo.png", img_track);
         cv::waitKey(1);
     }
 
-    LOG(INFO) << "Find " << num_good_pts << " in the last image.";
+   // LOG(INFO) << "Find " << num_good_pts << " in the last image.";
     return num_good_pts;
 }
 
@@ -461,14 +456,14 @@ int Frontend::DetectNewFeatures()
         }
     }
 
-    LOG(INFO) << "Find " << num_good_pts << " in the right image.";
-    LOG(INFO) << "new landmarks: " << num_triangulated_pts;
+    // LOG(INFO) << "Find " << num_good_pts << " in the right image.";
+    // LOG(INFO) << "new landmarks: " << num_triangulated_pts;
     return num_triangulated_pts;
 }
 
 void Frontend::CreateKeyframe()
 {
-    //NEWADD
+         //NEWADD
     if(Imu::Num())
     { 
         ImuPreintegratedFromLastKF=nullptr;
@@ -488,7 +483,7 @@ void Frontend::CreateKeyframe()
     // insert!
     Map::Instance().InsertKeyFrame(current_frame);
     last_key_frame = current_frame;
-    LOG(INFO) << "Add a keyframe " << current_frame->id;
+  //  LOG(INFO) << "Add a keyframe " << current_frame->id;
 
     // update backend because we have a new keyframe
     backend_.lock()->UpdateMap();
@@ -519,9 +514,9 @@ void Frontend::UpdateCache()
 //NEWADD
 void Frontend::UpdateFrameIMU( const Bias &bias_)
 {
+    last_key_frame->bImu=true;
     last_frame->SetNewBias(bias_);
     current_frame->SetNewBias(bias_);
-
     Vector3d Gz ;
     Gz << 0, 0, -Imu::Get()->G;
    // Gz =backend_.lock()->GetInitializer()->Rwg*Gz;
@@ -566,40 +561,13 @@ void Frontend::UpdateFrameIMU( const Bias &bias_)
 
 void Frontend::PredictStateIMU()
 {
-    if(Map::Instance().mapUpdated&&last_key_frame)
-    {
-        Vector3d Gz ;
-        Gz << 0, 0, -9.81007;
-        //Gz =backend_.lock()->GetInitializer()->Rwg*Gz;
-        double t12=current_frame->preintegration->sum_dt;
-         Vector3d twb1=last_key_frame->GetImuPosition();
-        Matrix3d Rwb1=last_key_frame->GetImuRotation();
-        Vector3d Vwb1=last_key_frame->Vw;
-
-        Matrix3d Rwb2=NormalizeRotation(Rwb1*current_frame->preintegration->GetDeltaRotation(last_key_frame->GetImuBias()).toRotationMatrix());
-        Vector3d twb2=twb1 + Vwb1*t12 + 0.5f*t12*t12*Gz+ Rwb1*current_frame->preintegration->GetDeltaPosition(last_key_frame->GetImuBias());
-        Vector3d Vwb2=Vwb1+t12*Gz+Rwb1*current_frame->preintegration->GetDeltaVelocity(last_key_frame->GetImuBias());
-            //LOG(INFO)<<"T2"<<twb2.transpose()<<"V2"<<Vwb2.transpose();
-        current_frame->SetVelocity(Vwb2);
-        current_frame->SetPose(Rwb2,twb2);
-        current_frame->SetNewBias(last_key_frame->GetImuBias());
-        Map::Instance().mapUpdated=false;//NEWADD
-        //          LOG(INFO)<<"PredictStateIMU  "<<current_frame->time-1.40364e+09<<"  T12  "<<t12;
-        // LOG(INFO)<<" Rwb2\n"<<tcb.inverse()*Rwb2;
-    }
-    else if(! Map::Instance().mapUpdated)
-    {
            
         Vector3d Gz ;
         Gz << 0, 0, -9.81007;
-          
-       // Gz =backend_.lock()->GetInitializer()->Rwg*Gz;
         double t12=current_frame->preintegrationFrame->sum_dt;
          Vector3d twb1=last_frame->GetImuPosition();
         Matrix3d Rwb1=last_frame->GetImuRotation();
         Vector3d Vwb1=last_frame->Vw;
-        // Bias bias_( -0.041236103, 0.0031201241 ,0.013771472,-0.0034145617, 0.02168173,0.078614868);
-        // last_frame->SetNewBias(bias_);
         Matrix3d Rwb2=NormalizeRotation(Rwb1*current_frame->preintegrationFrame->GetDeltaRotation(last_frame->GetImuBias()).toRotationMatrix());
         Vector3d twb2=twb1 + Vwb1*t12 + 0.5f*t12*t12*Gz+ Rwb1*current_frame->preintegrationFrame->GetDeltaPosition(last_frame->GetImuBias());
         Vector3d Vwb2=Vwb1+t12*Gz+Rwb1*current_frame->preintegrationFrame->GetDeltaVelocity(last_frame->GetImuBias());
@@ -608,66 +576,10 @@ void Frontend::PredictStateIMU()
         // // LOG(INFO)<<"   GRdV   "<<(t12*Gz+Rwb1*current_frame->preintegrationFrame->GetDeltaVelocity(last_frame->GetImuBias())).transpose();
         // LOG(INFO)<<"   RdV    "<<((Rwb1)*current_frame->preintegrationFrame->GetDeltaVelocity(last_frame->GetImuBias())).transpose()<<"   dV      "<<(current_frame->preintegrationFrame->delta_v).transpose();
         // LOG(INFO)<<"    BIAS   a "<<last_frame->GetImuBias().linearized_ba.transpose()<<" g "<<last_frame->GetImuBias().linearized_bg.transpose()<<"  dP  "<<current_frame->preintegrationFrame->delta_p.transpose();
-
         // // //  LOG(INFO)<<"  dR:\n"<<current_frame->preintegrationFrame->GetDeltaRotation(last_frame->GetImuBias()); 
         current_frame->SetVelocity(Vwb2);
         current_frame->SetPose(Rwb2,twb2);
         current_frame->SetNewBias(last_frame->GetImuBias());
-    }
-
 }
-
- void Frontend::LocalBA(){
-     adapt::Problem problem;  
-      ceres::LossFunction *loss_function = new ceres::HuberLoss(1.0);
-          ceres::LocalParameterization *local_parameterization = new ceres::ProductParameterization(
-        new ceres::EigenQuaternionParameterization(),
-        new ceres::IdentityParameterization(3));
-      auto para_kf=current_frame->pose.data();
-      problem.AddParameterBlock(para_kf, SE3d::num_parameters, local_parameterization);
-      for (auto pair_feature : current_frame->features_left)
-        {
-            auto feature = pair_feature.second;
-            auto landmark = feature->landmark.lock();
-            auto first_frame = landmark->FirstFrame().lock();
-            ceres::CostFunction *cost_function;
-            cost_function = PoseOnlyReprojectionError::Create(cv2eigen(feature->keypoint),position_cache_[landmark->id],  Camera::Get(), current_frame->weights.visual);
-            problem.AddResidualBlock(ProblemType::PoseOnlyReprojectionError, cost_function, loss_function, para_kf);
-        }
-
-       if(current_frame->last_keyframe&&backend_.lock()->GetInitializer()->initialized&&current_frame->preintegration)
-        {
-            auto para_kf_last=current_frame->last_keyframe->pose.data();
-            auto para_v=current_frame->Vw.data();
-            auto para_v_last=current_frame->last_keyframe->Vw.data();
-            auto para_accBias=current_frame->ImuBias.linearized_ba.data();
-            auto para_gyroBias=current_frame->ImuBias.linearized_bg.data();
-            auto para_accBias_last=current_frame->last_keyframe->ImuBias.linearized_ba.data();
-            auto para_gyroBias_last=current_frame->last_keyframe->ImuBias.linearized_bg.data();
-            problem.AddParameterBlock(para_kf_last, SE3d::num_parameters, local_parameterization);
-            problem.AddParameterBlock(para_v, 3);
-            problem.AddParameterBlock(para_v_last, 3);
-            problem.AddParameterBlock(para_accBias, 3);
-            problem.AddParameterBlock(para_gyroBias, 3);
-            problem.AddParameterBlock(para_accBias_last, 3);
-            problem.AddParameterBlock(para_gyroBias_last, 3);
-            problem.SetParameterBlockConstant(para_kf_last);
-                ceres::CostFunction *cost_function = ImuError::Create(current_frame->preintegration);
-                problem.AddResidualBlock(ProblemType::IMUError,cost_function, NULL, para_kf_last, para_v_last,para_accBias_last,para_gyroBias_last, para_kf, para_v,para_accBias,para_gyroBias);
-
-            //  showIMUErrorfornt(para_kf_last, para_v_last,  para_gyroBias_last,para_accBias_last, para_kf, para_v,current_frame->preintegration,current_frame->time-1.40364e+09+8.60223e+07);
-           // }
-    ceres::Solver::Options options;
-    options.linear_solver_type = ceres::DENSE_SCHUR;
-    options.max_solver_time_in_seconds = 0.02;
-    options.num_threads = 4;
-    ceres::Solver::Summary summary;
-    ceres::Solve(options, &problem, &summary);
-
-        // if(current_frame->last_keyframe&&backend_.lock()->GetInitializer()->initialized)
-        // {
-            current_frame->SetNewBias(current_frame->ImuBias);
-        }
- }
 //NEWADDEND
 } // namespace lvio_fusion

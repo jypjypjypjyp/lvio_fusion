@@ -9,11 +9,12 @@ from rl_fusion.env import LvioFusionEnv
 save_net_path = '/home/zoet/Projects/lvio_fusion/misc/td3.pt'
 
 def callback(data:String):
+    rospy.logwarn("Start test_td3.")
     test_td3()
 
 if __name__ == '__main__':
     try:
-        rospy.init_node('rl_fusion')
+        rospy.init_node('rl_fusion_node')
         LvioFusionEnv.height = rospy.get_param('~height')
         LvioFusionEnv.width = rospy.get_param('~width')
         server_init = rospy.Service('/lvio_fusion_node/init', Init, callback)
