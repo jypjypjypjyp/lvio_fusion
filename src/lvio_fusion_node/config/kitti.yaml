@@ -89,7 +89,7 @@ num_features_tracking_bad: 10
 num_features_needed_for_keyframe: 60
 
 # backend
-windows_size: 3
+windows_size: 1
 
 # loop
 relocator_mode: 0    # none = 0, visual = 1, lidar = 2, visual&&lidar = 3

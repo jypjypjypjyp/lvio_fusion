@@ -62,7 +62,7 @@ Observation Frame::GetObservation()
         return Observation();
         
     static int obs_rows = 4, obs_cols = 12;
-    cv::Mat obs = cv::Mat::zeros(obs_rows, obs_cols, CV_16FC3);
+    cv::Mat obs = cv::Mat::zeros(obs_rows, obs_cols, CV_32FC3);
     int height = image_left.rows, width = image_left.cols;
     for (auto &pair_feature : features_left)
     {
