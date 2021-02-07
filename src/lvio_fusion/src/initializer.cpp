@@ -290,8 +290,8 @@ SE3d old_pose=key_frames.begin()->second->pose;
         if(current_frame->bImu&&current_frame->last_keyframe)
         {
             lastBias=current_frame->GetImuBias();
-             LOG(INFO)<<"FullInertialBA  "<<current_frame->time-1.40364e+09+8.60223e+07<<"   Vwb1  "<<current_frame->Vw.transpose();
-              LOG(INFO)<<"BIAS   a "<<current_frame->GetImuBias().linearized_ba.transpose()<<" g "<<current_frame->GetImuBias().linearized_bg.transpose();
+            //  LOG(INFO)<<"FullInertialBA  "<<current_frame->time-1.40364e+09+8.60223e+07<<"   Vwb1  "<<current_frame->Vw.transpose();
+            //   LOG(INFO)<<"BIAS   a "<<current_frame->GetImuBias().linearized_ba.transpose()<<" g "<<current_frame->GetImuBias().linearized_bg.transpose();
         }
     }
    

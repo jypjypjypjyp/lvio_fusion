@@ -40,6 +40,7 @@ public:
         keyframes.clear();
     }
     //NEWADD
+     bool mapUpdated=false;
     void ApplyScaledRotation(const Matrix3d &R);
     //NEWADDEND
     std::mutex mutex_local_kfs;

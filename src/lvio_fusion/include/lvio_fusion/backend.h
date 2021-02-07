@@ -42,14 +42,13 @@ public:
 //NEWADD
     Initializer::Ptr GetInitializer() { return initializer_; } 
 
-    void recoverData(Frames active_kfs);
+    void recoverData(Frames active_kfs,SE3d old_pose_imu);
 
     bool isInitliazing=false;
     double Tinit=-1;
     bool initA=false;
     bool initB=false;
     Frame::Ptr new_frame;
-    SE3d old_pose_imu;
 //NEWADDEND
     BackendStatus status = BackendStatus::RUNNING;
     std::mutex mutex;
@@ -62,7 +61,7 @@ private:
 
     void Optimize();
 
-    void ForwardPropagate(SE3d transform, double time);
+    void ForwardPropagate(SE3d transform, double time,SE3d old_pose);
 
     void BuildProblem(Frames &active_kfs, adapt::Problem &problem,bool isimu=true);
 
