@@ -44,6 +44,8 @@ public:
 
     void recoverData(Frames active_kfs,SE3d old_pose_imu);
 
+    bool InitializeIMU(Frames active_kfs,double time );
+
     bool isInitliazing=false;
     double Tinit=-1;
     bool initA=false;
@@ -61,7 +63,7 @@ private:
 
     void Optimize();
 
-    void ForwardPropagate(SE3d transform, double time,SE3d old_pose);
+    void ForwardPropagate(SE3d transform, double time );
 
     void BuildProblem(Frames &active_kfs, adapt::Problem &problem,bool isimu=true);
 

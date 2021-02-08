@@ -516,12 +516,12 @@ void Frontend::UpdateCache()
 //NEWADD
 void Frontend::UpdateFrameIMU( const Bias &bias_)
 {
-    last_key_frame->bImu=true;
+    if(last_key_frame->preintegration!=nullptr)
+        last_key_frame->bImu=true;
     last_frame->SetNewBias(bias_);
     current_frame->SetNewBias(bias_);
     Vector3d Gz ;
     Gz << 0, 0, -Imu::Get()->G;
-   // Gz =backend_.lock()->GetInitializer()->Rwg*Gz;
 
     Vector3d twb1;
     Matrix3d Rwb1;
@@ -530,8 +530,6 @@ void Frontend::UpdateFrameIMU( const Bias &bias_)
     Vector3d twb2;
     Matrix3d Rwb2;
    Vector3d Vwb2;
-    // Step 2:更新Frame的pose velocity
-    // Step 2.1:更新lastFrame的pose velocity
     if(last_frame->last_keyframe&&last_frame->preintegration){
         if(fabs(last_frame->time-last_frame->last_keyframe->time)>0.001)
         {
@@ -546,7 +544,6 @@ void Frontend::UpdateFrameIMU( const Bias &bias_)
             last_frame->SetVelocity(Vwb2);
         }
     }
-    // Step 2.2:更新currentFrame的pose velocity
     if (fabs(current_frame->time-current_frame->last_keyframe->time)>0.001&&current_frame->preintegration&&current_frame->last_keyframe)
     {
          twb1= current_frame->last_keyframe->GetImuPosition();
@@ -580,8 +577,6 @@ void Frontend::PredictStateIMU()
         current_frame->SetPose(Rwb2,twb2);
         current_frame->SetNewBias(last_key_frame->GetImuBias());
         Map::Instance().mapUpdated=false;//NEWADD
-        //          LOG(INFO)<<"PredictStateIMU  "<<current_frame->time-1.40364e+09<<"  T12  "<<t12;
-        // LOG(INFO)<<" Rwb2\n"<<tcb.inverse()*Rwb2;
     }
     else if(! Map::Instance().mapUpdated)
     {

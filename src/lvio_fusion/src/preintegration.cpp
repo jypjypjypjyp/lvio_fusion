@@ -5,7 +5,7 @@
 namespace lvio_fusion
 {
 
-    namespace imu
+namespace imu
 {
 
 //NOTE:translation,rotation,velocity,ba,bg,para_pose(rotation,translation)
