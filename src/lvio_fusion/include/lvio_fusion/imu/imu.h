@@ -111,6 +111,17 @@ public:
     Matrix3d rightJ; // right jacobian
 };
 
+class ImuOptimizer
+{
+public:
+    typedef std::shared_ptr<ImuOptimizer> Ptr;
+
+    static bool ReComputeBiasVel()
+    {
+        
+        return false;
+    }
+};
 
 } // namespace lvio_fusion
 #endif // lvio_fusion_IMU_H
