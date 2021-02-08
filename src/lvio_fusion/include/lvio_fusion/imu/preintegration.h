@@ -19,11 +19,6 @@ class Preintegration
 public:
     typedef std::shared_ptr<Preintegration> Ptr;
 
-    // static Preintegration::Ptr Create(Bias bias)
-    // {
-    //     Preintegration::Ptr new_preintegration(new Preintegration(bias));
-    //     return new_preintegration;
-    // }
     static Preintegration::Ptr Create(const Bias b_)
     {
         Preintegration::Ptr new_preintegration(new Preintegration( b_.linearized_ba, b_.linearized_bg));

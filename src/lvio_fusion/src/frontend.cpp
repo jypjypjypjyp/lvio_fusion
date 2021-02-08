@@ -21,7 +21,7 @@ Frontend::Frontend(int num_features, int init, int tracking, int tracking_bad, i
 bool Frontend::AddFrame(lvio_fusion::Frame::Ptr frame)
 {
     std::unique_lock<std::mutex> lock(mutex);
-    //NEWADD
+   //IMU
     if(Imu::Num())
     {
         if(last_frame)
@@ -29,7 +29,7 @@ bool Frontend::AddFrame(lvio_fusion::Frame::Ptr frame)
         frame->preintegration =nullptr;
         frame->preintegrationFrame =nullptr;
     }
-    //NEWADDEND
+   //IMUEND
     current_frame = frame;
 
     switch (status)
@@ -57,10 +57,10 @@ bool Frontend::AddFrame(lvio_fusion::Frame::Ptr frame)
 
 void Frontend::AddImu(double time, Vector3d acc, Vector3d gyr)
 {
-       //NEWADD
+      //IMU
     imuPoint imuMeas(acc,gyr,time);
     imuData_buf.push_back(imuMeas);
-    //NEWADDEND
+   //IMUEND
 }
 //NEWADD
 void Frontend::PreintegrateIMU()
@@ -199,7 +199,7 @@ void Frontend::PreintegrateIMU()
 
 bool Frontend::Track()
 {
-     //NEWADD
+    //IMU
     if(Imu::Num())
     {
         PreintegrateIMU();
@@ -222,7 +222,7 @@ bool Frontend::Track()
             current_frame->SetNewBias(last_key_frame->GetImuBias());
        }
     }
-    //NEWADDEND
+   //IMUEND
     // current_frame->pose = last_frame_pose_cache_ * relative_i_j;
     int num_inliers = TrackLastFrame(last_frame);
     bool success = num_inliers > num_features_tracking_bad_ &&
@@ -465,12 +465,12 @@ int Frontend::DetectNewFeatures()
 
 void Frontend::CreateKeyframe()
 {
-         //NEWADD
+    //IMU
     if(Imu::Num())
     { 
         ImuPreintegratedFromLastKF=nullptr;
     }
-    //NEWADDEND
+   //IMUEND
     // first, add new observations of old points
     for (auto &pair_feature : current_frame->features_left)
     {
@@ -560,7 +560,6 @@ void Frontend::UpdateFrameIMU( const Bias &bias_)
 
 void Frontend::PredictStateIMU()
 {
-           
     if(Map::Instance().mapUpdated&&last_key_frame)
     {
         Vector3d Gz ;
@@ -583,7 +582,7 @@ void Frontend::PredictStateIMU()
            
         Vector3d Gz ;
         Gz << 0, 0, -9.81007;
-          
+
         double t12=current_frame->preintegrationFrame->sum_dt;
          Vector3d twb1=last_frame->GetImuPosition();
         Matrix3d Rwb1=last_frame->GetImuRotation();

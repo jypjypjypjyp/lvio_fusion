@@ -43,7 +43,7 @@ public:
     imu::Preintegration::Ptr  ImuPreintegratedFromLastKF;
     std::list<imuPoint> imuData_buf;
     double validtime=0;
-    //NEWADDEND
+   //IMUEND
     FrontendStatus status = FrontendStatus::BUILDING;
     Frame::Ptr current_frame;
     Frame::Ptr last_frame;

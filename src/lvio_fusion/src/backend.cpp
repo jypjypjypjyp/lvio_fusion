@@ -93,7 +93,7 @@ void Backend::BuildProblem(Frames &active_kfs, adapt::Problem &problem,bool isim
             }
         }
     }
- //NEWADD
+//IMU
     if (Imu::Num() && initializer_->initialized&&isimu)
     {
         Frame::Ptr last_frame;
@@ -128,7 +128,7 @@ void Backend::BuildProblem(Frames &active_kfs, adapt::Problem &problem,bool isim
             last_frame = current_frame;
         }
     }
-    //NEWADDEND
+   //IMUEND
 }
 
 double compute_reprojection_error(Vector2d ob, Vector3d pw, SE3d pose, Camera::Ptr camera)
@@ -186,13 +186,13 @@ void Backend::Optimize()
     ceres::Solve(options, &problem, &summary);
     LOG(INFO)<<summary.BriefReport();
     LOG(INFO)<<summary.num_unsuccessful_steps<<":"<<summary.num_successful_steps;
-     //NEWADD
+    //IMU
     if(Imu::Num()&&initializer_->initialized)
     {
         recoverData(active_kfs,old_pose_imu);
     }
     
-    //NEWADDEND
+   //IMUEND
     // reject outliers and clean the map
     for (auto &pair_kf : active_kfs)
     {
@@ -253,7 +253,7 @@ void Backend::ForwardPropagate(SE3d transform, double time)
         active_kfs[last_frame->time] = last_frame;
     }
 
-    if(InitializeIMU(active_kfs,time)==false) //NEWADD
+    if(InitializeIMU(active_kfs,time)==false)//IMU
         PoseGraph::Instance().Propagate(transform, active_kfs);
 
     adapt::Problem problem;
@@ -265,7 +265,7 @@ void Backend::ForwardPropagate(SE3d transform, double time)
     options.num_threads = num_threads;
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
-   //NEWADD
+  //IMU
    if(Imu::Num()&&initializer_->initialized)
    {
         ImuOptimizer::RePredictVel(active_kfs,new_frame);
@@ -278,7 +278,7 @@ void Backend::ForwardPropagate(SE3d transform, double time)
             frontend_.lock()->UpdateFrameIMU((--active_kfs.end())->second->GetImuBias());
         }
    }
-    //NEWADDEND
+   //IMUEND
 
     frontend_.lock()->UpdateCache();
 }

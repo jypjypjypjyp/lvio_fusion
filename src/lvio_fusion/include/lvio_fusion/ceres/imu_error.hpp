@@ -284,49 +284,6 @@ private:
     double priorG;
 
 };
-
-class ImuErrorG_
-{
-public:
-    ImuErrorG_(imu::Preintegration::Ptr preintegration,SE3d current_pose_,SE3d last_pose_) : preintegration_(preintegration) ,current_pose(current_pose_),last_pose(last_pose_){}
-
-   bool operator()(const  double *  parameters0,const  double *  parameters1,const  double *  parameters2,const  double *  parameters3,const  double *  parameters4,const  double *  parameters5, const  double *  parameters6, double *residuals) const
-    {
-        Quaterniond Qi(last_pose.rotationMatrix());
-        Vector3d Pi=last_pose.translation();
-
-        Vector3d Vi(parameters0[0], parameters0[1], parameters0[2]);
-        Vector3d Bai(parameters1[0], parameters1[1], parameters1[2]);
-        Vector3d Bgi(parameters2[0], parameters2[1], parameters2[2]);
-
-        Quaterniond Qj(current_pose.rotationMatrix());
-        Vector3d Pj=current_pose.translation();
-
-        Vector3d Vj(parameters3[0], parameters3[1], parameters3[2]);
-        Vector3d Baj(parameters4[0], parameters4[1], parameters4[2]);
-        Vector3d Bgj(parameters5[0], parameters5[1], parameters5[2]);
-
-        Quaterniond Rg(parameters6[3],parameters6[0], parameters6[1], parameters6[2]);
-
-        Eigen::Map<Matrix<double, 15, 1>> residual(residuals);
-        residual = preintegration_->Evaluate(Pi, Qi, Vi, Bai, Bgi, Pj, Qj, Vj, Baj, Bgj,Rg);
-        Matrix<double, 15, 15> sqrt_info = LLT<Matrix<double, 15, 15>>(preintegration_->covariance.inverse()).matrixL().transpose();
-        residual = sqrt_info * residual;
-
-        return true;
-    }
-
-    static ceres::CostFunction *Create(imu::Preintegration::Ptr preintegration,SE3d current_pose_,SE3d last_pose_)
-    {
-        return new ceres::NumericDiffCostFunction<ImuErrorG_,ceres::FORWARD,15, 3, 3, 3, 3,3,3,4>( new ImuErrorG_(preintegration, current_pose_, last_pose_));
-    }
-
-private:
-    imu::Preintegration::Ptr preintegration_;
-    SE3d current_pose;
-    SE3d last_pose;
-
-};
 } // namespace lvio_fusion
 
 #endif //lvio_fusion_IMU_ERROR_H

@@ -51,7 +51,7 @@ public:
     Weights weights;
     SE3d pose;
 
-    //NEWADD
+   //IMU
     Frame::Ptr last_keyframe;
     Vector3d Vw;// IMU linear velocity
     Bias ImuBias;
@@ -66,7 +66,7 @@ public:
     Vector3d GetVelocity();
     void SetNewBias(const Bias &bias_);
     void SetPose(const Matrix3d &Rwb_,const Vector3d  &twb_);
-    //NEWADDEND
+   //IMUEND
 private:
     //NOTE: semantic map
     LabelType GetLabelType(int x, int y);

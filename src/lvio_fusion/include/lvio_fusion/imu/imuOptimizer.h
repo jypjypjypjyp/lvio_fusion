@@ -15,6 +15,10 @@ public:
     void static ReComputeBiasVel( Frames &frames,Frame::Ptr &prior_frame );
     void static  RePredictVel(Frames &frames,Frame::Ptr &prior_frame );
 
+    void static InertialOptimization(Frames &key_frames, Eigen::Matrix3d &Rwg,double priorG, double priorA);
+    void static FullInertialBA(Frames &key_frames, double priorG, double priorA);
+    void static FullInertialBA(Frames &key_frames);
+    void static recoverData(Frames active_kfs,SE3d old_pose);
 };
 
 } // namespace lvio_fusion
