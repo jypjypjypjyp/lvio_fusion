@@ -62,7 +62,7 @@ namespace lvio_fusion
         e.setZero();
         Vector3d g;
         g<<0,0,-Imu::Get()->G;
-
+        g=Imu::Get()->Rwg*g;
         int i=0;
         bool first=true;
         Frame::Ptr Frame1;
@@ -203,6 +203,7 @@ namespace lvio_fusion
             Frame::Ptr current_key_frame =kf.second;
             Vector3d Gz ;
             Gz << 0, 0, -Imu::Get()->G;
+            Gz=Imu::Get()->Rwg*Gz;
             double t12=current_key_frame->preintegration->sum_dt;
             Vector3d twb1=last_key_frame->GetImuPosition();
             Matrix3d Rwb1=last_key_frame->GetImuRotation();

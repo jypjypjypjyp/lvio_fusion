@@ -44,7 +44,7 @@ public:
 
     void recoverData(Frames active_kfs,SE3d old_pose_imu);
 
-    bool InitializeIMU(Frames active_kfs,double time );
+    void InitializeIMU(Frames active_kfs,double time );
 
     bool isInitliazing=false;
     double Tinit=-1;

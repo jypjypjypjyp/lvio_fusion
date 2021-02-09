@@ -47,7 +47,7 @@ bool  Initializer::estimate_Vel_Rwg(std::vector< Frame::Ptr > Key_frames)
         // 计算mRwg，与-Z旋转偏差
         Vector3d vzg = v*ang/nv;
         if(bimu){
-            Rwg=Matrix3d::Identity();
+            Rwg=Imu::Get()->Rwg;//*Matrix3d::Identity();
         }else{
             Rwg = ExpSO3(vzg);
         }
@@ -58,7 +58,7 @@ bool  Initializer::estimate_Vel_Rwg(std::vector< Frame::Ptr > Key_frames)
     } 
     else
     {
-        Rwg=Matrix3d::Identity();
+        Rwg=Imu::Get()->Rwg;//* Matrix3d::Identity();
     }
     return true;
 }
@@ -128,13 +128,13 @@ bool  Initializer::InitializeIMU(Frames keyframes,double priorA,double priorG)
         g2<< 0, 0, Imu::Get()->G;
         g2=Rwg*g2;
      LOG(INFO)<<"OPTG "<<(g2).transpose();
-
-   if(bimu==false||reinit==true){
-        Map::Instance().ApplyScaledRotation(Rwg.inverse());
-   }
-   else{
-        ApplyScaledRotation(Rwg.inverse(),keyframes);
-   }
+   Imu::Get()->Rwg=Rwg;
+//    if(bimu==false||reinit==true){
+//         Map::Instance().ApplyScaledRotation(Rwg.inverse());
+//    }
+//    else{
+//         ApplyScaledRotation(Rwg.inverse(),keyframes);
+//    }
     for(int i=0;i<N;i++)
     {
         Frame::Ptr pKF2 = Key_frames[i];

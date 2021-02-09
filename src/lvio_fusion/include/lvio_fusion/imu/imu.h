@@ -33,7 +33,7 @@ public:
     bool initialized = false;
 
 private:
-    Imu(const SE3d &extrinsic, double acc_n, double  acc_w, double gyr_n,double gyr_w,double g_norm) : Sensor(extrinsic),ACC_N(acc_n),ACC_W(acc_w),GYR_N(gyr_n),GYR_W(gyr_w), G(g_norm){}
+    Imu(const SE3d &extrinsic, double acc_n, double  acc_w, double gyr_n,double gyr_w,double g_norm) : Sensor(extrinsic),ACC_N(acc_n),ACC_W(acc_w),GYR_N(gyr_n),GYR_W(gyr_w), G(g_norm){Rwg=Matrix3d::Identity();}
     Imu(const Imu &);
     Imu &operator=(const Imu &);
 

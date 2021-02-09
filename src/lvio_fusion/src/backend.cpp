@@ -253,7 +253,8 @@ void Backend::ForwardPropagate(SE3d transform, double time)
     }
    PoseGraph::Instance().Propagate(transform, active_kfs);
     // if(InitializeIMU(active_kfs,time)==false)//IMU
-     InitializeIMU(active_kfs,time);
+    InitializeIMU(active_kfs,time);
+
 
     adapt::Problem problem;
     BuildProblem(active_kfs, problem,false);
@@ -283,7 +284,7 @@ void Backend::ForwardPropagate(SE3d transform, double time)
 }
 
 
-bool Backend::InitializeIMU(Frames active_kfs,double time)
+void Backend::InitializeIMU(Frames active_kfs,double time)
 {
     double priorA=1e3;
     double priorG=1e1;
@@ -308,9 +309,12 @@ bool Backend::InitializeIMU(Frames active_kfs,double time)
         }
     }
     Frames  frames_init;
+    SE3d old_pose;
+      SE3d new_pose ;
     if (Imu::Num() &&( !initializer_->initialized||initializer_->reinit))
     {
         frames_init = Map::Instance().GetKeyFrames(0,time,initializer_->num_frames);
+        old_pose= (--frames_init.end())->second->pose;
         //LOG(INFO)<<frames_init.begin()->first -1.40364e+09+8.60223e+07<<"  "<<frontend_.lock()->validtime-1.40364e+09+8.60223e+07;
         if (frames_init.size() == initializer_->num_frames&&frames_init.begin()->first>frontend_.lock()->validtime&&frames_init.begin()->second->preintegration)
         {
@@ -328,6 +332,9 @@ bool Backend::InitializeIMU(Frames active_kfs,double time)
         LOG(INFO)<<"Initializer Start";
         if(initializer_->InitializeIMU(frames_init,priorA,priorG))
         {
+            new_pose= (--frames_init.end())->second->pose;
+            SE3d transform= new_pose * old_pose.inverse();
+            PoseGraph::Instance().Propagate(transform, active_kfs);
             frontend_.lock()->status = FrontendStatus::TRACKING_GOOD;
             for(auto kf:active_kfs){
                 Frame::Ptr frame =kf.second;
@@ -338,7 +345,9 @@ bool Backend::InitializeIMU(Frames active_kfs,double time)
         LOG(INFO)<<"Initiaclizer Finished";
         isInitliazing=false;
     }   
-    return isInit;
+   
+    
+    return ;
 }
 
 

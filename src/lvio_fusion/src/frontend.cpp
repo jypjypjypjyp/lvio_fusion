@@ -523,7 +523,7 @@ void Frontend::UpdateFrameIMU( const Bias &bias_)
     current_frame->SetNewBias(bias_);
     Vector3d Gz ;
     Gz << 0, 0, -Imu::Get()->G;
-
+    Gz=Imu::Get()->Rwg*Gz;
     Vector3d twb1;
     Matrix3d Rwb1;
    Vector3d Vwb1;
@@ -566,6 +566,7 @@ void Frontend::PredictStateIMU()
     {
         Vector3d Gz ;
         Gz << 0, 0, -Imu::Get()->G;
+        Gz=Imu::Get()->Rwg*Gz;
         double t12=current_frame->preintegration->sum_dt;
          Vector3d twb1=last_key_frame->GetImuPosition();
         Matrix3d Rwb1=last_key_frame->GetImuRotation();
@@ -584,7 +585,7 @@ void Frontend::PredictStateIMU()
            
         Vector3d Gz ;
         Gz << 0, 0, -Imu::Get()->G;
-
+         Gz=Imu::Get()->Rwg*Gz;
         double t12=current_frame->preintegrationFrame->sum_dt;
          Vector3d twb1=last_frame->GetImuPosition();
         Matrix3d Rwb1=last_frame->GetImuRotation();
