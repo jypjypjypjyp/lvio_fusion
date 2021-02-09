@@ -76,7 +76,7 @@ SE3d Map::ComputePose(double time)
     Vector3d t = (1 - s) * frame1->pose.translation() + s * frame2->pose.translation();
     return SE3d(q, t);
 }
-//NEWADD
+//IMU
 void Map::ApplyScaledRotation(const Matrix3d &R)
 {
     for(auto iter:keyframes)
@@ -86,5 +86,5 @@ void Map::ApplyScaledRotation(const Matrix3d &R)
         keyframe->Vw=R*keyframe->Vw;
     }
 }
-//NEWADDEND
+//IMUEND
 } // namespace lvio_fusion

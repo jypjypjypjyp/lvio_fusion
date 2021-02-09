@@ -9,8 +9,6 @@
 namespace lvio_fusion
 {
 
-const double G=9.81007;
-
 class ImuError : public ceres::SizedCostFunction<15, 7, 3, 3, 3, 7, 3, 3, 3>
 {
 public:

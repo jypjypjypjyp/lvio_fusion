@@ -141,25 +141,25 @@ double compute_reprojection_error(Vector2d ob, Vector3d pw, SE3d pose, Camera::P
 void Backend::recoverData(Frames active_kfs,SE3d old_pose_imu)
 {
     SE3d new_pose=active_kfs.begin()->second->pose;
-    Vector3d origin_P0=old_pose_imu.translation();
-    Vector3d origin_R0=R2ypr( old_pose_imu.rotationMatrix());
-  Vector3d origin_R00=R2ypr(new_pose.rotationMatrix());
- double y_diff = origin_R0.x() - origin_R00.x();
-   Matrix3d rot_diff = ypr2R(Vector3d(y_diff, 0, 0));
-   if (abs(abs(origin_R0.y()) - 90) < 1.0 || abs(abs(origin_R00.y()) - 90) < 1.0)
+    Vector3d old_pose_translation=old_pose_imu.translation();
+    Vector3d old_pose_rotation=R2ypr( old_pose_imu.rotationMatrix());
+    Vector3d new_pose_rotation=R2ypr(new_pose.rotationMatrix());
+    double y_translation = old_pose_rotation.x() - new_pose_rotation.x();
+   Matrix3d translation = ypr2R(Vector3d(y_translation, 0, 0));
+   if (abs(abs(old_pose_rotation.y()) - 90) < 1.0 || abs(abs(new_pose_rotation.y()) - 90) < 1.0)
         {
-            rot_diff =old_pose_imu.rotationMatrix() *new_pose.inverse().rotationMatrix();
+            translation =old_pose_imu.rotationMatrix() *new_pose.inverse().rotationMatrix();
         }
         for(auto kf_pair : active_kfs){
             auto frame = kf_pair.second;
             if(!frame->preintegration||!frame->last_keyframe||!frame->bImu){
                     continue;
             }
-            frame->SetPose(rot_diff * frame->pose.rotationMatrix(),rot_diff * (frame->pose.translation()-new_pose.translation())+origin_P0);
-            frame->SetVelocity(rot_diff*frame->Vw);
+            frame->SetPose(translation * frame->pose.rotationMatrix(),translation * (frame->pose.translation()-new_pose.translation())+old_pose_translation);
+            frame->SetVelocity(translation*frame->Vw);
 
-            Bias bias_(frame->ImuBias.linearized_ba[0],frame->ImuBias.linearized_ba[1],frame->ImuBias.linearized_ba[2],frame->ImuBias.linearized_bg[0],frame->ImuBias.linearized_bg[1],frame->ImuBias.linearized_bg[2]);
-            frame->SetNewBias(bias_);
+            Bias bias(frame->ImuBias.linearized_ba[0],frame->ImuBias.linearized_ba[1],frame->ImuBias.linearized_ba[2],frame->ImuBias.linearized_bg[0],frame->ImuBias.linearized_bg[1],frame->ImuBias.linearized_bg[2]);
+            frame->SetNewBias(bias);
         }
 }
 
@@ -173,7 +173,7 @@ void Backend::Optimize()
     if (active_kfs.empty())
         return;
     SE3d old_pose = (--active_kfs.end())->second->pose;
-   SE3d old_pose_imu=active_kfs.begin()->second->pose;
+    SE3d old_pose_imu=active_kfs.begin()->second->pose;//IMU
     adapt::Problem problem;
     BuildProblem(active_kfs, problem);
 
@@ -191,7 +191,6 @@ void Backend::Optimize()
     {
         recoverData(active_kfs,old_pose_imu);
     }
-    
    //IMUEND
     // reject outliers and clean the map
     for (auto &pair_kf : active_kfs)
@@ -234,7 +233,7 @@ void Backend::Optimize()
     }
 
     // propagate to the last frame
-     new_frame=(--active_kfs.end())->second;
+    new_frame=(--active_kfs.end())->second;//IMU  用作forward中推测和优化IMU数据的先验帧
     SE3d new_pose = (--active_kfs.end())->second->pose;
     SE3d transform= new_pose * old_pose.inverse();
     forward = (--active_kfs.end())->first + epsilon;
@@ -252,9 +251,9 @@ void Backend::ForwardPropagate(SE3d transform, double time)
     {
         active_kfs[last_frame->time] = last_frame;
     }
-
-    if(InitializeIMU(active_kfs,time)==false)//IMU
-        PoseGraph::Instance().Propagate(transform, active_kfs);
+   PoseGraph::Instance().Propagate(transform, active_kfs);
+    // if(InitializeIMU(active_kfs,time)==false)//IMU
+     InitializeIMU(active_kfs,time);
 
     adapt::Problem problem;
     BuildProblem(active_kfs, problem,false);
@@ -284,32 +283,35 @@ void Backend::ForwardPropagate(SE3d transform, double time)
 }
 
 
-bool Backend::InitializeIMU(Frames active_kfs,double time){
-   double priorA=1e3;
+bool Backend::InitializeIMU(Frames active_kfs,double time)
+{
+    double priorA=1e3;
     double priorG=1e1;
-        if(Imu::Num() && initializer_->initialized){
-             double dt=0;
-            if(Tinit!=-1)
-                 dt=(--active_kfs.end())->second->time-Tinit;
-            if(dt>5&&!initA){
-                initializer_->reinit=true;
-                initA=true;
-                priorA=1e4;
-                priorG=1e1;
-            }
-            else if(dt>15&&!initB){
-               initializer_->reinit=true;
-                initB=true;
-                priorA=0;
-                priorG=0;
-            }
+    if(Imu::Num() && initializer_->initialized)
+    {
+        double dt=0;
+        if(Tinit!=-1)
+            dt=(--active_kfs.end())->second->time-Tinit;
+        if(dt>5&&!initA)
+        {
+            initializer_->reinit=true;
+            initA=true;
+            priorA=1e4;
+            priorG=1e1;
         }
-
+        else if(dt>15&&!initB)
+        {
+            initializer_->reinit=true;
+            initB=true;
+            priorA=0;
+            priorG=0;
+        }
+    }
     Frames  frames_init;
-     if (Imu::Num() &&( !initializer_->initialized||initializer_->reinit))
+    if (Imu::Num() &&( !initializer_->initialized||initializer_->reinit))
     {
         frames_init = Map::Instance().GetKeyFrames(0,time,initializer_->num_frames);
-        LOG(INFO)<<frames_init.begin()->first -1.40364e+09+8.60223e+07<<"  "<<frontend_.lock()->validtime-1.40364e+09+8.60223e+07;
+        //LOG(INFO)<<frames_init.begin()->first -1.40364e+09+8.60223e+07<<"  "<<frontend_.lock()->validtime-1.40364e+09+8.60223e+07;
         if (frames_init.size() == initializer_->num_frames&&frames_init.begin()->first>frontend_.lock()->validtime&&frames_init.begin()->second->preintegration)
         {
             if(!initializer_->initialized){

@@ -52,7 +52,7 @@ bool  Initializer::estimate_Vel_Rwg(std::vector< Frame::Ptr > Key_frames)
             Rwg = ExpSO3(vzg);
         }
         Vector3d g;
-         g<< 0, 0, 9.8007;
+         g<< 0, 0,Imu::Get()->G;
          g=Rwg*g;
        LOG(INFO)<<"INITG "<<(g).transpose();
     } 
@@ -109,7 +109,7 @@ bool  Initializer::InitializeIMU(Frames keyframes,double priorA,double priorG)
         ImuOptimizer::InertialOptimization(keyframes,Rwg, priorG, priorA);
     }
         Vector3d dirG;
-        dirG<< 0, 0, G;
+        dirG<< 0, 0, Imu::Get()->G;
         dirG=Rwg*dirG;
         dirG = dirG/dirG.norm();
         if(!(dirG[0]==0&&dirG[1]==0&&dirG[2]==1)){
@@ -125,7 +125,7 @@ bool  Initializer::InitializeIMU(Frames keyframes,double priorA,double priorG)
             Rwg = ExpSO3(vzg);
         }
         Vector3d g2;
-        g2<< 0, 0, G;
+        g2<< 0, 0, Imu::Get()->G;
         g2=Rwg*g2;
      LOG(INFO)<<"OPTG "<<(g2).transpose();
 

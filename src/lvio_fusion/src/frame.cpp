@@ -88,11 +88,12 @@ Observation Frame::GetObservation()
 
     return obs;
 }
-//NEWADD
+//IMU
 void Frame::SetVelocity(const Vector3d  &Vw_)
 {
     Vw=Vw_;
 }
+
 void Frame::SetPose(const Matrix3d &Rwb_,const Vector3d  &twb_)
 {
     Quaterniond R(Rwb_);
@@ -105,7 +106,6 @@ void Frame::SetNewBias(const Bias &bias_)
     if(preintegration)
         preintegration->SetNewBias(bias_);
 }
-
 
 Vector3d Frame::GetVelocity()
 {
@@ -140,5 +140,5 @@ Bias Frame::GetImuBias()
     return ImuBias;
 }
 
-//NEWADDEND
+//IMUEND
 } // namespace lvio_fusion

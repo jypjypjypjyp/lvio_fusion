@@ -333,7 +333,7 @@ inline SE3d se3_slerp(const SE3d &a, const SE3d &b, double s)
     Vector3d t = s * b.translation() + (1 - s) * a.translation();
     return SE3d(q, t);
 }
-//NEWADD
+//IMU
 inline Eigen::Vector3d LogSO3(const Eigen::Matrix3d &R)
 {
     const double tr = R(0,0)+R(1,1)+R(2,2);
@@ -398,7 +398,7 @@ inline Matrix3d NormalizeRotation(const Matrix3d &R_)
     return uvt;
 }
 
-//NEWADDEND
+//IMUEND
 } // namespace lvio_fusion
 
 #endif // lvio_fusion_UTILITY_H

@@ -33,7 +33,7 @@ public:
     void SetBackend(std::shared_ptr<Backend> backend) { backend_ = backend; }
 
     void UpdateCache();
-//NEWADD
+//IMU
     void UpdateFrameIMU(const Bias &bias_);
  
     void PreintegrateIMU();

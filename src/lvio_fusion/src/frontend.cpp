@@ -62,7 +62,7 @@ void Frontend::AddImu(double time, Vector3d acc, Vector3d gyr)
     imuData_buf.push_back(imuMeas);
    //IMUEND
 }
-//NEWADD
+//IMU
 void Frontend::PreintegrateIMU()
 {
     if(last_frame)
@@ -121,8 +121,8 @@ void Frontend::PreintegrateIMU()
                 }
                 double tstep;
                 double tab;
-                Vector3d acc, angVel;
-                Vector3d acc0, angVel0;
+                Vector3d acc0, angVel0;//第一帧
+                Vector3d acc, angVel;//第二帧
                 if((i==0) && (i<(n-1)))
                 {
                     tab = imuDatafromlastframe[i+1].t-imuDatafromlastframe[i].t;
@@ -195,7 +195,7 @@ void Frontend::PreintegrateIMU()
             current_frame->preintegrationFrame=ImuPreintegratedFromLastFrame;
     }   
 }
-//NEWADDEND
+//IMUEND
 
 bool Frontend::Track()
 {
@@ -311,8 +311,8 @@ int Frontend::TrackLastFrame(Frame::Ptr base_frame)
         cv::Rodrigues(rvec, cv_R);
         Matrix3d R;
         cv::cv2eigen(cv_R, R);
-         if(!Imu::Num()||!backend_.lock()->GetInitializer()->initialized||(backend_.lock()->GetInitializer()->initialized&&current_frame->preintegrationFrame==nullptr))//NEWADD
-        current_frame->pose = (Camera::Get()->extrinsic * SE3d(SO3d(R), Vector3d(tvec.at<double>(0, 0), tvec.at<double>(1, 0), tvec.at<double>(2, 0)))).inverse();
+        if(!Imu::Num()||!backend_.lock()->GetInitializer()->initialized||(backend_.lock()->GetInitializer()->initialized&&current_frame->preintegrationFrame==nullptr))//IMU
+            current_frame->pose = (Camera::Get()->extrinsic * SE3d(SO3d(R), Vector3d(tvec.at<double>(0, 0), tvec.at<double>(1, 0), tvec.at<double>(2, 0)))).inverse();
 
         cv::Mat img_track = current_frame->image_left;
         cv::cvtColor(img_track, img_track, cv::COLOR_GRAY2RGB);
@@ -390,6 +390,7 @@ bool Frontend::InitMap()
     if (Imu::Num())
     {
         status = FrontendStatus::INITIALIZING;
+        backend_.lock()->GetInitializer()->initialized=false;//IMU
     }
     else
     {
@@ -513,7 +514,7 @@ void Frontend::UpdateCache()
     }
     last_frame_pose_cache_ = last_frame->pose;
 }
-//NEWADD
+//IMU
 void Frontend::UpdateFrameIMU( const Bias &bias_)
 {
     if(last_key_frame->preintegration!=nullptr)
@@ -530,7 +531,8 @@ void Frontend::UpdateFrameIMU( const Bias &bias_)
     Vector3d twb2;
     Matrix3d Rwb2;
    Vector3d Vwb2;
-    if(last_frame->last_keyframe&&last_frame->preintegration){
+    if(last_frame->last_keyframe&&last_frame->preintegration)
+    {
         if(fabs(last_frame->time-last_frame->last_keyframe->time)>0.001)
         {
             twb1= last_frame->last_keyframe->GetImuPosition();
@@ -563,7 +565,7 @@ void Frontend::PredictStateIMU()
     if(Map::Instance().mapUpdated&&last_key_frame)
     {
         Vector3d Gz ;
-        Gz << 0, 0, -9.81007;
+        Gz << 0, 0, -Imu::Get()->G;
         double t12=current_frame->preintegration->sum_dt;
          Vector3d twb1=last_key_frame->GetImuPosition();
         Matrix3d Rwb1=last_key_frame->GetImuRotation();
@@ -575,13 +577,13 @@ void Frontend::PredictStateIMU()
         current_frame->SetVelocity(Vwb2);
         current_frame->SetPose(Rwb2,twb2);
         current_frame->SetNewBias(last_key_frame->GetImuBias());
-        Map::Instance().mapUpdated=false;//NEWADD
+        Map::Instance().mapUpdated=false;//IMU
     }
     else if(! Map::Instance().mapUpdated)
     {
            
         Vector3d Gz ;
-        Gz << 0, 0, -9.81007;
+        Gz << 0, 0, -Imu::Get()->G;
 
         double t12=current_frame->preintegrationFrame->sum_dt;
          Vector3d twb1=last_frame->GetImuPosition();
@@ -592,15 +594,13 @@ void Frontend::PredictStateIMU()
         Vector3d Vwb2=Vwb1+t12*Gz+Rwb1*current_frame->preintegrationFrame->GetDeltaVelocity(last_frame->GetImuBias());
          
         //  LOG(INFO)<<"PredictStateIMU  "<<current_frame->time-1.40364e+09+8.60223e+07<<"  T12  "<<t12<<"  Vwb1  "<<Vwb1.transpose()<<" Vwb2  "<<Vwb2.transpose();
-        // // LOG(INFO)<<"   GRdV   "<<(t12*Gz+Rwb1*current_frame->preintegrationFrame->GetDeltaVelocity(last_frame->GetImuBias())).transpose();
         // LOG(INFO)<<"   RdV    "<<((Rwb1)*current_frame->preintegrationFrame->GetDeltaVelocity(last_frame->GetImuBias())).transpose()<<"   dV      "<<(current_frame->preintegrationFrame->delta_v).transpose();
         // LOG(INFO)<<"    BIAS   a "<<last_frame->GetImuBias().linearized_ba.transpose()<<" g "<<last_frame->GetImuBias().linearized_bg.transpose()<<"  dP  "<<current_frame->preintegrationFrame->delta_p.transpose();
 
-        // // //  LOG(INFO)<<"  dR:\n"<<current_frame->preintegrationFrame->GetDeltaRotation(last_frame->GetImuBias()); 
         current_frame->SetVelocity(Vwb2);
         current_frame->SetPose(Rwb2,twb2);
         current_frame->SetNewBias(last_frame->GetImuBias());
     }
 }
-//NEWADDEND
+//IMUEND
 } // namespace lvio_fusion
