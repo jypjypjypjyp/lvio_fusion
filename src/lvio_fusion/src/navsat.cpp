@@ -116,25 +116,29 @@ double Navsat::Optimize(double time)
     SE3d transform;
     for (auto &pair : sections)
     {
-        // optimize point A's rotation
-        auto frame_A = Map::Instance().keyframes[pair.second.A];
         if (time > pair.second.C + 3)
         {
+            // optimize point A's rotation
+            auto frame_A = Map::Instance().keyframes[pair.second.A];
             OptimizeRPY(frame_A, time);
-        }
-        OptimizeY(frame_A, pair.second.C, time);
-
-        // optimize (A-C)'s X
-        Frames AC_kfs = Map::Instance().GetKeyFrames(pair.second.A + epsilon, pair.second.C);
-        for (auto &pair_kf : AC_kfs)
-        {
-            auto frame = pair_kf.second;
-            if (frame->feature_navsat && (frame->pose.translation() - GetFixPoint(frame)).norm() > 0.3)
+            OptimizeY(frame_A, pair.second.C, time);
+            // optimize (A-C)'s X
+            Frames AC_kfs = Map::Instance().GetKeyFrames(pair.second.A + epsilon, pair.second.C);
+            for (auto &pair_kf : AC_kfs)
             {
-                OptimizeX(frame, time);
+                auto frame = pair_kf.second;
+                if (frame->feature_navsat && (frame->pose.translation() - GetFixPoint(frame)).norm() > 0.3)
+                {
+                    OptimizeX(frame, time);
+                }
             }
+            finished = pair.second.A;
         }
-        finished = pair.second.A;
+    }
+
+    if(Map::Instance().end)
+    {
+        finished = (--Map::Instance().keyframes.end())->first;
     }
 
     return sections.begin()->second.A;
@@ -205,7 +209,7 @@ void Navsat::OptimizeX(Frame::Ptr frame, double time)
 {
     SE3d old_pose = frame->pose;
     adapt::Problem problem;
-    Frames active_kfs = Map::Instance().GetKeyFrames(frame->time, frame->time + 5);
+    Frames active_kfs = Map::Instance().GetKeyFrames(frame->time, frame->time + 3);
     double para[6] = {0, 0, 0, 0, 0, 0};
     problem.AddParameterBlock(para + 3, 1);
 

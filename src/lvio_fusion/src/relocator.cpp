@@ -12,7 +12,8 @@
 namespace lvio_fusion
 {
 
-Relocator::Relocator(int mode) : mode_((Mode)mode), matcher_(ORBMatcher(20))
+Relocator::Relocator(int mode, double threshold)
+    : mode_((Mode)mode), threshold_(threshold), matcher_(ORBMatcher(20))
 {
     thread_ = std::thread(std::bind(&Relocator::DetectorLoop, this));
 }
@@ -22,8 +23,8 @@ void Relocator::DetectorLoop()
     static double finished = 0;
     static double old_time = DBL_MAX;
     static double start_time = DBL_MAX;
+    static double loop_section = DBL_MAX;
     static Frame::Ptr last_frame;
-    static Frame::Ptr last_old_frame;
     while (true)
     {
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
@@ -37,15 +38,33 @@ void Relocator::DetectorLoop()
             // if last is loop and this is not loop, then correct all new loops
             if (DetectLoop(frame, old_frame, end - 30))
             {
-                if (!last_old_frame)
+                double section = PoseGraph::Instance().GetSection(old_frame->time).A;
+                if (!last_frame)
                 {
+                    loop_section = section;
                     start_time = pair_kf.first;
                 }
-                old_time = std::min(old_time, old_frame->time);
-                last_frame = frame;
-                last_old_frame = old_frame;
+                if (section == loop_section)
+                {
+                    old_time = std::min(old_time, old_frame->time);
+                    last_frame = frame;
+                }
+                else
+                {
+                    // new old section, new loop
+                    LOG(INFO) << "Detected new loop, and correct it now. old_time:" << old_time << ";start_time:" << start_time << ";end_time:" << last_frame->time;
+                    auto t1 = std::chrono::steady_clock::now();
+                    CorrectLoop(old_time, start_time, last_frame->time);
+                    auto t2 = std::chrono::steady_clock::now();
+                    auto time_used = std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);
+                    LOG(INFO) << "Correct Loop cost time: " << time_used.count() << " seconds.";
+                    start_time = pair_kf.first;
+                    loop_section = section;
+                    old_time = old_frame->time;
+                    last_frame = frame;
+                }
             }
-            else if (start_time != DBL_MAX)
+            if (start_time != DBL_MAX)
             {
                 LOG(INFO) << "Detected new loop, and correct it now. old_time:" << old_time << ";start_time:" << start_time << ";end_time:" << last_frame->time;
                 auto t1 = std::chrono::steady_clock::now();
@@ -53,8 +72,8 @@ void Relocator::DetectorLoop()
                 auto t2 = std::chrono::steady_clock::now();
                 auto time_used = std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);
                 LOG(INFO) << "Correct Loop cost time: " << time_used.count() << " seconds.";
-                start_time = old_time = DBL_MAX;
-                last_old_frame = last_frame = nullptr;
+                loop_section = start_time = old_time = DBL_MAX;
+                last_frame = nullptr;
             }
         }
         finished = (--new_kfs.end())->first + epsilon;
@@ -63,31 +82,70 @@ void Relocator::DetectorLoop()
 
 bool Relocator::DetectLoop(Frame::Ptr frame, Frame::Ptr &old_frame, double end)
 {
-    // the distances of 3 closest old frames is smaller than threshold
-    Frames candidate_kfs = Map::Instance().GetKeyFrames(0, end);
-    double min_distance = 10;
-    for (auto &pair_kf : candidate_kfs)
+    static double finished = 0;
+    static PointICloud points;
+    static std::unordered_map<int, double> map;
+    Frames active_kfs = Map::Instance().GetKeyFrames(finished, end);
+    finished = end + epsilon;
+    for (auto pair : active_kfs)
     {
-        Vector3d vec = (pair_kf.second->pose.translation() - frame->pose.translation());
-        vec.z() = 0;
-        double distance = vec.norm();
-        if (distance < min_distance)
-        {
-            Frame::Ptr prev_frame = Map::Instance().GetKeyFrames(0, frame->time, 1).begin()->second;
-            Frame::Ptr subs_frame = Map::Instance().GetKeyFrames(frame->time, 0, 1).begin()->second;
-            Vector3d prev_vec = (pair_kf.second->pose.translation() - prev_frame->pose.translation());
-            Vector3d subs_vec = (pair_kf.second->pose.translation() - subs_frame->pose.translation());
-            prev_vec.z() = 0;
-            subs_vec.z() = 0;
-            double prev_distance = prev_vec.norm();
-            double subs_distance = subs_vec.norm();
-            if (prev_distance < min_distance && subs_distance < min_distance)
-            {
-                min_distance = distance;
-                old_frame = pair_kf.second;
-            }
-        }
+        PointI p;
+        p.x = pair.second->pose.translation().x();
+        p.y = pair.second->pose.translation().y();
+        p.z = 0;
+        p.intensity = pair.second->id;
+        map[p.intensity] = pair.first;
+        points.push_back(p);
     }
+    if (points.empty())
+        return false;
+    PointI p;
+    p.x = frame->pose.translation().x();
+    p.y = frame->pose.translation().y();
+    p.z = 0;
+    std::vector<int> points_index;
+    std::vector<float> points_distance;
+    pcl::KdTreeFLANN<PointI> kdtree;
+    kdtree.setInputCloud(boost::make_shared<PointICloud>(points));
+    kdtree.nearestKSearch(p, 3, points_index, points_distance);
+    // clang-format off
+    double threshold = threshold_ * threshold_;
+    if (points_index[0] < points.size() && points_distance[0] < threshold 
+        && points_index[1] < points.size() && points_distance[1] < threshold 
+        && points_index[2] < points.size() && points_distance[2] < threshold)
+    // clang-format on
+    {
+        double time = map[points[points_index[0]].intensity];
+        old_frame = Map::Instance().keyframes[time];
+    }
+
+    // the distances of 3 closest old frames is smaller than threshold
+    // Frames candidate_kfs = Map::Instance().GetKeyFrames(0, end);
+    // double threshold = threshold_;
+    // for (auto &pair_kf : candidate_kfs)
+    // {
+    //     Vector3d vec = (pair_kf.second->pose.translation() - frame->pose.translation());
+    //     vec.z() = 0;
+    //     double distance = vec.norm();
+    //     if (distance < threshold)
+    //     {
+    //         threshold = distance;
+    //         old_frame = pair_kf.second;
+    //         // Frame::Ptr prev_frame = Map::Instance().GetKeyFrames(0, frame->time, 1).begin()->second;
+    //         // Frame::Ptr subs_frame = Map::Instance().GetKeyFrames(frame->time, 0, 1).begin()->second;
+    //         // Vector3d prev_vec = (pair_kf.second->pose.translation() - prev_frame->pose.translation());
+    //         // Vector3d subs_vec = (pair_kf.second->pose.translation() - subs_frame->pose.translation());
+    //         // prev_vec.z() = 0;
+    //         // subs_vec.z() = 0;
+    //         // double prev_distance = prev_vec.norm();
+    //         // double subs_distance = subs_vec.norm();
+    //         // if (prev_distance < threshold && subs_distance < threshold)
+    //         // {
+    //         //     threshold = distance;
+    //         //     old_frame = pair_kf.second;
+    //         // }
+    //     }
+    // }
     if (old_frame)
     {
         loop::LoopClosure::Ptr loop_closure = loop::LoopClosure::Ptr(new loop::LoopClosure());
@@ -153,22 +211,18 @@ bool Relocator::RelocateByPoints(Frame::Ptr frame, Frame::Ptr old_frame)
 void Relocator::CorrectLoop(double old_time, double start_time, double end_time)
 {
     std::unique_lock<std::mutex> lock(backend_->mutex, std::defer_lock);
-    // build the pose graph and submaps
-    Frames active_kfs = Map::Instance().GetKeyFrames(old_time, end_time);
     Frames new_submap_kfs = Map::Instance().GetKeyFrames(start_time, end_time);
-    Frames all_kfs = active_kfs;
 
-    // update new submap frames
+    // update frames
     SE3d old_pose = (--new_submap_kfs.end())->second->pose;
     {
-        // update frames in the new submap
         double max_score = -1;
         Frame::Ptr best_frame;
         for (auto &pair_kf : new_submap_kfs)
         {
             if (Relocate(pair_kf.second, pair_kf.second->loop_closure->frame_old))
             {
-                if (pair_kf.second->loop_closure->score > max_score)
+                if (pair_kf.second->loop_closure->score >= max_score)
                 {
                     max_score = pair_kf.second->loop_closure->score;
                     best_frame = pair_kf.second;
@@ -179,7 +233,7 @@ void Relocator::CorrectLoop(double old_time, double start_time, double end_time)
         if (best_frame)
         {
             lock.lock();
-            Atlas active_sections = PoseGraph::Instance().GetActiveSections(active_kfs, old_time, start_time);
+            Atlas active_sections = PoseGraph::Instance().FilterOldSubmaps(old_time + epsilon, start_time - epsilon);
             Section &new_submap = PoseGraph::Instance().AddSubMap(old_time, start_time, end_time);
             adapt::Problem problem;
             PoseGraph::Instance().BuildProblem(active_sections, new_submap, problem);
@@ -202,7 +256,7 @@ void Relocator::CorrectLoop(double old_time, double start_time, double end_time)
     // fix navsat
     if (Navsat::Num())
     {
-        Navsat::Get()->fix = new_pose.translation() - old_pose.translation();
+        Navsat::Get()->fix = new_pose.translation() - Navsat::Get()->GetAroundPoint((--new_submap_kfs.end())->first);
     }
     // update pointscloud
     if (Lidar::Num() && mapping_)
@@ -217,39 +271,43 @@ void Relocator::CorrectLoop(double old_time, double start_time, double end_time)
 
 void Relocator::UpdateNewSubmap(Frame::Ptr best_frame, Frames &new_submap_kfs)
 {
-    // optimize the best frame's rotation
-    SE3d old_pose = best_frame->pose;
-    {
-        adapt::Problem problem;
-        SE3d base = best_frame->pose;
-        best_frame->pose = best_frame->loop_closure->frame_old->pose * best_frame->loop_closure->relative_o_c;
-        SO3d r;
-        double *para = r.data();
-        problem.AddParameterBlock(para, 4, new ceres::EigenQuaternionParameterization());
-
-        for (auto &pair_kf : new_submap_kfs)
-        {
-            ceres::CostFunction *cost_function = RelocateRError::Create(
-                best_frame->pose.inverse() * pair_kf.second->loop_closure->frame_old->pose * pair_kf.second->loop_closure->relative_o_c,
-                base.inverse() * pair_kf.second->pose);
-            problem.AddResidualBlock(ProblemType::Other, cost_function, NULL, para);
-        }
-
-        ceres::Solver::Options options;
-        options.linear_solver_type = ceres::DENSE_QR;
-        ceres::Solver::Summary summary;
-        ceres::Solve(options, &problem, &summary);
-        best_frame->pose = best_frame->pose * SE3d(r, Vector3d::Zero());
-    }
-    SE3d new_pose = best_frame->pose;
-    SE3d transform = new_pose * old_pose.inverse();
     for (auto &pair_kf : new_submap_kfs)
     {
-        if (pair_kf.second != best_frame)
-        {
-            pair_kf.second->pose = transform * pair_kf.second->pose;
-        }
+        pair_kf.second->pose.translation().z() = pair_kf.second->loop_closure->frame_old->pose.translation().z();
     }
+    // optimize the best frame's rotation
+    // SE3d old_pose = best_frame->pose;
+    // {
+    //     adapt::Problem problem;
+    //     SE3d base = best_frame->pose;
+    //     best_frame->pose = best_frame->loop_closure->frame_old->pose * best_frame->loop_closure->relative_o_c;
+    //     SO3d r;
+    //     double *para = r.data();
+    //     problem.AddParameterBlock(para, 4, new ceres::EigenQuaternionParameterization());
+
+    //     for (auto &pair_kf : new_submap_kfs)
+    //     {
+    //         ceres::CostFunction *cost_function = RelocateRError::Create(
+    //             best_frame->pose.inverse() * pair_kf.second->loop_closure->frame_old->pose * pair_kf.second->loop_closure->relative_o_c,
+    //             base.inverse() * pair_kf.second->pose);
+    //         problem.AddResidualBlock(ProblemType::Other, cost_function, NULL, para);
+    //     }
+
+    //     ceres::Solver::Options options;
+    //     options.linear_solver_type = ceres::DENSE_QR;
+    //     ceres::Solver::Summary summary;
+    //     ceres::Solve(options, &problem, &summary);
+    //     best_frame->pose = best_frame->pose * SE3d(r, Vector3d::Zero());
+    // }
+    // SE3d new_pose = best_frame->pose;
+    // SE3d transform = new_pose * old_pose.inverse();
+    // for (auto &pair_kf : new_submap_kfs)
+    // {
+    //     if (pair_kf.second != best_frame)
+    //     {
+    //         pair_kf.second->pose = transform * pair_kf.second->pose;
+    //     }
+    // }
 }
 
 } // namespace lvio_fusion

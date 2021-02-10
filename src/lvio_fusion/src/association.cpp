@@ -267,7 +267,7 @@ void FeatureAssociation::ScanToMapWithGround(Frame::Ptr frame, Frame::Ptr map_fr
     std::vector<int> points_index;
     std::vector<float> points_distance;
 
-    static const double distance_threshold = Lidar::Get()->resolution * Lidar::Get()->resolution * 16; // squared
+    static const double distance_threshold = Lidar::Get()->resolution * Lidar::Get()->resolution * 100; // squared
     int num_points_flat = frame->feature_lidar->points_ground.size();
     Sophus::SE3f tf_se3 = frame->pose.cast<float>();
     float *tf = tf_se3.data();
@@ -325,7 +325,7 @@ void FeatureAssociation::ScanToMapWithSegmented(Frame::Ptr frame, Frame::Ptr map
     std::vector<int> points_index;
     std::vector<float> points_distance;
 
-    static const double distance_threshold = Lidar::Get()->resolution * Lidar::Get()->resolution * 16; // squared
+    static const double distance_threshold = Lidar::Get()->resolution * Lidar::Get()->resolution * 25; // squared
     int num_points_flat = frame->feature_lidar->points_surf.size();
     Sophus::SE3f tf_se3 = frame->pose.cast<float>();
     float *tf = tf_se3.data();

@@ -35,9 +35,10 @@ public:
 
     Section& AddSubMap(double old_time, double start_time, double end_time);
 
-    Atlas GetActiveSections(Frames &active_kfs, double &old_time, double start_time);
+    Atlas FilterOldSubmaps(double start, double end);
 
     Atlas GetSections(double start, double end);
+    Section GetSection(double time);
 
     void BuildProblem(Atlas &sections, Section &submap, adapt::Problem &problem);
 

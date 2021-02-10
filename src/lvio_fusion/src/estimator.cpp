@@ -103,7 +103,8 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
     if (use_loop)
     {
         relocator = Relocator::Ptr(new Relocator(
-            Config::Get<int>("relocator_mode")));
+            Config::Get<int>("relocator_mode"),
+            Config::Get<int>("threshold")));
         relocator->SetBackend(backend);
     }
 

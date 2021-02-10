@@ -68,7 +68,7 @@ void publish_navsat(Estimator::Ptr estimator, double time)
             if (++i % 10 == 0)
             {
                 geometry_msgs::PoseStamped pose_stamped;
-                Vector3d point = navsat->GetPoint(iter->first);
+                Vector3d point = navsat->fix + navsat->GetPoint(iter->first);
                 pose_stamped.header.stamp = ros::Time(iter->first);
                 pose_stamped.header.frame_id = "world";
                 pose_stamped.pose.position.x = point.x();

@@ -18,40 +18,33 @@ Section &PoseGraph::AddSubMap(double old_time, double start_time, double end_tim
 
 /**
  * build active submaps and inner submaps
- * @param active_kfs
  * @param old_time      time of the first frame
  * @param start_time    time of the first loop frame
  * @return old frame of inner submaps; key is the first frame's time; value is the pose of the first frame
  */
-Atlas PoseGraph::GetActiveSections(Frames &active_kfs, double &old_time, double start_time)
+Atlas PoseGraph::FilterOldSubmaps(double start, double end)
 {
-    auto start_iter = submaps_.lower_bound(old_time);
-    auto end_iter = submaps_.upper_bound(start_time);
+    auto start_iter = submaps_.lower_bound(start);
+    auto end_iter = submaps_.upper_bound(end);
+    Atlas active_sections = GetSections(start, end);
     if (start_iter != submaps_.end())
     {
         for (auto iter = start_iter; iter != end_iter; iter++)
         {
-            if (iter->second.A <= old_time)
+            if (iter->second.A <= start)
             {
                 // remove outer submap
-                auto new_old_iter = ++active_kfs.find(iter->first);
-                old_time = new_old_iter->first;
-                active_kfs.erase(active_kfs.begin(), new_old_iter);
+                auto outer_end = active_sections.upper_bound(iter->first);
+                active_sections.erase(active_sections.begin(), outer_end);
+                start = outer_end->first;
             }
             else
             {
                 // remove inner submap
-                active_kfs.erase(++active_kfs.find(iter->second.A), ++active_kfs.find(iter->first));
+                auto inner_begin = active_sections.upper_bound(iter->second.A);
+                auto inner_end = active_sections.upper_bound(iter->first);
+                active_sections.erase(inner_begin, inner_end);
             }
-        }
-    }
-
-    Atlas active_sections = GetSections(old_time + epsilon, start_time - epsilon);
-    for (auto iter = active_sections.begin(); iter != active_sections.end(); iter++)
-    {
-        if (active_kfs.find(iter->first) == active_kfs.end())
-        {
-            iter = active_sections.erase(iter);
         }
     }
     return active_sections;
@@ -133,6 +126,12 @@ Atlas PoseGraph::GetSections(double start, double end)
     return Atlas(start_iter, end_iter);
 }
 
+// make sure that time is bigger than start time, no check
+Section PoseGraph::GetSection(double time)
+{
+    return (--sections_.upper_bound(time))->second;
+}
+
 void PoseGraph::BuildProblem(Atlas &sections, Section &submap, adapt::Problem &problem)
 {
     if (sections.empty())
@@ -157,8 +156,10 @@ void PoseGraph::BuildProblem(Atlas &sections, Section &submap, adapt::Problem &p
         double *para = frame_A->pose.data();
         problem.AddParameterBlock(para, SE3d::num_parameters, local_parameterization);
         double *para_last_kf = last_frame->pose.data();
-        ceres::CostFunction *cost_function = PoseGraphError::Create(last_frame->pose, frame_A->pose);
-        problem.AddResidualBlock(ProblemType::Other, cost_function, NULL, para_last_kf, para);
+        ceres::CostFunction *cost_function1 = PoseGraphError::Create(last_frame->pose, frame_A->pose);
+        problem.AddResidualBlock(ProblemType::Other, cost_function1, NULL, para_last_kf, para);
+        ceres::CostFunction *cost_function2 = PoseError::Create(frame_A->pose);
+        problem.AddResidualBlock(ProblemType::Other, cost_function2, NULL, para);
         pair.second.pose = frame_A->pose;
         last_frame = frame_A;
     }
