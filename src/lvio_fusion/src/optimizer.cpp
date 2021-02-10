@@ -215,6 +215,8 @@ void PoseGraph::Propagate(SE3d transform, const Frames &forward_kfs)
     for (auto &pair_kf : forward_kfs)
     {
         pair_kf.second->pose = transform * pair_kf.second->pose;
+        if( pair_kf.second->preintegration!=nullptr)
+            pair_kf.second->Vw=transform.rotationMatrix()*  pair_kf.second->Vw;//IMU
     }
 }
 

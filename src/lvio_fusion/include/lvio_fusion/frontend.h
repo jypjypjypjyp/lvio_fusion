@@ -39,6 +39,8 @@ public:
     void PreintegrateIMU();
  
     void PredictStateIMU();
+
+    void LocalBA();
     
     imu::Preintegration::Ptr  ImuPreintegratedFromLastKF;
     std::list<imuPoint> imuData_buf;

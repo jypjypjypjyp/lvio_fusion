@@ -26,6 +26,11 @@ public:
     {
         return devices_[id];
     }
+
+    SE3d GetPose_G(SE3d pose)
+    {
+        return SE3d(Rwg.inverse()*pose.rotationMatrix(),Rwg.inverse()*pose.translation());
+    }
     double ACC_N, ACC_W;
     double GYR_N, GYR_W;
     double G;

@@ -151,7 +151,7 @@ namespace lvio_fusion
             problem.AddParameterBlock(para_ba, 3);
             problem.AddParameterBlock(para_bg, 3);
             problem.SetParameterBlockConstant(para_kf);
-            if (last_frame && last_frame->bImu&&last_frame->last_keyframe)
+            if (last_frame && last_frame->bImu&&last_frame->last_keyframe&&last_frame->preintegration!=nullptr)
             {
                 auto para_kf_last = last_frame->pose.data();
                 auto para_v_last = last_frame->Vw.data();
@@ -168,6 +168,68 @@ namespace lvio_fusion
                     problem.SetParameterBlockConstant(para_ba_last);
                     first=false;
                 }
+                ceres::CostFunction *cost_function = ImuError::Create(current_frame->preintegration);
+                problem.AddResidualBlock(ProblemType::IMUError,cost_function, NULL, para_kf_last, para_v_last,para_ba_last,para_bg_last, para_kf, para_v,para_ba,para_bg);
+            }
+            last_frame = current_frame;
+        }
+    ceres::Solver::Options options;
+    options.linear_solver_type = ceres::DENSE_SCHUR;
+    options.trust_region_strategy_type = ceres::DOGLEG;
+    options.max_num_iterations =4;
+    options.max_solver_time_in_seconds=0.1;
+    options.num_threads = 4;
+    ceres::Solver::Summary summary;
+    ceres::Solve(options, &problem, &summary);
+    LOG(INFO)<<"ReComputeBiasVel  "<<summary.BriefReport();
+    LOG(INFO)<<summary.num_unsuccessful_steps<<":"<<summary.num_successful_steps;
+       for(auto kf_pair : frames){
+            auto frame = kf_pair.second;
+            if(!frame->preintegration||!frame->last_keyframe||!frame->bImu){
+                    continue;
+            }
+            Bias bias(frame->ImuBias.linearized_ba[0],frame->ImuBias.linearized_ba[1],frame->ImuBias.linearized_ba[2],frame->ImuBias.linearized_bg[0],frame->ImuBias.linearized_bg[1],frame->ImuBias.linearized_bg[2]);
+            frame->SetNewBias(bias);
+           // LOG(INFO)<<"opt  TIME: "<<frame->time-1.40364e+09+8.60223e+07<<"    V  "<<frame->Vw.transpose()<<"    R  "<<frame->pose.rotationMatrix().eulerAngles(0,1,2).transpose()<<"    P  "<<frame->pose.translation().transpose();
+        }
+        return ;
+    }
+    
+ void  ImuOptimizer::ReComputeBiasVel( Frames &frames )
+    {
+        adapt::Problem problem;
+        ceres::LocalParameterization *local_parameterization = new ceres::ProductParameterization(
+        new ceres::EigenQuaternionParameterization(),
+        new ceres::IdentityParameterization(3));
+
+
+        Frame::Ptr last_frame;
+        Frame::Ptr current_frame;
+        //int n=active_kfs.size();
+        if(frames.size()>0)
+        for (auto kf_pair : frames)
+        {
+            current_frame = kf_pair.second;
+            if (!current_frame->bImu||!current_frame->last_keyframe||current_frame->preintegration==nullptr)
+            {
+                last_frame=current_frame;
+               continue;
+            }
+            auto para_kf = current_frame->pose.data();
+            auto para_v = current_frame->Vw.data();
+            auto para_bg = current_frame->ImuBias.linearized_bg.data();
+            auto para_ba = current_frame->ImuBias.linearized_ba.data();
+            problem.AddParameterBlock(para_kf, SE3d::num_parameters, local_parameterization);
+            problem.AddParameterBlock(para_v, 3);
+            problem.AddParameterBlock(para_ba, 3);
+            problem.AddParameterBlock(para_bg, 3);
+            problem.SetParameterBlockConstant(para_kf);
+            if (last_frame && last_frame->bImu&&last_frame->last_keyframe&&last_frame->preintegration!=nullptr)
+            {
+                auto para_kf_last = last_frame->pose.data();
+                auto para_v_last = last_frame->Vw.data();
+                auto para_bg_last = last_frame->ImuBias.linearized_bg.data();//恢复
+                auto para_ba_last =last_frame->ImuBias.linearized_ba.data();//恢复
                 ceres::CostFunction *cost_function = ImuError::Create(current_frame->preintegration);
                 problem.AddResidualBlock(ProblemType::IMUError,cost_function, NULL, para_kf_last, para_v_last,para_ba_last,para_bg_last, para_kf, para_v,para_ba,para_bg);
             }

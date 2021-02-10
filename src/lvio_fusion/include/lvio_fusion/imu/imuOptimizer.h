@@ -13,6 +13,7 @@ public:
     void static ComputeGyroBias(const Frames &frames);
     void static ComputeVelocitiesAccBias(const Frames &frames);
     void static ReComputeBiasVel( Frames &frames,Frame::Ptr &prior_frame );
+    void static ReComputeBiasVel( Frames &frames );
     void static  RePredictVel(Frames &frames,Frame::Ptr &prior_frame );
 
     void static InertialOptimization(Frames &key_frames, Eigen::Matrix3d &Rwg,double priorG, double priorA);

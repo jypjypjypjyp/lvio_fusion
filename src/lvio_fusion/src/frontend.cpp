@@ -5,7 +5,8 @@
 #include "lvio_fusion/visual/camera.h"
 #include "lvio_fusion/visual/feature.h"
 #include "lvio_fusion/visual/landmark.h"
-
+#include "lvio_fusion/ceres/visual_error.hpp"
+#include "lvio_fusion/ceres/imu_error.hpp"
 #include <opencv2/core/eigen.hpp>
 
 namespace lvio_fusion
@@ -104,7 +105,10 @@ void Frontend::PreintegrateIMU()
         {
                 validtime=imuDatafromlastframe[0].t;
                 if(backend_.lock()->GetInitializer()->initialized)
-                        backend_.lock()->GetInitializer()->initialized=false;   
+                {
+                    backend_.lock()->GetInitializer()->initialized=false;   
+                    status = FrontendStatus::INITIALIZING;
+                }
                 ImuPreintegratedFromLastKF->isBad=true;
                 ImuPreintegratedFromLastFrame->isBad=true;
         }
@@ -113,8 +117,11 @@ void Frontend::PreintegrateIMU()
             {
                 if( imuDatafromlastframe[i+1].t-imuDatafromlastframe[i].t>0.015){
                     validtime=imuDatafromlastframe[i+1].t;
-                    if(backend_.lock()->GetInitializer()->initialized)
-                        backend_.lock()->GetInitializer()->initialized=false;   
+                if(backend_.lock()->GetInitializer()->initialized)
+                {
+                    backend_.lock()->GetInitializer()->initialized=false;   
+                    status = FrontendStatus::INITIALIZING;
+                }
                     ImuPreintegratedFromLastKF->isBad=true;
                     ImuPreintegratedFromLastFrame->isBad=true;
                     break;
@@ -178,7 +185,10 @@ void Frontend::PreintegrateIMU()
             if((n==0)){
                 validtime=imuDatafromlastframe[0].t;
                 if(backend_.lock()->GetInitializer()->initialized)
-                        backend_.lock()->GetInitializer()->initialized=false;   
+                {
+                    backend_.lock()->GetInitializer()->initialized=false;   
+                    status = FrontendStatus::INITIALIZING;
+                }
                 ImuPreintegratedFromLastKF->isBad=true;
                 ImuPreintegratedFromLastFrame->isBad=true;
             }
@@ -224,6 +234,7 @@ bool Frontend::Track()
     }
    //IMUEND
     // current_frame->pose = last_frame_pose_cache_ * relative_i_j;
+    //LocalBA();
     int num_inliers = TrackLastFrame(last_frame);
     bool success = num_inliers > num_features_tracking_bad_ &&
                    (current_frame->pose.translation() - last_frame_pose_cache_.translation()).norm() < 5;
@@ -603,5 +614,58 @@ void Frontend::PredictStateIMU()
         current_frame->SetNewBias(last_frame->GetImuBias());
     }
 }
+
+
+void Frontend::LocalBA(){
+     adapt::Problem problem;  
+      ceres::LossFunction *loss_function = new ceres::HuberLoss(1.0);
+          ceres::LocalParameterization *local_parameterization = new ceres::ProductParameterization(
+        new ceres::EigenQuaternionParameterization(),
+        new ceres::IdentityParameterization(3));
+      auto para_kf=current_frame->pose.data();
+      problem.AddParameterBlock(para_kf, SE3d::num_parameters, local_parameterization);
+      for (auto pair_feature : current_frame->features_left)
+        {
+            auto feature = pair_feature.second;
+            auto landmark = feature->landmark.lock();
+            auto first_frame = landmark->FirstFrame().lock();
+            ceres::CostFunction *cost_function;
+            cost_function = PoseOnlyReprojectionError::Create(cv2eigen(feature->keypoint),position_cache_[landmark->id],  Camera::Get(), current_frame->weights.visual);
+            problem.AddResidualBlock(ProblemType::PoseOnlyReprojectionError, cost_function, loss_function, para_kf);
+        }
+
+       if(current_frame->last_keyframe&&backend_.lock()->GetInitializer()->initialized&&current_frame->preintegration)
+        {
+            auto para_kf_last=current_frame->last_keyframe->pose.data();
+            auto para_v=current_frame->Vw.data();
+            auto para_v_last=current_frame->last_keyframe->Vw.data();
+            auto para_accBias=current_frame->ImuBias.linearized_ba.data();
+            auto para_gyroBias=current_frame->ImuBias.linearized_bg.data();
+            auto para_accBias_last=current_frame->last_keyframe->ImuBias.linearized_ba.data();
+            auto para_gyroBias_last=current_frame->last_keyframe->ImuBias.linearized_bg.data();
+            problem.AddParameterBlock(para_kf_last, SE3d::num_parameters, local_parameterization);
+            problem.AddParameterBlock(para_v, 3);
+            problem.AddParameterBlock(para_v_last, 3);
+            problem.AddParameterBlock(para_accBias, 3);
+            problem.AddParameterBlock(para_gyroBias, 3);
+            problem.AddParameterBlock(para_accBias_last, 3);
+            problem.AddParameterBlock(para_gyroBias_last, 3);
+            problem.SetParameterBlockConstant(para_kf_last);
+                ceres::CostFunction *cost_function = ImuError::Create(current_frame->preintegration);
+                problem.AddResidualBlock(ProblemType::IMUError,cost_function, NULL, para_kf_last, para_v_last,para_accBias_last,para_gyroBias_last, para_kf, para_v,para_accBias,para_gyroBias);
+
+           }
+    ceres::Solver::Options options;
+    options.linear_solver_type = ceres::DENSE_SCHUR;
+    options.max_solver_time_in_seconds = 0.02;
+    options.num_threads = 4;
+    ceres::Solver::Summary summary;
+    ceres::Solve(options, &problem, &summary);
+
+        if(current_frame->last_keyframe&&backend_.lock()->GetInitializer()->initialized)
+        {
+            current_frame->SetNewBias(current_frame->ImuBias);
+        }
+ }
 //IMUEND
 } // namespace lvio_fusion

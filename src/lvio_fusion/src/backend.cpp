@@ -172,6 +172,15 @@ void Backend::Optimize()
 
     if (active_kfs.empty())
         return;
+
+    if(Imu::Num()&&initializer_->initialized)
+    {
+       // ImuOptimizer::RePredictVel(active_kfs,active_kfs.begin()->second->last_keyframe);
+       if(active_kfs.begin()->second->last_keyframe==nullptr||active_kfs.begin()->second->last_keyframe->preintegration==nullptr)
+            ImuOptimizer::ReComputeBiasVel(active_kfs);
+       else
+            ImuOptimizer::ReComputeBiasVel(active_kfs,active_kfs.begin()->second->last_keyframe);
+    }
     SE3d old_pose = (--active_kfs.end())->second->pose;
     SE3d old_pose_imu=active_kfs.begin()->second->pose;//IMU
     adapt::Problem problem;
@@ -268,8 +277,11 @@ void Backend::ForwardPropagate(SE3d transform, double time)
   //IMU
    if(Imu::Num()&&initializer_->initialized)
    {
-        ImuOptimizer::RePredictVel(active_kfs,new_frame);
-        ImuOptimizer::ReComputeBiasVel(active_kfs,new_frame);
+       if(active_kfs.size()>0)
+       {
+            ImuOptimizer::RePredictVel(active_kfs,new_frame);
+            ImuOptimizer::ReComputeBiasVel(active_kfs,new_frame);
+        }
         Map::Instance().mapUpdated=true;
         if(active_kfs.size()==0){
             frontend_.lock()->UpdateFrameIMU(new_frame->GetImuBias());
@@ -299,6 +311,7 @@ void Backend::InitializeIMU(Frames active_kfs,double time)
             initA=true;
             priorA=1e4;
             priorG=1e1;
+            frontend_.lock()->status = FrontendStatus::INITIALIZING;
         }
         else if(dt>15&&!initB)
         {
@@ -306,6 +319,7 @@ void Backend::InitializeIMU(Frames active_kfs,double time)
             initB=true;
             priorA=0;
             priorG=0;
+            frontend_.lock()->status = FrontendStatus::INITIALIZING;
         }
     }
     Frames  frames_init;
