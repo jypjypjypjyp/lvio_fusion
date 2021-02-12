@@ -363,9 +363,9 @@ public:
         {
             ROS_ERROR("Error: can not update weights.");
         }
-        weights.visual = req.visual;
-        weights.lidar_ground = req.lidar_ground;
-        weights.lidar_surf = req.lidar_surf;
+        weights.visual = srv.req.visual;
+        weights.lidar_ground = srv.req.lidar_ground;
+        weights.lidar_surf = srv.req.lidar_surf;
         weights.updated = true;
     }
 };
