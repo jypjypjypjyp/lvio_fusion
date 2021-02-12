@@ -18,7 +18,7 @@ public:
 
     void Optimize(Frames &active_kfs);
 
-    void BuildOldMapFrame(Frames old_frames, Frame::Ptr map_frame);
+    void BuildOldMapFrame(Frame::Ptr old_frame, Frame::Ptr map_frame);
 
     void MergeScan(const PointICloud &in, SE3d from_pose, PointICloud &out);
 

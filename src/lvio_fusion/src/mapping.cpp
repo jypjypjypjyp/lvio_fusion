@@ -37,8 +37,62 @@ inline void Mapping::Color(const PointICloud &points_ground, const PointICloud &
     }
 }
 
-void Mapping::BuildOldMapFrame(Frames old_frames, Frame::Ptr map_frame)
+Frames get_lidar_frames(double start, double end, int num)
 {
+    auto keyframes = Map::Instance().keyframes;
+    if (end == 0)
+    {
+        auto iter = keyframes.upper_bound(start);
+        Frames frames;
+        int i = 0;
+        while (i < num && iter != keyframes.end())
+        {
+            if (iter->second->feature_lidar)
+            {
+                frames.insert(*iter);
+                i++;
+            }
+            iter++;
+        }
+        return frames;
+    }
+    else if (start == 0)
+    {
+        auto iter = keyframes.lower_bound(end);
+        Frames frames;
+        int i = 0;
+        while (i < num && iter != keyframes.begin())
+        {
+            --iter;
+            if (iter->second->feature_lidar)
+            {
+                frames.insert(*iter);
+                i++;
+            }
+        }
+        return frames;
+    }
+    return Frames();
+}
+
+void Mapping::BuildOldMapFrame(Frame::Ptr old_frame, Frame::Ptr map_frame)
+{
+    Frames old_frames;
+    Frames prev_old_frames = get_lidar_frames(0, old_frame->time, 1);
+    if(!prev_old_frames.empty())
+    {
+        old_frames.insert(*prev_old_frames.begin());
+    }
+    Frames subs_old_frames = get_lidar_frames(old_frame->time, 0, 1);
+    if(!subs_old_frames.empty())
+    {
+        old_frames.insert(*subs_old_frames.begin());
+    }
+    if(old_frame->feature_lidar)
+    {
+        old_frames[old_frame->time] = old_frame;
+    }
+
     PointICloud points_surf_merged;
     PointICloud points_ground_merged;
     for (auto &pair_kf : old_frames)
@@ -61,7 +115,7 @@ void Mapping::BuildMapFrame(Frame::Ptr frame, Frame::Ptr map_frame)
 {
     double start_time = frame->time;
     static int num_last_frames = 3;
-    Frames last_frames = Map::Instance().GetKeyFrames(0, start_time, num_last_frames);
+    Frames last_frames = get_lidar_frames(0, start_time, num_last_frames);
     if (last_frames.empty())
         return;
     PointICloud points_surf_merged;
@@ -191,11 +245,8 @@ int Mapping::Relocate(Frame::Ptr last_frame, Frame::Ptr current_frame, SE3d &rel
     clone_frame->pose = last_frame->pose * clone_frame->loop_closure->relative_o_c;
 
     // build two pointclouds
-    Frame::Ptr old_frame_prev = Map::Instance().GetKeyFrames(0, last_frame->time, 1).begin()->second;
-    Frame::Ptr old_frame_subs = Map::Instance().GetKeyFrames(last_frame->time, 0, 1).begin()->second;
-    Frames old_frames = {{last_frame->time, last_frame}, {old_frame_prev->time, old_frame_prev}, {old_frame_subs->time, old_frame_subs}};
     Frame::Ptr map_frame = Frame::Ptr(new Frame());
-    BuildOldMapFrame(old_frames, map_frame);
+    BuildOldMapFrame(last_frame, map_frame);
 
     // optimize
     double score_ground, score_surf;
@@ -213,7 +264,7 @@ int Mapping::Relocate(Frame::Ptr last_frame, Frame::Ptr current_frame, SE3d &rel
             options.num_threads = num_threads;
             ceres::Solver::Summary summary;
             ceres::Solve(options, &problem, &summary);
-            clone_frame->pose = map_frame->pose * rpyxyz2se3(rpyxyz) ;
+            clone_frame->pose = map_frame->pose * rpyxyz2se3(rpyxyz);
             score_ground = std::min((double)summary.num_residual_blocks_reduced / 10, 20.0);
             score_ground -= 2 * summary.final_cost / summary.num_residual_blocks_reduced;
         }
@@ -227,7 +278,7 @@ int Mapping::Relocate(Frame::Ptr last_frame, Frame::Ptr current_frame, SE3d &rel
             options.num_threads = num_threads;
             ceres::Solver::Summary summary;
             ceres::Solve(options, &problem, &summary);
-            clone_frame->pose = map_frame->pose * rpyxyz2se3(rpyxyz) ;
+            clone_frame->pose = map_frame->pose * rpyxyz2se3(rpyxyz);
             score_surf = std::min((double)summary.num_residual_blocks_reduced / 10, 30.0);
             score_surf -= 2 * summary.final_cost / summary.num_residual_blocks_reduced;
         }

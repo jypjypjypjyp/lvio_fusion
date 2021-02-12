@@ -31,6 +31,7 @@ add_service_files(
         CreateEnv.srv
         Step.srv
         Init.srv
+        UpdateWeights.srv
     )
 
 generate_messages(

@@ -141,7 +141,8 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
             Config::Get<double>("cycle_time"),
             Config::Get<double>("min_range"),
             Config::Get<double>("max_range"),
-            Config::Get<int>("deskew")));
+            Config::Get<int>("deskew"),
+            Config::Get<int>("spacing")));
 
         mapping = Mapping::Ptr(new Mapping);
         mapping->SetFeatureAssociation(association);

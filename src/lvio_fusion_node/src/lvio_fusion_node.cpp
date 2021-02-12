@@ -18,6 +18,7 @@
 #include "lvio_fusion_node/CreateEnv.h"
 #include "lvio_fusion_node/Init.h"
 #include "lvio_fusion_node/Step.h"
+#include "lvio_fusion_node/UpdateWeights.h"
 #include "parameters.h"
 #include "visualization.h"
 
@@ -28,7 +29,7 @@ Estimator::Ptr estimator;
 ros::Subscriber sub_imu, sub_lidar, sub_navsat, sub_img0, sub_img1, sub_objects, sub_step;
 ros::Publisher pub_detector;
 ros::ServiceServer svr_create_env, svr_step;
-ros::ServiceClient clt_init;
+ros::ServiceClient clt_init, clt_update_weights;
 
 queue<sensor_msgs::ImageConstPtr> img0_buf;
 queue<sensor_msgs::ImageConstPtr> img1_buf;
@@ -219,14 +220,6 @@ bool create_env_callback(lvio_fusion_node::CreateEnv::Request &req,
     return true;
 }
 
-sensor_msgs::ImagePtr cv_mat_to_msg(cv::Mat image)
-{
-    cv_bridge::CvImage cv_image;
-    cv_image.encoding = sensor_msgs::image_encodings::MONO8;
-    cv_image.image = image;
-    return cv_image.toImageMsg();
-}
-
 bool step_callback(lvio_fusion_node::Step::Request &req,
                    lvio_fusion_node::Step::Response &res)
 {
@@ -359,6 +352,24 @@ void keyboard_process()
     }
 }
 
+class RealCore : public lvio_fusion::Core
+{
+public:
+    virtual void Update(Observation &obs, Weights &weights)
+    {
+        lvio_fusion_node::UpdateWeights srv;
+        srv.request.obs = obs;
+        if (!clt_update_weights.call(srv) || !srv.response.status)
+        {
+            ROS_ERROR("Error: can not update weights.");
+        }
+        weights.visual = req.visual;
+        weights.lidar_ground = req.lidar_ground;
+        weights.lidar_surf = req.lidar_surf;
+        weights.updated = true;
+    }
+};
+
 int main(int argc, char **argv)
 {
     ros::init(argc, argv, "lvio_fusion_node");
@@ -426,7 +437,8 @@ int main(int argc, char **argv)
     }
     if (use_adapt)
     {
-        Agent::SetCore(new Core());
+        clt_update_weights = n.serviceClient<lvio_fusion_node::UpdateWeights>("lvio_fusion_node/update_weight");
+        Agent::SetCore(new RealCore());
     }
     if (train)
     {

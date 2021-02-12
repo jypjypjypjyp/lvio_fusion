@@ -51,6 +51,7 @@ cycle_time: 0.1036
 min_range: 5
 max_range: 30
 deskew: 0
+spacing: 5
 resolution: 0.4
 
 #imu parameters

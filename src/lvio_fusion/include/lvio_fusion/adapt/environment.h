@@ -48,7 +48,7 @@ public:
         std::unique_lock<std::mutex> lock(mutex);
         if (!initialized_)
             return -1;
-        environments_.push_back(Environment::Ptr(new Environment()));
+        environments_.push_back(Environment::Ptr(new Environment(true)));
         return environments_.size() - 1;
     }
 
@@ -79,11 +79,19 @@ public:
         }
     }
 
+    // evaluate
+    Environment() 
+    {
+        state_ = Map::Instance().keyframes.begin();
+    }
+
+    void Step(Weights &weights, Observation &obs);
+
     static std::map<double, SE3d> ground_truths;
     static std::mutex mutex;
 
 private:
-    Environment()
+    Environment(bool train)
     {
         std::default_random_engine e;
         double time = u_(e);

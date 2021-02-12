@@ -2,15 +2,36 @@
 # -*- coding: utf-8 -*-
 
 import rospy
+import sys, select, tty, termios
 from lvio_fusion_node.srv import *
 from rl_fusion.td3 import *
 from rl_fusion.env import LvioFusionEnv
 
-save_net_path = '/home/jyp/Projects/lvio_fusion/misc/td3.pt'
+state = 0 # 0: have not started; 1: start training; 2: start evaluation 
+
+def load():
+    global state
+    if state == 0:
+        state = 1
+        rospy.logwarn("Loading test_td3.")
+        load_td3()
 
 def callback(data:String):
-    rospy.logwarn("Start test_td3.")
-    test_td3()
+    global state
+    if state == 0:
+        state = 1
+        rospy.logwarn("Start test_td3.")
+        train_td3()
+
+def get_key():
+    tty.setraw(sys.stdin.fileno())
+    rlist, _, _ = select.select([sys.stdin], [], [], None)
+    if rlist:
+        key = sys.stdin.read(1)
+    else:
+        key = ''
+    termios.tcsetattr(sys.stdin, termios.TCSADRAIN, settings)
+    return key
 
 if __name__ == '__main__':
     try:
@@ -20,6 +41,16 @@ if __name__ == '__main__':
         server_init = rospy.Service('/lvio_fusion_node/init', Init, callback)
         LvioFusionEnv.client_create_env = rospy.ServiceProxy('/lvio_fusion_node/create_env', CreateEnv)
         LvioFusionEnv.client_step = rospy.ServiceProxy('/lvio_fusion_node/step', Step)
-        rospy.spin()
+
+        settings = termios.tcgetattr(sys.stdin)
+        rate = rospy.Rate(100)
+        while(1):
+            key = get_key()
+            if key=='l':
+                load()
+            elif key == 'q':
+                break
+            rate.sleep()
+        termios.tcsetattr(sys.stdin, termios.TCSADRAIN, settings)
     except rospy.ROSInterruptException:
         pass

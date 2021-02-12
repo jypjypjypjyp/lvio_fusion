@@ -4,6 +4,7 @@ import pprint
 
 import gym
 import numpy as np
+from tianshou import policy
 import torch
 from std_msgs.msg import String
 from tianshou.data import Collector, ReplayBuffer
@@ -53,9 +54,8 @@ def get_args():
     return args
 
 
-def test_td3(args=get_args()):
+def train_td3(args=get_args()):
     global client_create_env, client_step
-    torch.set_num_threads(1)  # we just need only one thread for NN
     env = gym.make(args.task, client_create_env=client_create_env, client_step=client_step)
     args.state_shape = env.observation_space.shape or env.observation_space.n
     args.action_shape = env.action_space.shape or env.action_space.n
@@ -102,7 +102,7 @@ def test_td3(args=get_args()):
     writer = SummaryWriter(log_path)
 
     def save_fn(policy):
-        torch.save(policy.state_dict(), os.path.join(log_path, 'policy.pth'))
+        torch.save(policy, os.path.join(log_path, 'policy.pt'))
 
     def stop_fn(mean_rewards):
         return mean_rewards >= env.spec.reward_threshold
@@ -117,9 +117,19 @@ def test_td3(args=get_args()):
     # output
     pprint.pprint(result)
     # Let's watch its performance!
-    env = gym.make(args.task)
+    env = gym.make(args.task, client_create_env=client_create_env, client_step=client_step)
     policy.eval()
     collector = Collector(policy, env)
     result = collector.collect(n_episode=1, render=args.render)
     print(f'Final reward: {result["rew"]}, length: {result["len"]}')
-    torch.save(net, save_net_path)
+
+
+def load_td3(args=get_args()):
+    global client_create_env, client_step
+    env = gym.make(args.task, client_create_env=client_create_env, client_step=client_step)
+    log_path = os.path.join(args.logdir, args.task, 'td3')
+    policy = torch.load(os.path.join(log_path, 'policy.pt'))
+    policy.eval()
+    collector = Collector(policy, env)
+    result = collector.collect(n_episode=1, render=args.render)
+    print(f'Final reward: {result["rew"]}, length: {result["len"]}')

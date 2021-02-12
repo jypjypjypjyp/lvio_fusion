@@ -18,8 +18,8 @@ class FeatureAssociation
 public:
     typedef std::shared_ptr<FeatureAssociation> Ptr;
 
-    FeatureAssociation(int num_scans, int horizon_scan, double ang_res_y, double ang_bottom, int ground_rows, double cycle_time, double min_range, double max_range, double deskew)
-        : num_scans_(num_scans), cycle_time_(cycle_time), min_range_(min_range), max_range_(max_range), deskew_(deskew)
+    FeatureAssociation(int num_scans, int horizon_scan, double ang_res_y, double ang_bottom, int ground_rows, double cycle_time, double min_range, double max_range, double deskew, double spacing)
+        : num_scans_(num_scans), cycle_time_(cycle_time), min_range_(min_range), max_range_(max_range), deskew_(deskew), spacing_(spacing)
     {
         curvatures = new float[num_scans * horizon_scan];
         projection_ = ImageProjection::Ptr(new ImageProjection(num_scans, horizon_scan, ang_res_y, ang_bottom, ground_rows));
@@ -62,6 +62,7 @@ private:
     const double min_range_;
     const double max_range_;
     const bool deskew_;
+    const double spacing_;
 };
 
 } // namespace lvio_fusion
