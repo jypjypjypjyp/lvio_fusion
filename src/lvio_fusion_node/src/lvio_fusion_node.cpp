@@ -359,13 +359,14 @@ public:
     {
         lvio_fusion_node::UpdateWeights srv;
         srv.request.obs = obs;
-        if (!clt_update_weights.call(srv) || !srv.response.status)
+        if (!clt_update_weights.call(srv))
         {
             ROS_ERROR("Error: can not update weights.");
+            return;
         }
-        weights.visual = srv.req.visual;
-        weights.lidar_ground = srv.req.lidar_ground;
-        weights.lidar_surf = srv.req.lidar_surf;
+        weights.visual = srv.response.visual;
+        weights.lidar_ground = srv.response.lidar_ground;
+        weights.lidar_surf = srv.response.lidar_surf;
         weights.updated = true;
     }
 };
