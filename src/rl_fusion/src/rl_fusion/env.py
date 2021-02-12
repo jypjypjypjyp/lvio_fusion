@@ -23,14 +23,14 @@ class LvioFusionEnv(gym.Env):
     def step(self, action):
         err_msg = "%r (%s) invalid" % (action, type(action))
         assert self.action_space.contains(action), err_msg
-
         visual = Float32(data=action[0])
         lidar_ground = Float32(data=action[1])
         lidar_surf = Float32(data=action[2])
-        resp = LvioFusionEnv.client_step(self.id, visual, lidar_ground, lidar_surf, imu)
+        resp = LvioFusionEnv.client_step(self.id, visual, lidar_ground, lidar_surf)
         obs = np.asarray(self.cv_bridge.imgmsg_to_cv2(resp.image, "mono8"))
         return obs, resp.reward, resp.done, {}
 
     def reset(self):
-        self.id = LvioFusionEnv.client_create_env()
-        return self.state
+        resp = LvioFusionEnv.client_create_env()
+        self.id = resp.id
+        return resp.obs

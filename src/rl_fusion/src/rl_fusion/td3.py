@@ -7,7 +7,7 @@ import numpy as np
 from tianshou import policy
 import torch
 from std_msgs.msg import String
-from tianshou.data import Collector, ReplayBuffer
+from tianshou.data import Collector, ReplayBuffer, Batch
 from tianshou.env import DummyVectorEnv
 from tianshou.exploration import GaussianNoise
 from tianshou.policy import TD3Policy
@@ -124,12 +124,17 @@ def train_td3(args=get_args()):
     print(f'Final reward: {result["rew"]}, length: {result["len"]}')
 
 
+agent_policy = None
+
 def load_td3(args=get_args()):
-    global client_create_env, client_step
+    global client_create_env, client_step, agent_policy
     env = gym.make(args.task, client_create_env=client_create_env, client_step=client_step)
     log_path = os.path.join(args.logdir, args.task, 'td3')
-    policy = torch.load(os.path.join(log_path, 'policy.pt'))
-    policy.eval()
-    collector = Collector(policy, env)
-    result = collector.collect(n_episode=1, render=args.render)
-    print(f'Final reward: {result["rew"]}, length: {result["len"]}')
+    agent_policy = torch.load(os.path.join(log_path, 'policy.pt'))
+    agent_policy.eval()
+
+def get_weights(obs):
+    global agent_policy
+    batch = Batch(obs=[obs])  # the first dimension is batch-size
+    act = agent_policy(batch).act[0]  # policy.forward return a batch, use ".act" to extract the action
+    return act
