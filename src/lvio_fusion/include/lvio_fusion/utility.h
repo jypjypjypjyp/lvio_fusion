@@ -280,50 +280,23 @@ inline double vectors_height(Vector3d v1, Vector3d v2)
     return v1.cross(v2).norm() / v1.norm();
 }
 
+inline double vectors_height(Vector3d A, Vector3d B, Vector3d C)
+{
+    auto v1 = B - A, v2 = C - A;
+    return v1.cross(v2).norm() / v1.norm();
+}
+
+inline double panel_height(Vector3d A, Vector3d B, Vector3d C)
+{
+    A.z() = B.z() = C.z() = 0;
+    return vectors_height(A, B, C);
+}
+
 inline double distance(cv::Point2f &pt1, cv::Point2f &pt2)
 {
     double dx = pt1.x - pt2.x;
     double dy = pt1.y - pt2.y;
     return sqrt(dx * dx + dy * dy);
-}
-
-// double calculate optical flow
-inline int optical_flow(cv::Mat &prevImg, cv::Mat &nextImg,
-                        std::vector<cv::Point2f> &prevPts, std::vector<cv::Point2f> &nextPts,
-                        std::vector<uchar> &status)
-{
-    if (prevPts.empty())
-        return 0;
-
-    cv::Mat err;
-    cv::calcOpticalFlowPyrLK(
-        prevImg, nextImg, prevPts, nextPts, status, err, cv::Size(21, 21), 3,
-        cv::TermCriteria(cv::TermCriteria::COUNT + cv::TermCriteria::EPS, 30, 0.01),
-        cv::OPTFLOW_USE_INITIAL_FLOW);
-
-    std::vector<uchar> reverse_status;
-    std::vector<cv::Point2f> reverse_pts = prevPts;
-    cv::calcOpticalFlowPyrLK(
-        nextImg, prevImg, nextPts, reverse_pts, reverse_status, err, cv::Size(3, 3), 1,
-        cv::TermCriteria(cv::TermCriteria::COUNT + cv::TermCriteria::EPS, 30, 0.01),
-        cv::OPTFLOW_USE_INITIAL_FLOW);
-
-    int num_success_pts = 0;
-    for (size_t i = 0; i < status.size(); i++)
-    {
-        // clang-format off
-        if (status[i] && reverse_status[i] && distance(prevPts[i], reverse_pts[i]) <= 0.5
-        && nextPts[i].x >= 0 && nextPts[i].x < prevImg.cols
-        && nextPts[i].y >= 0 && nextPts[i].y < prevImg.rows)
-        // clang-format on
-        {
-            status[i] = 1;
-            num_success_pts++;
-        }
-        else
-            status[i] = 0;
-    }
-    return num_success_pts;
 }
 
 // SE3d slerp, the bigger s(0,1), the closer the result is to b

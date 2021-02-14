@@ -135,6 +135,6 @@ def load_td3(args=get_args()):
 
 def get_weights(obs):
     global agent_policy
-    batch = Batch(obs=[obs])  # the first dimension is batch-size
+    batch = Batch(obs=[obs], info='')  # the first dimension is batch-size
     act = agent_policy(batch).act[0]  # policy.forward return a batch, use ".act" to extract the action
     return act

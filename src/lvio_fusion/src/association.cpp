@@ -32,8 +32,8 @@ void FeatureAssociation::AddScan(double time, Point3Cloud::Ptr new_scan)
         {
             Process(point_cloud, pair_kf.second);
             finished = pair_kf.first + epsilon;
+            last_frame = pair_kf.second;
         }
-        last_frame = pair_kf.second;
     }
 }
 
@@ -256,7 +256,7 @@ inline void FeatureAssociation::SegmentGround(PointICloud &points_ground)
 
 void FeatureAssociation::ScanToMapWithGround(Frame::Ptr frame, Frame::Ptr map_frame, double *para, adapt::Problem &problem)
 {
-    ceres::LossFunction *loss_function = new ceres::TrivialLoss();
+    ceres::LossFunction *loss_function = new ceres::HuberLoss(0.1);
     PointICloud &points_ground_last = map_frame->feature_lidar->points_ground;
     problem.AddParameterBlock(para + 1, 1);
     problem.AddParameterBlock(para + 2, 1);

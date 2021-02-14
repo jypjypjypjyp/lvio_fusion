@@ -79,16 +79,16 @@ void Mapping::BuildOldMapFrame(Frame::Ptr old_frame, Frame::Ptr map_frame)
 {
     Frames old_frames;
     Frames prev_old_frames = get_lidar_frames(0, old_frame->time, 1);
-    if(!prev_old_frames.empty())
+    if (!prev_old_frames.empty())
     {
         old_frames.insert(*prev_old_frames.begin());
     }
     Frames subs_old_frames = get_lidar_frames(old_frame->time, 0, 1);
-    if(!subs_old_frames.empty())
+    if (!subs_old_frames.empty())
     {
         old_frames.insert(*subs_old_frames.begin());
     }
-    if(old_frame->feature_lidar)
+    if (old_frame->feature_lidar)
     {
         old_frames[old_frame->time] = old_frame;
     }
@@ -141,6 +141,8 @@ void Mapping::Optimize(Frames &active_kfs)
     // NOTE: some place is good, don't need optimize too much.
     for (auto &pair_kf : active_kfs)
     {
+        if (!pair_kf.second->feature_lidar)
+            continue;
         auto t1 = std::chrono::steady_clock::now();
         SE3d old_pose = pair_kf.second->pose;
         {

@@ -20,12 +20,12 @@ public:
     bool operator()(const T *Twc2, T *residual) const
     {
         T cp[3] = {T(p_.x()), T(p_.y()), T(p_.z())};
-        T lpj[3] = {T(pa_.x()), T(pa_.y()), T(pa_.z())};
-        T ljm[3] = {T(abc_norm_.x()), T(abc_norm_.y()), T(abc_norm_.z())};
-        T lp[3], lp_lpj[3];
+        T pa[3] = {T(pa_.x()), T(pa_.y()), T(pa_.z())};
+        T abc_norm[3] = {T(abc_norm_.x()), T(abc_norm_.y()), T(abc_norm_.z())};
+        T lp[3], lp_pa[3];
         ceres::SE3TransformPoint(Twc2, cp, lp);
-        ceres::Minus(lp, lpj, lp_lpj);
-        residual[0] = ceres::DotProduct(lp_lpj, ljm);
+        ceres::Minus(lp, pa, lp_pa);
+        residual[0] = ceres::DotProduct(lp_pa, abc_norm);
         return true;
     }
 

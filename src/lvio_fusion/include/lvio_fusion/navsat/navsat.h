@@ -41,6 +41,7 @@ public:
     double Optimize(double time);
 
     bool initialized = false;
+    Vector3d A, B, C;
     std::map<double, Vector3d> raw;
     double finished = 0;
     Vector3d fix;
@@ -52,8 +53,7 @@ private:
 
     void Initialize();
 
-    void OptimizeRPY(Frame::Ptr frame, double time);
-    void OptimizeY(Frame::Ptr frame, double end, double time);
+    void OptimizeRX(Frame::Ptr frame, double end, double time);
     void OptimizeX(Frame::Ptr frame, double time);
 
     static std::vector<Navsat::Ptr> devices_;

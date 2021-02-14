@@ -1,5 +1,4 @@
 #include "lvio_fusion/visual/matcher.h"
-#include "lvio_fusion/utility.h"
 #include "lvio_fusion/visual/camera.h"
 
 #include <opencv2/flann.hpp>
