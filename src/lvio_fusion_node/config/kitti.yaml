@@ -98,3 +98,5 @@ threshold: 10
 
 # train
 ground_truth: /home/jyp/Projects/tools/kitti_00_tum_gd.txt
+obs_rows: 4
+obs_cols: 12

@@ -7,8 +7,8 @@
   </node>
 
   <node name="rl_fusion" pkg="rl_fusion" type="rl_fusion_node" output="screen">
-    <param name="height" value="4" />
-    <param name="width" value="12" />
+    <param name="obs_rows" value="4" />
+    <param name="obs_cols" value="12" />
   </node>
 
   <!-- <node name="rviz" pkg="rviz" type="rviz" output="log" args="-d $(find lvio_fusion_node)/config/default.rviz"/> -->
