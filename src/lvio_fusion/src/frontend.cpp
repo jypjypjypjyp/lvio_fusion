@@ -238,13 +238,26 @@ bool Frontend::Track()
     int num_inliers = TrackLastFrame(last_frame);
     bool success = num_inliers > num_features_tracking_bad_ &&
                    (current_frame->pose.translation() - last_frame_pose_cache_.translation()).norm() < 5;
-    if (!success)
+    if(!Imu::Num()||!backend_.lock()->GetInitializer()->initialized||(backend_.lock()->GetInitializer()->initialized&&current_frame->preintegrationFrame==nullptr))
     {
-        num_inliers = Relocate(last_frame);
-        success = num_inliers > num_features_tracking_bad_ &&
-                  (current_frame->pose.translation() - last_frame_pose_cache_.translation()).norm() < 5;
+         if (!success)
+        {
+            num_inliers = Relocate(last_frame);
+            success = num_inliers > num_features_tracking_bad_ &&
+                    (current_frame->pose.translation() - last_frame_pose_cache_.translation()).norm() < 5;
+        }
     }
-
+    else
+    {
+          if (!success)
+        {
+             current_frame->pose = relative_i_j * last_frame_pose_cache_;
+             //LocalBA();
+             num_inliers = TrackLastFrame(last_frame);
+             success = num_inliers > num_features_tracking_bad_ &&
+                   (current_frame->pose.translation() - last_frame_pose_cache_.translation()).norm() < 5;
+        }
+    }
     if (status == FrontendStatus::INITIALIZING)
     {
         if (!success)
@@ -398,15 +411,15 @@ bool Frontend::InitMap()
     if (num_new_features < num_features_init_)
         return false;
 
-    if (Imu::Num())
-    {
-        status = FrontendStatus::INITIALIZING;
-        backend_.lock()->GetInitializer()->initialized=false;//IMU
-    }
-    else
-    {
+    // if (Imu::Num())
+    // {
+    //     status = FrontendStatus::INITIALIZING;
+    //     backend_.lock()->GetInitializer()->initialized=false;//IMU
+    // }
+    // else
+    // {
         status = FrontendStatus::TRACKING_GOOD;
-    }
+    // }
 
     // the first frame is a keyframe
     Map::Instance().InsertKeyFrame(current_frame);
@@ -634,27 +647,30 @@ void Frontend::LocalBA(){
             problem.AddResidualBlock(ProblemType::PoseOnlyReprojectionError, cost_function, loss_function, para_kf);
         }
 
-       if(current_frame->last_keyframe&&backend_.lock()->GetInitializer()->initialized&&current_frame->preintegration)
-        {
-            auto para_kf_last=current_frame->last_keyframe->pose.data();
-            auto para_v=current_frame->Vw.data();
-            auto para_v_last=current_frame->last_keyframe->Vw.data();
-            auto para_accBias=current_frame->ImuBias.linearized_ba.data();
-            auto para_gyroBias=current_frame->ImuBias.linearized_bg.data();
-            auto para_accBias_last=current_frame->last_keyframe->ImuBias.linearized_ba.data();
-            auto para_gyroBias_last=current_frame->last_keyframe->ImuBias.linearized_bg.data();
-            problem.AddParameterBlock(para_kf_last, SE3d::num_parameters, local_parameterization);
-            problem.AddParameterBlock(para_v, 3);
-            problem.AddParameterBlock(para_v_last, 3);
-            problem.AddParameterBlock(para_accBias, 3);
-            problem.AddParameterBlock(para_gyroBias, 3);
-            problem.AddParameterBlock(para_accBias_last, 3);
-            problem.AddParameterBlock(para_gyroBias_last, 3);
-            problem.SetParameterBlockConstant(para_kf_last);
-                ceres::CostFunction *cost_function = ImuError::Create(current_frame->preintegration);
-                problem.AddResidualBlock(ProblemType::IMUError,cost_function, NULL, para_kf_last, para_v_last,para_accBias_last,para_gyroBias_last, para_kf, para_v,para_accBias,para_gyroBias);
+    //    if(current_frame->last_keyframe&&backend_.lock()->GetInitializer()->initialized&&current_frame->preintegration)
+    //     {
+    //         auto para_kf_last=current_frame->last_keyframe->pose.data();
+    //         auto para_v=current_frame->Vw.data();
+    //         auto para_v_last=current_frame->last_keyframe->Vw.data();
+    //         auto para_accBias=current_frame->ImuBias.linearized_ba.data();
+    //         auto para_gyroBias=current_frame->ImuBias.linearized_bg.data();
+    //         auto para_accBias_last=current_frame->last_keyframe->ImuBias.linearized_ba.data();
+    //         auto para_gyroBias_last=current_frame->last_keyframe->ImuBias.linearized_bg.data();
+    //         problem.AddParameterBlock(para_kf_last, SE3d::num_parameters, local_parameterization);
+    //         problem.AddParameterBlock(para_v, 3);
+    //         problem.AddParameterBlock(para_v_last, 3);
+    //         problem.AddParameterBlock(para_accBias, 3);
+    //         problem.AddParameterBlock(para_gyroBias, 3);
+    //         problem.AddParameterBlock(para_accBias_last, 3);
+    //         problem.AddParameterBlock(para_gyroBias_last, 3);
+    //         problem.SetParameterBlockConstant(para_kf_last);
+    //         problem.SetParameterBlockConstant(para_v_last);
+    //         problem.SetParameterBlockConstant(para_gyroBias_last);
+    //         problem.SetParameterBlockConstant(para_accBias_last);
+    //             ceres::CostFunction *cost_function = ImuError::Create(current_frame->preintegration);
+    //             problem.AddResidualBlock(ProblemType::IMUError,cost_function, NULL, para_kf_last, para_v_last,para_accBias_last,para_gyroBias_last, para_kf, para_v,para_accBias,para_gyroBias);
 
-           }
+    //        }
     ceres::Solver::Options options;
     options.linear_solver_type = ceres::DENSE_SCHUR;
     options.max_solver_time_in_seconds = 0.02;

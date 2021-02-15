@@ -102,11 +102,12 @@ bool  Initializer::InitializeIMU(Frames keyframes,double priorA,double priorG)
     {
         return false;
     }
-    if(priorA==0){
-        ImuOptimizer::InertialOptimization(keyframes,Rwg,1e1,1e4);
+    bool isOptRwg=reinit||!bimu;
+     if(priorA==0){
+        ImuOptimizer::InertialOptimization(keyframes,Rwg,1e1,1e4,isOptRwg);
     }
     else{
-        ImuOptimizer::InertialOptimization(keyframes,Rwg, priorG, priorA);
+        ImuOptimizer::InertialOptimization(keyframes,Rwg, priorG, priorA,isOptRwg);
     }
         Vector3d dirG;
         dirG<< 0, 0, Imu::Get()->G;

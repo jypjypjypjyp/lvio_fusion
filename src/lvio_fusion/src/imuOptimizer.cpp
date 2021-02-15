@@ -169,7 +169,9 @@ namespace lvio_fusion
                     first=false;
                 }
                 ceres::CostFunction *cost_function = ImuError::Create(current_frame->preintegration);
+                ImuOptimizer::showIMUError(para_kf_last, para_v_last,para_ba_last,para_bg_last, para_kf, para_v,para_ba,para_bg,current_frame->preintegration,current_frame->time-1.40364e+09+8.60223e+07);
                 problem.AddResidualBlock(ProblemType::IMUError,cost_function, NULL, para_kf_last, para_v_last,para_ba_last,para_bg_last, para_kf, para_v,para_ba,para_bg);
+              
             }
             last_frame = current_frame;
         }
@@ -231,7 +233,9 @@ namespace lvio_fusion
                 auto para_bg_last = last_frame->ImuBias.linearized_bg.data();//恢复
                 auto para_ba_last =last_frame->ImuBias.linearized_ba.data();//恢复
                 ceres::CostFunction *cost_function = ImuError::Create(current_frame->preintegration);
+                ImuOptimizer::showIMUError(para_kf_last, para_v_last,para_ba_last,para_bg_last, para_kf, para_v,para_ba,para_bg,current_frame->preintegration,current_frame->time-1.40364e+09+8.60223e+07);
                 problem.AddResidualBlock(ProblemType::IMUError,cost_function, NULL, para_kf_last, para_v_last,para_ba_last,para_bg_last, para_kf, para_v,para_ba,para_bg);
+
             }
             last_frame = current_frame;
         }
@@ -281,7 +285,7 @@ namespace lvio_fusion
     }
 
 
-void ImuOptimizer::InertialOptimization(Frames &key_frames, Eigen::Matrix3d &Rwg,double priorG, double priorA)   
+void ImuOptimizer::InertialOptimization(Frames &key_frames, Eigen::Matrix3d &Rwg,double priorG, double priorA,bool isOptRwg)   
 {
     ceres::Problem problem;
     ceres::CostFunction *cost_function ;
@@ -299,7 +303,10 @@ void ImuOptimizer::InertialOptimization(Frames &key_frames, Eigen::Matrix3d &Rwg
     
     ceres::LocalParameterization *local_parameterization = new ceres::EigenQuaternionParameterization();
     problem.AddParameterBlock(para_rwg, SO3d::num_parameters,local_parameterization);
-    //problem.SetParameterBlockConstant(para_rwg);
+    if(!isOptRwg)
+    {
+        problem.SetParameterBlockConstant(para_rwg);
+    }
     Frame::Ptr last_frame;
     Frame::Ptr current_frame;
     for(Frames::iterator iter = key_frames.begin(); iter != key_frames.end(); iter++)
@@ -329,7 +336,8 @@ void ImuOptimizer::InertialOptimization(Frames &key_frames, Eigen::Matrix3d &Rwg
     options.num_threads = 4;
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
-    // LOG(INFO)<<summary.BriefReport();
+    LOG(INFO)<<"InertialOptimization  "<<summary.BriefReport();
+    LOG(INFO)<<summary.num_unsuccessful_steps<<":"<<summary.num_successful_steps;
    // std::this_thread::sleep_for(std::chrono::seconds(3));
 
     //数据恢复
@@ -390,11 +398,10 @@ void ImuOptimizer::FullInertialBA(Frames &key_frames, double priorG, double prio
 
     Frame::Ptr last_frame;
     Frame::Ptr current_frame;
-    int i=0;
+    //bool first=true;
     for (auto kf_pair : key_frames)
     {
         current_frame = kf_pair.second;
-        i++;
         if (!current_frame->bImu||!current_frame->last_keyframe||current_frame->preintegration==nullptr)
         {
             last_frame=current_frame;
@@ -408,7 +415,10 @@ void ImuOptimizer::FullInertialBA(Frames &key_frames, double priorG, double prio
         {
             auto para_kf_last = last_frame->pose.data();
             auto para_v_last = last_frame->Vw.data();
-
+            // if(first){
+            //     problem.SetParameterBlockConstant(para_kf_last);
+            //     first=false;
+            // }
             cost_function =ImuErrorInit::Create(current_frame->preintegration,priorA,priorG);
             problem.AddResidualBlock(cost_function, NULL, para_kf_last, para_v_last, para_accBias,para_gyroBias, para_kf, para_v);
         }
@@ -423,8 +433,11 @@ void ImuOptimizer::FullInertialBA(Frames &key_frames, double priorG, double prio
     options.num_threads = 4;
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
+    LOG(INFO)<<"FullInertialBA  "<<summary.BriefReport();
+    LOG(INFO)<<summary.num_unsuccessful_steps<<":"<<summary.num_successful_steps;
     //LOG(INFO)<<summary.BriefReport();
     //数据恢复
+    recoverData(key_frames,old_pose,false);
     for(Frames::iterator iter = key_frames.begin(); iter != key_frames.end(); iter++)
     {
         current_frame=iter->second;
@@ -437,7 +450,7 @@ void ImuOptimizer::FullInertialBA(Frames &key_frames, double priorG, double prio
     return ;
 }
 
-void ImuOptimizer::recoverData(Frames active_kfs,SE3d old_pose)
+void ImuOptimizer::recoverData(Frames active_kfs,SE3d old_pose,bool bias)
 {
     SE3d new_pose=active_kfs.begin()->second->pose;
     Vector3d old_pose_translation=old_pose.translation();
@@ -457,7 +470,8 @@ void ImuOptimizer::recoverData(Frames active_kfs,SE3d old_pose)
         }
         frame->SetPose(translation * frame->pose.rotationMatrix(),translation * (frame->pose.translation()-new_pose.translation())+old_pose_translation);
         frame->SetVelocity(translation*frame->Vw);
-        frame->SetNewBias(frame->GetImuBias());
+        if(bias)
+            frame->SetNewBias(frame->GetImuBias());
     }
 }
 
@@ -490,11 +504,10 @@ void ImuOptimizer::FullInertialBA(Frames &key_frames)
 
     Frame::Ptr last_frame;
     Frame::Ptr current_frame;
-    int i=0;
+   // bool first=true;
     for (auto kf_pair : key_frames)
     {
         current_frame = kf_pair.second;
-        i++;
         if (!current_frame->bImu||!current_frame->last_keyframe||current_frame->preintegration==nullptr)
         {
             last_frame=current_frame;
@@ -514,6 +527,10 @@ void ImuOptimizer::FullInertialBA(Frames &key_frames)
             auto para_v_last = last_frame->Vw.data();
             auto para_gyroBias_last=last_frame->ImuBias.linearized_bg.data();
             auto para_accBias_last=last_frame->ImuBias.linearized_ba.data();
+            // if(first){
+            //     problem.SetParameterBlockConstant(para_kf_last);
+            //     first=false;
+            // }
             cost_function =ImuError::Create(current_frame->preintegration);
             problem.AddResidualBlock(cost_function, NULL, para_kf_last, para_v_last, para_accBias_last,para_gyroBias_last, para_kf, para_v,para_accBias,para_gyroBias);
 
@@ -528,12 +545,36 @@ void ImuOptimizer::FullInertialBA(Frames &key_frames)
     options.num_threads = 4;
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
-    //LOG(INFO)<<summary.BriefReport();
+    LOG(INFO)<<"FullInertialBA  "<<summary.BriefReport();
+    LOG(INFO)<<summary.num_unsuccessful_steps<<":"<<summary.num_successful_steps;
     //数据恢复
     
     recoverData(key_frames,old_pose);
     return;
 }
 
+     void ImuOptimizer::showIMUError(const double*  parameters0, const double*  parameters1, const double*  parameters2, const double*  parameters3, const double*  parameters4, const double*  parameters5, const double*  parameters6, const double*  parameters7,  imu::Preintegration::Ptr preintegration_, double time)  
+    {
+        Quaterniond Qi(parameters0[3], parameters0[0], parameters0[1], parameters0[2]);
+        Vector3d Pi(parameters0[4], parameters0[5], parameters0[6]);
+
+        Vector3d Vi(parameters1[0], parameters1[1], parameters1[2]);
+        Vector3d Bai(parameters2[0], parameters2[1], parameters2[2]);
+        Vector3d Bgi(parameters3[0], parameters3[1], parameters3[2]);
+
+        Quaterniond Qj(parameters4[3], parameters4[0], parameters4[1], parameters4[2]);
+        Vector3d Pj(parameters4[4], parameters4[5], parameters4[6]);
+
+        Vector3d Vj(parameters5[0], parameters5[1], parameters5[2]);
+        Vector3d Baj(parameters6[0], parameters6[1], parameters6[2]);
+        Vector3d Bgj(parameters7[0], parameters7[1], parameters7[2]);
+        Matrix<double, 15, 1> residual;
+        residual = preintegration_->Evaluate(Pi, Qi, Vi, Bai, Bgi, Pj, Qj, Vj, Baj, Bgj);
+        Matrix<double, 15, 15> sqrt_info = LLT<Matrix<double, 15, 15>>(preintegration_->covariance.inverse()).matrixL().transpose();
+    
+        residual = sqrt_info * residual;
+         LOG(INFO)<<"time"<<time<<"   residual  "<<residual.transpose()<<"  delta_p  "<<preintegration_->delta_p.transpose(); 
+         return ;
+    }
 
 } // namespace lvio_fusioni

@@ -123,6 +123,7 @@ void Backend::BuildProblem(Frames &active_kfs, adapt::Problem &problem,bool isim
                 auto para_bg_last = last_frame->ImuBias.linearized_bg.data();//恢复
                 auto para_ba_last =last_frame->ImuBias.linearized_ba.data();//恢复
                 ceres::CostFunction *cost_function = ImuError::Create(current_frame->preintegration);
+                ImuOptimizer::showIMUError(para_kf_last, para_v_last,para_ba_last,para_bg_last, para_kf, para_v,para_ba,para_bg,current_frame->preintegration,current_frame->time-1.40364e+09+8.60223e+07);
                 problem.AddResidualBlock(ProblemType::IMUError,cost_function, NULL, para_kf_last, para_v_last,para_ba_last,para_bg_last, para_kf, para_v,para_ba,para_bg);
             }
             last_frame = current_frame;
@@ -329,7 +330,7 @@ void Backend::InitializeIMU(Frames active_kfs,double time)
     {
         frames_init = Map::Instance().GetKeyFrames(0,time,initializer_->num_frames);
         old_pose= (--frames_init.end())->second->pose;
-        //LOG(INFO)<<frames_init.begin()->first -1.40364e+09+8.60223e+07<<"  "<<frontend_.lock()->validtime-1.40364e+09+8.60223e+07;
+        LOG(INFO)<<frames_init.begin()->first -1.40364e+09+8.60223e+07<<"  "<<frontend_.lock()->validtime-1.40364e+09+8.60223e+07;
         if (frames_init.size() == initializer_->num_frames&&frames_init.begin()->first>frontend_.lock()->validtime&&frames_init.begin()->second->preintegration)
         {
             if(!initializer_->initialized){
@@ -348,7 +349,7 @@ void Backend::InitializeIMU(Frames active_kfs,double time)
         {
             new_pose= (--frames_init.end())->second->pose;
             SE3d transform= new_pose * old_pose.inverse();
-            PoseGraph::Instance().Propagate(transform, active_kfs);
+            //PoseGraph::Instance().Propagate(transform, active_kfs);
             frontend_.lock()->status = FrontendStatus::TRACKING_GOOD;
             for(auto kf:active_kfs){
                 Frame::Ptr frame =kf.second;
