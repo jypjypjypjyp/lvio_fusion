@@ -98,8 +98,6 @@ void Backend::BuildProblem(Frames &active_kfs, adapt::Problem &problem,bool isim
     {
         Frame::Ptr last_frame;
         Frame::Ptr current_frame;
-        bool first=true;
-     
         for (auto kf_pair : active_kfs)
         {
             current_frame = kf_pair.second;
@@ -301,6 +299,11 @@ void Backend::InitializeIMU(Frames active_kfs,double time)
 {
     double priorA=1e3;
     double priorG=1e1;
+    if(Imu::Num() && initializer_->bimu)
+    {
+            priorA=0;
+            priorG=0;
+    }
     if(Imu::Num() && initializer_->initialized)
     {
         double dt=0;
@@ -349,7 +352,7 @@ void Backend::InitializeIMU(Frames active_kfs,double time)
         {
             new_pose= (--frames_init.end())->second->pose;
             SE3d transform= new_pose * old_pose.inverse();
-            //PoseGraph::Instance().Propagate(transform, active_kfs);
+            PoseGraph::Instance().Propagate(transform, active_kfs);
             frontend_.lock()->status = FrontendStatus::TRACKING_GOOD;
             for(auto kf:active_kfs){
                 Frame::Ptr frame =kf.second;

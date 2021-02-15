@@ -142,10 +142,10 @@ bool  Initializer::InitializeIMU(Frames keyframes,double priorA,double priorG)
         pKF2->bImu = true;
     }
 
-    if(priorA==0){
-        ImuOptimizer::FullInertialBA(keyframes);
-    }
-    else{
+    if(priorA!=0){
+    //     ImuOptimizer::FullInertialBA(keyframes);
+    // }
+    // else{
         ImuOptimizer::FullInertialBA(keyframes, priorG, priorA);
     }
 

@@ -68,7 +68,7 @@ void Frontend::PreintegrateIMU()
 {
     if(last_frame)
     {
-        if(backend_.lock()->GetInitializer()->bimu)
+        if(backend_.lock()->GetInitializer()->initialized)
         {
             current_frame->bImu=true;
         }
@@ -199,6 +199,7 @@ void Frontend::PreintegrateIMU()
         else{
             current_frame->preintegration=nullptr; 
             current_frame->bImu=false;
+
         }
 
         if(!ImuPreintegratedFromLastFrame->isBad)
@@ -238,25 +239,12 @@ bool Frontend::Track()
     int num_inliers = TrackLastFrame(last_frame);
     bool success = num_inliers > num_features_tracking_bad_ &&
                    (current_frame->pose.translation() - last_frame_pose_cache_.translation()).norm() < 5;
-    if(!Imu::Num()||!backend_.lock()->GetInitializer()->initialized||(backend_.lock()->GetInitializer()->initialized&&current_frame->preintegrationFrame==nullptr))
+
+    if (!success)
     {
-         if (!success)
-        {
-            num_inliers = Relocate(last_frame);
-            success = num_inliers > num_features_tracking_bad_ &&
-                    (current_frame->pose.translation() - last_frame_pose_cache_.translation()).norm() < 5;
-        }
-    }
-    else
-    {
-          if (!success)
-        {
-             current_frame->pose = relative_i_j * last_frame_pose_cache_;
-             //LocalBA();
-             num_inliers = TrackLastFrame(last_frame);
-             success = num_inliers > num_features_tracking_bad_ &&
-                   (current_frame->pose.translation() - last_frame_pose_cache_.translation()).norm() < 5;
-        }
+        num_inliers = Relocate(last_frame);
+        success = num_inliers > num_features_tracking_bad_ &&
+                (current_frame->pose.translation() - last_frame_pose_cache_.translation()).norm() < 5;
     }
     if (status == FrontendStatus::INITIALIZING)
     {
@@ -397,6 +385,10 @@ int Frontend::Relocate(Frame::Ptr base_frame)
         current_frame->id++;
         Map::Instance().InsertKeyFrame(base_frame);
         last_key_frame = base_frame;
+        //IMU
+        current_frame->preintegration=current_frame->preintegrationFrame;
+        ImuPreintegratedFromLastKF=current_frame->preintegrationFrame;
+        //IMUEND
         LOG(INFO) << "Make last frame a keyframe " << base_frame->id;
 
         // update backend because we have a new keyframe
@@ -411,15 +403,15 @@ bool Frontend::InitMap()
     if (num_new_features < num_features_init_)
         return false;
 
-    // if (Imu::Num())
-    // {
-    //     status = FrontendStatus::INITIALIZING;
-    //     backend_.lock()->GetInitializer()->initialized=false;//IMU
-    // }
-    // else
-    // {
+    if (Imu::Num())
+    {
+        status = FrontendStatus::INITIALIZING;
+        backend_.lock()->GetInitializer()->initialized=false;//IMU
+    }
+    else
+    {
         status = FrontendStatus::TRACKING_GOOD;
-    // }
+    }
 
     // the first frame is a keyframe
     Map::Instance().InsertKeyFrame(current_frame);

@@ -573,7 +573,7 @@ void ImuOptimizer::FullInertialBA(Frames &key_frames)
         Matrix<double, 15, 15> sqrt_info = LLT<Matrix<double, 15, 15>>(preintegration_->covariance.inverse()).matrixL().transpose();
     
         residual = sqrt_info * residual;
-         LOG(INFO)<<"time"<<time<<"   residual  "<<residual.transpose()<<"  delta_p  "<<preintegration_->delta_p.transpose(); 
+         //LOG(INFO)<<"time"<<time<<"   residual  "<<residual.transpose()<<"  bias  "<<Bai.transpose()<<" "<<Bgi.transpose(); 
          return ;
     }
 
