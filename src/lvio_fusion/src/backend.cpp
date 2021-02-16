@@ -334,7 +334,9 @@ void Backend::InitializeIMU(Frames active_kfs,double time)
         frames_init = Map::Instance().GetKeyFrames(0,time,initializer_->num_frames);
         old_pose= (--frames_init.end())->second->pose;
         LOG(INFO)<<frames_init.begin()->first -1.40364e+09+8.60223e+07<<"  "<<frontend_.lock()->validtime-1.40364e+09+8.60223e+07;
-        if (frames_init.size() == initializer_->num_frames&&frames_init.begin()->first>frontend_.lock()->validtime&&frames_init.begin()->second->preintegration)
+        double validtime_=frontend_.lock()->validtime;
+
+        if (frames_init.size() == initializer_->num_frames&&frames_init.begin()->first>validtime_&&frames_init.begin()->second->preintegration)
         {
             if(!initializer_->initialized){
                 Tinit=(--frames_init.end())->second->time;
@@ -353,14 +355,18 @@ void Backend::InitializeIMU(Frames active_kfs,double time)
             new_pose= (--frames_init.end())->second->pose;
             SE3d transform= new_pose * old_pose.inverse();
             PoseGraph::Instance().Propagate(transform, active_kfs);
-            frontend_.lock()->status = FrontendStatus::TRACKING_GOOD;
+            if(frontend_.lock()->status == FrontendStatus::INITIALIZING)
+                frontend_.lock()->status = FrontendStatus::TRACKING_GOOD;
             for(auto kf:active_kfs){
                 Frame::Ptr frame =kf.second;
                 if(frame->preintegration!=nullptr)
                         frame->bImu=true;
             }
+               LOG(INFO)<<"Initiaclizer Finished";
         }
-        LOG(INFO)<<"Initiaclizer Finished";
+        else{
+               LOG(INFO)<<"Initiaclizer Failed";
+        }
         isInitliazing=false;
     }   
    

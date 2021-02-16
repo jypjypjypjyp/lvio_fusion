@@ -285,7 +285,7 @@ namespace lvio_fusion
     }
 
 
-void ImuOptimizer::InertialOptimization(Frames &key_frames, Eigen::Matrix3d &Rwg,double priorG, double priorA,bool isOptRwg)   
+bool ImuOptimizer::InertialOptimization(Frames &key_frames, Eigen::Matrix3d &Rwg,double priorG, double priorA,bool isOptRwg)   
 {
     ceres::Problem problem;
     ceres::CostFunction *cost_function ;
@@ -343,9 +343,15 @@ void ImuOptimizer::InertialOptimization(Frames &key_frames, Eigen::Matrix3d &Rwg
     //数据恢复
     Quaterniond rwg2(RwgSO3.data()[3],RwgSO3.data()[0],RwgSO3.data()[1],RwgSO3.data()[2]);
     Rwg=rwg2.toRotationMatrix();
+    for(int i=0;i<3;i++){
+        if(abs(para_gyroBias[i])>0.1){
+            return false;
+        }
+    }
     Bias bias_(para_accBias[0],para_accBias[1],para_accBias[2],para_gyroBias[0],para_gyroBias[1],para_gyroBias[2]);
     Vector3d bg;
     bg<< para_gyroBias[0],para_gyroBias[1],para_gyroBias[2];
+    LOG(INFO)<<bg.transpose();
     for(Frames::iterator iter = key_frames.begin(); iter != key_frames.end(); iter++)
     {
         current_frame=iter->second;
@@ -360,7 +366,7 @@ void ImuOptimizer::InertialOptimization(Frames &key_frames, Eigen::Matrix3d &Rwg
             current_frame->SetNewBias(bias_);
         }     
     }
-    return ;
+    return true;
 }
 
 void ImuOptimizer::FullInertialBA(Frames &key_frames, double priorG, double priorA)
@@ -485,20 +491,20 @@ void ImuOptimizer::FullInertialBA(Frames &key_frames)
     ceres::LossFunction *loss_function = new ceres::HuberLoss(1.0);
     double start_time = key_frames.begin()->first;
     SE3d old_pose=key_frames.begin()->second->pose;
-    for (auto pair_kf : key_frames)
-    {
-        auto frame = pair_kf.second;
-        double *para_kf = frame->pose.data();
-        problem.AddParameterBlock(para_kf, SE3d::num_parameters, local_parameterization);
-        for (auto pair_feature : frame->features_left)
-        {
-            auto feature = pair_feature.second;
-            auto landmark = feature->landmark.lock();
-            auto first_frame = landmark->FirstFrame().lock();
-                cost_function = PoseOnlyReprojectionError::Create(cv2eigen(feature->keypoint), landmark->ToWorld(), Camera::Get(), frame->weights.visual);
-                problem.AddResidualBlock(cost_function, loss_function, para_kf);
-        }
-    }
+    // for (auto pair_kf : key_frames)
+    // {
+    //     auto frame = pair_kf.second;
+    //     double *para_kf = frame->pose.data();
+    //     problem.AddParameterBlock(para_kf, SE3d::num_parameters, local_parameterization);
+    //     for (auto pair_feature : frame->features_left)
+    //     {
+    //         auto feature = pair_feature.second;
+    //         auto landmark = feature->landmark.lock();
+    //         auto first_frame = landmark->FirstFrame().lock();
+    //             cost_function = PoseOnlyReprojectionError::Create(cv2eigen(feature->keypoint), landmark->ToWorld(), Camera::Get(), frame->weights.visual);
+    //             problem.AddResidualBlock(cost_function, loss_function, para_kf);
+    //     }
+    // }
 
     Frame::Ptr pIncKF=key_frames.begin()->second;
 
@@ -521,6 +527,7 @@ void ImuOptimizer::FullInertialBA(Frames &key_frames)
         problem.AddParameterBlock(para_v, 3);
         problem.AddParameterBlock(para_gyroBias, 3);
         problem.AddParameterBlock(para_accBias, 3);
+        problem.SetParameterBlockConstant(para_kf);
         if (last_frame && last_frame->bImu)
         {
             auto para_kf_last = last_frame->pose.data();
@@ -549,7 +556,15 @@ void ImuOptimizer::FullInertialBA(Frames &key_frames)
     LOG(INFO)<<summary.num_unsuccessful_steps<<":"<<summary.num_successful_steps;
     //数据恢复
     
-    recoverData(key_frames,old_pose);
+    // recoverData(key_frames,old_pose);
+        for(Frames::iterator iter = key_frames.begin(); iter != key_frames.end(); iter++)
+    {
+        current_frame=iter->second;
+        if(current_frame->bImu&&current_frame->last_keyframe)
+        {
+            current_frame->SetNewBias(current_frame->GetImuBias());
+        }
+    }
     return;
 }
 
@@ -573,6 +588,7 @@ void ImuOptimizer::FullInertialBA(Frames &key_frames)
         Matrix<double, 15, 15> sqrt_info = LLT<Matrix<double, 15, 15>>(preintegration_->covariance.inverse()).matrixL().transpose();
     
         residual = sqrt_info * residual;
+          if(time<350)
          //LOG(INFO)<<"time"<<time<<"   residual  "<<residual.transpose()<<"  bias  "<<Bai.transpose()<<" "<<Bgi.transpose(); 
          return ;
     }

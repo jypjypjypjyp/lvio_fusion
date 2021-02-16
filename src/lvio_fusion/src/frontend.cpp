@@ -199,11 +199,15 @@ void Frontend::PreintegrateIMU()
         else{
             current_frame->preintegration=nullptr; 
             current_frame->bImu=false;
-
+            // current_frame->ImuBias.linearized_ba=Vector3d::Zero();
+            // current_frame->ImuBias.linearized_bg=Vector3d::Zero();
         }
 
         if(!ImuPreintegratedFromLastFrame->isBad)
             current_frame->preintegrationFrame=ImuPreintegratedFromLastFrame;
+        // if(!ImuPreintegratedFromLastFrame->isBad)
+        //     LOG(INFO)<<current_frame->time-1.40364e+09+8.60223e+07<<" :"<<ImuPreintegratedFromLastFrame->delta_q.toRotationMatrix().eulerAngles(0,1,2).transpose();
+
     }   
 }
 //IMUEND
@@ -233,6 +237,7 @@ bool Frontend::Track()
             current_frame->SetNewBias(last_key_frame->GetImuBias());
        }
     }
+   // LOG(INFO)<<current_frame->time-1.40364e+09+8.60223e+07<<" :"<<current_frame->pose.rotationMatrix().eulerAngles(0,1,2).transpose();
    //IMUEND
     // current_frame->pose = last_frame_pose_cache_ * relative_i_j;
     //LocalBA();
@@ -407,15 +412,18 @@ bool Frontend::InitMap()
     {
         status = FrontendStatus::INITIALIZING;
         backend_.lock()->GetInitializer()->initialized=false;//IMU
+         ImuPreintegratedFromLastKF=nullptr;//IMU
+         validtime=current_frame->time;//IMU
     }
     else
     {
         status = FrontendStatus::TRACKING_GOOD;
     }
-
+   //IMUEND
     // the first frame is a keyframe
     Map::Instance().InsertKeyFrame(current_frame);
     last_key_frame = current_frame;
+
     LOG(INFO) << "Initial map created with " << num_new_features << " map points";
 
     // update backend because we have a new keyframe
@@ -609,10 +617,16 @@ void Frontend::PredictStateIMU()
         Matrix3d Rwb2=NormalizeRotation(Rwb1*current_frame->preintegrationFrame->GetDeltaRotation(last_frame->GetImuBias()).toRotationMatrix());
         Vector3d twb2=twb1 + Vwb1*t12 + 0.5f*t12*t12*Gz+ Rwb1*current_frame->preintegrationFrame->GetDeltaPosition(last_frame->GetImuBias());
         Vector3d Vwb2=Vwb1+t12*Gz+Rwb1*current_frame->preintegrationFrame->GetDeltaVelocity(last_frame->GetImuBias());
-         
-        //  LOG(INFO)<<"PredictStateIMU  "<<current_frame->time-1.40364e+09+8.60223e+07<<"  T12  "<<t12<<"  Vwb1  "<<Vwb1.transpose()<<" Vwb2  "<<Vwb2.transpose();
-        // LOG(INFO)<<"   RdV    "<<((Rwb1)*current_frame->preintegrationFrame->GetDeltaVelocity(last_frame->GetImuBias())).transpose()<<"   dV      "<<(current_frame->preintegrationFrame->delta_v).transpose();
-        // LOG(INFO)<<"    BIAS   a "<<last_frame->GetImuBias().linearized_ba.transpose()<<" g "<<last_frame->GetImuBias().linearized_bg.transpose()<<"  dP  "<<current_frame->preintegrationFrame->delta_p.transpose();
+         LOG(INFO)<<"PredictStateIMU  "<<current_frame->time-1.40364e+09+8.60223e+07<<"  T12  "<<t12<<"  Vwb1  "<<Vwb1.transpose()<<" Vwb2  "<<Vwb2.transpose();
+        // LOG(INFO)<<"   RdV    "<<((Rwb1)*current_frame->preintegrationFrame->GetDeltaVelocity(last_frame->GetImuBias())).transpose()<<"   dV      "<<(current_frame->preintegrationFrame->GetDeltaVelocity(last_frame->GetImuBias())).transpose();
+        // LOG(INFO)<<"  dP  "<<current_frame->preintegrationFrame->GetDeltaPosition(last_frame->GetImuBias()).transpose();
+          Eigen::Vector3d dr = current_frame->preintegrationFrame->GetDeltaRotation(last_frame->GetImuBias()).toRotationMatrix().eulerAngles ( 0,1,2 ); 
+          Eigen::Vector3d dr_ = current_frame->preintegrationFrame->delta_q.toRotationMatrix().eulerAngles ( 0,1,2 ); 
+
+        LOG(INFO)<<"  dR  "<<dr.transpose()<<"  dR_"<<dr_.transpose();//current_frame->preintegrationFrame->GetDeltaRotation(last_frame->GetImuBias()).w()<<" "<<current_frame->preintegrationFrame->GetDeltaRotation(last_frame->GetImuBias()).x()<<" "<<current_frame->preintegrationFrame->GetDeltaRotation(last_frame->GetImuBias()).y()<<" "<<current_frame->preintegrationFrame->GetDeltaRotation(last_frame->GetImuBias()).z();
+        LOG(INFO)<<"  a"<<last_frame->GetImuBias().linearized_ba.transpose()<<"   g "<<last_frame->GetImuBias().linearized_bg.transpose();//current_frame->preintegrationFrame->delta_q.w()<<" "<<current_frame->preintegrationFrame->delta_q.x()<<" "<<current_frame->preintegrationFrame->delta_q.y()<<" "<<current_frame->preintegrationFrame->delta_q.z();
+        LOG(INFO)<<"Rwb1"<<Rwb1.eulerAngles(0,1,2).transpose();
+        LOG(INFO)<<"Rwb2"<<Rwb2.eulerAngles(0,1,2).transpose();
 
         current_frame->SetVelocity(Vwb2);
         current_frame->SetPose(Rwb2,twb2);

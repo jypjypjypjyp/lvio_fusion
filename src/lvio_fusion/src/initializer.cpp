@@ -102,12 +102,16 @@ bool  Initializer::InitializeIMU(Frames keyframes,double priorA,double priorG)
     {
         return false;
     }
-    bool isOptRwg=reinit||!bimu;
+    bool isOptRwg=true;//reinit||!bimu;
+    bool isOK;
      if(priorA==0){
-        ImuOptimizer::InertialOptimization(keyframes,Rwg,1e1,1e4,isOptRwg);
+        isOK=ImuOptimizer::InertialOptimization(keyframes,Rwg,1e2,1e4,isOptRwg);
     }
     else{
-        ImuOptimizer::InertialOptimization(keyframes,Rwg, priorG, priorA,isOptRwg);
+        isOK=ImuOptimizer::InertialOptimization(keyframes,Rwg, priorG, priorA,isOptRwg);
+    }
+    if(!isOK){
+        return false;
     }
         Vector3d dirG;
         dirG<< 0, 0, Imu::Get()->G;
@@ -143,11 +147,11 @@ bool  Initializer::InitializeIMU(Frames keyframes,double priorA,double priorG)
     }
 
     if(priorA!=0){
-    //     ImuOptimizer::FullInertialBA(keyframes);
-    // }
-    // else{
         ImuOptimizer::FullInertialBA(keyframes, priorG, priorA);
     }
+    // else{
+    //     ImuOptimizer::FullInertialBA(keyframes);
+    // }
 
     bimu=true;
     initialized=true;

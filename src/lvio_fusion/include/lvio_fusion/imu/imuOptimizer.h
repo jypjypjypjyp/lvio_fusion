@@ -16,7 +16,7 @@ public:
     void static ReComputeBiasVel( Frames &frames );
     void static  RePredictVel(Frames &frames,Frame::Ptr &prior_frame );
 
-    void static InertialOptimization(Frames &key_frames, Eigen::Matrix3d &Rwg,double priorG, double priorA,bool isOptRwg);
+    bool static InertialOptimization(Frames &key_frames, Eigen::Matrix3d &Rwg,double priorG, double priorA,bool isOptRwg);
     void static FullInertialBA(Frames &key_frames, double priorG, double priorA);
     void static FullInertialBA(Frames &key_frames);
     void static recoverData(Frames active_kfs,SE3d old_pose,bool bias=true);
