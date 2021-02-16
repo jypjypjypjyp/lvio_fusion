@@ -60,7 +60,7 @@ Observation Frame::GetObservation()
 {
     if (Map::Instance().keyframes.find(id - 1) == Map::Instance().keyframes.end())
         return Observation();
-        
+
     static int obs_rows = 4, obs_cols = 12;
     cv::Mat obs = cv::Mat::zeros(obs_rows, obs_cols, CV_32FC3);
     int height = image_left.rows, width = image_left.cols;
@@ -86,7 +86,7 @@ Observation Frame::GetObservation()
         (*iter)[2] = (*iter)[2] / n;
     }
 
-    return obs;
+    return obs.reshape(1, 1);
 }
 
 } // namespace lvio_fusion

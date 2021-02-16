@@ -38,11 +38,16 @@ lvio_fusion_node::BoundingBoxesConstPtr obj_buf;
 mutex m_img_buf, m_cond;
 condition_variable cond;
 double delta_time = 0;
+double init_time = 0;
 
 // requisite topic
 void img0_callback(const sensor_msgs::ImageConstPtr &img_msg)
 {
-    delta_time = ros::Time::now().toSec() - img_msg->header.stamp.toSec();
+    if (init_time == 0)
+    {
+        delta_time = ros::Time::now().toSec() - img_msg->header.stamp.toSec();
+        init_time = img_msg->header.stamp.toSec();
+    }
     m_img_buf.lock();
     img0_buf.push(img_msg);
     m_img_buf.unlock();
@@ -292,13 +297,15 @@ void read_ground_truth()
     string line;
     stringstream ss;
     double time, x, y, z, qx, qy, qz, qw;
+    double dt = lvio_fusion::Map::Instance().keyframes.begin()->first;
     if (in)
     {
         while (getline(in, line))
         {
             ss << line;
             ss >> time >> x >> y >> z >> qx >> qy >> qz >> qw;
-            Environment::ground_truths[time] = SE3d(Quaterniond(qw, qx, qy, qz), Vector3d(x, y, z));
+            cout << time << "," << x << "," << y << "," << z << "," << qx << "," << qy << "," << qz << "," << qw << endl;
+            Environment::ground_truths[dt + time] = SE3d(Quaterniond(qw, qx, qy, qz), Vector3d(x, y, z));
             ss.clear();
         }
     }

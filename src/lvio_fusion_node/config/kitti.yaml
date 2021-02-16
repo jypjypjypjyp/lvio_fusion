@@ -97,6 +97,6 @@ relocator_mode: 0    # none = 0, visual = 1, lidar = 2, visual&&lidar = 3
 threshold: 10
 
 # train
-ground_truth: /home/jyp/Projects/tools/kitti_00_tum_gd.txt
+ground_truth_path: /home/jyp/Projects/tools/kitti_00_tum_gd.txt
 obs_rows: 4
 obs_cols: 12

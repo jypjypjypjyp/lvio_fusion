@@ -5,3 +5,4 @@ notes
 .vscode
 *.weights
 src/CMakeLists.txt
+**.pyc

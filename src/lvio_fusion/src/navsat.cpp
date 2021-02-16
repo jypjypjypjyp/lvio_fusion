@@ -158,9 +158,6 @@ double Navsat::Optimize(double time)
         finished = pair.second.C;
     }
 
-    auto frame_finished = Map::Instance().keyframes[finished];
-    OptimizeRX(frame_finished, time, time);
-
     if (Map::Instance().end)
     {
         finished = (--Map::Instance().keyframes.end())->first;
