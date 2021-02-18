@@ -24,6 +24,8 @@ public:
         return keyframes.size();
     }
 
+    Frame::Ptr GetKeyFrame(double time);
+
     Frames GetKeyFrames(double start, double end = 0, int num = 0);
 
     void InsertKeyFrame(Frame::Ptr frame);

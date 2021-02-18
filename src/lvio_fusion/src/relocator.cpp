@@ -4,6 +4,8 @@
 #include "lvio_fusion/map.h"
 #include "lvio_fusion/utility.h"
 
+#include <iomanip>
+#include <iostream>
 #include <opencv2/core/eigen.hpp>
 #include <pcl/filters/voxel_grid.h>
 #include <pcl/io/pcd_io.h>
@@ -36,7 +38,7 @@ void Relocator::DetectorLoop()
         {
             Frame::Ptr frame = pair_kf.second, old_frame;
             // if last is loop and this is not loop, then correct all new loops
-            if (DetectLoop(frame, old_frame, end - 30))
+            if (DetectLoop(frame, old_frame))
             {
                 double section = PoseGraph::Instance().GetSection(old_frame->time).A;
                 if (!last_frame)
@@ -52,7 +54,7 @@ void Relocator::DetectorLoop()
                 else
                 {
                     // new old section, new loop
-                    LOG(INFO) << "Detected new loop, and correct it now. old_time:" << old_time << ";start_time:" << start_time << ";end_time:" << last_frame->time;
+                    LOG(INFO) << std::setiosflags(std::ios::fixed) << std::setprecision(5) << "1Detected new loop, and correct it now. old_time:" << old_time << ";start_time:" << start_time << ";end_time:" << last_frame->time;
                     auto t1 = std::chrono::steady_clock::now();
                     CorrectLoop(old_time, start_time, last_frame->time);
                     auto t2 = std::chrono::steady_clock::now();
@@ -64,9 +66,9 @@ void Relocator::DetectorLoop()
                     last_frame = frame;
                 }
             }
-            if (start_time != DBL_MAX)
+            else if (start_time != DBL_MAX)
             {
-                LOG(INFO) << "Detected new loop, and correct it now. old_time:" << old_time << ";start_time:" << start_time << ";end_time:" << last_frame->time;
+                LOG(INFO) << std::setiosflags(std::ios::fixed) << std::setprecision(5) << "2Detected new loop, and correct it now. old_time:" << old_time << ";start_time:" << start_time << ";end_time:" << last_frame->time;
                 auto t1 = std::chrono::steady_clock::now();
                 CorrectLoop(old_time, start_time, last_frame->time);
                 auto t2 = std::chrono::steady_clock::now();
@@ -80,13 +82,13 @@ void Relocator::DetectorLoop()
     }
 }
 
-bool Relocator::DetectLoop(Frame::Ptr frame, Frame::Ptr &old_frame, double end)
+bool Relocator::DetectLoop(Frame::Ptr frame, Frame::Ptr &old_frame)
 {
     static double finished = 0;
     static PointICloud points;
     static std::unordered_map<int, double> map;
-    Frames active_kfs = Map::Instance().GetKeyFrames(finished, end);
-    finished = end + epsilon;
+    Frames active_kfs = Map::Instance().GetKeyFrames(finished, frame->time - 30);
+    finished = frame->time - 30 + epsilon;
     for (auto pair : active_kfs)
     {
         PointI p;
@@ -116,36 +118,9 @@ bool Relocator::DetectLoop(Frame::Ptr frame, Frame::Ptr &old_frame, double end)
     // clang-format on
     {
         double time = map[points[points_index[0]].intensity];
-        old_frame = Map::Instance().keyframes[time];
+        old_frame = Map::Instance().GetKeyFrame(time);
     }
 
-    // the distances of 3 closest old frames is smaller than threshold
-    // Frames candidate_kfs = Map::Instance().GetKeyFrames(0, end);
-    // double threshold = threshold_;
-    // for (auto &pair_kf : candidate_kfs)
-    // {
-    //     Vector3d vec = (pair_kf.second->pose.translation() - frame->pose.translation());
-    //     vec.z() = 0;
-    //     double distance = vec.norm();
-    //     if (distance < threshold)
-    //     {
-    //         threshold = distance;
-    //         old_frame = pair_kf.second;
-    //         // Frame::Ptr prev_frame = Map::Instance().GetKeyFrames(0, frame->time, 1).begin()->second;
-    //         // Frame::Ptr subs_frame = Map::Instance().GetKeyFrames(frame->time, 0, 1).begin()->second;
-    //         // Vector3d prev_vec = (pair_kf.second->pose.translation() - prev_frame->pose.translation());
-    //         // Vector3d subs_vec = (pair_kf.second->pose.translation() - subs_frame->pose.translation());
-    //         // prev_vec.z() = 0;
-    //         // subs_vec.z() = 0;
-    //         // double prev_distance = prev_vec.norm();
-    //         // double subs_distance = subs_vec.norm();
-    //         // if (prev_distance < threshold && subs_distance < threshold)
-    //         // {
-    //         //     threshold = distance;
-    //         //     old_frame = pair_kf.second;
-    //         // }
-    //     }
-    // }
     if (old_frame)
     {
         loop::LoopClosure::Ptr loop_closure = loop::LoopClosure::Ptr(new loop::LoopClosure());
@@ -233,7 +208,7 @@ void Relocator::CorrectLoop(double old_time, double start_time, double end_time)
         if (best_frame)
         {
             lock.lock();
-            Atlas active_sections = PoseGraph::Instance().FilterOldSubmaps(old_time + epsilon, start_time - epsilon);
+            Atlas active_sections = PoseGraph::Instance().FilterOldSubmaps(old_time + epsilon, start_time - 5);
             Section &new_submap = PoseGraph::Instance().AddSubMap(old_time, start_time, end_time);
             adapt::Problem problem;
             PoseGraph::Instance().BuildProblem(active_sections, new_submap, problem);

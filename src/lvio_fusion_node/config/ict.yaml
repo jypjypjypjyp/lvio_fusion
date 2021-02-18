@@ -54,8 +54,8 @@ acc_w: 0.00004          # accelerometer bias random work noise standard deviatio
 gyr_w: 2.0e-6           # gyroscope bias random work noise standard deviation.     #4.0e-5
 g_norm: 9.81007         # gravity magnitude
 
-# # body to camera0
-# base_to_cam0: !!opencv-matrix
+# # camera0 to body
+# cam0_to_body: !!opencv-matrix
 #    rows: 4
 #    cols: 4
 #    dt: d
@@ -64,8 +64,8 @@ g_norm: 9.81007         # gravity magnitude
 #           0, 0, 1, 0,
 #           0, 0, 0, 1]
 
-# # body to camera1
-# base_to_cam1: !!opencv-matrix
+# # camera1 to body
+# cam1_to_body: !!opencv-matrix
 #    rows: 4
 #    cols: 4
 #    dt: d
@@ -74,8 +74,8 @@ g_norm: 9.81007         # gravity magnitude
 #           0, 0, 1, 0,
 #           0, 0, 0, 1]
 
-# # body to lidar
-# base_to_lidar: !!opencv-matrix
+# # lidar to body
+# lidar_to_body: !!opencv-matrix
 #    rows: 4
 #    cols: 4
 #    dt: d
@@ -85,8 +85,8 @@ g_norm: 9.81007         # gravity magnitude
 #             -0,           0,           -0,            1]
 
 
-# body to camera0
-base_to_cam0: !!opencv-matrix
+# camera0 to body
+cam0_to_body: !!opencv-matrix
    rows: 4
    cols: 4
    dt: d
@@ -96,8 +96,8 @@ base_to_cam0: !!opencv-matrix
             0 , 0 ,-0 , 1]
 
 
-# body to camera1
-base_to_cam1: !!opencv-matrix
+# camera1 to body
+cam1_to_body: !!opencv-matrix
    rows: 4
    cols: 4
    dt: d
@@ -106,8 +106,8 @@ base_to_cam1: !!opencv-matrix
             0,  -1,   0,    -0,
             0,   0,  -0,     1]
 
-# body to lidar
-base_to_lidar: !!opencv-matrix
+# lidar to body
+lidar_to_body: !!opencv-matrix
    rows: 4
    cols: 4
    dt: d

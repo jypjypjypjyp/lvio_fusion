@@ -39,12 +39,12 @@ public:
     Vector3d GetAroundPoint(double time);
 
     double Optimize(double time);
+    double QuickFix(double time, double end_time);
 
     bool initialized = false;
-    Vector3d A, B, C;
     std::map<double, Vector3d> raw;
     double finished = 0;
-    Vector3d fix;
+    Vector3d fix = Vector3d::Zero();
 
 private:
     Navsat() : Sensor(SE3d()) {}
@@ -53,7 +53,8 @@ private:
 
     void Initialize();
 
-    void OptimizeRX(Frame::Ptr frame, double end, double time);
+    // mode: y p r x y z;
+    void OptimizeRX(Frame::Ptr frame, double end, double time, int mode=0);
     void OptimizeX(Frame::Ptr frame, double time);
 
     static std::vector<Navsat::Ptr> devices_;

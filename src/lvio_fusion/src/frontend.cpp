@@ -6,6 +6,8 @@
 #include "lvio_fusion/visual/feature.h"
 #include "lvio_fusion/visual/landmark.h"
 
+#include "lvio_fusion/ceres/lidar_error.hpp"
+
 #include <opencv2/core/eigen.hpp>
 
 namespace lvio_fusion
@@ -287,6 +289,23 @@ int Frontend::DetectNewFeatures()
         kps_right = kps_left;
         std::vector<uchar> status;
         optical_flow(current_frame->image_left, current_frame->image_right, kps_left, kps_right, status);
+
+        // KAIST, fix the camera1's extrinct
+        // cv::Mat img_detect = current_frame->image_left;
+        // cv::cvtColor(img_detect, img_detect, cv::COLOR_GRAY2RGB);
+        // cv::Mat img_detect2 = current_frame->image_right;
+        // cv::cvtColor(img_detect2, img_detect2, cv::COLOR_GRAY2RGB);
+        // for (size_t i = 0; i < kps_left.size(); ++i)
+        // {
+        //     if (status[i])
+        //     {
+        //         cv::arrowedLine(img_detect, kps_left[i], kps_right[i], cv::Scalar(0, 255, 0));
+        //         cv::arrowedLine(img_detect2, kps_left[i], kps_right[i], cv::Scalar(0, 255, 0));
+        //     }
+        // }
+        // cv::imshow("detect", img_detect);
+        // cv::imshow("detect2", img_detect2);
+        // cv::waitKey(1);
 
         // triangulate new points
         for (size_t i = 0; i < kps_left.size(); ++i)

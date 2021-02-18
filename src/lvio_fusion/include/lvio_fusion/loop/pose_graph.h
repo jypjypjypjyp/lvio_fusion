@@ -5,6 +5,7 @@
 #include "lvio_fusion/common.h"
 #include "lvio_fusion/frame.h"
 #include "lvio_fusion/frontend.h"
+#include "lvio_fusion/map.h"
 
 namespace lvio_fusion
 {
@@ -12,13 +13,20 @@ namespace lvio_fusion
 // [A, B, C]
 struct Section
 {
-    double A = 0;   // for submap: the old time of loop;    for section: the begining of turning
-    double B = 0;   // for submap: the begining of loop;    for section: the ending of turning
-    double C = 0;   // for submap: ths ending of loop;      for section: the ending of straight line
-    SE3d pose;      // temp storage of A's old pose
+    double A = 0; // for submap: the old time of loop;    for section: the begining of turning
+    double B = 0; // for submap: the begining of loop;    for section: the ending of turning
+    double C = 0; // for submap: ths ending of loop;      for section: the ending of straight line
+    SE3d pose;    // temp storage of A's old pose
 };
 
 typedef std::map<double, Section> Atlas;
+
+inline double frames_distance(double A, double B)
+{
+    Vector3d a = Map::Instance().GetKeyFrame(A)->pose.translation(),
+             b = Map::Instance().GetKeyFrame(B)->pose.translation();
+    return (a - b).norm();
+}
 
 class PoseGraph
 {
@@ -33,12 +41,16 @@ public:
 
     void SetFrontend(Frontend::Ptr frontend) { frontend_ = frontend; }
 
-    Section& AddSubMap(double old_time, double start_time, double end_time);
+    Section &AddSubMap(double old_time, double start_time, double end_time);
 
     Atlas FilterOldSubmaps(double start, double end);
 
+    void UpdateSections(double time);
+
     Atlas GetSections(double start, double end);
     Section GetSection(double time);
+
+    bool AddSection(double time);
 
     void BuildProblem(Atlas &sections, Section &submap, adapt::Problem &problem);
 
@@ -46,23 +58,21 @@ public:
 
     void ForwardPropagate(SE3d transfrom, double start_time);
 
-    void Propagate(SE3d transfrom, const Frames& forward_kfs);
+    void Propagate(SE3d transfrom, const Frames &forward_kfs);
 
-    void ForwardPropagate(Section section);
-    Atlas sections_;    // sections [A : {A, B, C}]
+    Section current_section;
+    double finished = 0;
+    bool turning = false;
 
 private:
     PoseGraph() {}
     PoseGraph(const PoseGraph &);
     PoseGraph &operator=(const PoseGraph &);
 
-    void UpdateSections(double time);
-
     Frontend::Ptr frontend_;
 
-    Atlas submaps_;      // loop submaps [end : {old, start, end}]
-
-    double end_time_;
+    Atlas submaps_; // loop submaps [end : {old, start, end}]
+    Atlas sections_; // sections [A : {A, B, C}]
 };
 
 } // namespace lvio_fusion

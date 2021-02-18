@@ -37,7 +37,7 @@ private:
 
     void DetectorLoop();
 
-    bool DetectLoop(Frame::Ptr frame, Frame::Ptr &old_frame, double end);
+    bool DetectLoop(Frame::Ptr frame, Frame::Ptr &old_frame);
 
     bool Relocate(Frame::Ptr frame, Frame::Ptr old_frame);
 

@@ -18,6 +18,28 @@ void Map::InsertLandmark(visual::Landmark::Ptr landmark)
     landmarks[landmark->id] = landmark;
 }
 
+Frame::Ptr Map::GetKeyFrame(double time)
+{
+    auto iter = keyframes.lower_bound(time);
+    if (iter == keyframes.end())
+    {
+        return nullptr;
+    }
+    else
+    {
+        auto last_iter = iter;
+        last_iter--;
+        if (iter == keyframes.begin() || time - last_iter->first > iter->first - time)
+        {
+            return iter->second;
+        }
+        else
+        {
+            return last_iter->second;
+        }
+    }
+}
+
 // 1: [start]
 // 2: [start -> end]
 // 3: (start -> num]

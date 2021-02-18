@@ -136,12 +136,13 @@ double compute_reprojection_error(Vector2d ob, Vector3d pw, SE3d pose, Camera::P
 
 void Backend::Optimize()
 {
-    static double forward = 0;
     std::unique_lock<std::mutex> lock(mutex);
     Frames active_kfs = Map::Instance().GetKeyFrames(finished);
     if (active_kfs.empty())
         return;
-    SE3d old_pose = (--active_kfs.end())->second->pose;
+
+    double start = active_kfs.begin()->first;
+    double end = (--active_kfs.end())->first;
 
     // TODO: IMU
     // imu init
@@ -155,15 +156,24 @@ void Backend::Optimize()
     //     }
     // }
 
-    adapt::Problem problem;
-    BuildProblem(active_kfs, problem);
+    {
+        SE3d old_pose = (--active_kfs.end())->second->pose;
+        adapt::Problem problem;
+        BuildProblem(active_kfs, problem);
 
-    ceres::Solver::Options options;
-    options.linear_solver_type = ceres::DENSE_SCHUR;
-    options.max_solver_time_in_seconds = 0.6 * window_size_;
-    options.num_threads = num_threads;
-    ceres::Solver::Summary summary;
-    ceres::Solve(options, &problem, &summary);
+        ceres::Solver::Options options;
+        options.linear_solver_type = ceres::DENSE_SCHUR;
+        options.max_solver_time_in_seconds = 0.6 * window_size_;
+        options.num_threads = num_threads;
+        ceres::Solver::Summary summary;
+        ceres::Solve(options, &problem, &summary);
+
+        // propagate to the last frame
+        SE3d new_pose = (--active_kfs.end())->second->pose;
+        SE3d transform = new_pose * old_pose.inverse();
+        ForwardPropagate(transform, end + epsilon);
+        finished = end + epsilon - window_size_;
+    }
 
     // reject outliers and clean the map
     for (auto &pair_kf : active_kfs)
@@ -189,28 +199,28 @@ void Backend::Optimize()
 
     if (Lidar::Num() && mapping_)
     {
-        mapping_->Optimize(active_kfs);
+        Frames mapping_kfs = Map::Instance().GetKeyFrames(start, end - window_size_);
+        mapping_->Optimize(mapping_kfs);
     }
 
     if (Navsat::Num() && Navsat::Get()->initialized)
     {
-        double start_time = Navsat::Get()->Optimize((--active_kfs.end())->first);
-        if (start_time && mapping_)
+        std::unique_lock<std::mutex> lock(frontend_.lock()->mutex);
+        SE3d old_pose = (--active_kfs.end())->second->pose;
+        double navsat_start = Navsat::Get()->Optimize(end);
+        Navsat::Get()->QuickFix(end - window_size_, end);
+        if (navsat_start && mapping_)
         {
-            Frames mapping_kfs = Map::Instance().GetKeyFrames(start_time);
+            Frames mapping_kfs = Map::Instance().GetKeyFrames(navsat_start);
             for (auto &pair : mapping_kfs)
             {
                 mapping_->ToWorld(pair.second);
             }
         }
+        SE3d new_pose = (--active_kfs.end())->second->pose;
+        SE3d transform = new_pose * old_pose.inverse();
+        PoseGraph::Instance().ForwardPropagate(transform, end + epsilon);
     }
-
-    // propagate to the last frame
-    SE3d new_pose = (--active_kfs.end())->second->pose;
-    SE3d transform = new_pose * old_pose.inverse();
-    forward = (--active_kfs.end())->first + epsilon;
-    ForwardPropagate(transform, forward);
-    finished = forward - window_size_;
 }
 
 void Backend::ForwardPropagate(SE3d transform, double time)

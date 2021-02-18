@@ -118,10 +118,25 @@ void sync_process()
         if (!img0_buf.empty() && !img1_buf.empty())
         {
             m_img_buf.lock();
-            time = img0_buf.front()->header.stamp.toSec();
-            header = img0_buf.front()->header;
-            image0 = get_image_from_msg(img0_buf.front());
-            image1 = get_image_from_msg(img1_buf.front());
+            double time0 = img0_buf.front()->header.stamp.toSec();
+            double time1 = img1_buf.front()->header.stamp.toSec();
+            // if (time0 < time1)
+            // {
+            //     img0_buf.pop();
+            //     printf("throw img0\n");
+            // }
+            // else if (time0 > time1)
+            // {
+            //     img1_buf.pop();
+            //     printf("throw img1\n");
+            // }
+            // else
+            {
+                time = img0_buf.front()->header.stamp.toSec();
+                header = img0_buf.front()->header;
+                image0 = get_image_from_msg(img0_buf.front());
+                image1 = get_image_from_msg(img1_buf.front());
+            }
             if (n++ % 7 == 0 && use_semantic)
             {
                 pub_detector.publish(img0_buf.front());
@@ -274,7 +289,7 @@ void write_result(Estimator::Ptr estimator)
     out.precision(5);
     for (auto &pair : lvio_fusion::Map::Instance().keyframes)
     {
-        out << pair.first << ",";
+        out << pair.first - init_time << ",";
         SE3d pose = pair.second->pose;
         Vector3d T = pose.translation();
         Quaterniond R = pose.unit_quaternion();
@@ -349,8 +364,12 @@ void keyboard_process()
             }
             break;
         case 'e':
-            lvio_fusion::Map::Instance().end = true;
-            estimator->backend->UpdateMap();
+            {
+                double end_time = (--lvio_fusion::Map::Instance().keyframes.end())->first;
+                lvio_fusion::PoseGraph::Instance().UpdateSections(end_time);
+                lvio_fusion::PoseGraph::Instance().AddSection(end_time);
+                estimator->backend->UpdateMap();
+            }
             ROS_WARN("Final Navsat Optimization!");
             break;
         default:
