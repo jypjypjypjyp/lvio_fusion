@@ -219,7 +219,7 @@ void Backend::Optimize()
         }
         SE3d new_pose = (--active_kfs.end())->second->pose;
         SE3d transform = new_pose * old_pose.inverse();
-        PoseGraph::Instance().ForwardPropagate(transform, end + epsilon);
+        PoseGraph::Instance().ForwardPropagate(transform, end + epsilon, false);
     }
 }
 

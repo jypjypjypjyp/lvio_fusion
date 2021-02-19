@@ -115,25 +115,25 @@ double Navsat::Optimize(double time)
         auto frame_A = Map::Instance().GetKeyFrame(pair.second.A);
         auto frame_B = Map::Instance().GetKeyFrame(pair.second.B);
         auto frame_C = Map::Instance().GetKeyFrame(pair.second.C);
-        // optimize A - B
-        // OptimizeX(frame_A, time);
-        OptimizeRX(frame_A, pair.second.C, time, 8 + 16 + 32);
-        Frames AB_kfs = Map::Instance().GetKeyFrames(pair.second.A + epsilon, pair.second.B - epsilon);
-        for (auto &pair_kf : AB_kfs)
+        for (int i = 0; i < 2; i++)
         {
-            auto frame = pair_kf.second;
-            OptimizeRX(frame, frame->time + 1, time, 2 + 4 + 8 + 16 + 32 + 64);
+            // optimize A - B
+            OptimizeRX(frame_A, pair.second.C, time, 8);
+            Frames AB_kfs = Map::Instance().GetKeyFrames(pair.second.A + epsilon, pair.second.B - epsilon);
+            for (auto &pair_kf : AB_kfs)
+            {
+                auto frame = pair_kf.second;
+                OptimizeRX(frame, frame->time + 1, time, 2 + 4);
+            }
+            // optimize B - C
+            OptimizeRX(frame_B, pair.second.C, time, 8);
+            Frames BC_kfs = Map::Instance().GetKeyFrames(pair.second.B + epsilon, pair.second.C - epsilon);
+            for (auto &pair_kf : BC_kfs)
+            {
+                auto frame = pair_kf.second;
+                OptimizeRX(frame, frame->time + 1, time, 1 + 2 + 4);
+            }
         }
-        // optimize B - C
-        OptimizeRX(frame_B, pair.second.C, time, 8 + 16 + 32);
-        Frames BC_kfs = Map::Instance().GetKeyFrames(pair.second.B + epsilon, pair.second.C - epsilon);
-        for (auto &pair_kf : BC_kfs)
-        {
-            auto frame = pair_kf.second;
-            OptimizeRX(frame, frame->time + 1, time, 1 + 2 + 4 + 16 + 32 + 64);
-        }
-        OptimizeRX(frame_A, pair.second.C, time, 8 + 16 + 32);
-        OptimizeRX(frame_B, pair.second.C, time, 8 + 16 + 32);
         finished = pair.second.C;
     }
 
@@ -151,14 +151,14 @@ double Navsat::QuickFix(double time, double end_time)
         frames_distance(time, PoseGraph::Instance().current_section.B) > 40)
     {
         double B = PoseGraph::Instance().current_section.B;
-        OptimizeRX(finished_frame, time, time, 8 + 16 + 32);
+        OptimizeRX(finished_frame, time, time, 8);
         Frames AB_kfs = Map::Instance().GetKeyFrames(finished + epsilon, B - epsilon);
         for (auto &pair_kf : AB_kfs)
         {
             auto frame = pair_kf.second;
-            OptimizeRX(frame, frame->time + 1, time, 2 + 4 + 8 + 16 + 32 + 64);
+            OptimizeRX(frame, frame->time + 1, time, 2 + 4);
         }
-        OptimizeRX(finished_frame, time, time, 8 + 16 + 32);
+        OptimizeRX(finished_frame, time, time, 8);
 
         t = current_frame->pose.translation() - GetFixPoint(current_frame);
         t.z() = 0;
@@ -180,8 +180,6 @@ void Navsat::OptimizeRX(Frame::Ptr frame, double end, double time, int mode)
     Frames active_kfs = Map::Instance().GetKeyFrames(frame->time, end);
     double para[6] = {0, 0, 0, 0, 0, 0};
     //NOTE: the real order of rpy is y p r
-    problem.AddParameterBlock(para + 5, 1); //z
-    problem.AddParameterBlock(para + 4, 1); //y
     problem.AddParameterBlock(para + 3, 1); //x
     problem.AddParameterBlock(para + 2, 1); //r
     problem.AddParameterBlock(para + 1, 1); //p
@@ -195,10 +193,6 @@ void Navsat::OptimizeRX(Frame::Ptr frame, double end, double time, int mode)
         problem.SetParameterBlockConstant(para + 2);
     if (mode & (1 << 3))
         problem.SetParameterBlockConstant(para + 3);
-    if (mode & (1 << 4))
-        problem.SetParameterBlockConstant(para + 4);
-    if (mode & (1 << 5))
-        problem.SetParameterBlockConstant(para + 5);
 
     for (auto &pair_kf : active_kfs)
     {
@@ -207,11 +201,11 @@ void Navsat::OptimizeRX(Frame::Ptr frame, double end, double time, int mode)
         {
             ceres::CostFunction *cost_function = NavsatRXError::Create(
                 GetFixPoint(pair_kf.second), frame->pose.inverse() * origin.translation(), frame->pose);
-            problem.AddResidualBlock(ProblemType::Other, cost_function, NULL, para, para + 1, para + 2, para + 3, para + 4, para + 5);
+            problem.AddResidualBlock(ProblemType::Other, cost_function, NULL, para, para + 1, para + 2, para + 3);
         }
     }
 
-    if (!(mode & (1 << 6)))
+    if (!(mode & (1 << 0) && mode & (1 << 1) && mode & (1 << 2)))
     {
         for (auto &pair_kf : active_kfs)
         {
@@ -229,15 +223,6 @@ void Navsat::OptimizeRX(Frame::Ptr frame, double end, double time, int mode)
     ceres::Solve(options, &problem, &summary);
 
     frame->pose = frame->pose * rpyxyz2se3(para);
-    SE3d new_pose = frame->pose;
-    SE3d transform = new_pose * old_pose.inverse();
-    PoseGraph::Instance().Propagate(transform, Map::Instance().GetKeyFrames(frame->time + epsilon, time));
-}
-
-void Navsat::OptimizeX(Frame::Ptr frame, double time)
-{
-    SE3d old_pose = frame->pose;
-    frame->pose.translation() = GetFixPoint(frame);
     SE3d new_pose = frame->pose;
     SE3d transform = new_pose * old_pose.inverse();
     PoseGraph::Instance().Propagate(transform, Map::Instance().GetKeyFrames(frame->time + epsilon, time));

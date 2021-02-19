@@ -157,10 +157,10 @@ public:
     }
 
     template <typename T>
-    bool operator()(const T *yaw, const T *pitch, const T *roll, const T *x, const T *y, const T *z, T *residuals) const
+    bool operator()(const T *yaw, const T *pitch, const T *roll, const T *x, T *residuals) const
     {
         T pose[7], tf[7], relative_pose[7];
-        T rpyxyz[6] = {yaw[0], pitch[0], roll[0], x[0], y[0], z[0]};
+        T rpyxyz[6] = {yaw[0], pitch[0], roll[0], x[0], T(0), T(0)};
         ceres::RpyxyzToSE3(rpyxyz, relative_pose);
         ceres::Cast(pose_.data(), SE3d::num_parameters, pose);
         ceres::SE3Product(pose, relative_pose, tf);
@@ -175,7 +175,7 @@ public:
 
     static ceres::CostFunction *Create(Vector3d p0, Vector3d p1, SE3d pose)
     {
-        return (new ceres::AutoDiffCostFunction<NavsatRXError, 3, 1, 1, 1, 1, 1, 1>(new NavsatRXError(p0, p1, pose)));
+        return (new ceres::AutoDiffCostFunction<NavsatRXError, 3, 1, 1, 1, 1>(new NavsatRXError(p0, p1, pose)));
     }
 
 private:
