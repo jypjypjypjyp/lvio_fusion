@@ -27,16 +27,16 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
 
     // read camera intrinsics and extrinsics
     bool undistort = Config::Get<int>("undistort");
-    cv::Mat cv_cam0_to_body = Config::Get<cv::Mat>("cam0_to_body");
-    cv::Mat cv_cam1_to_body = Config::Get<cv::Mat>("cam1_to_body");
-    Matrix4d cam0_to_body, cam1_to_body;
-    cv::cv2eigen(cv_cam0_to_body, cam0_to_body);
-    cv::cv2eigen(cv_cam1_to_body, cam1_to_body);
+    cv::Mat cv_body_to_cam0 = Config::Get<cv::Mat>("body_to_cam0");
+    cv::Mat cv_body_to_cam1 = Config::Get<cv::Mat>("body_to_cam1");
+    Matrix4d body_to_cam0, body_to_cam1;
+    cv::cv2eigen(cv_body_to_cam0, body_to_cam0);
+    cv::cv2eigen(cv_body_to_cam1, body_to_cam1);
     // first camera
-    Matrix3d R_cam0_to_body(cam0_to_body.block(0, 0, 3, 3));
-    Quaterniond q_cam0_to_body(R_cam0_to_body);
-    Vector3d t_cam0_to_body(0, 0, 0);
-    t_cam0_to_body << cam0_to_body(0, 3), cam0_to_body(1, 3), cam0_to_body(2, 3);
+    Matrix3d R_body_to_cam0(body_to_cam0.block(0, 0, 3, 3));
+    Quaterniond q_body_to_cam0(R_body_to_cam0);
+    Vector3d t_body_to_cam0(0, 0, 0);
+    t_body_to_cam0 << body_to_cam0(0, 3), body_to_cam0(1, 3), body_to_cam0(2, 3);
     if (undistort)
     {
         Camera::Create(Config::Get<double>("camera0.fx"),
@@ -47,7 +47,7 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
                        Config::Get<double>("camera0.k2"),
                        Config::Get<double>("camera0.p1"),
                        Config::Get<double>("camera0.p2"),
-                       SE3d(q_cam0_to_body, t_cam0_to_body));
+                       SE3d(q_body_to_cam0, t_body_to_cam0));
     }
     else
     {
@@ -55,13 +55,13 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
                        Config::Get<double>("camera0.fy"),
                        Config::Get<double>("camera0.cx"),
                        Config::Get<double>("camera0.cy"),
-                       SE3d(q_cam0_to_body, t_cam0_to_body));
+                       SE3d(q_body_to_cam0, t_body_to_cam0));
     }
     // second camera
-    Matrix3d R_cam1_to_body(cam1_to_body.block(0, 0, 3, 3));
-    Quaterniond q_cam1_to_body(R_cam1_to_body);
-    Vector3d t_cam1_to_body(0, 0, 0);
-    t_cam1_to_body << cam1_to_body(0, 3), cam1_to_body(1, 3), cam1_to_body(2, 3);
+    Matrix3d R_body_to_cam1(body_to_cam1.block(0, 0, 3, 3));
+    Quaterniond q_body_to_cam1(R_body_to_cam1);
+    Vector3d t_body_to_cam1(0, 0, 0);
+    t_body_to_cam1 << body_to_cam1(0, 3), body_to_cam1(1, 3), body_to_cam1(2, 3);
     if (undistort)
     {
         Camera::Create(Config::Get<double>("camera1.fx"),
@@ -72,7 +72,7 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
                        Config::Get<double>("camera1.k2"),
                        Config::Get<double>("camera1.p1"),
                        Config::Get<double>("camera1.p2"),
-                       SE3d(q_cam1_to_body, t_cam1_to_body));
+                       SE3d(q_body_to_cam1, t_body_to_cam1));
     }
     else
     {
@@ -80,7 +80,7 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
                        Config::Get<double>("camera1.fy"),
                        Config::Get<double>("camera1.cx"),
                        Config::Get<double>("camera1.cy"),
-                       SE3d(q_cam1_to_body, t_cam1_to_body));
+                       SE3d(q_body_to_cam1, t_body_to_cam1));
     }
 
     // create components and links
@@ -122,15 +122,15 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
 
     if (use_lidar)
     {
-        cv::Mat cv_lidar_to_body = Config::Get<cv::Mat>("lidar_to_body");
-        Matrix4d lidar_to_body;
-        cv::cv2eigen(cv_lidar_to_body, lidar_to_body);
-        Matrix3d R_lidar_to_body(lidar_to_body.block(0, 0, 3, 3));
-        Quaterniond q_lidar_to_body(R_lidar_to_body);
-        Vector3d t_lidar_to_body(0, 0, 0);
-        t_lidar_to_body << lidar_to_body(0, 3), lidar_to_body(1, 3), lidar_to_body(2, 3);
+        cv::Mat cv_body_to_lidar = Config::Get<cv::Mat>("body_to_lidar");
+        Matrix4d body_to_lidar;
+        cv::cv2eigen(cv_body_to_lidar, body_to_lidar);
+        Matrix3d R_body_to_lidar(body_to_lidar.block(0, 0, 3, 3));
+        Quaterniond q_body_to_lidar(R_body_to_lidar);
+        Vector3d t_body_to_lidar(0, 0, 0);
+        t_body_to_lidar << body_to_lidar(0, 3), body_to_lidar(1, 3), body_to_lidar(2, 3);
         Lidar::Create(Config::Get<double>("resolution"),
-                      SE3d(q_lidar_to_body, t_lidar_to_body));
+                      SE3d(q_body_to_lidar, t_body_to_lidar));
 
         association = FeatureAssociation::Ptr(new FeatureAssociation(
             Config::Get<int>("num_scans"),

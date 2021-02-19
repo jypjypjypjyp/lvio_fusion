@@ -39,7 +39,7 @@ g_norm: 9.81007     # gravity magnitude
 
 
 # camera0 to body
-cam0_to_body: !!opencv-matrix
+body_to_cam0: !!opencv-matrix
    rows: 4
    cols: 4
    dt: d
@@ -50,7 +50,7 @@ cam0_to_body: !!opencv-matrix
 
 
 # camera1 to body
-cam1_to_body: !!opencv-matrix
+body_to_cam1: !!opencv-matrix
    rows: 4
    cols: 4
    dt: d
