@@ -42,7 +42,7 @@ public:
 //IMU
     Initializer::Ptr GetInitializer() { return initializer_; } 
 
-    void recoverData(Frames active_kfs,SE3d old_pose_imu);
+    void RecoverData(Frames active_kfs,SE3d old_pose_imu);
 
     void InitializeIMU(Frames active_kfs,double time );
 

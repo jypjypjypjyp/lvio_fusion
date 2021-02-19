@@ -202,16 +202,15 @@ Vector3d Preintegration::GetUpdatedDeltaPosition()
         Eigen::Matrix3d dp_dbg = jacobian.block<3, 3>(O_T, O_BG);
     return delta_p + dp_dbg*delta_bias.block<3,1>(0,0) + dp_dba*delta_bias.block<3,1>(3,0);
 }
-void Preintegration::SetNewBias(const Bias &bu_)
+void Preintegration::SetNewBias(const Bias &new_bias)
 {
-    bu = bu_;
-
-    delta_bias(0) = bu_.linearized_bg[0]-linearized_bg[0];
-    delta_bias(1) = bu_.linearized_bg[1]-linearized_bg[1];
-    delta_bias(2) = bu_.linearized_bg[2]-linearized_bg[2];
-    delta_bias(3) = bu_.linearized_ba[0]-linearized_ba[0];
-    delta_bias(4) = bu_.linearized_ba[1]-linearized_ba[1];
-    delta_bias(5) = bu_.linearized_ba[2]-linearized_ba[2];
+    bias = new_bias;
+    delta_bias(0) = new_bias.linearized_bg[0]-linearized_bg[0];
+    delta_bias(1) = new_bias.linearized_bg[1]-linearized_bg[1];
+    delta_bias(2) = new_bias.linearized_bg[2]-linearized_bg[2];
+    delta_bias(3) = new_bias.linearized_ba[0]-linearized_ba[0];
+    delta_bias(4) = new_bias.linearized_ba[1]-linearized_ba[1];
+    delta_bias(5) = new_bias.linearized_ba[2]-linearized_ba[2];
 }
 
 // 过去更新bias后的delta_R
@@ -225,7 +224,6 @@ Quaterniond Preintegration::GetDeltaRotation(const Bias &b_)
 
 Vector3d Preintegration::GetDeltaVelocity(const Bias &b_)
 {
-
     Vector3d dbg ;
     dbg << b_.linearized_bg[0]-linearized_bg[0],b_.linearized_bg[1]-linearized_bg[1],b_.linearized_bg[2]-linearized_bg[2];
     Vector3d dba;

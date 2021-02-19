@@ -125,7 +125,7 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
         Imu::Create(SE3d(q_body_to_cam0, t_body_to_cam0), acc_n, acc_w, gyr_n, gyr_w, g_norm);
         initializer = Initializer::Ptr(new Initializer);
 
-        frontend->ImuPreintegratedFromLastKF = imu::Preintegration::Create(Bias());
+        frontend->imu_preintegrated_from_last_kf = imu::Preintegration::Create(Bias());
         initializer->SetFrontend(frontend);
         //IMUEND
         initializer = Initializer::Ptr(new Initializer);

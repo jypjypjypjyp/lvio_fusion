@@ -2,7 +2,7 @@
 #include "lvio_fusion/ceres/imu_error.hpp"
 #include "lvio_fusion/ceres/visual_error.hpp"
 #include "lvio_fusion/frontend.h"
-#include "lvio_fusion/imu/imuOptimizer.h"
+#include "lvio_fusion/imu/tools.h"
 #include "lvio_fusion/manager.h"
 #include "lvio_fusion/map.h"
 #include "lvio_fusion/utility.h"
@@ -60,7 +60,8 @@ void Backend::BackendLoop()
         LOG(INFO) << "Backend cost time: " << time_used.count() << " seconds.";
     }
 }
-void Backend::BuildProblem(Frames &active_kfs, adapt::Problem &problem, bool isimu)
+
+void Backend::BuildProblem(Frames &active_kfs, adapt::Problem &problem, bool use_imu)
 {
     ceres::LossFunction *loss_function = new ceres::HuberLoss(1.0);
     ceres::LocalParameterization *local_parameterization = new ceres::ProductParameterization(
@@ -94,7 +95,7 @@ void Backend::BuildProblem(Frames &active_kfs, adapt::Problem &problem, bool isi
         }
     }
     //IMU
-    if (Imu::Num() && initializer_->initialized && isimu)
+    if (Imu::Num() && initializer_->initialized && use_imu)
     {
         Frame::Ptr last_frame;
         Frame::Ptr current_frame;
@@ -121,7 +122,6 @@ void Backend::BuildProblem(Frames &active_kfs, adapt::Problem &problem, bool isi
                 auto para_bg_last = last_frame->ImuBias.linearized_bg.data(); //恢复
                 auto para_ba_last = last_frame->ImuBias.linearized_ba.data(); //恢复
                 ceres::CostFunction *cost_function = ImuError::Create(current_frame->preintegration);
-                ImuOptimizer::showIMUError(para_kf_last, para_v_last, para_ba_last, para_bg_last, para_kf, para_v, para_ba, para_bg, current_frame->preintegration, current_frame->time - 1.40364e+09 + 8.60223e+07);
                 problem.AddResidualBlock(ProblemType::IMUError, cost_function, NULL, para_kf_last, para_v_last, para_ba_last, para_bg_last, para_kf, para_v, para_ba, para_bg);
             }
             last_frame = current_frame;
@@ -138,7 +138,7 @@ double compute_reprojection_error(Vector2d ob, Vector3d pw, SE3d pose, Camera::P
 }
 
 //IMU
-void Backend::recoverData(Frames active_kfs, SE3d old_pose_imu)
+void Backend::RecoverData(Frames active_kfs, SE3d old_pose_imu)
 {
     SE3d new_pose = active_kfs.begin()->second->pose;
     Vector3d old_pose_translation = old_pose_imu.translation();
@@ -146,7 +146,8 @@ void Backend::recoverData(Frames active_kfs, SE3d old_pose_imu)
     Vector3d new_pose_rotation = R2ypr(new_pose.rotationMatrix());
     double y_translation = old_pose_rotation.x() - new_pose_rotation.x();
     Matrix3d translation = ypr2R(Vector3d(y_translation, 0, 0));
-    if (abs(abs(old_pose_rotation.y()) - 90) < 1.0 || abs(abs(new_pose_rotation.y()) - 90) < 1.0)
+    if (std::fabs(std::fabs(old_pose_rotation.y()) - 90) < 1.0 ||
+        std::fabs(std::fabs(new_pose_rotation.y()) - 90) < 1.0)
     {
         translation = old_pose_imu.rotationMatrix() * new_pose.inverse().rotationMatrix();
     }
@@ -183,11 +184,11 @@ void Backend::Optimize()
         LOG(INFO) << "BACKEND IMU OPTIMIZER  ===>" << active_kfs.size();
         if (Imu::Num() && initializer_->initialized)
         {
-            // ImuOptimizer::RePredictVel(active_kfs,active_kfs.begin()->second->last_keyframe);
+            // imu::RePredictVel(active_kfs,active_kfs.begin()->second->last_keyframe);
             if (active_kfs.begin()->second->last_keyframe == nullptr || active_kfs.begin()->second->last_keyframe->preintegration == nullptr)
-                ImuOptimizer::ReComputeBiasVel(active_kfs);
+                imu::ReComputeBiasVel(active_kfs);
             else
-                ImuOptimizer::ReComputeBiasVel(active_kfs, active_kfs.begin()->second->last_keyframe);
+                imu::ReComputeBiasVel(active_kfs, active_kfs.begin()->second->last_keyframe);
         }
         //IMUEND
 
@@ -206,7 +207,7 @@ void Backend::Optimize()
         LOG(INFO) << summary.num_unsuccessful_steps << ":" << summary.num_successful_steps;
         if (Imu::Num() && initializer_->initialized)
         {
-            recoverData(active_kfs, old_pose_imu);
+            RecoverData(active_kfs, old_pose_imu);
         }
         //IMUEND
 
@@ -293,10 +294,10 @@ void Backend::ForwardPropagate(SE3d transform, double time)
     {
         if (active_kfs.size() > 0)
         {
-            ImuOptimizer::RePredictVel(active_kfs, new_frame);
-            ImuOptimizer::ReComputeBiasVel(active_kfs, new_frame);
+            imu::RePredictVel(active_kfs, new_frame);
+            imu::ReComputeBiasVel(active_kfs, new_frame);
         }
-        Map::Instance().mapUpdated = true;
+        Map::Instance().map_updated = true;
         if (active_kfs.size() == 0)
         {
             frontend_.lock()->UpdateFrameIMU(new_frame->GetImuBias());
@@ -349,8 +350,7 @@ void Backend::InitializeIMU(Frames active_kfs, double time)
     {
         frames_init = Map::Instance().GetKeyFrames(0, time, initializer_->num_frames);
         old_pose = (--frames_init.end())->second->pose;
-        LOG(INFO) << frames_init.begin()->first - 1.40364e+09 + 8.60223e+07 << "  " << frontend_.lock()->validtime - 1.40364e+09 + 8.60223e+07;
-        double validtime_ = frontend_.lock()->validtime;
+        double validtime_ = frontend_.lock()->valid_imu_time;
 
         if (frames_init.size() == initializer_->num_frames && frames_init.begin()->first > validtime_ && frames_init.begin()->second->preintegration)
         {
@@ -361,13 +361,11 @@ void Backend::InitializeIMU(Frames active_kfs, double time)
             isInitliazing = true;
         }
     }
-    bool isInit = false;
+
     if (isInitliazing)
     {
-        //   if(initializer_->bimu==false||initializer_->reinit==true)
-        isInit = true;
         LOG(INFO) << "Initializer Start";
-        if (initializer_->InitializeIMU(frames_init, priorA, priorG))
+        if (initializer_->Initialize(frames_init, priorA, priorG))
         {
             new_pose = (--frames_init.end())->second->pose;
             SE3d transform = new_pose * old_pose.inverse();

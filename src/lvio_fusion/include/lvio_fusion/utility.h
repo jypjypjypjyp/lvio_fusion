@@ -248,7 +248,6 @@ inline Matrix3d g2R(const Vector3d &g)
     R0 = Quaterniond::FromTwoVectors(ng1, ng2).toRotationMatrix();
     double yaw = R2ypr(R0).x();
     R0 = ypr2R(Vector3d{-yaw, 0, 0}) * R0;
-    // R0 = Utility::ypr2R(Vector3d{-90, 0, 0}) * R0;
     return R0;
 }
 

@@ -8,15 +8,14 @@
 
 namespace lvio_fusion
 {
-class Frontend;
 
 class Initializer
 {
 public:
     typedef std::shared_ptr<Initializer> Ptr;
 
-    bool estimate_Vel_Rwg(std::vector<Frame::Ptr> Key_frames);
-    bool InitializeIMU(Frames keyframes, double priorA = 1e6, double priorG = 1e2);
+    bool EstimateVelAndRwg(std::vector<Frame::Ptr> Key_frames);
+    bool Initialize(Frames keyframes, double priorA = 1e6, double priorG = 1e2);
     void ApplyScaledRotation(const Matrix3d &R, Frames keyframes);
     void SetFrontend(std::shared_ptr<Frontend> frontend) { frontend_ = frontend; }
     std::weak_ptr<Frontend> frontend_;

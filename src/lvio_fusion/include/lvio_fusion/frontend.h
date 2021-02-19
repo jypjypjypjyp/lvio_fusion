@@ -40,14 +40,14 @@ public:
  
     void PredictStateIMU();
     
-    imu::Preintegration::Ptr  ImuPreintegratedFromLastKF;
-    std::list<imuPoint> imuData_buf;
-    double validtime=0;
+    imu::Preintegration::Ptr  imu_preintegrated_from_last_kf;
+    std::list<ImuPoint> imu_buf;
+    double valid_imu_time=0;
     //IMUEND
     FrontendStatus status = FrontendStatus::BUILDING;
     Frame::Ptr current_frame;
     Frame::Ptr last_frame;
-    Frame::Ptr last_key_frame;
+    Frame::Ptr last_keyframe;
     SE3d relative_i_j;
     std::mutex mutex;
 
