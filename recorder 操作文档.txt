@@ -1,9 +1,0 @@
-ssh dji@192.168.43.***  //妙算的ip    开四个终端  每个都使用ssh连接小车
-
-roslaunch turtlebot3_bringup turtlebot3_core.launch		//启动小车底盘
-
-roslaunch turtlebot3_teleop turtlebot3_teleop_key.launch   	//键盘控制
-
-roslaunch ~/Projects/recorder/src/recorder.launch		//启动雷达和摄像头  记得先在机器人端用 rosrun rqt_reconfigure rqt_reconfigure 关闭红外 
-
-./Projects/recorder/rosbag.sh    				//多次录制时  要记得用 sudo vim ./Projects/recorder/rosbag.sh 进入文档  修改存储文件的名字 否则会覆盖上一次的录制。
