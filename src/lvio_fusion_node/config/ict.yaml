@@ -55,7 +55,7 @@ gyr_w: 2.0e-6           # gyroscope bias random work noise standard deviation.  
 g_norm: 9.81007         # gravity magnitude
 
 # # camera0 to body
-# cam0_to_body: !!opencv-matrix
+# body_to_cam0: !!opencv-matrix
 #    rows: 4
 #    cols: 4
 #    dt: d
@@ -65,7 +65,7 @@ g_norm: 9.81007         # gravity magnitude
 #           0, 0, 0, 1]
 
 # # camera1 to body
-# cam1_to_body: !!opencv-matrix
+# body_to_cam1: !!opencv-matrix
 #    rows: 4
 #    cols: 4
 #    dt: d
@@ -75,7 +75,7 @@ g_norm: 9.81007         # gravity magnitude
 #           0, 0, 0, 1]
 
 # # lidar to body
-# lidar_to_body: !!opencv-matrix
+# body_to_lidar: !!opencv-matrix
 #    rows: 4
 #    cols: 4
 #    dt: d
@@ -86,7 +86,7 @@ g_norm: 9.81007         # gravity magnitude
 
 
 # camera0 to body
-cam0_to_body: !!opencv-matrix
+body_to_cam0: !!opencv-matrix
    rows: 4
    cols: 4
    dt: d
@@ -97,7 +97,7 @@ cam0_to_body: !!opencv-matrix
 
 
 # camera1 to body
-cam1_to_body: !!opencv-matrix
+body_to_cam1: !!opencv-matrix
    rows: 4
    cols: 4
    dt: d
@@ -107,7 +107,7 @@ cam1_to_body: !!opencv-matrix
             0,   0,  -0,     1]
 
 # lidar to body
-lidar_to_body: !!opencv-matrix
+body_to_lidar: !!opencv-matrix
    rows: 4
    cols: 4
    dt: d
