@@ -227,7 +227,6 @@ void Navsat::OptimizeRX(Frame::Ptr frame, double end, double time, int mode)
     options.linear_solver_type = ceres::DENSE_QR;
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
-
     frame->pose = frame->pose * rpyxyz2se3(para);
     SE3d new_pose = frame->pose;
     SE3d transform = new_pose * old_pose.inverse();

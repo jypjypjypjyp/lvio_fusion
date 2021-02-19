@@ -200,9 +200,13 @@ void PoseGraph::Optimize(Atlas &sections, Section &submap, adapt::Problem &probl
 }
 
 // new pose = transform * old pose;
-void PoseGraph::ForwardPropagate(SE3d transform, double start_time)
+void PoseGraph::ForwardPropagate(SE3d transform, double start_time, bool need_lock)
 {
-    bool self_lock = frontend_->mutex.try_lock();
+    std::unique_lock<std::mutex> lock(frontend_->mutex, std::defer_lock);
+    if(need_lock)
+    {
+        lock.lock();
+    }
     Frames forward_kfs = Map::Instance().GetKeyFrames(start_time);
     Frame::Ptr last_frame = frontend_->last_frame;
     if (forward_kfs.find(last_frame->time) == forward_kfs.end())
@@ -211,8 +215,6 @@ void PoseGraph::ForwardPropagate(SE3d transform, double start_time)
     }
     Propagate(transform, forward_kfs);
     frontend_->UpdateCache();
-    if (self_lock)
-        frontend_->mutex.unlock();
 }
 
 // new pose = transform * old pose;
@@ -221,6 +223,9 @@ void PoseGraph::Propagate(SE3d transform, const Frames &forward_kfs)
     for (auto &pair_kf : forward_kfs)
     {
         pair_kf.second->pose = transform * pair_kf.second->pose;
+        if( pair_kf.second->preintegration!=nullptr)
+            pair_kf.second->Vw=transform.rotationMatrix()*  pair_kf.second->Vw;//IMU
+
     }
 }
 

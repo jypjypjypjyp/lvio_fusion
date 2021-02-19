@@ -1,5 +1,5 @@
-#ifndef lvio_fusion_REGISTRATION_H
-#define lvio_fusion_REGISTRATION_H
+#ifndef lvio_fusion_ASSOCIATION_H
+#define lvio_fusion_ASSOCIATION_H
 
 #include "lvio_fusion/adapt/problem.h"
 #include "lvio_fusion/common.h"
@@ -67,4 +67,4 @@ private:
 
 } // namespace lvio_fusion
 
-#endif // lvio_fusion_REGISTRATION_H
+#endif // lvio_fusion_ASSOCIATION_H

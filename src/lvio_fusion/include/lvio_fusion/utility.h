@@ -301,12 +301,77 @@ inline double distance(cv::Point2f &pt1, cv::Point2f &pt2)
 
 // SE3d slerp, the bigger s(0,1), the closer the result is to b
 inline SE3d se3_slerp(const SE3d &a, const SE3d &b, double s)
-{
+{   
     Quaterniond q = a.unit_quaternion().slerp(s, b.unit_quaternion());
     Vector3d t = s * b.translation() + (1 - s) * a.translation();
     return SE3d(q, t);
 }
+//IMU
+inline Eigen::Vector3d LogSO3(const Eigen::Matrix3d &R)
+{
+    const double tr = R(0,0)+R(1,1)+R(2,2);
+    Eigen::Vector3d w;
+    w << (R(2,1)-R(1,2))/2, (R(0,2)-R(2,0))/2, (R(1,0)-R(0,1))/2;
+    const double costheta = (tr-1.0)*0.5f;
+    if(costheta>1 || costheta<-1)
+        return w;
+    const double theta = acos(costheta);
+    const double s = sin(theta);
+    if(fabs(s)<1e-5)
+        return w;
+    else
+        return theta*w/s;
+}
 
+inline Eigen::Matrix3d InverseRightJacobianSO3(const double x, const double y, const double z)
+{
+    const double d2 = x*x+y*y+z*z;
+    const double d = sqrt(d2);
+    Eigen::Matrix3d W;
+    W << 0.0, -z, y,z, 0.0, -x,-y,  x, 0.0;
+    if(d<1e-5)
+        return Eigen::Matrix3d::Identity();
+    else
+        return Eigen::Matrix3d::Identity() + W/2 + W*W*(1.0/d2 - (1.0+cos(d))/(2.0*d*sin(d)));
+}
+
+inline Eigen::Matrix3d InverseRightJacobianSO3(const Eigen::Vector3d &v)
+{
+    return InverseRightJacobianSO3(v[0],v[1],v[2]);
+}
+
+
+inline Matrix3d ExpSO3(const double &x, const double &y, const double &z)
+{
+    Matrix3d I = Matrix3d::Identity();
+    const double d2 = x*x+y*y+z*z;
+    const double d = sqrt(d2);
+   Matrix3d W;
+   W << 0, -z, y,
+            z, 0, -x,
+            -y,  x, 0;
+    if(d<1e-4)
+        return (I + W + 0.5f*W*W);
+    else
+        return (I + W*sin(d)/d + W*W*(1.0f-cos(d))/d2);
+}
+
+inline Matrix3d ExpSO3(const Vector3d &v)
+{
+    return ExpSO3(v(0),v(1),v(2));
+}
+
+inline Matrix3d NormalizeRotation(const Matrix3d &R_)
+{ 
+    cv::Mat_<double> U,w,Vt;
+    cv::Mat_<double> R=(cv::Mat_<double>(3,3)<<R_(0,0),R_(0,1),R_(0,2),R_(1,0),R_(1,1),R_(1,2),R_(2,0),R_(2,1),R_(2,2));
+    cv::SVDecomp(R,w,U,Vt,cv::SVD::FULL_UV);
+    Matrix3d uvt;
+    cv::cv2eigen(U*Vt,uvt);
+    return uvt;
+}
+
+//IMUEND
 } // namespace lvio_fusion
 
 #endif // lvio_fusion_UTILITY_H

@@ -60,7 +60,6 @@ Observation Frame::GetObservation()
 {
     if (Map::Instance().keyframes.find(id - 1) == Map::Instance().keyframes.end())
         return Observation();
-
     static int obs_rows = 4, obs_cols = 12;
     cv::Mat obs = cv::Mat::zeros(obs_rows, obs_cols, CV_32FC3);
     int height = image_left.rows, width = image_left.cols;
@@ -88,5 +87,57 @@ Observation Frame::GetObservation()
 
     return obs.reshape(1, 1);
 }
+//IMU
+void Frame::SetVelocity(const Vector3d  &Vw_)
+{
+    Vw=Vw_;
+}
 
+void Frame::SetPose(const Matrix3d &Rwb_,const Vector3d  &twb_)
+{
+    Quaterniond R(Rwb_);
+    pose=SE3d(R,twb_);
+}
+
+void Frame::SetNewBias(const Bias &bias_)
+{
+    ImuBias = bias_;
+    if(preintegration)
+        preintegration->SetNewBias(bias_);
+}
+
+Vector3d Frame::GetVelocity()
+{
+    return Vw;
+}
+
+Matrix3d  Frame::GetImuRotation()
+{
+    Matrix4d Twb_=pose.matrix();  
+    Matrix3d Rwb = Twb_.block<3,3>(0,0);
+    return Rwb;
+}
+
+Vector3d Frame::GetImuPosition()
+{
+    Matrix4d Twb_=pose.matrix();  
+    Vector3d Owb =Twb_.block<3,1>(0,3); //imu position
+    return  Owb;
+}
+
+Vector3d Frame::GetGyroBias()
+{
+    return ImuBias.linearized_bg;
+}
+
+Vector3d Frame::GetAccBias()
+{
+    return ImuBias.linearized_ba;
+}
+Bias Frame::GetImuBias()
+{
+    return ImuBias;
+}
+
+//IMUEND
 } // namespace lvio_fusion

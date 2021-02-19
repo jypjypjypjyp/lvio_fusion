@@ -33,7 +33,17 @@ public:
     void SetBackend(std::shared_ptr<Backend> backend) { backend_ = backend; }
 
     void UpdateCache();
-
+    //IMU
+    void UpdateFrameIMU(const Bias &bias_);
+ 
+    void PreintegrateIMU();
+ 
+    void PredictStateIMU();
+    
+    imu::Preintegration::Ptr  ImuPreintegratedFromLastKF;
+    std::list<imuPoint> imuData_buf;
+    double validtime=0;
+    //IMUEND
     FrontendStatus status = FrontendStatus::BUILDING;
     Frame::Ptr current_frame;
     Frame::Ptr last_frame;

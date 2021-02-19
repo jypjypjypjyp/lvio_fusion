@@ -25,7 +25,6 @@ public:
     }
 
     Frame::Ptr GetKeyFrame(double time);
-
     Frames GetKeyFrames(double start, double end = 0, int num = 0);
 
     void InsertKeyFrame(Frame::Ptr frame);
@@ -41,7 +40,10 @@ public:
         landmarks.clear();
         keyframes.clear();
     }
-
+   //IMU
+     bool mapUpdated=false;
+    void ApplyScaledRotation(const Matrix3d &R);
+   //IMUEND
     std::mutex mutex_local_kfs;
     Frames keyframes;
     visual::Landmarks landmarks;

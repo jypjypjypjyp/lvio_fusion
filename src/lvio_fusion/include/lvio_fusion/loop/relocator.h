@@ -44,7 +44,6 @@ private:
     bool RelocateByImage(Frame::Ptr frame, Frame::Ptr old_frame);
 
     bool RelocateByPoints(Frame::Ptr frame, Frame::Ptr old_frame);
-
     void CorrectLoop(double old_time, double start_time, double end_time);
 
     void UpdateNewSubmap(Frame::Ptr best_frame, Frames &new_submap_kfs);
