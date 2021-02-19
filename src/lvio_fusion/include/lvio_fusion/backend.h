@@ -39,19 +39,9 @@ public:
     void Pause();
 
     void Continue();
-//IMU
-    Initializer::Ptr GetInitializer() { return initializer_; } 
-
-    void recoverData(Frames active_kfs,SE3d old_pose_imu);
 
     void InitializeIMU(Frames active_kfs,double time );
 
-    bool isInitliazing=false;
-    double Tinit=-1;
-    bool initA=false;
-    bool initB=false;
-    Frame::Ptr new_frame;
-//IMUEND
     BackendStatus status = BackendStatus::RUNNING;
     std::mutex mutex;
     double finished = 0;

@@ -248,7 +248,6 @@ inline Matrix3d g2R(const Vector3d &g)
     R0 = Quaterniond::FromTwoVectors(ng1, ng2).toRotationMatrix();
     double yaw = R2ypr(R0).x();
     R0 = ypr2R(Vector3d{-yaw, 0, 0}) * R0;
-    // R0 = Utility::ypr2R(Vector3d{-90, 0, 0}) * R0;
     return R0;
 }
 
@@ -307,10 +306,10 @@ inline SE3d se3_slerp(const SE3d &a, const SE3d &b, double s)
     return SE3d(q, t);
 }
 //IMU
-inline Eigen::Vector3d LogSO3(const Eigen::Matrix3d &R)
+inline Vector3d LogSO3(const Matrix3d &R)
 {
     const double tr = R(0,0)+R(1,1)+R(2,2);
-    Eigen::Vector3d w;
+    Vector3d w;
     w << (R(2,1)-R(1,2))/2, (R(0,2)-R(2,0))/2, (R(1,0)-R(0,1))/2;
     const double costheta = (tr-1.0)*0.5f;
     if(costheta>1 || costheta<-1)
@@ -323,19 +322,19 @@ inline Eigen::Vector3d LogSO3(const Eigen::Matrix3d &R)
         return theta*w/s;
 }
 
-inline Eigen::Matrix3d InverseRightJacobianSO3(const double x, const double y, const double z)
+inline Matrix3d InverseRightJacobianSO3(const double x, const double y, const double z)
 {
     const double d2 = x*x+y*y+z*z;
     const double d = sqrt(d2);
-    Eigen::Matrix3d W;
+    Matrix3d W;
     W << 0.0, -z, y,z, 0.0, -x,-y,  x, 0.0;
     if(d<1e-5)
-        return Eigen::Matrix3d::Identity();
+        return Matrix3d::Identity();
     else
-        return Eigen::Matrix3d::Identity() + W/2 + W*W*(1.0/d2 - (1.0+cos(d))/(2.0*d*sin(d)));
+        return Matrix3d::Identity() + W/2 + W*W*(1.0/d2 - (1.0+cos(d))/(2.0*d*sin(d)));
 }
 
-inline Eigen::Matrix3d InverseRightJacobianSO3(const Eigen::Vector3d &v)
+inline Matrix3d InverseRightJacobianSO3(const Vector3d &v)
 {
     return InverseRightJacobianSO3(v[0],v[1],v[2]);
 }

@@ -2,7 +2,6 @@
 #define lvio_fusion_FRONTEND_H
 
 #include "lvio_fusion/common.h"
-#include "lvio_fusion/imu/initializer.h"
 #include "lvio_fusion/visual/matcher.h"
 
 namespace lvio_fusion
@@ -40,14 +39,15 @@ public:
  
     void PredictStateIMU();
     
-    imu::Preintegration::Ptr  ImuPreintegratedFromLastKF;
-    std::list<imuPoint> imuData_buf;
-    double validtime=0;
+    imu::Preintegration::Ptr  imu_preintegrated_from_last_kf;
+    std::list<ImuData> imu_buf;
+    double valid_imu_time=0;
+    bool last_keyframe_updated = false;
     //IMUEND
     FrontendStatus status = FrontendStatus::BUILDING;
     Frame::Ptr current_frame;
     Frame::Ptr last_frame;
-    Frame::Ptr last_key_frame;
+    Frame::Ptr last_keyframe;
     SE3d relative_i_j;
     std::mutex mutex;
 

@@ -44,14 +44,14 @@ public:
     visual::Features features_right;         // corresponding features in right image, only for this frame
     lidar::Feature::Ptr feature_lidar;       // extracted features in lidar point cloud
     imu::Preintegration::Ptr preintegration; // imu pre integration
-    imu::Preintegration::Ptr preintegrationFrame; // imu pre integration from last frame NEWADD
+    imu::Preintegration::Ptr preintegration_last; // imu pre integration from last frame NEWADD
     navsat::Feature::Ptr feature_navsat;     // navsat point
     cv::Mat descriptors;                     // orb descriptors
     loop::LoopClosure::Ptr loop_closure;     // loop closure
     Weights weights;
     SE3d pose;
 
-   //IMU
+    //IMU
     Frame::Ptr last_keyframe;
     Vector3d Vw;// IMU linear velocity
     Bias ImuBias;

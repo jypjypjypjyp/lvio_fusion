@@ -40,10 +40,7 @@ public:
         landmarks.clear();
         keyframes.clear();
     }
-   //IMU
-     bool mapUpdated=false;
-    void ApplyScaledRotation(const Matrix3d &R);
-   //IMUEND
+    
     std::mutex mutex_local_kfs;
     Frames keyframes;
     visual::Landmarks landmarks;

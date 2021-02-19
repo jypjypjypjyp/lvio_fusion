@@ -7,7 +7,6 @@ add_library(lvio_fusion SHARED
         estimator.cpp
         frame.cpp
         frontend.cpp
-        imuOptimizer.cpp
         initializer.cpp
         landmark.cpp
         manager.cpp
@@ -18,7 +17,8 @@ add_library(lvio_fusion SHARED
         optimizer.cpp
         preintegration.cpp
         projection.cpp
-        relocator.cpp)
+        relocator.cpp
+        tools.cpp)
 
 target_link_libraries(lvio_fusion ${THIRD_PARTY_LIBS} blas)
 target_compile_features(lvio_fusion PRIVATE cxx_std_14)

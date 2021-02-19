@@ -2,12 +2,12 @@
 #define lvio_fusion_INITIALIZER_H
 
 #include "lvio_fusion/common.h"
-#include "lvio_fusion/frontend.h"
 #include "lvio_fusion/imu/imu.h"
 #include "lvio_fusion/map.h"
 
 namespace lvio_fusion
 {
+
 class Frontend;
 
 class Initializer
@@ -15,20 +15,16 @@ class Initializer
 public:
     typedef std::shared_ptr<Initializer> Ptr;
 
-    bool estimate_Vel_Rwg(std::vector<Frame::Ptr> Key_frames);
-    bool InitializeIMU(Frames keyframes, double priorA = 1e6, double priorG = 1e2);
-    void ApplyScaledRotation(const Matrix3d &R, Frames keyframes);
-    void SetFrontend(std::shared_ptr<Frontend> frontend) { frontend_ = frontend; }
-    std::weak_ptr<Frontend> frontend_;
-    bool initialized = false; //是否初始化完成
+    bool EstimateVelAndRwg(std::vector<Frame::Ptr> keyframes);
+
+    bool Initialize(Frames keyframes, double priorA = 1e6, double priorG = 1e2);
+
     bool bimu = false;        //是否经过imu尺度优化
     bool reinit = false;
-    int num_frames = 10;
 
-    Eigen::Matrix3d Rwg; //重力方向
-
+    const int num_frames = 10;
 private:
-    Vector3d g_;
+    Matrix3d Rwg_; //重力方向
 };
 
 } // namespace lvio_fusion
