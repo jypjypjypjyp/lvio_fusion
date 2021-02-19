@@ -51,7 +51,8 @@ void Relocator::DetectorLoop()
                     old_time = std::min(old_time, old_frame->time);
                     last_frame = frame;
                 }
-                else
+                if (section != loop_section ||
+                    (Map::Instance().end && frame == (--Map::Instance().keyframes.end())->second))
                 {
                     // new old section, new loop
                     LOG(INFO) << std::setiosflags(std::ios::fixed) << std::setprecision(5) << "1Detected new loop, and correct it now. old_time:" << old_time << ";start_time:" << start_time << ";end_time:" << last_frame->time;
@@ -231,7 +232,7 @@ void Relocator::CorrectLoop(double old_time, double start_time, double end_time)
     // fix navsat
     if (Navsat::Num())
     {
-        Navsat::Get()->fix = new_pose.translation() - Navsat::Get()->GetAroundPoint((--new_submap_kfs.end())->first);
+        Navsat::Get()->fix.z() = (new_pose.translation() - Navsat::Get()->GetAroundPoint((--new_submap_kfs.end())->first)).z();
     }
     // update pointscloud
     if (Lidar::Num() && mapping_)

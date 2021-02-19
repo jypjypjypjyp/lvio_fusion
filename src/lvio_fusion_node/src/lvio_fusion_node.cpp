@@ -366,8 +366,7 @@ void keyboard_process()
         case 'e':
             {
                 double end_time = (--lvio_fusion::Map::Instance().keyframes.end())->first;
-                lvio_fusion::PoseGraph::Instance().UpdateSections(end_time);
-                lvio_fusion::PoseGraph::Instance().AddSection(end_time);
+                lvio_fusion::Map::Instance().end = true;
                 estimator->backend->UpdateMap();
             }
             ROS_WARN("Final Navsat Optimization!");

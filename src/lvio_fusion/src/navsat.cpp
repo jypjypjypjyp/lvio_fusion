@@ -116,7 +116,7 @@ double Navsat::Optimize(double time)
         auto frame_B = Map::Instance().GetKeyFrame(pair.second.B);
         auto frame_C = Map::Instance().GetKeyFrame(pair.second.C);
         // optimize A - B
-        OptimizeX(frame_A, time);
+        // OptimizeX(frame_A, time);
         OptimizeRX(frame_A, pair.second.C, time, 8 + 16 + 32);
         Frames AB_kfs = Map::Instance().GetKeyFrames(pair.second.A + epsilon, pair.second.B - epsilon);
         for (auto &pair_kf : AB_kfs)

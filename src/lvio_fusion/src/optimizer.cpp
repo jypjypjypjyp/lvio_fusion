@@ -55,6 +55,15 @@ void PoseGraph::UpdateSections(double time)
     static Vector3d last_ori(1, 0, 0), B_ori(1, 0, 0);
     static double accumulate_degree = 0;
 
+    if (Map::Instance().end && !turning)
+    {
+        current_section.C = time;
+        sections_[current_section.A] = current_section;
+        current_section.A = time;
+        current_section.B = time;
+        return;
+    }
+
     if (time < finished)
         return;
     Frames active_kfs = Map::Instance().GetKeyFrames(finished, time);
@@ -114,7 +123,8 @@ Section PoseGraph::GetSection(double time)
 
 bool PoseGraph::AddSection(double time)
 {
-    if (!sections_.empty() && time > (--sections_.end())->second.C && !turning && frames_distance(current_section.B, time) > 40)
+    if ((!sections_.empty() && time > (--sections_.end())->second.C &&
+         !turning && frames_distance(current_section.B, time) > 40))
     {
         current_section.C = time;
         sections_[current_section.A] = current_section;
@@ -170,7 +180,6 @@ void PoseGraph::Optimize(Atlas &sections, Section &submap, adapt::Problem &probl
     options.linear_solver_type = ceres::SPARSE_NORMAL_CHOLESKY;
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
-    LOG(INFO) << summary.FullReport();
 
     Section last_section;
     double last_time = 0;
