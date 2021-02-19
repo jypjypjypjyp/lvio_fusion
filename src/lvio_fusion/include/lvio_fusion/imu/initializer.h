@@ -8,8 +8,6 @@
 namespace lvio_fusion
 {
 
-class Frontend;
-
 class Initializer
 {
 public:
