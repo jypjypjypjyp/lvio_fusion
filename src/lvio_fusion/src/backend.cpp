@@ -150,17 +150,14 @@ void Backend::Optimize()
         SE3d old_pose = (--active_kfs.end())->second->pose;
         SE3d old_pose_imu = active_kfs.begin()->second->pose; //IMU
 
-        //IMU
-        LOG(INFO) << "BACKEND IMU OPTIMIZER  ===>" << active_kfs.size();
         if (Imu::Num() && Imu::Get()->initialized)
         {
-            // imu::RePredictVel(active_kfs,active_kfs.begin()->second->last_keyframe);
-            if (active_kfs.begin()->second->last_keyframe == nullptr || active_kfs.begin()->second->last_keyframe->preintegration == nullptr)
+            if (active_kfs.begin()->second->last_keyframe == nullptr ||
+                active_kfs.begin()->second->last_keyframe->preintegration == nullptr)
                 imu::ReComputeBiasVel(active_kfs);
             else
                 imu::ReComputeBiasVel(active_kfs, active_kfs.begin()->second->last_keyframe);
         }
-        //IMUEND
 
         adapt::Problem problem;
         BuildProblem(active_kfs, problem);
@@ -172,14 +169,10 @@ void Backend::Optimize()
         ceres::Solver::Summary summary;
         ceres::Solve(options, &problem, &summary);
 
-        //IMU
-        LOG(INFO) << summary.BriefReport();
-        LOG(INFO) << summary.num_unsuccessful_steps << ":" << summary.num_successful_steps;
         if (Imu::Num() && Imu::Get()->initialized)
         {
             imu::RecoverData(active_kfs, old_pose_imu, true);
         }
-        //IMUEND
 
         // propagate to the last frame
         SE3d new_pose = (--active_kfs.end())->second->pose;
@@ -241,7 +234,6 @@ void Backend::ForwardPropagate(SE3d transform, double time)
     std::unique_lock<std::mutex> lock(frontend_.lock()->mutex);
     Frame::Ptr last_frame = frontend_.lock()->last_frame;
     Frames active_kfs = Map::Instance().GetKeyFrames(time);
-    LOG(INFO) << "BACKEND IMU ForwardPropagate  ===>" << active_kfs.size();
     if (active_kfs.find(last_frame->time) == active_kfs.end())
     {
         active_kfs[last_frame->time] = last_frame;
@@ -258,7 +250,7 @@ void Backend::ForwardPropagate(SE3d transform, double time)
     options.num_threads = num_threads;
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
-    //IMU
+
     if (Imu::Num() && Imu::Get()->initialized)
     {
         Frame::Ptr frame = Map::Instance().GetKeyFrames(0, time, 1).begin()->second;
@@ -270,14 +262,13 @@ void Backend::ForwardPropagate(SE3d transform, double time)
         frontend_.lock()->last_keyframe_updated = true;
         if (active_kfs.size() == 0)
         {
-            frontend_.lock()->UpdateFrameIMU(frame->GetImuBias());
+            frontend_.lock()->UpdateIMU(frame->GetImuBias());
         }
         else
         {
-            frontend_.lock()->UpdateFrameIMU((--active_kfs.end())->second->GetImuBias());
+            frontend_.lock()->UpdateIMU((--active_kfs.end())->second->GetImuBias());
         }
     }
-    //IMUEND
 
     frontend_.lock()->UpdateCache();
 }
@@ -287,7 +278,7 @@ void Backend::InitializeIMU(Frames active_kfs, double time)
     static double init_time = 0;
     static bool initA = false;
     static bool initB = false;
-    static bool initializing=false;
+    static bool initializing = false;
     double priorA = 1e3;
     double priorG = 1e1;
     if (Imu::Num() && initializer_->bimu)

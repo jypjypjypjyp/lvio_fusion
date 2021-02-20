@@ -19,10 +19,10 @@ Frontend::Frontend(int num_features, int init, int tracking, int tracking_bad, i
 {
 }
 
-bool Frontend::AddFrame(lvio_fusion::Frame::Ptr frame)
+bool Frontend::AddFrame(Frame::Ptr frame)
 {
     std::unique_lock<std::mutex> lock(mutex);
-    //IMU
+
     if (Imu::Num())
     {
         if (last_frame)
@@ -30,7 +30,7 @@ bool Frontend::AddFrame(lvio_fusion::Frame::Ptr frame)
         frame->preintegration = nullptr;
         frame->preintegration_last = nullptr;
     }
-    //IMUEND
+
     current_frame = frame;
 
     switch (status)
@@ -58,13 +58,9 @@ bool Frontend::AddFrame(lvio_fusion::Frame::Ptr frame)
 
 void Frontend::AddImu(double time, Vector3d acc, Vector3d gyr)
 {
-    //IMU
-    ImuData imuMeas(acc, gyr, time);
-    imu_buf.push_back(imuMeas);
-    //IMUEND
+    imu_buf.push_back(ImuData(acc, gyr, time));
 }
 
-//IMU
 void Frontend::PreintegrateIMU()
 {
     if (!last_frame)
@@ -210,11 +206,9 @@ void Frontend::PreintegrateIMU()
     if (!imu_preintegrated_from_last_frame->isBad)
         current_frame->preintegration_last = imu_preintegrated_from_last_frame;
 }
-//IMUEND
 
-bool Frontend::Track()
+void Frontend::InitPose()
 {
-    //IMU
     if (Imu::Num())
     {
         PreintegrateIMU();
@@ -228,7 +222,6 @@ bool Frontend::Track()
     {
         current_frame->pose = relative_i_j * last_frame_pose_cache_;
     }
-
     if (Imu::Num())
     {
         if (last_keyframe)
@@ -237,8 +230,11 @@ bool Frontend::Track()
             current_frame->SetNewBias(last_keyframe->GetImuBias());
         }
     }
-    //IMUEND
+}
 
+bool Frontend::Track()
+{
+    InitPose();
     int num_inliers = TrackLastFrame(last_frame);
     bool success = num_inliers > num_features_tracking_bad_ &&
                    (current_frame->pose.translation() - last_frame_pose_cache_.translation()).norm() < 5;
@@ -410,15 +406,15 @@ bool Frontend::InitMap()
     if (Imu::Num())
     {
         status = FrontendStatus::INITIALIZING;
-        Imu::Get()->initialized = false; //IMU
-        imu_preintegrated_from_last_kf = nullptr;          //IMU
-        valid_imu_time = current_frame->time;              //IMU
+        Imu::Get()->initialized = false;
+        imu_preintegrated_from_last_kf = nullptr;
+        valid_imu_time = current_frame->time;
     }
     else
     {
         status = FrontendStatus::TRACKING_GOOD;
     }
-    //IMUEND
+
     // the first frame is a keyframe
     Map::Instance().InsertKeyFrame(current_frame);
     last_keyframe = current_frame;
@@ -539,7 +535,7 @@ void Frontend::UpdateCache()
 }
 
 //IMU
-void Frontend::UpdateFrameIMU(const Bias &bias_)
+void Frontend::UpdateIMU(const Bias &bias_)
 {
     if (last_keyframe->preintegration != nullptr)
         last_keyframe->bImu = true;

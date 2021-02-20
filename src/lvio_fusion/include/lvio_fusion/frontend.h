@@ -32,18 +32,9 @@ public:
     void SetBackend(std::shared_ptr<Backend> backend) { backend_ = backend; }
 
     void UpdateCache();
-    //IMU
-    void UpdateFrameIMU(const Bias &bias_);
- 
-    void PreintegrateIMU();
- 
-    void PredictStateIMU();
-    
-    imu::Preintegration::Ptr  imu_preintegrated_from_last_kf;
-    std::list<ImuData> imu_buf;
-    double valid_imu_time=0;
-    bool last_keyframe_updated = false;
-    //IMUEND
+
+    void UpdateIMU(const Bias &bias_);
+
     FrontendStatus status = FrontendStatus::BUILDING;
     Frame::Ptr current_frame;
     Frame::Ptr last_frame;
@@ -51,10 +42,17 @@ public:
     SE3d relative_i_j;
     std::mutex mutex;
 
+    imu::Preintegration::Ptr imu_preintegrated_from_last_kf;
+    std::list<ImuData> imu_buf;
+    double valid_imu_time = 0;
+    bool last_keyframe_updated = false;
+
 private:
     bool Track();
 
     bool Reset();
+
+    void InitPose();
 
     int TrackLastFrame(Frame::Ptr base_frame);
 
@@ -68,9 +66,13 @@ private:
 
     int TriangulateNewPoints();
 
+    void PreintegrateIMU();
+
+    void PredictStateIMU();
+
     // data
     std::weak_ptr<Backend> backend_;
-    ORBMatcher matcher_; 
+    ORBMatcher matcher_;
     std::unordered_map<unsigned long, Vector3d> position_cache_;
     SE3d last_frame_pose_cache_;
 
