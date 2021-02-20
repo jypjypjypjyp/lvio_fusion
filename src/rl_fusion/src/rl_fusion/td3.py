@@ -56,17 +56,17 @@ def get_args():
 
 def train_td3(args=get_args()):
     global client_create_env, client_step
-    env = gym.make(args.task, client_create_env=client_create_env, client_step=client_step)
+    env = gym.make(args.task)
     args.state_shape = env.observation_space.shape or env.observation_space.n
     args.action_shape = env.action_space.shape or env.action_space.n
     args.max_action = env.action_space.high[0]
     # you can also use tianshou.env.SubprocVectorEnv
     # train_envs = gym.make(args.task)
     train_envs = DummyVectorEnv(
-        [lambda: gym.make(args.task, client_create_env=client_create_env, client_step=client_step) for _ in range(args.training_num)])
+        [lambda: gym.make(args.task) for _ in range(args.training_num)])
     # test_envs = gym.make(args.task)
     test_envs = DummyVectorEnv(
-        [lambda: gym.make(args.task, client_create_env=client_create_env, client_step=client_step) for _ in range(args.test_num)])
+        [lambda: gym.make(args.task) for _ in range(args.test_num)])
     # seed
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
@@ -102,7 +102,7 @@ def train_td3(args=get_args()):
     writer = SummaryWriter(log_path)
 
     def save_fn(policy):
-        torch.save(policy, os.path.join(log_path, 'policy.pt'))
+        torch.save(policy, save_net_path)
 
     def stop_fn(mean_rewards):
         return mean_rewards >= env.spec.reward_threshold
@@ -117,7 +117,7 @@ def train_td3(args=get_args()):
     # output
     pprint.pprint(result)
     # Let's watch its performance!
-    env = gym.make(args.task, client_create_env=client_create_env, client_step=client_step)
+    env = gym.make(args.task)
     policy.eval()
     collector = Collector(policy, env)
     result = collector.collect(n_episode=1, render=args.render)
@@ -128,9 +128,7 @@ agent_policy = None
 
 def load_td3(args=get_args()):
     global client_create_env, client_step, agent_policy
-    env = gym.make(args.task, client_create_env=client_create_env, client_step=client_step)
-    log_path = os.path.join(args.logdir, args.task, 'td3')
-    agent_policy = torch.load(os.path.join(log_path, 'policy.pt'))
+    agent_policy = torch.load(save_net_path)
     agent_policy.eval()
 
 def get_weights(obs):

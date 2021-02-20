@@ -58,8 +58,7 @@ void Frame::UpdateLabel()
 
 Observation Frame::GetObservation()
 {
-    if (Map::Instance().keyframes.find(id - 1) == Map::Instance().keyframes.end())
-        return Observation();
+    assert(last_keyframe);
     static int obs_rows = 4, obs_cols = 12;
     cv::Mat obs = cv::Mat::zeros(obs_rows, obs_cols, CV_32FC3);
     int height = image_left.rows, width = image_left.cols;
@@ -69,12 +68,12 @@ Observation Frame::GetObservation()
         if (observations.find(id - 1) != observations.end())
         {
             auto pt = pair_feature.second->keypoint;
-            auto next_pt = observations[id + 1]->keypoint;
+            auto prev_pt = observations[id - 1]->keypoint;
             int row = (int)(pt.y / (height / obs_rows));
             int col = (int)(pt.x / (width / obs_cols));
             obs.at<cv::Vec3f>(row, col)[0] += 1;
-            obs.at<cv::Vec3f>(row, col)[1] += next_pt.x - pt.x;
-            obs.at<cv::Vec3f>(row, col)[2] += next_pt.y - pt.y;
+            obs.at<cv::Vec3f>(row, col)[1] += pt.x - prev_pt.x;
+            obs.at<cv::Vec3f>(row, col)[2] += pt.y - prev_pt.y;
         }
     }
 
@@ -87,22 +86,22 @@ Observation Frame::GetObservation()
 
     return obs.reshape(1, 1);
 }
-//IMU
-void Frame::SetVelocity(const Vector3d  &Vw_)
+
+void Frame::SetVelocity(const Vector3d &Vw_)
 {
-    Vw=Vw_;
+    Vw = Vw_;
 }
 
-void Frame::SetPose(const Matrix3d &Rwb_,const Vector3d  &twb_)
+void Frame::SetPose(const Matrix3d &Rwb_, const Vector3d &twb_)
 {
     Quaterniond R(Rwb_);
-    pose=SE3d(R,twb_);
+    pose = SE3d(R, twb_);
 }
 
 void Frame::SetNewBias(const Bias &bias_)
 {
     ImuBias = bias_;
-    if(preintegration)
+    if (preintegration)
         preintegration->SetNewBias(bias_);
 }
 
@@ -111,18 +110,18 @@ Vector3d Frame::GetVelocity()
     return Vw;
 }
 
-Matrix3d  Frame::GetImuRotation()
+Matrix3d Frame::GetImuRotation()
 {
-    Matrix4d Twb_=pose.matrix();  
-    Matrix3d Rwb = Twb_.block<3,3>(0,0);
+    Matrix4d Twb_ = pose.matrix();
+    Matrix3d Rwb = Twb_.block<3, 3>(0, 0);
     return Rwb;
 }
 
 Vector3d Frame::GetImuPosition()
 {
-    Matrix4d Twb_=pose.matrix();  
-    Vector3d Owb =Twb_.block<3,1>(0,3); //imu position
-    return  Owb;
+    Matrix4d Twb_ = pose.matrix();
+    Vector3d Owb = Twb_.block<3, 1>(0, 3); //imu position
+    return Owb;
 }
 
 Vector3d Frame::GetGyroBias()
@@ -139,5 +138,4 @@ Bias Frame::GetImuBias()
     return ImuBias;
 }
 
-//IMUEND
 } // namespace lvio_fusion

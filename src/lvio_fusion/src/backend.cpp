@@ -253,7 +253,7 @@ void Backend::ForwardPropagate(SE3d transform, double time)
 
     if (Imu::Num() && Imu::Get()->initialized)
     {
-        Frame::Ptr frame = Map::Instance().GetKeyFrames(0, time, 1).begin()->second;
+        Frame::Ptr frame = Map::Instance().GetKeyFrames(0, active_kfs.begin()->first, 1).begin()->second;
         if (active_kfs.size() > 0)
         {
             imu::RePredictVel(active_kfs, frame);

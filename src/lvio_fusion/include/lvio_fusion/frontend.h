@@ -52,7 +52,7 @@ private:
 
     bool Reset();
 
-    void InitPose();
+    void InitFrame();
 
     int TrackLastFrame(Frame::Ptr base_frame);
 

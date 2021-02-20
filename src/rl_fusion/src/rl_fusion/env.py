@@ -31,4 +31,5 @@ class LvioFusionEnv(gym.Env):
     def reset(self):
         resp = LvioFusionEnv.client_create_env()
         self.id = resp.id
-        return resp.obs
+        obs = resp.obs.reshape(LvioFusionEnv.obs_rows, LvioFusionEnv.obs_cols, 3)
+        return obs

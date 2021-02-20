@@ -43,13 +43,15 @@ public:
         }
     }
 
-    static int Create()
+    static int Create(Observation &obs)
     {
         std::unique_lock<std::mutex> lock(mutex);
         if (!initialized_)
             return -1;
         environments_.push_back(Environment::Ptr(new Environment(true)));
-        return environments_.size() - 1;
+        int id = environments_.size() - 1;
+        obs = environments_[id]->state_->second->GetObservation();
+        return id;
     }
 
     static SE3d GetGroundTruth(double time)
@@ -80,7 +82,7 @@ public:
     }
 
     // evaluate
-    Environment() 
+    Environment()
     {
         state_ = Map::Instance().keyframes.begin();
     }
@@ -96,6 +98,7 @@ private:
         std::default_random_engine e;
         double time = u_(e);
         frames_ = Map::Instance().GetKeyFrames(time, 0, num_frames_per_env_);
+        state_ = frames_.begin();
     }
 
     void Step(Weights &weights, Observation &obs, float *reward, bool *done);

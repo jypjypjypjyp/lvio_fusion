@@ -1,13 +1,13 @@
 %YAML:1.0
 
 # flags
-use_imu: 1
-use_lidar: 0
-use_navsat: 0
+use_imu: 0
+use_lidar: 1
+use_navsat: 1
 use_loop: 0
 use_semantic: 0
 use_adapt: 0
-train: 0
+train: 1
 
 # ros parameters
 imu_topic: '/kitti/oxts/imu'
@@ -97,6 +97,6 @@ relocator_mode: 0    # none = 0, visual = 1, lidar = 2, visual&&lidar = 3
 threshold: 10
 
 # train
-ground_truth_path: /home/jyp/Projects/tools/kitti_00_tum_gd.txt
+ground_truth_path: /home/jyp/Projects/playground/kitti_00_tum_gd.txt
 obs_rows: 4
 obs_cols: 12

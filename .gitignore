@@ -6,3 +6,4 @@ notes
 *.weights
 src/CMakeLists.txt
 **/__pycache__
+misc/log/**

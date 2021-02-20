@@ -236,7 +236,7 @@ void navsat_timer_callback(const ros::TimerEvent &timer_event)
 bool create_env_callback(lvio_fusion_node::CreateEnv::Request &req,
                          lvio_fusion_node::CreateEnv::Response &res)
 {
-    res.id = Environment::Create();
+    res.id = Environment::Create(res.obs);
     return true;
 }
 
@@ -465,12 +465,12 @@ int main(int argc, char **argv)
     }
     if (use_adapt)
     {
-        clt_update_weights = n.serviceClient<lvio_fusion_node::UpdateWeights>("lvio_fusion_node/update_weight");
+        clt_update_weights = n.serviceClient<lvio_fusion_node::UpdateWeights>("/lvio_fusion_node/update_weight");
         Agent::SetCore(new RealCore());
     }
     if (train)
     {
-        clt_init = n.serviceClient<lvio_fusion_node::Init>("lvio_fusion_node/init");
+        clt_init = n.serviceClient<lvio_fusion_node::Init>("/lvio_fusion_node/init");
         svr_create_env = n.advertiseService("/lvio_fusion_node/create_env", create_env_callback);
         svr_step = n.advertiseService("/lvio_fusion_node/step", step_callback);
     }

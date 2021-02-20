@@ -23,16 +23,7 @@ bool Frontend::AddFrame(Frame::Ptr frame)
 {
     std::unique_lock<std::mutex> lock(mutex);
 
-    if (Imu::Num())
-    {
-        if (last_frame)
-            frame->SetNewBias(last_frame->GetImuBias());
-        frame->preintegration = nullptr;
-        frame->preintegration_last = nullptr;
-    }
-
     current_frame = frame;
-
     switch (status)
     {
     case FrontendStatus::BUILDING:
@@ -207,10 +198,12 @@ void Frontend::PreintegrateIMU()
         current_frame->preintegration_last = imu_preintegrated_from_last_frame;
 }
 
-void Frontend::InitPose()
+void Frontend::InitFrame()
 {
+    current_frame->last_keyframe = last_keyframe;
     if (Imu::Num())
     {
+        current_frame->SetNewBias(last_frame->GetImuBias());
         PreintegrateIMU();
         if (Imu::Get()->initialized)
         {
@@ -222,19 +215,11 @@ void Frontend::InitPose()
     {
         current_frame->pose = relative_i_j * last_frame_pose_cache_;
     }
-    if (Imu::Num())
-    {
-        if (last_keyframe)
-        {
-            current_frame->last_keyframe = last_keyframe;
-            current_frame->SetNewBias(last_keyframe->GetImuBias());
-        }
-    }
 }
 
 bool Frontend::Track()
 {
-    InitPose();
+    InitFrame();
     int num_inliers = TrackLastFrame(last_frame);
     bool success = num_inliers > num_features_tracking_bad_ &&
                    (current_frame->pose.translation() - last_frame_pose_cache_.translation()).norm() < 5;
@@ -385,10 +370,9 @@ int Frontend::Relocate(Frame::Ptr base_frame)
         current_frame->id++;
         Map::Instance().InsertKeyFrame(base_frame);
         last_keyframe = base_frame;
-        //IMU
+        current_frame->last_keyframe = last_keyframe;
         current_frame->preintegration = current_frame->preintegration_last;
         imu_preintegrated_from_last_kf = current_frame->preintegration_last;
-        //IMUEND
         LOG(INFO) << "Make last frame a keyframe " << base_frame->id;
 
         // update backend because we have a new keyframe
