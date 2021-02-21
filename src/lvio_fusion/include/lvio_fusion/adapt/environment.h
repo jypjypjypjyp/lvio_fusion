@@ -48,7 +48,7 @@ public:
         std::unique_lock<std::mutex> lock(mutex);
         if (!initialized_)
             return -1;
-        environments_.push_back(Environment::Ptr(new Environment(true)));
+        environments_.push_back(Environment::Ptr(new Environment()));
         int id = environments_.size() - 1;
         obs = environments_[id]->state_->second->GetObservation();
         return id;
@@ -57,7 +57,6 @@ public:
     static SE3d GetGroundTruth(double time)
     {
         auto iter = ground_truths.lower_bound(time);
-
         if (iter == ground_truths.begin())
         {
             return iter->second;
@@ -81,22 +80,15 @@ public:
         }
     }
 
-    // evaluate
-    Environment()
-    {
-        state_ = Map::Instance().keyframes.begin();
-    }
-
     void Step(Weights &weights, Observation &obs);
 
     static std::map<double, SE3d> ground_truths;
     static std::mutex mutex;
 
 private:
-    Environment(bool train)
+    Environment()
     {
-        std::default_random_engine e;
-        double time = u_(e);
+        double time = u_(e_);
         frames_ = Map::Instance().GetKeyFrames(time, 0, num_frames_per_env_);
         state_ = frames_.begin();
     }
@@ -106,6 +98,7 @@ private:
     SE3d Optimize();
 
     static std::uniform_real_distribution<double> u_;
+    static std::default_random_engine e_;
     static std::vector<Environment::Ptr> environments_;
     static Estimator::Ptr estimator_;
     static int num_frames_per_env_;

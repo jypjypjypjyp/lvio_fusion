@@ -313,6 +313,11 @@ void read_ground_truth()
     stringstream ss;
     double time, x, y, z, qx, qy, qz, qw;
     double dt = lvio_fusion::Map::Instance().keyframes.begin()->first;
+    Matrix3d R_tf;
+    R_tf << 0, 0, 1,
+        -1, 0, 0,
+        0, -1, 0;
+    SE3d tf(Quaterniond(R_tf), Vector3d::Zero()); // tum ground truth to lvio_fusion
     if (in)
     {
         while (getline(in, line))
@@ -320,7 +325,7 @@ void read_ground_truth()
             ss << line;
             ss >> time >> x >> y >> z >> qx >> qy >> qz >> qw;
             cout << time << "," << x << "," << y << "," << z << "," << qx << "," << qy << "," << qz << "," << qw << endl;
-            Environment::ground_truths[dt + time] = SE3d(Quaterniond(qw, qx, qy, qz), Vector3d(x, y, z));
+            Environment::ground_truths[dt + time] = tf * SE3d(Quaterniond(qw, qx, qy, qz), Vector3d(x, y, z));
             ss.clear();
         }
     }

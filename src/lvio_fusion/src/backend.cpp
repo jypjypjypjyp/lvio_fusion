@@ -94,7 +94,7 @@ void Backend::BuildProblem(Frames &active_kfs, adapt::Problem &problem, bool use
             }
         }
     }
-    //IMU
+
     if (Imu::Num() && Imu::Get()->initialized && use_imu)
     {
         Frame::Ptr last_frame;
@@ -102,7 +102,7 @@ void Backend::BuildProblem(Frames &active_kfs, adapt::Problem &problem, bool use
         for (auto kf_pair : active_kfs)
         {
             current_frame = kf_pair.second;
-            if (!current_frame->bImu || !current_frame->last_keyframe || current_frame->preintegration == nullptr)
+            if (!current_frame->bImu || current_frame->preintegration == nullptr)
             {
                 last_frame = current_frame;
                 continue;
@@ -115,7 +115,7 @@ void Backend::BuildProblem(Frames &active_kfs, adapt::Problem &problem, bool use
             problem.AddParameterBlock(para_ba, 3);
             problem.AddParameterBlock(para_bg, 3);
 
-            if (last_frame && last_frame->bImu && last_frame->last_keyframe)
+            if (last_frame && last_frame->bImu)
             {
                 auto para_kf_last = last_frame->pose.data();
                 auto para_v_last = last_frame->Vw.data();
@@ -127,7 +127,6 @@ void Backend::BuildProblem(Frames &active_kfs, adapt::Problem &problem, bool use
             last_frame = current_frame;
         }
     }
-    //IMUEND
 }
 
 double compute_reprojection_error(Vector2d ob, Vector3d pw, SE3d pose, Camera::Ptr camera)
@@ -152,11 +151,8 @@ void Backend::Optimize()
 
         if (Imu::Num() && Imu::Get()->initialized)
         {
-            if (active_kfs.begin()->second->last_keyframe == nullptr ||
-                active_kfs.begin()->second->last_keyframe->preintegration == nullptr)
-                imu::ReComputeBiasVel(active_kfs);
-            else
-                imu::ReComputeBiasVel(active_kfs, active_kfs.begin()->second->last_keyframe);
+
+            imu::ReComputeBiasVel(active_kfs);
         }
 
         adapt::Problem problem;

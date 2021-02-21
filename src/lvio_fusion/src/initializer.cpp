@@ -112,6 +112,10 @@ bool Initializer::Initialize(Frames keyframes, double priorA, double priorG)
         Vector3d vzg = v * ang / nv;
         Rwg_ = ExpSO3(vzg);
     }
+    else
+    {
+        Rwg_ = Matrix3d::Identity();
+    }
     Vector3d g2;
     g2 << 0, 0, Imu::Get()->G;
     g2 = Rwg_ * g2;

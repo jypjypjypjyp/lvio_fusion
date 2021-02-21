@@ -38,9 +38,9 @@ def get_args():
     parser.add_argument('--noise-clip', type=float, default=0.5)
     parser.add_argument('--update-actor-freq', type=int, default=2)
     parser.add_argument('--epoch', type=int, default=20)
-    parser.add_argument('--step-per-epoch', type=int, default=2400)
+    parser.add_argument('--step-per-epoch', type=int, default=200)
     parser.add_argument('--collect-per-step', type=int, default=10)
-    parser.add_argument('--batch-size', type=int, default=128)
+    parser.add_argument('--batch-size', type=int, default=8)
     parser.add_argument('--layer-num', type=int, default=1)
     parser.add_argument('--training-num', type=int, default=8)
     parser.add_argument('--test-num', type=int, default=100)
@@ -105,7 +105,7 @@ def train_td3(args=get_args()):
         torch.save(policy, save_net_path)
 
     def stop_fn(mean_rewards):
-        return mean_rewards >= env.spec.reward_threshold
+        return False
 
     # trainer
     result = offpolicy_trainer(

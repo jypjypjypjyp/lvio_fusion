@@ -25,6 +25,8 @@ void publish_odometry(Estimator::Ptr estimator, double time)
         for (auto &pair : lvio_fusion::Map::Instance().keyframes)
         {
             auto pose = pair.second->pose;
+            SE3d p(SO3d(), Vector3d(0, 0, 10));
+            pose = pose * p;
             geometry_msgs::PoseStamped pose_stamped;
             pose_stamped.header.stamp = ros::Time(pair.first);
             pose_stamped.header.frame_id = "world";

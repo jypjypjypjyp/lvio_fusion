@@ -7,12 +7,6 @@
 namespace lvio_fusion
 {
 
-enum class CameraModel
-{
-    Pinhole,
-    KANNALA_BRANDT
-};
-
 // Pinhole stereo camera model
 class Camera : public Sensor
 {

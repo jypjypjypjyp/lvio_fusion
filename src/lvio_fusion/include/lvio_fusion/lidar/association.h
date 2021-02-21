@@ -27,9 +27,10 @@ public:
 
     void AddScan(double time, Point3Cloud::Ptr new_scan);
 
-    void ScanToMapWithGround(Frame::Ptr frame, Frame::Ptr map_frame, double *para, adapt::Problem &problem);
+    void ScanToMapWithGround(Frame::Ptr frame, Frame::Ptr map_frame, double *para, adapt::Problem &problem, bool relocate = false);
 
-    void ScanToMapWithSegmented(Frame::Ptr frame, Frame::Ptr map_frame, double *para, adapt::Problem &problem);
+    void ScanToMapWithSegmented(Frame::Ptr frame, Frame::Ptr map_frame, double *para, adapt::Problem &problem, bool relocate = false);
+    
     void SegmentGround(PointICloud &points_ground);
 
 private:

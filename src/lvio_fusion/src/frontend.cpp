@@ -34,6 +34,7 @@ bool Frontend::AddFrame(Frame::Ptr frame)
     case FrontendStatus::INITIALIZING:
     case FrontendStatus::TRACKING_GOOD:
     case FrontendStatus::TRACKING_TRY:
+        InitFrame();
         Track();
         //NOTE: semantic map
         if (!current_frame->objects.empty())
@@ -201,6 +202,7 @@ void Frontend::PreintegrateIMU()
 void Frontend::InitFrame()
 {
     current_frame->last_keyframe = last_keyframe;
+    current_frame->pose = last_frame_pose_cache_ * relative_i_j;
     if (Imu::Num())
     {
         current_frame->SetNewBias(last_frame->GetImuBias());
@@ -209,11 +211,6 @@ void Frontend::InitFrame()
         {
             PredictStateIMU();
         }
-    }
-    if (!Imu::Num() || !Imu::Get()->initialized ||
-        (Imu::Get()->initialized && current_frame->preintegration_last == nullptr))
-    {
-        current_frame->pose = relative_i_j * last_frame_pose_cache_;
     }
 }
 
@@ -537,7 +534,7 @@ void Frontend::UpdateIMU(const Bias &bias_)
     Vector3d Vwb2;
     if (last_frame->last_keyframe && last_frame->preintegration)
     {
-        if (std::fabs(last_frame->time - last_frame->last_keyframe->time) > 0.001)
+        if (std::fabs(last_frame->time - last_keyframe->time) > 0.001)
         {
             twb1 = last_frame->last_keyframe->GetImuPosition();
             Rwb1 = last_frame->last_keyframe->GetImuRotation();
@@ -550,7 +547,7 @@ void Frontend::UpdateIMU(const Bias &bias_)
             last_frame->SetVelocity(Vwb2);
         }
     }
-    if (std::fabs(current_frame->time - current_frame->last_keyframe->time) > 0.001 &&
+    if (std::fabs(current_frame->time - last_keyframe->time) > 0.001 &&
         current_frame->preintegration && current_frame->last_keyframe)
     {
         twb1 = current_frame->last_keyframe->GetImuPosition();
@@ -597,8 +594,6 @@ void Frontend::PredictStateIMU()
         Matrix3d Rwb2 = NormalizeRotation(Rwb1 * current_frame->preintegration_last->GetDeltaRotation(last_frame->GetImuBias()).toRotationMatrix());
         Vector3d twb2 = twb1 + Vwb1 * dt + 0.5f * dt * dt * Gz + Rwb1 * current_frame->preintegration_last->GetDeltaPosition(last_frame->GetImuBias());
         Vector3d Vwb2 = Vwb1 + dt * Gz + Rwb1 * current_frame->preintegration_last->GetDeltaVelocity(last_frame->GetImuBias());
-        Vector3d dr = current_frame->preintegration_last->GetDeltaRotation(last_frame->GetImuBias()).toRotationMatrix().eulerAngles(0, 1, 2);
-        Vector3d dr_ = current_frame->preintegration_last->delta_q.toRotationMatrix().eulerAngles(0, 1, 2);
 
         current_frame->SetVelocity(Vwb2);
         current_frame->SetPose(Rwb2, twb2);

@@ -259,10 +259,10 @@ int Mapping::Relocate(Frame::Ptr last_frame, Frame::Ptr current_frame, SE3d &rel
         if (!map_frame->feature_lidar->points_ground.empty())
         {
             adapt::Problem problem;
-            association_->ScanToMapWithGround(clone_frame, map_frame, rpyxyz, problem);
+            association_->ScanToMapWithGround(clone_frame, map_frame, rpyxyz, problem, true);
             ceres::Solver::Options options;
             options.linear_solver_type = ceres::DENSE_QR;
-            options.max_num_iterations = 1;
+            options.max_num_iterations = 4;
             options.num_threads = num_threads;
             ceres::Solver::Summary summary;
             ceres::Solve(options, &problem, &summary);
@@ -273,10 +273,10 @@ int Mapping::Relocate(Frame::Ptr last_frame, Frame::Ptr current_frame, SE3d &rel
         if (!map_frame->feature_lidar->points_surf.empty())
         {
             adapt::Problem problem;
-            association_->ScanToMapWithSegmented(clone_frame, map_frame, rpyxyz, problem);
+            association_->ScanToMapWithSegmented(clone_frame, map_frame, rpyxyz, problem, true);
             ceres::Solver::Options options;
             options.linear_solver_type = ceres::DENSE_QR;
-            options.max_num_iterations = 1;
+            options.max_num_iterations = 4;
             options.num_threads = num_threads;
             ceres::Solver::Summary summary;
             ceres::Solve(options, &problem, &summary);
