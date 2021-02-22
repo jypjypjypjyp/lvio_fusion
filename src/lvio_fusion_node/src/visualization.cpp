@@ -1,5 +1,7 @@
 #include "visualization.h"
+#include "camera_pose.h"
 #include "lvio_fusion/map.h"
+#include "lvio_fusion/visual/camera.h"
 
 #include <pcl_conversions/pcl_conversions.h>
 
@@ -9,12 +11,21 @@ ros::Publisher pub_points_cloud;
 ros::Publisher pub_car_model;
 nav_msgs::Path path, navsat_path;
 
+ros::Publisher pub_camera_pose_visual;
+
+CameraPoseVisualization cameraposevisual(1, 0, 0, 1);
+
 void register_pub(ros::NodeHandle &n)
 {
     pub_path = n.advertise<nav_msgs::Path>("path", 1000);
     pub_navsat = n.advertise<nav_msgs::Path>("navsat_path", 1000);
     pub_points_cloud = n.advertise<sensor_msgs::PointCloud2>("point_cloud", 1000);
     pub_car_model = n.advertise<visualization_msgs::Marker>("car_model", 1000);
+
+    pub_camera_pose_visual = n.advertise<visualization_msgs::MarkerArray>("camera_pose_visual", 1000);
+
+    cameraposevisual.setScale(0.1);
+    cameraposevisual.setLineWidth(0.01);
 }
 
 void publish_odometry(Estimator::Ptr estimator, double time)
@@ -22,11 +33,10 @@ void publish_odometry(Estimator::Ptr estimator, double time)
     if (estimator->frontend->status == FrontendStatus::TRACKING_GOOD)
     {
         path.poses.clear();
+        cameraposevisual.reset();
         for (auto &pair : lvio_fusion::Map::Instance().keyframes)
         {
             auto pose = pair.second->pose;
-            SE3d p(SO3d(), Vector3d(0, 0, 10));
-            pose = pose * p;
             geometry_msgs::PoseStamped pose_stamped;
             pose_stamped.header.stamp = ros::Time(pair.first);
             pose_stamped.header.frame_id = "world";
@@ -50,10 +60,15 @@ void publish_odometry(Estimator::Ptr estimator, double time)
                 path.poses.push_back(pose_stamped_loop);
                 path.poses.push_back(pose_stamped);
             }
+            SE3d left_camera_pose = pose * Camera::Get(0)->extrinsic;
+            SE3d right_camera_pose = pose * Camera::Get(1)->extrinsic;
+            cameraposevisual.add_pose(left_camera_pose.translation(), left_camera_pose.unit_quaternion());
+            cameraposevisual.add_pose(right_camera_pose.translation(), right_camera_pose.unit_quaternion());
         }
         path.header.stamp = ros::Time(time);
         path.header.frame_id = "world";
         pub_path.publish(path);
+        cameraposevisual.publish_by(pub_camera_pose_visual, path.header);
     }
 }
 

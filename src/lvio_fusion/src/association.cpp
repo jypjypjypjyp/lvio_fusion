@@ -164,6 +164,19 @@ void FeatureAssociation::CalculateSmoothness(PointICloud &points_segmented, Segm
         float cov = (r1 * r1 + r2 * r2 + r3 * r3 + r4 * r4 + r5 * r5 + r6 * r6 + r7 * r7 + r8 * r8 + r9 * r9) / 9;
         curvatures[i] = cov * 10 / segemented_info.range[i];
     }
+
+    // int cloudSize = points_segmented.size();
+    //     for (int i = 5; i < cloudSize - 5; i++) {
+
+    //         float diffRange = segemented_info.range[i-5] + segemented_info.range[i-4]
+    //                         + segemented_info.range[i-3] + segemented_info.range[i-2]
+    //                         + segemented_info.range[i-1] - segemented_info.range[i] * 10
+    //                         + segemented_info.range[i+1] + segemented_info.range[i+2]
+    //                         + segemented_info.range[i+3] + segemented_info.range[i+4]
+    //                         + segemented_info.range[i+5];            
+
+    //         curvatures[i] = diffRange*diffRange;
+    //     }
 }
 
 void FeatureAssociation::ExtractFeatures(PointICloud &points_segmented, SegmentedInfo &segemented_info, Frame::Ptr frame)

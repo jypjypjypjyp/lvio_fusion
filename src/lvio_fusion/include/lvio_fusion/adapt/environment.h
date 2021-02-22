@@ -33,6 +33,10 @@ public:
             for (auto &pair : Map::Instance().keyframes)
             {
                 pair.second->pose = GetGroundTruth(pair.first);
+                if (estimator->mapping)
+                {
+                    estimator->mapping->ToWorld(pair.second);
+                }
             }
 
             // initialize random distribution

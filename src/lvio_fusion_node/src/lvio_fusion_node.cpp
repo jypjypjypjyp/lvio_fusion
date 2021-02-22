@@ -22,6 +22,8 @@
 #include "parameters.h"
 #include "visualization.h"
 
+#include "lvio_fusion/ceres/base.hpp"
+
 using namespace std;
 
 Estimator::Ptr estimator;
@@ -315,9 +317,12 @@ void read_ground_truth()
     double dt = lvio_fusion::Map::Instance().keyframes.begin()->first;
     Matrix3d R_tf;
     R_tf << 0, 0, 1,
-        -1, 0, 0,
-        0, -1, 0;
-    SE3d tf(Quaterniond(R_tf), Vector3d::Zero()); // tum ground truth to lvio_fusion
+            -1, 0, 0,
+            0, -1, 0;
+    Quaterniond q_tf(R_tf);
+    auto RRR = ypr2R(Vector3d(90,-90,0));
+    Quaterniond qqq(RRR);
+    SE3d tf(q_tf, Vector3d::Zero()); // tum ground truth to lvio_fusion
     if (in)
     {
         while (getline(in, line))
@@ -325,7 +330,18 @@ void read_ground_truth()
             ss << line;
             ss >> time >> x >> y >> z >> qx >> qy >> qz >> qw;
             cout << time << "," << x << "," << y << "," << z << "," << qx << "," << qy << "," << qz << "," << qw << endl;
-            Environment::ground_truths[dt + time] = tf * SE3d(Quaterniond(qw, qx, qy, qz), Vector3d(x, y, z));
+            // double rpy[3],new_rpy[3];
+            // double e_q[4] = {qx,qy,qz,qw}, e_q2[4];
+            // ceres::EigenQuaternionToRPY(e_q, rpy);
+            // new_rpy[0] = -rpy[1];
+            // new_rpy[1] = rpy[];
+            // new_rpy[2] = rpy[];
+            // ceres::RPYToEigenQuaternion(new_rpy, e_q2);
+            
+            
+            auto a = SE3d(Quaterniond(qw, qx, qy, qz), Vector3d(x, y, z));
+            a.so3() =  a.so3() * SO3d(q_tf.inverse());
+            Environment::ground_truths[dt + time] = tf * a;
             ss.clear();
         }
     }
