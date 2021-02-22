@@ -33,7 +33,6 @@ void Navsat::AddPoint(double time, double x, double y, double z)
         LOG(INFO) << pair_kf.second->feature_navsat->trust;
         finished = pair_kf.first + epsilon;
     }
-
     if (!initialized && !Map::Instance().keyframes.empty() && frames_distance(0, -1) > 40)
     {
         Initialize();
@@ -245,15 +244,6 @@ void Navsat::OptimizeRX(Frame::Ptr frame, double end, double time, int mode)
     ceres::Solve(options, &problem, &summary);
 
     frame->pose = frame->pose * rpyxyz2se3(para);
-    SE3d new_pose = frame->pose;
-    SE3d transform = new_pose * old_pose.inverse();
-    PoseGraph::Instance().Propagate(transform, Map::Instance().GetKeyFrames(frame->time + epsilon, time));
-}
-
-void Navsat::OptimizeX(Frame::Ptr frame, double time)
-{
-    SE3d old_pose = frame->pose;
-    frame->pose.translation() = GetFixPoint(frame);
     SE3d new_pose = frame->pose;
     SE3d transform = new_pose * old_pose.inverse();
     PoseGraph::Instance().Propagate(transform, Map::Instance().GetKeyFrames(frame->time + epsilon, time));

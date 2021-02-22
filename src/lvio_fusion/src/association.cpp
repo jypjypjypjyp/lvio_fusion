@@ -254,9 +254,9 @@ inline void FeatureAssociation::SegmentGround(PointICloud &points_ground)
     extract.filter(points_ground);
 }
 
-void FeatureAssociation::ScanToMapWithGround(Frame::Ptr frame, Frame::Ptr map_frame, double *para, adapt::Problem &problem)
+void FeatureAssociation::ScanToMapWithGround(Frame::Ptr frame, Frame::Ptr map_frame, double *para, adapt::Problem &problem, bool relocate)
 {
-    ceres::LossFunction *loss_function = new ceres::HuberLoss(0.1);
+    ceres::LossFunction *loss_function = new ceres::TrivialLoss();
     PointICloud &points_ground_last = map_frame->feature_lidar->points_ground;
     problem.AddParameterBlock(para + 1, 1);
     problem.AddParameterBlock(para + 2, 1);
@@ -305,14 +305,14 @@ void FeatureAssociation::ScanToMapWithGround(Frame::Ptr frame, Frame::Ptr map_fr
         }
     }
 
-    if (frame->id == map_frame->id + 1)
+    if (!relocate)
     {
         ceres::CostFunction *cost_function = PoseErrorRPZ::Create(para, frame->features_left.size() * frame->weights.visual);
         problem.AddResidualBlock(ProblemType::Other, cost_function, NULL, para + 1, para + 2, para + 5);
     }
 }
 
-void FeatureAssociation::ScanToMapWithSegmented(Frame::Ptr frame, Frame::Ptr map_frame, double *para, adapt::Problem &problem)
+void FeatureAssociation::ScanToMapWithSegmented(Frame::Ptr frame, Frame::Ptr map_frame, double *para, adapt::Problem &problem, bool relocate)
 {
     ceres::LossFunction *loss_function = new ceres::HuberLoss(0.1);
     PointICloud &points_surf_last = map_frame->feature_lidar->points_surf;
@@ -363,7 +363,7 @@ void FeatureAssociation::ScanToMapWithSegmented(Frame::Ptr frame, Frame::Ptr map
         }
     }
 
-    if (frame->id == map_frame->id + 1)
+    if (!relocate)
     {
         ceres::CostFunction *cost_function = PoseErrorYXY::Create(para, frame->features_left.size() * frame->weights.visual);
         problem.AddResidualBlock(ProblemType::Other, cost_function, NULL, para, para + 3, para + 4);

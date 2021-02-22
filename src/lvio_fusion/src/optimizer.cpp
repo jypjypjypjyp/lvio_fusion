@@ -207,7 +207,6 @@ void PoseGraph::ForwardPropagate(SE3d transform, double start_time, bool need_lo
     {
         lock.lock();
     }
-    bool self_lock = frontend_->mutex.try_lock();
     Frames forward_kfs = Map::Instance().GetKeyFrames(start_time);
     Frame::Ptr last_frame = frontend_->last_frame;
     if (forward_kfs.find(last_frame->time) == forward_kfs.end())
@@ -224,6 +223,8 @@ void PoseGraph::Propagate(SE3d transform, const Frames &forward_kfs)
     for (auto &pair_kf : forward_kfs)
     {
         pair_kf.second->pose = transform * pair_kf.second->pose;
+        if( pair_kf.second->preintegration!=nullptr)
+            pair_kf.second->Vw=transform.rotationMatrix()*  pair_kf.second->Vw;//IMU
     }
 }
 

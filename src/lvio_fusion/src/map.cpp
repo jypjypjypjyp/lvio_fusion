@@ -18,6 +18,7 @@ void Map::InsertLandmark(visual::Landmark::Ptr landmark)
     landmarks[landmark->id] = landmark;
 }
 
+// time<0 : end
 Frame::Ptr Map::GetKeyFrame(double time)
 {
     if (time < 0)

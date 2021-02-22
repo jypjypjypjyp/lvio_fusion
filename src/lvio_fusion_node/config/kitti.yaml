@@ -1,10 +1,10 @@
 %YAML:1.0
 
 # flags
-use_imu: 0
-use_lidar: 0
-use_navsat: 1
-use_loop: 0             # 0 for only odometry, 1 for whole system
+use_imu: 1
+use_lidar: 1
+use_navsat: 0
+use_loop: 0
 use_semantic: 0
 use_adapt: 0
 train: 1
@@ -86,7 +86,11 @@ body_to_lidar: !!opencv-matrix
 # number of features
 num_features: 300
 num_features_init: 50
+<<<<<<< HEAD
 num_features_tracking_bad: 20
+=======
+num_features_tracking_bad: 10
+>>>>>>> main_imu
 num_features_needed_for_keyframe: 80
 
 # backend
@@ -97,6 +101,6 @@ relocator_mode: 0    # none = 0, visual = 1, lidar = 2, visual&&lidar = 3
 threshold: 10
 
 # train
-ground_truth_path: /home/jyp/Projects/tools/kitti_00_tum_gd.txt
+ground_truth_path: /home/jyp/Projects/playground/kitti_00_tum_gd.txt
 obs_rows: 4
 obs_cols: 12

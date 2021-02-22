@@ -2,12 +2,12 @@
 #include "lvio_fusion/ceres/imu_error.hpp"
 #include "lvio_fusion/ceres/visual_error.hpp"
 #include "lvio_fusion/frontend.h"
+#include "lvio_fusion/imu/tools.h"
 #include "lvio_fusion/manager.h"
 #include "lvio_fusion/map.h"
 #include "lvio_fusion/utility.h"
 #include "lvio_fusion/visual/feature.h"
 #include "lvio_fusion/visual/landmark.h"
-
 namespace lvio_fusion
 {
 
@@ -61,7 +61,7 @@ void Backend::BackendLoop()
     }
 }
 
-void Backend::BuildProblem(Frames &active_kfs, adapt::Problem &problem)
+void Backend::BuildProblem(Frames &active_kfs, adapt::Problem &problem, bool use_imu)
 {
     ceres::LossFunction *loss_function = new ceres::HuberLoss(1.0);
     ceres::LocalParameterization *local_parameterization = new ceres::ProductParameterization(
@@ -95,36 +95,38 @@ void Backend::BuildProblem(Frames &active_kfs, adapt::Problem &problem)
         }
     }
 
-    // TODO
-    // imu constraints
-    // if (imu_ && imu_->initialized)
-    // {
-    //     Frame::Ptr last_frame;
-    //     Frame::Ptr current_frame;
-    //     for (auto & pair_kf : active_kfs)
-    //     {
-    //         current_frame = pair_kf.second;
-    //         if (!current_frame->preintegration)
-    //             continue;
-    //         auto para_kf = current_frame->pose.data();
-    //         auto para_v = current_frame->preintegration->v0.data();
-    //         auto para_ba = current_frame->preintegration->linearized_ba.data();
-    //         auto para_bg = current_frame->preintegration->linearized_bg.data();
-    //         problem.AddParameterBlock(para_v, 3);
-    //         problem.AddParameterBlock(para_ba, 3);
-    //         problem.AddParameterBlock(para_bg, 3);
-    //         if (last_frame && last_frame->preintegration)
-    //         {
-    //             auto para_kf_last = last_frame->pose.data();
-    //             auto para_v_last = last_frame->preintegration->v0.data();
-    //             auto para_ba_last = last_frame->preintegration->linearized_ba.data();
-    //             auto para_bg_last = last_frame->preintegration->linearized_bg.data();
-    //             ceres::CostFunction *cost_function = ImuError::Create(last_frame->preintegration);
-    //             problem.AddResidualBlock(cost_function, NULL, para_kf_last, para_v_last, para_ba_last, para_bg_last, para_kf, para_v, para_ba, para_bg);
-    //         }
-    //         last_frame = current_frame;
-    //     }
-    // }
+    if (Imu::Num() && Imu::Get()->initialized && use_imu)
+    {
+        Frame::Ptr last_frame;
+        Frame::Ptr current_frame;
+        for (auto kf_pair : active_kfs)
+        {
+            current_frame = kf_pair.second;
+            if (!current_frame->bImu || current_frame->preintegration == nullptr)
+            {
+                last_frame = current_frame;
+                continue;
+            }
+            auto para_kf = current_frame->pose.data();
+            auto para_v = current_frame->Vw.data();
+            auto para_bg = current_frame->ImuBias.linearized_bg.data();
+            auto para_ba = current_frame->ImuBias.linearized_ba.data();
+            problem.AddParameterBlock(para_v, 3);
+            problem.AddParameterBlock(para_ba, 3);
+            problem.AddParameterBlock(para_bg, 3);
+
+            if (last_frame && last_frame->bImu)
+            {
+                auto para_kf_last = last_frame->pose.data();
+                auto para_v_last = last_frame->Vw.data();
+                auto para_bg_last = last_frame->ImuBias.linearized_bg.data(); //恢复
+                auto para_ba_last = last_frame->ImuBias.linearized_ba.data(); //恢复
+                ceres::CostFunction *cost_function = ImuError::Create(current_frame->preintegration);
+                problem.AddResidualBlock(ProblemType::IMUError, cost_function, NULL, para_kf_last, para_v_last, para_ba_last, para_bg_last, para_kf, para_v, para_ba, para_bg);
+            }
+            last_frame = current_frame;
+        }
+    }
 }
 
 double compute_reprojection_error(Vector2d ob, Vector3d pw, SE3d pose, Camera::Ptr camera)
@@ -143,21 +145,16 @@ void Backend::Optimize()
 
     double start = active_kfs.begin()->first;
     double end = (--active_kfs.end())->first;
-
-    // TODO: IMU
-    // imu init
-    // if (imu_ && !initializer_->initialized)
-    // {
-    //     Frames frames_init = Map::Instance().GetKeyFrames(0, Map::Instance().local_map_head, initializer_->num_frames);
-    //     if (frames_init.size() == initializer_->num_frames)
-    //     {
-    //         imu_->initialized = initializer_->Initialize(frames_init);
-    //         frontend_.lock()->status = FrontendStatus::TRACKING_GOOD;
-    //     }
-    // }
-
     {
         SE3d old_pose = (--active_kfs.end())->second->pose;
+        SE3d old_pose_imu = active_kfs.begin()->second->pose; //IMU
+
+        if (Imu::Num() && Imu::Get()->initialized)
+        {
+
+            imu::ReComputeBiasVel(active_kfs);
+        }
+
         adapt::Problem problem;
         BuildProblem(active_kfs, problem);
 
@@ -167,6 +164,11 @@ void Backend::Optimize()
         options.num_threads = num_threads;
         ceres::Solver::Summary summary;
         ceres::Solve(options, &problem, &summary);
+
+        if (Imu::Num() && Imu::Get()->initialized)
+        {
+            imu::RecoverData(active_kfs, old_pose_imu, true);
+        }
 
         // propagate to the last frame
         SE3d new_pose = (--active_kfs.end())->second->pose;
@@ -233,9 +235,10 @@ void Backend::ForwardPropagate(SE3d transform, double time)
         active_kfs[last_frame->time] = last_frame;
     }
     PoseGraph::Instance().Propagate(transform, active_kfs);
+    InitializeIMU(active_kfs, time);
 
     adapt::Problem problem;
-    BuildProblem(active_kfs, problem);
+    BuildProblem(active_kfs, problem, false);
 
     ceres::Solver::Options options;
     options.linear_solver_type = ceres::DENSE_SCHUR;
@@ -244,7 +247,108 @@ void Backend::ForwardPropagate(SE3d transform, double time)
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
 
+    if (Imu::Num() && Imu::Get()->initialized)
+    {
+        Frame::Ptr frame = Map::Instance().GetKeyFrames(0, active_kfs.begin()->first, 1).begin()->second;
+        if (active_kfs.size() > 0)
+        {
+            imu::RePredictVel(active_kfs, frame);
+            imu::ReComputeBiasVel(active_kfs, frame);
+        }
+        frontend_.lock()->last_keyframe_updated = true;
+        if (active_kfs.size() == 0)
+        {
+            frontend_.lock()->UpdateIMU(frame->GetImuBias());
+        }
+        else
+        {
+            frontend_.lock()->UpdateIMU((--active_kfs.end())->second->GetImuBias());
+        }
+    }
+
     frontend_.lock()->UpdateCache();
+}
+
+void Backend::InitializeIMU(Frames active_kfs, double time)
+{
+    static double init_time = 0;
+    static bool initA = false;
+    static bool initB = false;
+    static bool initializing = false;
+    double priorA = 1e3;
+    double priorG = 1e1;
+    if (Imu::Num() && initializer_->bimu)
+    {
+        priorA = 0;
+        priorG = 0;
+    }
+    if (Imu::Num() && Imu::Get()->initialized)
+    {
+        double dt = 0;
+        if (init_time)
+            dt = (--active_kfs.end())->second->time - init_time;
+        if (dt > 5 && !initA)
+        {
+            initializer_->reinit = true;
+            initA = true;
+            priorA = 1e4;
+            priorG = 1e1;
+            frontend_.lock()->status = FrontendStatus::INITIALIZING;
+        }
+        else if (dt > 15 && !initB)
+        {
+            initializer_->reinit = true;
+            initB = true;
+            priorA = 0;
+            priorG = 0;
+            frontend_.lock()->status = FrontendStatus::INITIALIZING;
+        }
+    }
+    Frames frames_init;
+    SE3d old_pose;
+    SE3d new_pose;
+    if (Imu::Num() && (!Imu::Get()->initialized || initializer_->reinit))
+    {
+        frames_init = Map::Instance().GetKeyFrames(0, time, initializer_->num_frames);
+        old_pose = (--frames_init.end())->second->pose;
+
+        if (frames_init.size() == initializer_->num_frames &&
+            frames_init.begin()->first > frontend_.lock()->valid_imu_time &&
+            frames_init.begin()->second->preintegration)
+        {
+            if (!Imu::Get()->initialized)
+            {
+                init_time = (--frames_init.end())->second->time;
+            }
+            initializing = true;
+        }
+    }
+
+    if (initializing)
+    {
+        LOG(INFO) << "Initializer Start";
+        if (initializer_->Initialize(frames_init, priorA, priorG))
+        {
+            new_pose = (--frames_init.end())->second->pose;
+            SE3d transform = new_pose * old_pose.inverse();
+            PoseGraph::Instance().Propagate(transform, active_kfs);
+            if (frontend_.lock()->status == FrontendStatus::INITIALIZING)
+                frontend_.lock()->status = FrontendStatus::TRACKING_GOOD;
+            for (auto kf : active_kfs)
+            {
+                Frame::Ptr frame = kf.second;
+                if (frame->preintegration != nullptr)
+                    frame->bImu = true;
+            }
+            LOG(INFO) << "Initiaclizer Finished";
+        }
+        else
+        {
+            LOG(INFO) << "Initiaclizer Failed";
+        }
+        initializing = false;
+    }
+    return;
 }
 
 } // namespace lvio_fusion

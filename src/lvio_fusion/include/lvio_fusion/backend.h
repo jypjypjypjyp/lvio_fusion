@@ -40,6 +40,8 @@ public:
 
     void Continue();
 
+    void InitializeIMU(Frames active_kfs,double time );
+
     BackendStatus status = BackendStatus::RUNNING;
     std::mutex mutex;
     double finished = 0;
@@ -51,9 +53,9 @@ private:
 
     void Optimize();
 
-    void ForwardPropagate(SE3d transform, double time);
+    void ForwardPropagate(SE3d transform, double time );
 
-    void BuildProblem(Frames &active_kfs, adapt::Problem &problem);
+    void BuildProblem(Frames &active_kfs, adapt::Problem &problem,bool isimu=true);
 
     std::weak_ptr<Frontend> frontend_;
     Mapping::Ptr mapping_;

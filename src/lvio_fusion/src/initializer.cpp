@@ -1,273 +1,142 @@
 #include "lvio_fusion/imu/initializer.h"
-#include "lvio_fusion/map.h"
-#include <lvio_fusion/utility.h>
+#include "lvio_fusion/ceres/imu_error.hpp"
+#include "lvio_fusion/imu/tools.h"
+#include "lvio_fusion/utility.h"
 
 namespace lvio_fusion
 {
-bool Initializer::Initialize(Frames kfs)
-{
-    // be perpare for initialization
-    std::vector<Initializer::Frame> frames;
-    for (auto &pair_kf : kfs)
-    {
-        if (!pair_kf.second->preintegration)
-            return false;
-        Initializer::Frame frame;
-        frame.preintegration = pair_kf.second->preintegration;
-        frame.R = pair_kf.second->pose.inverse().rotationMatrix();
-        frame.T = pair_kf.second->pose.inverse().translation();
-        frame.Ba = pair_kf.second->preintegration->linearized_ba;
-        frame.Bg = pair_kf.second->preintegration->linearized_bg;
-        frames.push_back(frame);
-    }
 
-    SolveGyroscopeBias(frames);
-    for (auto &frame : frames)
+bool Initializer::EstimateVelAndRwg(std::vector<Frame::Ptr> keyframes)
+{
+    if (!Imu::Get()->initialized)
     {
-        frame.preintegration->Repropagate(Vector3d::Zero(), frame.Bg);
+        Vector3d dirG = Vector3d::Zero();
+        // bool isfirst=true;
+        Vector3d velocity;
+        bool firstframe = true;
+        int i = 1;
+        for (std::vector<Frame::Ptr>::iterator iter_keyframe = keyframes.begin() + 1; iter_keyframe != keyframes.end(); iter_keyframe++)
+        {
+            if ((*iter_keyframe)->preintegration == nullptr)
+            {
+                return false;
+            }
+            if (!(*iter_keyframe)->last_keyframe)
+            {
+                continue;
+            }
+            i++;
+            dirG += (*iter_keyframe)->last_keyframe->GetImuRotation() * (*iter_keyframe)->preintegration->GetUpdatedDeltaVelocity();
+            velocity = ((*iter_keyframe)->GetImuPosition() - (*(iter_keyframe))->last_keyframe->GetImuPosition()) / ((*iter_keyframe)->preintegration->sum_dt);
+            (*iter_keyframe)->SetVelocity(velocity);
+            (*iter_keyframe)->last_keyframe->SetVelocity(velocity);
+        }
+        dirG = dirG / dirG.norm();
+
+        Vector3d gI(0.0, 0.0, 1.0); //沿-z的归一化的重力数值
+        // 计算旋转轴
+        Vector3d v = gI.cross(dirG);
+        const double nv = v.norm();
+        // 计算旋转角
+        const double cosg = gI.dot(dirG);
+        const double ang = acos(cosg);
+        // 计算mRwg，与-Z旋转偏差
+        Vector3d vzg = v * ang / nv;
+        if (bimu)
+        {
+            Rwg_ = Imu::Get()->Rwg;
+        }
+        else
+        {
+            Rwg_ = ExpSO3(vzg);
+        }
+        Vector3d g;
+        g << 0, 0, Imu::Get()->G;
+        g = Rwg_ * g;
+        LOG(INFO) << "Gravity Vector: " << (g).transpose();
     }
-    LOG(INFO) << "IMU Initialization failed.";
-    initialized = true;
+    else
+    {
+        Rwg_ = Imu::Get()->Rwg; //* Matrix3d::Identity();
+    }
     return true;
-    // //check imu observibility
-    // Frames::iterator frame_it;
-    // Vector3d sum_g;
-    // for (frame_it = frames_.begin(); next(frame_it) != frames_.end(); frame_it++)
-    // {
-    //     double dt = frame_it->second->preintegration->sum_dt;
-    //     Vector3d tmp_g = frame_it->second->preintegration->delta_v / dt;
-    //     sum_g += tmp_g;
-    // }
-    // Vector3d aver_g;
-    // aver_g = sum_g * 1.0 / ((int)frames_.size() - 1);
-    // double var = 0;
-    // for (frame_it = frames_.begin(); next(frame_it) != frames_.end(); frame_it++)
-    // {
-    //     double dt = frame_it->second->preintegration->sum_dt;
-    //     Vector3d tmp_g = frame_it->second->preintegration->delta_v / dt;
-    //     var += (tmp_g - aver_g).transpose() * (tmp_g - aver_g);
-    // }
-    // var = sqrt(var / ((int)frames_.size() - 1));
-    // if (var < 0.25)
-    // {
-    //     LOG(INFO) << "IMU excitation not enouth!";
-    //     return false;
-    // }
-
-    // // visual initial align
-    // if (VisualInitialAlign())
-    //     return true;
-    // else
-    // {
-    //     LOG(INFO) << "misalign visual structure with IMU";
-    //     return false;
-    // }
 }
 
-// bool Initializer::VisualInitialAlign()
-// {
-//     VectorXd x;
-//     //solve scale
-//     bool result = VisualIMUAlignment(x);
-//     if (!result)
-//     {
-//         //ROS_DEBUG("solve g_ failed!");
-//         return false;
-//     }
-
-//     double s = (x.tail<1>())(0);
-//     Frames::iterator frame_i;
-//     for (frame_i = frames_.begin(); frame_i != frames_.end(); frame_i++)
-//     {
-//         frame_i->second->preintegration->Repropagate(Vector3d::Zero(), frame_i->second->preintegration->Bg);
-//     }
-
-//     Matrix3d R0 = g2R(g_);
-//     double yaw = R2ypr(R0 * frames_.begin()->second->pose.rotationMatrix()).x();
-//     R0 = ypr2R(Vector3d{-yaw, 0, 0}) * R0;
-//     g_ = R0 * g_;
-
-//     Matrix3d rot_diff = R0;
-
-//     return true;
-// }
-
-void Initializer::SolveGyroscopeBias(std::vector<Initializer::Frame> &frames)
+bool Initializer::Initialize(Frames keyframes, double priorA, double priorG)
 {
-    Matrix3d A = Matrix3d::Zero();
-    Vector3d b = Vector3d::Zero();
-    Vector3d delta_bg;
-
-    for (int i = 0, j = 1; j < frames.size() - 1; i++, j++)
+    double minTime = 20.0; // 初始化需要的最小时间间隔
+    // 按时间顺序收集初始化imu使用的KF
+    std::list<Frame::Ptr> KeyFrames_list;
+    Frames::reverse_iterator iter;
+    for (iter = keyframes.rbegin(); iter != keyframes.rend(); iter++)
     {
-        MatrixXd tmp_A(3, 3);
-        tmp_A.setZero();
-        VectorXd tmp_b(3);
-        tmp_b.setZero();
-        Quaterniond q_ij(frames[i].R.transpose() * frames[j].R);
-        tmp_A = frames[i].preintegration->jacobian.template block<3, 3>(imu::O_R, imu::O_BG);
-        tmp_b = 2 * (frames[i].preintegration->delta_q.inverse() * q_ij).vec();
-        A += tmp_A.transpose() * tmp_A;
-        b += tmp_A.transpose() * tmp_b;
+        KeyFrames_list.push_front(iter->second);
     }
-    delta_bg = A.ldlt().solve(b);
+    std::vector<Frame::Ptr> Key_frames(KeyFrames_list.begin(), KeyFrames_list.end());
 
-    for (int i = 0; i < frames.size() - 1; i++)
+    const int N = Key_frames.size(); // 待处理的关键帧数目
+
+    // 估计KF速度和重力方向
+    if (!EstimateVelAndRwg(Key_frames))
     {
-        frames[i].Bg += delta_bg;
-        frames[i].preintegration->Repropagate(Vector3d::Zero(), frames[0].Bg);
+        return false;
     }
+    bool isOptRwg = true; //reinit||!bimu;
+    bool isOK;
+    if (priorA == 0)
+    {
+        isOK = imu::InertialOptimization(keyframes, Rwg_, 1e2, 1e4, isOptRwg);
+    }
+    else
+    {
+        isOK = imu::InertialOptimization(keyframes, Rwg_, priorG, priorA, isOptRwg);
+    }
+    if (!isOK)
+    {
+        return false;
+    }
+    Vector3d dirG;
+    dirG << 0, 0, Imu::Get()->G;
+    dirG = Rwg_ * dirG;
+    dirG = dirG / dirG.norm();
+    if (!(dirG[0] == 0 && dirG[1] == 0 && dirG[2] == 1))
+    {
+        Vector3d gI(0.0, 0.0, 1.0); //沿-z的归一化的重力数值
+        // 计算旋转轴
+        Vector3d v = gI.cross(dirG);
+        const double nv = v.norm();
+        // 计算旋转角
+        const double cosg = gI.dot(dirG);
+        const double ang = acos(cosg);
+        // 计算mRwg，与-Z旋转偏差
+        Vector3d vzg = v * ang / nv;
+        Rwg_ = ExpSO3(vzg);
+    }
+    else
+    {
+        Rwg_ = Matrix3d::Identity();
+    }
+    Vector3d g2;
+    g2 << 0, 0, Imu::Get()->G;
+    g2 = Rwg_ * g2;
+    LOG(INFO) << "Gravity Vector again: " << (g2).transpose();
+    Imu::Get()->Rwg = Rwg_;
+
+    for (int i = 0; i < N; i++)
+    {
+        Frame::Ptr pKF2 = Key_frames[i];
+        pKF2->bImu = true;
+    }
+
+    if (priorA != 0)
+    {
+        imu::FullInertialBA(keyframes, priorG, priorA);
+    }
+
+    bimu = true;
+    Imu::Get()->initialized = true;
+    reinit = false;
+    return true;
 }
 
-// inline MatrixXd TangentBasis(Vector3d &g0)
-// {
-//     Vector3d b, c;
-//     Vector3d a = g0.normalized();
-//     Vector3d tmp(0, 0, 1);
-//     if (a == tmp)
-//         tmp << 1, 0, 0;
-//     b = (tmp - a * (a.transpose() * tmp)).normalized();
-//     c = a.cross(b);
-//     MatrixXd bc(3, 2);
-//     bc.block<3, 1>(0, 0) = b;
-//     bc.block<3, 1>(0, 1) = c;
-//     return bc;
-// }
-
-// void Initializer::RefineGravity(VectorXd &x)
-// {
-//     Vector3d g0 = g_.normalized() * imu::g.norm();
-//     Vector3d lx, ly;
-//     int all_frame_count = frames_.size();
-//     int n_state = all_frame_count * 3 + 2 + 1;
-
-//     MatrixXd A{n_state, n_state};
-//     A.setZero();
-//     VectorXd b{n_state};
-//     b.setZero();
-
-//     Frames::iterator frame_i;
-//     Frames::iterator frame_j;
-//     for (int k = 0; k < 4; k++)
-//     {
-//         MatrixXd lxly(3, 2);
-//         lxly = TangentBasis(g0);
-//         int i = 0;
-//         for (frame_i = frames_.begin(); next(frame_i) != frames_.end(); frame_i++, i++)
-//         {
-//             frame_j = next(frame_i);
-
-//             MatrixXd tmp_A(6, 9);
-//             tmp_A.setZero();
-//             VectorXd tmp_b(6);
-//             tmp_b.setZero();
-
-//             double dt = frame_i->second->preintegration->sum_dt;
-
-//             tmp_A.block<3, 3>(0, 0) = -dt * Matrix3d::Identity();
-//             tmp_A.block<3, 2>(0, 6) = frame_i->second->pose.rotationMatrix() * dt * dt / 2 * Matrix3d::Identity() * lxly;
-//             tmp_A.block<3, 1>(0, 8) = frame_i->second->pose.rotationMatrix() * (frame_j->second->pose.inverse().translation() - frame_i->second->pose.inverse().translation()) / 100.0;
-//             tmp_b.block<3, 1>(0, 0) = frame_i->second->preintegration->delta_p - frame_i->second->pose.rotationMatrix() * dt * dt / 2 * g0;
-
-//             tmp_A.block<3, 3>(3, 0) = -Matrix3d::Identity();
-//             tmp_A.block<3, 3>(3, 3) = frame_i->second->pose.rotationMatrix() * frame_j->second->pose.rotationMatrix().transpose();
-//             tmp_A.block<3, 2>(3, 6) = frame_i->second->pose.rotationMatrix() * dt * Matrix3d::Identity() * lxly;
-//             tmp_b.block<3, 1>(3, 0) = frame_i->second->preintegration->delta_v - frame_i->second->pose.rotationMatrix() * dt * Matrix3d::Identity() * g0;
-
-//             // NOTE: remove useless cov_inv
-//             MatrixXd r_A = tmp_A.transpose() * tmp_A;
-//             VectorXd r_b = tmp_A.transpose() * tmp_b;
-
-//             A.block<6, 6>(i * 3, i * 3) += r_A.topLeftCorner<6, 6>();
-//             b.segment<6>(i * 3) += r_b.head<6>();
-
-//             A.bottomRightCorner<3, 3>() += r_A.bottomRightCorner<3, 3>();
-//             b.tail<3>() += r_b.tail<3>();
-
-//             A.block<6, 3>(i * 3, n_state - 3) += r_A.topRightCorner<6, 3>();
-//             A.block<3, 6>(n_state - 3, i * 3) += r_A.bottomLeftCorner<3, 6>();
-//         }
-//         A = A * 1000.0;
-//         b = b * 1000.0;
-//         x = A.ldlt().solve(b);
-//         VectorXd dg = x.segment<2>(n_state - 3);
-//         g0 = (g0 + lxly * dg).normalized() * imu::g.norm();
-//     }
-//     g_ = g0;
-// }
-
-// bool Initializer::LinearAlignment(VectorXd &x)
-// {
-//     int all_frame_count = frames_.size();
-//     int n_state = all_frame_count * 3 + 3 + 1;
-
-//     MatrixXd A{n_state, n_state};
-//     A.setZero();
-//     VectorXd b{n_state};
-//     b.setZero();
-
-//     Frames::iterator frame_i;
-//     Frames::iterator frame_j;
-//     int i = 0;
-//     for (frame_i = frames_.begin(); next(frame_i) != frames_.end(); frame_i++, i++)
-//     {
-//         frame_j = next(frame_i);
-
-//         MatrixXd tmp_A(6, 10);
-//         tmp_A.setZero();
-//         VectorXd tmp_b(6);
-//         tmp_b.setZero();
-
-//         double dt = frame_i->second->preintegration->sum_dt;
-
-//         tmp_A.block<3, 3>(0, 0) = -dt * Matrix3d::Identity();
-//         tmp_A.block<3, 3>(0, 6) = frame_i->second->pose.rotationMatrix() * dt * dt / 2 * Matrix3d::Identity();
-//         tmp_A.block<3, 1>(0, 9) = frame_i->second->pose.rotationMatrix() * (frame_j->second->pose.inverse().translation() - frame_i->second->pose.inverse().translation()) / 100.0;
-//         tmp_b.block<3, 1>(0, 0) = frame_i->second->preintegration->delta_p;
-//         tmp_A.block<3, 3>(3, 0) = -Matrix3d::Identity();
-//         tmp_A.block<3, 3>(3, 3) = frame_i->second->pose.rotationMatrix() * frame_j->second->pose.rotationMatrix().transpose();
-//         tmp_A.block<3, 3>(3, 6) = frame_i->second->pose.rotationMatrix() * dt * Matrix3d::Identity();
-//         tmp_b.block<3, 1>(3, 0) = frame_i->second->preintegration->delta_v;
-
-//         // NOTE: remove useless con_inv
-//         MatrixXd r_A = tmp_A.transpose() * tmp_A;
-//         VectorXd r_b = tmp_A.transpose() * tmp_b;
-
-//         A.block<6, 6>(i * 3, i * 3) += r_A.topLeftCorner<6, 6>();
-//         b.segment<6>(i * 3) += r_b.head<6>();
-
-//         A.bottomRightCorner<4, 4>() += r_A.bottomRightCorner<4, 4>();
-//         b.tail<4>() += r_b.tail<4>();
-
-//         A.block<6, 4>(i * 3, n_state - 4) += r_A.topRightCorner<6, 4>();
-//         A.block<4, 6>(n_state - 4, i * 3) += r_A.bottomLeftCorner<4, 6>();
-//     }
-//     A = A * 1000.0;
-//     b = b * 1000.0;
-//     x = A.ldlt().solve(b);
-//     double s = x(n_state - 1) / 100.0; //scale
-//     g_ = x.segment<3>(n_state - 4);    // g_
-//     if (fabs(g_.norm() - imu::g.norm()) > 1.0 || s < 0)
-//     {
-//         return false;
-//     }
-
-//     RefineGravity(x);
-//     s = (x.tail<1>())(0) / 100.0;
-//     (x.tail<1>())(0) = s;
-//     if (s < 0.0)
-//         return false;
-//     else
-//         return true;
-// }
-
-// bool Initializer::VisualIMUAlignment(VectorXd &x)
-// {
-//     SolveGyroscopeBias();
-
-//     if (LinearAlignment(x))
-//         return true;
-//     else
-//         return false;
-// }
 } // namespace lvio_fusion

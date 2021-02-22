@@ -3,7 +3,7 @@
 
 #include "lvio_fusion/common.h"
 #include "lvio_fusion/imu/imu.h"
-#include "lvio_fusion/frame.h"
+#include "lvio_fusion/map.h"
 
 namespace lvio_fusion
 {
@@ -13,32 +13,16 @@ class Initializer
 public:
     typedef std::shared_ptr<Initializer> Ptr;
 
-    bool Initialize(Frames kfs);
-    
-    bool initialized = false;
-    int num_frames = 10;
+    bool EstimateVelAndRwg(std::vector<Frame::Ptr> keyframes);
 
-    class Frame
-    {
-    public:
-        imu::Preintegration::Ptr preintegration;
-        Matrix3d R;
-        Vector3d T;
-        Vector3d Ba, Bg;
-    };
+    bool Initialize(Frames keyframes, double priorA = 1e6, double priorG = 1e2);
 
+    bool bimu = false;        //是否经过imu尺度优化
+    bool reinit = false;
+
+    const int num_frames = 10;
 private:
-    bool VisualInitialAlign();
-
-    void SolveGyroscopeBias(std::vector<Initializer::Frame> &frames);
-
-    // void RefineGravity(VectorXd &x);
-
-    // bool LinearAlignment(VectorXd &x);
-
-    // bool VisualIMUAlignment(VectorXd &x);
-
-    Vector3d g_;
+    Matrix3d Rwg_; //重力方向
 };
 
 } // namespace lvio_fusion
