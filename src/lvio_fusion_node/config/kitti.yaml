@@ -1,9 +1,9 @@
 %YAML:1.0
 
 # flags
-use_imu: 1
+use_imu: 0
 use_lidar: 1
-use_navsat: 0
+use_navsat: 1
 use_loop: 0
 use_semantic: 0
 use_adapt: 0
@@ -44,7 +44,7 @@ min_range: 5
 max_range: 30
 deskew: 0
 spacing: 0
-resolution: 0.1
+resolution: 0.2
 
 #imu parameters
 acc_n: 0.08             # accelerometer measurement noise standard deviation. #0.2   0.04
@@ -90,7 +90,7 @@ num_features_tracking_bad: 10
 num_features_needed_for_keyframe: 80
 
 # backend
-windows_size: 1
+windows_size: 2
 
 # loop
 relocator_mode: 0    # none = 0, visual = 1, lidar = 2, visual&&lidar = 3

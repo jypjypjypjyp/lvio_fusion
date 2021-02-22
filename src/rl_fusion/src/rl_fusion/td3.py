@@ -23,6 +23,7 @@ save_net_path = '/home/jyp/Projects/lvio_fusion/misc/td3.pt'
 server_init = None
 client_create_env = None
 client_step = None
+stop = False
 
 def get_args():
     parser = argparse.ArgumentParser()
@@ -105,7 +106,8 @@ def train_td3(args=get_args()):
         torch.save(policy, save_net_path)
 
     def stop_fn(mean_rewards):
-        return False
+        global stop
+        return stop
 
     # trainer
     result = offpolicy_trainer(

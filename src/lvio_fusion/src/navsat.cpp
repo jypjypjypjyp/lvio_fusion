@@ -117,12 +117,12 @@ double Navsat::Optimize(double time)
         for (int i = 0; i < 2; i++)
         {
             // optimize A - B
-            OptimizeRX(frame_A, pair.second.C, time, 8);
+            // OptimizeRX(frame_A, pair.second.B, time, 8);
             Frames AB_kfs = Map::Instance().GetKeyFrames(pair.second.A + epsilon, pair.second.B - epsilon);
             for (auto &pair_kf : AB_kfs)
             {
                 auto frame = pair_kf.second;
-                OptimizeRX(frame, frame->time + 1, time, 2 + 4);
+                // OptimizeRX(frame, frame->time + 1, time, 2 + 4);
             }
             // optimize B - C
             OptimizeRX(frame_B, pair.second.C, time, 8);
@@ -139,31 +139,39 @@ double Navsat::Optimize(double time)
     return sections.empty() ? 0 : sections.begin()->second.A;
 }
 
-double Navsat::QuickFix(double time, double end_time)
+double Navsat::QuickFix(double current_time, double end_time)
 {
-    Frame::Ptr current_frame = Map::Instance().GetKeyFrame(time);
+    Frame::Ptr current_frame = Map::Instance().GetKeyFrame(current_time);
     Frame::Ptr finished_frame = Map::Instance().GetKeyFrame(finished);
     Vector3d t = current_frame->pose.translation() - GetFixPoint(current_frame);
-    time = current_frame->time;
+    current_time = current_frame->time;
     if (t.norm() > 1 &&
         !PoseGraph::Instance().turning &&
-        frames_distance(time, PoseGraph::Instance().current_section.B) > 40)
+        frames_distance(current_time, PoseGraph::Instance().current_section.B) > 20)
     {
         double B = PoseGraph::Instance().current_section.B;
-        OptimizeRX(finished_frame, time, time, 8);
+        // optimize A - B
+        // OptimizeRX(finished_frame, B, end_time, 8);
         Frames AB_kfs = Map::Instance().GetKeyFrames(finished + epsilon, B - epsilon);
         for (auto &pair_kf : AB_kfs)
         {
             auto frame = pair_kf.second;
-            OptimizeRX(frame, frame->time + 1, time, 2 + 4);
+            // OptimizeRX(frame, frame->time + 1, end_time, 2 + 4);
         }
-        OptimizeRX(finished_frame, time, time, 8);
+        // optimize B - C
+        OptimizeRX(finished_frame, current_time, end_time, 8);
+        Frames BC_kfs = Map::Instance().GetKeyFrames(B + epsilon, current_time - 5);
+        for (auto &pair_kf : BC_kfs)
+        {
+            auto frame = pair_kf.second;
+            OptimizeRX(frame, frame->time + 1, end_time, 2 + 4);
+        }
 
         t = current_frame->pose.translation() - GetFixPoint(current_frame);
         t.z() = 0;
         if (t.norm() > 1)
         {
-            PoseGraph::Instance().AddSection(time);
+            PoseGraph::Instance().AddSection(current_time);
         }
         return finished;
     }
@@ -172,7 +180,7 @@ double Navsat::QuickFix(double time, double end_time)
 
 void Navsat::OptimizeRX(Frame::Ptr frame, double end, double time, int mode)
 {
-    if (!(mode & (1 << 1) && mode & (1 << 2)) && frames_distance(frame->time, end) < 40)
+    if (!(mode & (1 << 1) && mode & (1 << 2)) && frames_distance(frame->time, end) < 5)
         return;
     SE3d old_pose = frame->pose;
     adapt::Problem problem;

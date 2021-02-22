@@ -216,7 +216,6 @@ void Frontend::InitFrame()
 
 bool Frontend::Track()
 {
-    InitFrame();
     int num_inliers = TrackLastFrame(last_frame);
     bool success = num_inliers > num_features_tracking_bad_ &&
                    (current_frame->pose.translation() - last_frame_pose_cache_.translation()).norm() < 5;
@@ -237,7 +236,7 @@ bool Frontend::Track()
     }
     else
     {
-        if (success)
+        if (true || success)
         {
             // tracking good
             status = FrontendStatus::TRACKING_GOOD;
@@ -367,7 +366,7 @@ int Frontend::Relocate(Frame::Ptr base_frame)
         current_frame->id++;
         Map::Instance().InsertKeyFrame(base_frame);
         last_keyframe = base_frame;
-        current_frame->last_keyframe = last_keyframe;
+        current_frame->last_keyframe = base_frame;
         current_frame->preintegration = current_frame->preintegration_last;
         imu_preintegrated_from_last_kf = current_frame->preintegration_last;
         LOG(INFO) << "Make last frame a keyframe " << base_frame->id;

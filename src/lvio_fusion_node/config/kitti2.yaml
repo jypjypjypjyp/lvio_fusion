@@ -9,7 +9,7 @@ use_semantic: 0
 use_adapt: 0
 train: 0
 
-# ros parameters
+# ros parameter
 imu_topic: '/imu_raw'
 lidar_topic: '/points_raw'
 navsat_topic: '/gps/fix'
@@ -84,10 +84,10 @@ body_to_lidar: !!opencv-matrix
             0          ,       -0          ,      -0        ,        1]
 
 # number of features
-num_features: 200
+num_features: 300
 num_features_init: 50
 num_features_tracking_bad: 20
-num_features_needed_for_keyframe: 60
+num_features_needed_for_keyframe: 80
 
 # backend
 windows_size: 3

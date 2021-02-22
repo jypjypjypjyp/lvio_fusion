@@ -147,11 +147,10 @@ void Backend::Optimize()
     double end = (--active_kfs.end())->first;
     {
         SE3d old_pose = (--active_kfs.end())->second->pose;
-        SE3d old_pose_imu = active_kfs.begin()->second->pose; //IMU
+        SE3d start_pose = active_kfs.begin()->second->pose;
 
         if (Imu::Num() && Imu::Get()->initialized)
         {
-
             imu::ReComputeBiasVel(active_kfs);
         }
 
@@ -167,7 +166,7 @@ void Backend::Optimize()
 
         if (Imu::Num() && Imu::Get()->initialized)
         {
-            imu::RecoverData(active_kfs, old_pose_imu, true);
+            imu::RecoverData(active_kfs, start_pose, true);
         }
 
         // propagate to the last frame
@@ -211,6 +210,9 @@ void Backend::Optimize()
         SE3d old_pose = (--active_kfs.end())->second->pose;
         double navsat_start = Navsat::Get()->Optimize(end);
         Navsat::Get()->QuickFix(end - window_size_, end);
+        SE3d new_pose = (--active_kfs.end())->second->pose;
+        SE3d transform = new_pose * old_pose.inverse();
+        PoseGraph::Instance().ForwardPropagate(transform, end + epsilon, false);
         if (navsat_start && mapping_)
         {
             Frames mapping_kfs = Map::Instance().GetKeyFrames(navsat_start);
@@ -219,9 +221,6 @@ void Backend::Optimize()
                 mapping_->ToWorld(pair.second);
             }
         }
-        SE3d new_pose = (--active_kfs.end())->second->pose;
-        SE3d transform = new_pose * old_pose.inverse();
-        PoseGraph::Instance().ForwardPropagate(transform, end + epsilon, false);
     }
 }
 
