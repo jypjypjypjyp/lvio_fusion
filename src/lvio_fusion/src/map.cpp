@@ -20,6 +20,8 @@ void Map::InsertLandmark(visual::Landmark::Ptr landmark)
 
 Frame::Ptr Map::GetKeyFrame(double time)
 {
+    if (time < 0)
+        return (--keyframes.end())->second;
     auto iter = keyframes.lower_bound(time);
     if (iter == keyframes.end())
     {

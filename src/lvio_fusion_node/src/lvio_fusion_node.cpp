@@ -350,6 +350,8 @@ void keyboard_process()
     while (ros::ok())
     {
         key = getch();
+        if (estimator->frontend->status != FrontendStatus::TRACKING_GOOD)
+            continue;
         switch (key)
         {
         case 's':
@@ -364,11 +366,11 @@ void keyboard_process()
             }
             break;
         case 'e':
-            {
-                double end_time = (--lvio_fusion::Map::Instance().keyframes.end())->first;
-                lvio_fusion::Map::Instance().end = true;
-                estimator->backend->UpdateMap();
-            }
+        {
+            double end_time = (--lvio_fusion::Map::Instance().keyframes.end())->first;
+            lvio_fusion::Map::Instance().end = true;
+            estimator->backend->UpdateMap();
+        }
             ROS_WARN("Final Navsat Optimization!");
             break;
         default:

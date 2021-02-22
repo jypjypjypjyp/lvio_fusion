@@ -95,7 +95,7 @@ public:
         T y[3] = {T(0), T(1), T(0)};
         T tf_y[3];
         ceres::EigenQuaternionRotatePoint(new_pose, y, tf_y);
-        residual[0] = T(100) * tf_y[2] * tf_y[2];
+        residual[0] = T(1000) * tf_y[2] * tf_y[2];
         return true;
     }
 
@@ -123,16 +123,16 @@ public:
         ceres::RPYToEigenQuaternion(rpy, relative_pose);
         ceres::Cast(pose_.data(), SO3d::num_parameters, pose);
         ceres::EigenQuaternionProduct(pose, relative_pose, pr);
-        T z[3] = {T(0), T(0), T(1)};
-        T tf_z[3];
-        ceres::EigenQuaternionRotatePoint(pr, z, tf_z);
-        if (tf_z[2] > T(0))
+        T rpy_pr[3];
+        ceres::EigenQuaternionToRPY(pr, rpy_pr);
+        T p = abs(rpy_pr[1]);
+        if (p < T(0.1))
         {
             residual[0] = T(0);
         }
         else
         {
-            residual[0] = T(1000) * tf_z[2];
+            residual[0] = T(10000) * p;
         }
         return true;
     }
@@ -182,6 +182,7 @@ private:
     double x0_, y0_, z0_;
     double x1_, y1_, z1_;
     SE3d pose_;
+    bool trust_;
 };
 
 } // namespace lvio_fusion

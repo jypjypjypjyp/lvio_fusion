@@ -7,7 +7,7 @@ use_navsat: 1
 use_loop: 0             # 0 for only odometry, 1 for whole system
 use_semantic: 0
 use_adapt: 0
-train: 1
+train: 0
 
 # ros parameters
 imu_topic: '/imu/data_raw'
