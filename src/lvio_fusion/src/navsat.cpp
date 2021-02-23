@@ -29,8 +29,7 @@ void Navsat::AddPoint(double time, double x, double y, double z)
         raw[pair_kf.first] = p;
         pair_kf.second->feature_navsat = navsat::Feature::Ptr(new navsat::Feature(pair_kf.first));
         // check
-        pair_kf.second->feature_navsat->trust = (p.z() > -5 && p.z() < 5);
-        LOG(INFO) << pair_kf.second->feature_navsat->trust;
+        pair_kf.second->feature_navsat->trust = (p.z() > -3 && p.z() < 3);
         finished = pair_kf.first + epsilon;
     }
     if (!initialized && !Map::Instance().keyframes.empty() && frames_distance(0, -1) > 40)
@@ -117,18 +116,20 @@ double Navsat::Optimize(double time)
         auto frame_A = Map::Instance().GetKeyFrame(pair.second.A);
         auto frame_B = Map::Instance().GetKeyFrame(pair.second.B);
         auto frame_C = Map::Instance().GetKeyFrame(pair.second.C);
-        OptimizeX(frame_A, time);
         for (int i = 0; i < 2; i++)
         {
             // optimize A - B
-            OptimizeRX(frame_A, pair.second.B, time, 8);
+            OptimizeZ(frame_A, time);
+            OptimizeRX(frame_A, pair.second.C, time, 8);
             Frames AB_kfs = Map::Instance().GetKeyFrames(pair.second.A + epsilon, pair.second.B - epsilon);
             for (auto &pair_kf : AB_kfs)
             {
                 auto frame = pair_kf.second;
-                OptimizeRX(frame, frame->time + 1, time, 4);
+                OptimizeRX(frame, std::min(pair.second.B - epsilon, frame->time + 1), time, 1 + 2 + 4);
+                OptimizeRX(frame, std::min(pair.second.B - epsilon, frame->time + 1), time, 4);
             }
             // optimize B - C
+            OptimizeZ(frame_B, time);
             OptimizeRX(frame_B, pair.second.C, time, 8);
             Frames BC_kfs = Map::Instance().GetKeyFrames(pair.second.B + epsilon, pair.second.C - epsilon);
             for (auto &pair_kf : BC_kfs)
@@ -150,30 +151,31 @@ double Navsat::QuickFix(double current_time, double end_time)
     Vector3d t = current_frame->pose.translation() - GetFixPoint(current_frame);
     current_time = current_frame->time;
     double B = PoseGraph::Instance().current_section.B;
-    if (t.norm() > 2 &&
+    if (t.norm() > 1 &&
         !PoseGraph::Instance().turning &&
-        frames_distance(current_time, B) > 20)
+        frames_distance(current_time, B) > 60)
     {
         // optimize A - B
-        OptimizeRX(finished_frame, B, end_time, 8);
+        OptimizeRX(finished_frame, current_time, end_time, 8);
         Frames AB_kfs = Map::Instance().GetKeyFrames(finished + epsilon, B - epsilon);
         for (auto &pair_kf : AB_kfs)
         {
             auto frame = pair_kf.second;
-            OptimizeRX(frame, frame->time + 1, end_time, 4);
+            OptimizeRX(frame, std::min(B - epsilon, frame->time + 1), end_time, 1 + 2 + 4);
+            OptimizeRX(frame, std::min(B - epsilon, frame->time + 1), end_time, 4);
         }
         // optimize B - C
         OptimizeRX(finished_frame, current_time, end_time, 8);
-        Frames BC_kfs = Map::Instance().GetKeyFrames(B + epsilon, current_time - 5);
+        Frames BC_kfs = Map::Instance().GetKeyFrames(B + epsilon, current_time - 1);
         for (auto &pair_kf : BC_kfs)
         {
             auto frame = pair_kf.second;
-            OptimizeRX(frame, frame->time + 1, end_time, 2 + 4);
+            OptimizeRX(frame, frame->time + 1, end_time, 1 + 2 + 4);
         }
 
         t = current_frame->pose.translation() - GetFixPoint(current_frame);
         t.z() = 0;
-        if (t.norm() > 2)
+        if (t.norm() > 1)
         {
             PoseGraph::Instance().AddSection(current_time);
         }
@@ -188,7 +190,6 @@ void Navsat::OptimizeRX(Frame::Ptr frame, double end, double time, int mode)
         return;
     SE3d old_pose = frame->pose;
     adapt::Problem problem;
-    ceres::LossFunction *loss_function = new ceres::HuberLoss(1);
     Frames active_kfs = Map::Instance().GetKeyFrames(frame->time, end);
     double para[6] = {0, 0, 0, 0, 0, 0};
     //NOTE: the real order of rpy is y p r
@@ -196,7 +197,11 @@ void Navsat::OptimizeRX(Frame::Ptr frame, double end, double time, int mode)
     problem.AddParameterBlock(para + 2, 1); //r
     problem.AddParameterBlock(para + 1, 1); //p
     problem.AddParameterBlock(para + 0, 1); //y
-    problem.SetParameterLowerBound(para + 3, 0, -10);
+    if (frame->last_keyframe)
+    {
+        problem.SetParameterUpperBound(para + 3, 0, (frame->last_keyframe->pose.inverse() * frame->pose).translation().x());
+        problem.SetParameterLowerBound(para + 3, 0, -(frame->last_keyframe->pose.inverse() * frame->pose).translation().x());
+    }
     problem.SetParameterUpperBound(para + 2, 0, 0.1);
     problem.SetParameterLowerBound(para + 2, 0, -0.1);
     problem.SetParameterUpperBound(para + 1, 0, 0.1);
@@ -224,7 +229,7 @@ void Navsat::OptimizeRX(Frame::Ptr frame, double end, double time, int mode)
                 point.z() = frame->pose.translation().z();
             }
             ceres::CostFunction *cost_function = NavsatRXError::Create(point, frame->pose.inverse() * origin.translation(), frame->pose);
-            problem.AddResidualBlock(ProblemType::Other, cost_function, loss_function, para, para + 1, para + 2, para + 3);
+            problem.AddResidualBlock(ProblemType::Other, cost_function, NULL, para, para + 1, para + 2, para + 3);
         }
     }
 
@@ -247,6 +252,19 @@ void Navsat::OptimizeRX(Frame::Ptr frame, double end, double time, int mode)
     SE3d new_pose = frame->pose;
     SE3d transform = new_pose * old_pose.inverse();
     PoseGraph::Instance().Propagate(transform, Map::Instance().GetKeyFrames(frame->time + epsilon, time));
+}
+
+void Navsat::OptimizeZ(Frame::Ptr frame, double time)
+{
+    // if (frame->feature_navsat && frame->feature_navsat->trust)
+    // {
+    SE3d old_pose = frame->pose;
+    frame->pose.translation().x() = GetFixPoint(frame).x();
+    frame->pose.translation().y() = GetFixPoint(frame).y();
+    SE3d new_pose = frame->pose;
+    SE3d transform = new_pose * old_pose.inverse();
+    PoseGraph::Instance().Propagate(transform, Map::Instance().GetKeyFrames(frame->time + epsilon, time));
+    // }
 }
 
 } // namespace lvio_fusion

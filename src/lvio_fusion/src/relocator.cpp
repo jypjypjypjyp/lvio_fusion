@@ -30,7 +30,7 @@ void Relocator::DetectorLoop()
     while (true)
     {
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        double end = Navsat::Num() ? Navsat::Get()->finished : backend_->finished;
+        double end = Navsat::Num() ? Navsat::Get()->finished - epsilon : backend_->finished;
         auto new_kfs = Map::Instance().GetKeyFrames(finished, end);
         if (new_kfs.empty())
             continue;
@@ -232,7 +232,7 @@ void Relocator::CorrectLoop(double old_time, double start_time, double end_time)
     // fix navsat
     if (Navsat::Num())
     {
-        Navsat::Get()->fix.z() = (new_pose.translation() - Navsat::Get()->GetAroundPoint((--new_submap_kfs.end())->first)).z();
+        // Navsat::Get()->fix.z() = (new_pose.translation() - Navsat::Get()->GetAroundPoint((--new_submap_kfs.end())->first)).z();
     }
     // update pointscloud
     if (Lidar::Num() && mapping_)

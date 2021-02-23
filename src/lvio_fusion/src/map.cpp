@@ -26,7 +26,7 @@ Frame::Ptr Map::GetKeyFrame(double time)
     auto iter = keyframes.lower_bound(time);
     if (iter == keyframes.end())
     {
-        return nullptr;
+        return (--keyframes.end())->second;
     }
     else
     {

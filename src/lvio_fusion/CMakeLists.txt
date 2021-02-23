@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.10)
 project(lvio_fusion)
 
-set(CMAKE_BUILD_TYPE Release)
+set(CMAKE_BUILD_TYPE Debug)
 
 list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)
 

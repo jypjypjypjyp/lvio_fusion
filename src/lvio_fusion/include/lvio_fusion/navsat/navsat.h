@@ -55,7 +55,7 @@ private:
 
     // mode: y p r x y z;
     void OptimizeRX(Frame::Ptr frame, double end, double forward_time, int mode=0);
-    void OptimizeX(Frame::Ptr frame, double time);
+    void OptimizeZ(Frame::Ptr frame, double time);
 
     static std::vector<Navsat::Ptr> devices_;
 };
