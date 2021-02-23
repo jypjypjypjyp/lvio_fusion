@@ -55,8 +55,6 @@ private:
     std::thread thread_;
     Mode mode_;
     double threshold_;
-    double min_time_;
-    double max_time_;
 };
 
 } // namespace lvio_fusion

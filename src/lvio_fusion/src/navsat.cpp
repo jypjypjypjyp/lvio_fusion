@@ -256,15 +256,12 @@ void Navsat::OptimizeRX(Frame::Ptr frame, double end, double time, int mode)
 
 void Navsat::OptimizeZ(Frame::Ptr frame, double time)
 {
-    // if (frame->feature_navsat && frame->feature_navsat->trust)
-    // {
     SE3d old_pose = frame->pose;
     frame->pose.translation().x() = GetFixPoint(frame).x();
     frame->pose.translation().y() = GetFixPoint(frame).y();
     SE3d new_pose = frame->pose;
     SE3d transform = new_pose * old_pose.inverse();
     PoseGraph::Instance().Propagate(transform, Map::Instance().GetKeyFrames(frame->time + epsilon, time));
-    // }
 }
 
 } // namespace lvio_fusion
