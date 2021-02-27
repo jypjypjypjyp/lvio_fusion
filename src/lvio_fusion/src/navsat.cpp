@@ -68,7 +68,10 @@ Vector3d Navsat::GetPoint(double time)
 
 Vector3d Navsat::GetAroundPoint(double time)
 {
-    return extrinsic * raw.lower_bound(time)->second;
+    auto iter = --raw.lower_bound(time);
+    if(iter==raw.begin())
+        return Vector3d::Zero();
+    return extrinsic * iter->second;
 }
 
 void Navsat::Initialize()
@@ -167,8 +170,8 @@ double Navsat::QuickFix(double current_time, double end_time)
             OptimizeRX(frame, std::min(frame->time + 3, B - epsilon), end_time, 8);
         }
         // optimize B - C
-        OptimizeRX(finished_frame, current_time, end_time, 2 + 4);
-        Frames BC_kfs = Map::Instance().GetKeyFrames(B + epsilon, current_time - 1);
+        OptimizeRX(finished_frame, current_time, end_time, 8);
+        Frames BC_kfs = Map::Instance().GetKeyFrames(B + epsilon, current_time - epsilon);
         for (auto &pair_kf : BC_kfs)
         {
             auto frame = pair_kf.second;

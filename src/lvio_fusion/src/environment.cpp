@@ -37,7 +37,7 @@ SE3d Environment::Optimize()
             auto first_frame = landmark->FirstFrame().lock();
             ceres::CostFunction *cost_function;
             cost_function = PoseOnlyReprojectionError::Create(cv2eigen(feature->keypoint), landmark->ToWorld(), Camera::Get(), frame->weights.visual);
-            problem.AddResidualBlock(ProblemType::PoseOnlyReprojectionError, cost_function, loss_function, para);
+            problem.AddResidualBlock(ProblemType::VisualError, cost_function, loss_function, para);
         }
 
         // imu
@@ -74,7 +74,7 @@ SE3d Environment::Optimize()
         options.linear_solver_type = ceres::DENSE_QR;
         options.num_threads = num_threads;
         ceres::Solver::Summary summary;
-        ceres::Solve(options, &problem, &summary);
+        adapt::Solve(options, &problem, &summary);
     }
 
     // lidar
@@ -95,7 +95,7 @@ SE3d Environment::Optimize()
                 options.max_num_iterations = 4;
                 options.num_threads = num_threads;
                 ceres::Solver::Summary summary;
-                ceres::Solve(options, &problem, &summary);
+                adapt::Solve(options, &problem, &summary);
             }
             if (!map_frame->feature_lidar->points_surf.empty())
             {
@@ -106,7 +106,7 @@ SE3d Environment::Optimize()
                 options.max_num_iterations = 4;
                 options.num_threads = num_threads;
                 ceres::Solver::Summary summary;
-                ceres::Solve(options, &problem, &summary);
+                adapt::Solve(options, &problem, &summary);
             }
         }
     }

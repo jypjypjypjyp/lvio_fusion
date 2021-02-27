@@ -84,13 +84,13 @@ void Backend::BuildProblem(Frames &active_kfs, adapt::Problem &problem, bool use
             if (first_frame->time < start_time)
             {
                 cost_function = PoseOnlyReprojectionError::Create(cv2eigen(feature->keypoint), landmark->ToWorld(), Camera::Get(), frame->weights.visual);
-                problem.AddResidualBlock(ProblemType::PoseOnlyReprojectionError, cost_function, loss_function, para_kf);
+                problem.AddResidualBlock(ProblemType::VisualError, cost_function, loss_function, para_kf);
             }
             else if (first_frame != frame)
             {
                 double *para_fist_kf = first_frame->pose.data();
                 cost_function = TwoFrameReprojectionError::Create(landmark->position, cv2eigen(feature->keypoint), Camera::Get(), frame->weights.visual);
-                problem.AddResidualBlock(ProblemType::TwoFrameReprojectionError, cost_function, loss_function, para_fist_kf, para_kf);
+                problem.AddResidualBlock(ProblemType::VisualError, cost_function, loss_function, para_fist_kf, para_kf);
             }
         }
     }
@@ -162,7 +162,7 @@ void Backend::Optimize()
         options.max_solver_time_in_seconds = 0.6 * window_size_;
         options.num_threads = num_threads;
         ceres::Solver::Summary summary;
-        ceres::Solve(options, &problem, &summary);
+        // adapt::Solve(options, &problem, &summary);
 
         if (Imu::Num() && Imu::Get()->initialized)
         {
@@ -206,21 +206,22 @@ void Backend::Optimize()
 
     if (Navsat::Num() && Navsat::Get()->initialized)
     {
-        std::unique_lock<std::mutex> lock(frontend_.lock()->mutex);
-        SE3d old_pose = (--active_kfs.end())->second->pose;
-        double navsat_start = Navsat::Get()->Optimize(end);
-        Navsat::Get()->QuickFix(start, end);
-        SE3d new_pose = (--active_kfs.end())->second->pose;
-        SE3d transform = new_pose * old_pose.inverse();
-        PoseGraph::Instance().ForwardPropagate(transform, end + epsilon, false);
-        if (navsat_start && mapping_)
-        {
-            Frames mapping_kfs = Map::Instance().GetKeyFrames(navsat_start);
-            for (auto &pair : mapping_kfs)
-            {
-                mapping_->ToWorld(pair.second);
-            }
-        }
+        // std::unique_lock<std::mutex> lock(frontend_.lock()->mutex);
+        // SE3d old_pose = (--active_kfs.end())->second->pose;
+        // double navsat_start = Navsat::Get()->Optimize(end);
+        // double fix_start = Navsat::Get()->QuickFix(end - window_size_, end);
+        // navsat_start = std::min(navsat_start, fix_start);
+        // SE3d new_pose = (--active_kfs.end())->second->pose;
+        // SE3d transform = new_pose * old_pose.inverse();
+        // PoseGraph::Instance().ForwardPropagate(transform, end + epsilon, false);
+        // if (navsat_start && mapping_)
+        // {
+        //     Frames mapping_kfs = Map::Instance().GetKeyFrames(navsat_start);
+        //     for (auto &pair : mapping_kfs)
+        //     {
+        //         mapping_->ToWorld(pair.second);
+        //     }
+        // }
     }
 }
 
@@ -244,7 +245,7 @@ void Backend::ForwardPropagate(SE3d transform, double time)
     options.max_num_iterations = 1;
     options.num_threads = num_threads;
     ceres::Solver::Summary summary;
-    ceres::Solve(options, &problem, &summary);
+    // adapt::Solve(options, &problem, &summary);
 
     if (Imu::Num() && Imu::Get()->initialized)
     {
