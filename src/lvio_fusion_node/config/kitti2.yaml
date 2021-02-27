@@ -43,7 +43,7 @@ cycle_time: 0.1036
 min_range: 5
 max_range: 30
 deskew: 0
-spacing: 3
+spacing: 0
 resolution: 0.2
 
 #imu parameters
@@ -86,12 +86,12 @@ body_to_lidar: !!opencv-matrix
 # number of features
 num_features: 300
 num_features_init: 50
-num_features_tracking_bad: 20
-num_features_needed_for_keyframe: 80
+num_features_tracking_bad: 40
+num_features_needed_for_keyframe: 120
 
 # backend
-windows_size: 3
+windows_size: 2
 
 # loop
-relocator_mode: 0    # none = 0, visual = 1, lidar = 2, visual&&lidar = 3
+relocator_mode: 2    # none = 0, visual = 1, lidar = 2, visual&&lidar = 3
 threshold: 10

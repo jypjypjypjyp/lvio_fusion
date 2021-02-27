@@ -67,7 +67,10 @@ Vector3d Navsat::GetPoint(double time)
 
 Vector3d Navsat::GetAroundPoint(double time)
 {
-    return extrinsic * raw.lower_bound(time)->second;
+    auto iter = --raw.lower_bound(time);
+    if(iter==raw.begin())
+        return Vector3d::Zero();
+    return extrinsic * iter->second;
 }
 
 void Navsat::Initialize()
@@ -116,10 +119,10 @@ double Navsat::Optimize(double time)
         auto frame_A = Map::Instance().GetKeyFrame(pair.second.A);
         auto frame_B = Map::Instance().GetKeyFrame(pair.second.B);
         auto frame_C = Map::Instance().GetKeyFrame(pair.second.C);
+        OptimizeZ(frame_A, time);
         for (int i = 0; i < 2; i++)
         {
             // optimize A - B
-            OptimizeZ(frame_A, time);
             OptimizeRX(frame_A, pair.second.C, time, 8);
             Frames AB_kfs = Map::Instance().GetKeyFrames(pair.second.A + epsilon, pair.second.B - epsilon);
             for (auto &pair_kf : AB_kfs)
@@ -128,16 +131,17 @@ double Navsat::Optimize(double time)
                 OptimizeRX(frame, std::min(pair.second.B - epsilon, frame->time + 1), time, 1 + 2 + 4);
                 OptimizeRX(frame, std::min(pair.second.B - epsilon, frame->time + 1), time, 4);
             }
-            // optimize B - C
-            OptimizeZ(frame_B, time);
-            OptimizeRX(frame_B, pair.second.C, time, 8);
-            Frames BC_kfs = Map::Instance().GetKeyFrames(pair.second.B + epsilon, pair.second.C - epsilon);
-            for (auto &pair_kf : BC_kfs)
-            {
-                auto frame = pair_kf.second;
-                OptimizeRX(frame, frame->time + 1, time, 1 + 2 + 4);
-            }
         }
+        // optimize B - C
+        OptimizeZ(frame_B, time);
+        OptimizeRX(frame_B, pair.second.C, time, 8);
+        Frames BC_kfs = Map::Instance().GetKeyFrames(pair.second.B + epsilon, pair.second.C - epsilon);
+        for (auto &pair_kf : BC_kfs)
+        {
+            auto frame = pair_kf.second;
+            OptimizeRX(frame, frame->time + 1, time, 1 + 2 + 4);
+        }
+
         finished = pair.second.C;
     }
 
@@ -166,7 +170,7 @@ double Navsat::QuickFix(double current_time, double end_time)
         }
         // optimize B - C
         OptimizeRX(finished_frame, current_time, end_time, 8);
-        Frames BC_kfs = Map::Instance().GetKeyFrames(B + epsilon, current_time - 1);
+        Frames BC_kfs = Map::Instance().GetKeyFrames(B + epsilon, current_time - epsilon);
         for (auto &pair_kf : BC_kfs)
         {
             auto frame = pair_kf.second;

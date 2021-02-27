@@ -1,13 +1,14 @@
 #include "lvio_fusion/frontend.h"
 #include "lvio_fusion/backend.h"
+#include "lvio_fusion/ceres/base.hpp"
 #include "lvio_fusion/ceres/imu_error.hpp"
 #include "lvio_fusion/ceres/visual_error.hpp"
 #include "lvio_fusion/map.h"
+#include "lvio_fusion/navsat/navsat.h"
 #include "lvio_fusion/utility.h"
 #include "lvio_fusion/visual/camera.h"
 #include "lvio_fusion/visual/feature.h"
 #include "lvio_fusion/visual/landmark.h"
-#include <opencv2/core/eigen.hpp>
 
 namespace lvio_fusion
 {
@@ -98,8 +99,8 @@ void Frontend::PreintegrateIMU()
             Imu::Get()->initialized = false;
             status = FrontendStatus::INITIALIZING;
         }
-        imu_preintegrated_from_last_kf->isBad = true;
-        imu_preintegrated_from_last_frame->isBad = true;
+        imu_preintegrated_from_last_kf->bad = true;
+        imu_preintegrated_from_last_frame->bad = true;
     }
     else
     {
@@ -113,8 +114,8 @@ void Frontend::PreintegrateIMU()
                     Imu::Get()->initialized = false;
                     status = FrontendStatus::INITIALIZING;
                 }
-                imu_preintegrated_from_last_kf->isBad = true;
-                imu_preintegrated_from_last_frame->isBad = true;
+                imu_preintegrated_from_last_kf->bad = true;
+                imu_preintegrated_from_last_frame->bad = true;
                 break;
             }
             double tstep;
@@ -182,12 +183,12 @@ void Frontend::PreintegrateIMU()
                 Imu::Get()->initialized = false;
                 status = FrontendStatus::INITIALIZING;
             }
-            imu_preintegrated_from_last_kf->isBad = true;
-            imu_preintegrated_from_last_frame->isBad = true;
+            imu_preintegrated_from_last_kf->bad = true;
+            imu_preintegrated_from_last_frame->bad = true;
         }
     }
 
-    if (!imu_preintegrated_from_last_kf->isBad) //如果imu帧没坏，就赋给当前帧
+    if (!imu_preintegrated_from_last_kf->bad) //如果imu帧没坏，就赋给当前帧
         current_frame->preintegration = imu_preintegrated_from_last_kf;
     else
     {
@@ -195,7 +196,7 @@ void Frontend::PreintegrateIMU()
         current_frame->bImu = false;
     }
 
-    if (!imu_preintegrated_from_last_frame->isBad)
+    if (!imu_preintegrated_from_last_frame->bad)
         current_frame->preintegration_last = imu_preintegrated_from_last_frame;
 }
 
@@ -214,17 +215,30 @@ void Frontend::InitFrame()
     }
 }
 
+bool check_pose(SE3d current_pose, SE3d last_pose, SE3d relative_pose)
+{
+    double current_relative[6], relative[6];
+    ceres::SE3ToRpyxyz((last_pose.inverse() * current_pose).data(), current_relative);
+    ceres::SE3ToRpyxyz(relative_pose.data(), relative);
+    return std::fabs(current_relative[0] - relative[0]) < 0.5 &&
+           std::fabs(current_relative[1] - relative[1]) < 0.2 &&
+           std::fabs(current_relative[2] - relative[2]) < 0.2 &&
+           std::fabs(current_relative[3] - relative[3]) < 2 &&
+           std::fabs(current_relative[4] - relative[4]) < 1 &&
+           std::fabs(current_relative[5] - relative[5]) < 1;
+}
+
 bool Frontend::Track()
 {
     int num_inliers = TrackLastFrame(last_frame);
     bool success = num_inliers > num_features_tracking_bad_ &&
-                   (current_frame->pose.translation() - last_frame_pose_cache_.translation()).norm() < 5;
+                   check_pose(current_frame->pose, last_frame->pose, relative_i_j);
 
     if (!success)
     {
         num_inliers = Relocate(last_frame);
         success = num_inliers > num_features_tracking_bad_ &&
-                  (current_frame->pose.translation() - last_frame_pose_cache_.translation()).norm() < 5;
+                  check_pose(current_frame->pose, last_frame->pose, relative_i_j);
     }
 
     if (status == FrontendStatus::INITIALIZING)
@@ -236,7 +250,7 @@ bool Frontend::Track()
     }
     else
     {
-        if (true || success)
+        if (false && success)
         {
             // tracking good
             status = FrontendStatus::TRACKING_GOOD;
@@ -244,11 +258,20 @@ bool Frontend::Track()
         else
         {
             // tracking bad, but give a chance
-            status = FrontendStatus::TRACKING_TRY;
+            status = FrontendStatus::TRACKING_GOOD;
             current_frame->features_left.clear();
             InitMap();
-            current_frame->pose = last_frame_pose_cache_ * relative_i_j;
-            LOG(INFO) << "Lost, try again!";
+            if (Navsat::Num() && Navsat::Get()->initialized)
+            {
+                current_frame->pose = last_frame_pose_cache_;
+                current_frame->pose.translation() = Navsat::Get()->GetAroundPoint(current_frame->time);
+            }
+            else
+            {
+                current_frame->pose = last_frame_pose_cache_ * relative_i_j;
+            }
+            LOG(INFO) << "Lost, disable cameras!";
+            return false;
         }
     }
 
@@ -349,7 +372,6 @@ int Frontend::Relocate(Frame::Ptr base_frame)
 
             auto feature = visual::Feature::Create(current_frame, kps_current[i], new_landmark);
             current_frame->AddFeature(feature);
-            new_landmark->AddObservation(feature);
         }
     }
     if (base_frame != last_keyframe)
@@ -465,12 +487,11 @@ int Frontend::DetectNewFeatures()
 
 void Frontend::CreateKeyframe()
 {
-    //IMU
     if (Imu::Num())
     {
         imu_preintegrated_from_last_kf = nullptr;
     }
-    //IMUEND
+
     // first, add new observations of old points
     for (auto &pair_feature : current_frame->features_left)
     {
