@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <launch>
-  <arg name="config_file" default="$(find lvio_fusion_node)/config/kaist.yaml" />
+  <arg name="config_file" default="$(find lvio_fusion_node)/config/kaist28.yaml" />
 
   <node name="lvio_fusion_node" pkg="lvio_fusion_node" type="lvio_fusion_node" output="screen">
     <param name="config_file" value="$(arg config_file)" />

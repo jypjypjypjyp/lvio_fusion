@@ -209,7 +209,7 @@ void Backend::Optimize()
         std::unique_lock<std::mutex> lock(frontend_.lock()->mutex);
         SE3d old_pose = (--active_kfs.end())->second->pose;
         double navsat_start = Navsat::Get()->Optimize(end);
-        Navsat::Get()->QuickFix(end - window_size_, end);
+        Navsat::Get()->QuickFix(start, end);
         SE3d new_pose = (--active_kfs.end())->second->pose;
         SE3d transform = new_pose * old_pose.inverse();
         PoseGraph::Instance().ForwardPropagate(transform, end + epsilon, false);
