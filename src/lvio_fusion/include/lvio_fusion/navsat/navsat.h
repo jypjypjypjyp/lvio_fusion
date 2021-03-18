@@ -41,7 +41,7 @@ public:
     double Optimize(double time);
     double QuickFix(double time, double end_time);
 
-    bool initialized = true;
+    bool initialized = false;
     std::map<double, Vector3d> raw;
     double finished = 0;
     Vector3d fix = Vector3d::Zero();

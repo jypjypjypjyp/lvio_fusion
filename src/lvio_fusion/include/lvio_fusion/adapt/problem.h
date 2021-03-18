@@ -36,6 +36,23 @@ public:
         num_types[type]++;
     }
 
+    void AddParameterBlock(double *values, int size)
+    {
+        ceres::Problem::AddParameterBlock(values, size);
+    }
+
+    void AddParameterBlock(double *values,
+                           int size,
+                           ceres::LocalParameterization *local_parameterization)
+    {
+        if (size == SE3d::num_parameters)
+        {
+            num_frames++;
+        }
+        ceres::Problem::AddParameterBlock(values, size, local_parameterization);
+    }
+
+    int num_frames = 0;
     std::unordered_map<ceres::ResidualBlockId, ProblemType> types;
     std::map<ProblemType, int> num_types = {
         {ProblemType::VisualError, 0},
@@ -47,10 +64,10 @@ public:
 };
 
 inline void Solve(const ceres::Solver::Options &options,
-           adapt::Problem *problem,
-           ceres::Solver::Summary *summary)
+                  adapt::Problem *problem,
+                  ceres::Solver::Summary *summary)
 {
-    if (problem->num_types[ProblemType::VisualError] > 20 ||
+    if (problem->num_types[ProblemType::VisualError] > 20 * problem->num_frames ||
         problem->num_types[ProblemType::LidarError] > 100)
     {
         ceres::Solve(options, problem, summary);

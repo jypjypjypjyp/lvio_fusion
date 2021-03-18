@@ -215,11 +215,11 @@ void Frontend::InitFrame()
     }
 }
 
-bool check_pose(SE3d current_pose, SE3d last_pose, SE3d relative_pose)
+bool check_pose(SE3d current_pose, SE3d last_pose, SE3d init_pose)
 {
     double current_relative[6], relative[6];
     ceres::SE3ToRpyxyz((last_pose.inverse() * current_pose).data(), current_relative);
-    ceres::SE3ToRpyxyz(relative_pose.data(), relative);
+    ceres::SE3ToRpyxyz((last_pose.inverse() * init_pose).data(), relative);
     return std::fabs(current_relative[0] - relative[0]) < 0.5 &&
            std::fabs(current_relative[1] - relative[1]) < 0.2 &&
            std::fabs(current_relative[2] - relative[2]) < 0.2 &&
@@ -230,15 +230,16 @@ bool check_pose(SE3d current_pose, SE3d last_pose, SE3d relative_pose)
 
 bool Frontend::Track()
 {
+    SE3d init_pose = current_frame->pose;
     int num_inliers = TrackLastFrame(last_frame);
     bool success = num_inliers > num_features_tracking_bad_ &&
-                   check_pose(current_frame->pose, last_frame->pose, relative_i_j);
+                   check_pose(current_frame->pose, last_frame->pose, init_pose);
 
     if (!success)
     {
         num_inliers = Relocate(last_frame);
         success = num_inliers > num_features_tracking_bad_ &&
-                  check_pose(current_frame->pose, last_frame->pose, relative_i_j);
+                  check_pose(current_frame->pose, last_frame->pose, init_pose);
     }
 
     if (status == FrontendStatus::INITIALIZING)
@@ -250,7 +251,7 @@ bool Frontend::Track()
     }
     else
     {
-        if (false && success)
+        if (true || success)
         {
             // tracking good
             status = FrontendStatus::TRACKING_GOOD;
@@ -263,7 +264,7 @@ bool Frontend::Track()
             InitMap();
             if (Navsat::Num() && Navsat::Get()->initialized)
             {
-                current_frame->pose = last_frame_pose_cache_;
+                current_frame->pose = init_pose;
                 current_frame->pose.translation() = Navsat::Get()->GetAroundPoint(current_frame->time);
             }
             else
