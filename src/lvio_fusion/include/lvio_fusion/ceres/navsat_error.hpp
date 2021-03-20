@@ -85,13 +85,13 @@ public:
     template <typename T>
     bool operator()(const T *yaw, const T *pitch, const T *roll, T *residual) const
     {
-        T pose[4], new_pose[4], relative_pose[4], pi_o[4], pr[4];
+        T pose[4], new_pose[4], relative_pose[4], pi_o[4], pb[4];
         T rpy[3] = {yaw[0], pitch[0], roll[0]};
         ceres::RPYToEigenQuaternion(rpy, relative_pose);
         ceres::Cast(pose_.data(), SO3d::num_parameters, pose);
         ceres::Cast(pi_o_.data(), SO3d::num_parameters, pi_o);
-        ceres::EigenQuaternionProduct(pose, relative_pose, pr);
-        ceres::EigenQuaternionProduct(pr, pi_o, new_pose);
+        ceres::EigenQuaternionProduct(pose, relative_pose, pb);
+        ceres::EigenQuaternionProduct(pb, pi_o, new_pose);
         T y[3] = {T(0), T(1), T(0)};
         T tf_y[3];
         ceres::EigenQuaternionRotatePoint(new_pose, y, tf_y);
@@ -118,13 +118,13 @@ public:
     template <typename T>
     bool operator()(const T *yaw, const T *pitch, const T *roll, T *residual) const
     {
-        T pose[4], relative_pose[4], pr[4];
+        T pose[4], relative_pose[4], pb[4];
         T rpy[3] = {yaw[0], pitch[0], roll[0]};
         ceres::RPYToEigenQuaternion(rpy, relative_pose);
         ceres::Cast(pose_.data(), SO3d::num_parameters, pose);
-        ceres::EigenQuaternionProduct(pose, relative_pose, pr);
+        ceres::EigenQuaternionProduct(pose, relative_pose, pb);
         T rpy_pr[3];
-        ceres::EigenQuaternionToRPY(pr, rpy_pr);
+        ceres::EigenQuaternionToRPY(pb, rpy_pr);
         T p = abs(rpy_pr[1]);
         if (p < T(0.1))
         {

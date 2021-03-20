@@ -3,6 +3,7 @@
 #include "lvio_fusion/frame.h"
 #include "lvio_fusion/visual/camera.h"
 #include "lvio_fusion/map.h"
+#include "lvio_fusion/utility.h"
 
 namespace lvio_fusion
 {
@@ -11,15 +12,20 @@ namespace visual
 {
 unsigned long Landmark::current_landmark_id = 0;
 
-Vector3d Landmark::ToWorld()
+Vector3d Landmark::GetPosition()
 {
-    return Camera::Get()->Robot2World(position, FirstFrame().lock()->pose);
+    return Camera::Get(1)->Pixel2Robot(cv2eigen(first_observation->keypoint), depth);
 }
 
-visual::Landmark::Ptr Landmark::Create(Vector3d position)
+Vector3d Landmark::ToWorld()
+{
+    return Camera::Get()->Robot2World(GetPosition(), FirstFrame().lock()->pose);
+}
+
+visual::Landmark::Ptr Landmark::Create(double depth)
 {
     visual::Landmark::Ptr new_point(new Landmark);
-    new_point->position = position;
+    new_point->depth = depth;
     return new_point;
 }
 

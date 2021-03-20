@@ -360,7 +360,7 @@ int Frontend::Relocate(Frame::Ptr base_frame)
     {
         for (int i = 0; i < kps_left.size(); i++)
         {
-            auto new_landmark = visual::Landmark::Create(pbs[i]);
+            auto new_landmark = visual::Landmark::Create(Camera::Get(1)->Robot2Sensor(pbs[i]).z());
             auto new_left_feature = visual::Feature::Create(base_frame, kps_left[i], new_landmark);
             auto new_right_feature = visual::Feature::Create(base_frame, kps_right[i], new_landmark);
             new_right_feature->is_on_left_image = false;
@@ -465,7 +465,7 @@ int Frontend::DetectNewFeatures()
                             Camera::Get()->Pixel2Sensor(kp_left), Camera::Get(1)->Pixel2Sensor(kp_right), pb);
                 if ((Camera::Get()->Robot2Pixel(pb) - kp_left).norm() < 0.5 && (Camera::Get(1)->Robot2Pixel(pb) - kp_right).norm() < 0.5)
                 {
-                    auto new_landmark = visual::Landmark::Create(pb);
+                    auto new_landmark = visual::Landmark::Create(Camera::Get(1)->Robot2Sensor(pb).z());
                     auto new_left_feature = visual::Feature::Create(current_frame, kps_left[i], new_landmark);
                     auto new_right_feature = visual::Feature::Create(current_frame, kps_right[i], new_landmark);
                     new_right_feature->is_on_left_image = false;

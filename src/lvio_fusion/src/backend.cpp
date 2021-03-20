@@ -89,8 +89,18 @@ void Backend::BuildProblem(Frames &active_kfs, adapt::Problem &problem, bool use
             else if (first_frame != frame)
             {
                 double *para_fist_kf = first_frame->pose.data();
-                cost_function = TwoFrameReprojectionError::Create(landmark->position, cv2eigen(feature->keypoint), Camera::Get(), frame->weights.visual);
-                problem.AddResidualBlock(ProblemType::VisualError, cost_function, loss_function, para_fist_kf, para_kf);
+                double *para_depth = &landmark->depth;
+                problem.AddParameterBlock(para_depth, 1);
+                // first ob is on right camera; current ob is on left camera;
+                cost_function = TwoFrameReprojectionError::Create(cv2eigen(landmark->first_observation->keypoint), cv2eigen(feature->keypoint), Camera::Get(0), Camera::Get(1), frame->weights.visual);
+                problem.AddResidualBlock(ProblemType::VisualError, cost_function, loss_function, para_depth, para_fist_kf, para_kf);
+            }
+            else
+            {
+                double *para_depth = &landmark->depth;
+                problem.AddParameterBlock(para_depth, 1);
+                cost_function = TwoCameraReprojectionError::Create(cv2eigen(feature->keypoint), cv2eigen(landmark->first_observation->keypoint), Camera::Get(0), Camera::Get(1), 5 * frame->weights.visual);
+                problem.AddResidualBlock(ProblemType::VisualError, cost_function, loss_function, para_depth);
             }
         }
     }
