@@ -129,8 +129,8 @@ void Backend::BuildProblem(Frames &active_kfs, adapt::Problem &problem, bool use
             {
                 auto para_kf_last = last_frame->pose.data();
                 auto para_v_last = last_frame->Vw.data();
-                auto para_bg_last = last_frame->ImuBias.linearized_bg.data(); //恢复
-                auto para_ba_last = last_frame->ImuBias.linearized_ba.data(); //恢复
+                auto para_bg_last = last_frame->ImuBias.linearized_bg.data();
+                auto para_ba_last = last_frame->ImuBias.linearized_ba.data();
                 ceres::CostFunction *cost_function = ImuError::Create(current_frame->preintegration);
                 problem.AddResidualBlock(ProblemType::IMUError, cost_function, NULL, para_kf_last, para_v_last, para_ba_last, para_bg_last, para_kf, para_v, para_ba, para_bg);
             }
@@ -281,6 +281,7 @@ void Backend::ForwardPropagate(SE3d transform, double time)
 
 void Backend::InitializeIMU(Frames active_kfs, double time)
 {
+    //IMU initialization
     static double init_time = 0;
     static bool initA = false;
     static bool initB = false;
@@ -292,7 +293,7 @@ void Backend::InitializeIMU(Frames active_kfs, double time)
         priorA = 0;
         priorG = 0;
     }
-    if (Imu::Num() && Imu::Get()->initialized)
+    if (Imu::Num() && Imu::Get()->initialized)//check is need reinit
     {
         double dt = 0;
         if (init_time)
@@ -337,7 +338,7 @@ void Backend::InitializeIMU(Frames active_kfs, double time)
     if (initializing)
     {
         LOG(INFO) << "Initializer Start";
-        if (initializer_->Initialize(frames_init, priorA, priorG))
+        if (initializer_->Initialize(frames_init, priorA, priorG))//IMU Initialize
         {
             new_pose = (--frames_init.end())->second->pose;
             SE3d transform = new_pose * old_pose.inverse();

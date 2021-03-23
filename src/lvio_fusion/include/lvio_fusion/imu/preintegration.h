@@ -48,7 +48,7 @@ public:
                              Vector3d &result_linearized_ba, Vector3d &result_linearized_bg, bool update_jacobian);
 
     void Propagate(double _dt, const Vector3d &_acc_1, const Vector3d &_gyr_1);
-    void Repropagate(const Vector3d &_linearized_ba, const Vector3d &_linearized_bg);
+    void Repropagate(const Vector3d &_linearized_ba, const Vector3d &_linearized_bg);//propagate again
 
     Matrix<double, 15, 1> Evaluate(const Vector3d &Pi, const Quaterniond &Qi, const Vector3d &Vi, const Vector3d &Bai, const Vector3d &Bgi,
                                    const Vector3d &Pj, const Quaterniond &Qj, const Vector3d &Vj, const Vector3d &Baj, const Vector3d &Bgj);
@@ -65,19 +65,19 @@ public:
     Bias GetDeltaBias(const Bias &b_);
 
     double dt;
-    double sum_dt;
-    std::vector<double> dt_buf;
-    std::vector<Vector3d> acc_buf, gyr_buf;
-    Vector3d acc0, gyr0;
+    double sum_dt;//delta time
+    std::vector<double> dt_buf; //buffer of time
+    std::vector<Vector3d> acc_buf, gyr_buf; //buffer of imu data
+    Vector3d acc0, gyr0;//last imu data
     Vector3d acc1, gyr1;
-    Vector3d linearized_acc, linearized_gyr;
-    Vector3d linearized_ba, linearized_bg;
+    Vector3d linearized_acc, linearized_gyr;//first imu data
+    Vector3d linearized_ba, linearized_bg;//bias
 
     Vector3d delta_p;
     Quaterniond delta_q;
     Vector3d delta_v;
-    Bias bias;
-    Matrix<double, 6, 1> delta_bias;
+    Bias bias; //new bias
+    Matrix<double, 6, 1> delta_bias;//the change of bias
     bool bad = false;
 
     Matrix<double, 15, 15> jacobian, covariance;

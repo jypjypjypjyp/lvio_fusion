@@ -16,7 +16,6 @@ void imu::ReComputeBiasVel(Frames &frames, Frame::Ptr &prior_frame)
     Frame::Ptr last_frame = prior_frame;
     Frame::Ptr current_frame;
     bool first = true;
-    //int n=active_kfs.size();
     if (frames.size() > 0)
         for (auto kf_pair : frames)
         {
@@ -39,8 +38,8 @@ void imu::ReComputeBiasVel(Frames &frames, Frame::Ptr &prior_frame)
             {
                 auto para_kf_last = last_frame->pose.data();
                 auto para_v_last = last_frame->Vw.data();
-                auto para_bg_last = last_frame->ImuBias.linearized_bg.data(); //恢复
-                auto para_ba_last = last_frame->ImuBias.linearized_ba.data(); //恢复
+                auto para_bg_last = last_frame->ImuBias.linearized_bg.data(); 
+                auto para_ba_last = last_frame->ImuBias.linearized_ba.data(); 
                 if (first)
                 {
                     problem.AddParameterBlock(para_kf_last, SE3d::num_parameters, local_parameterization);
@@ -111,8 +110,8 @@ void imu::ReComputeBiasVel(Frames &frames)
             {
                 auto para_kf_last = last_frame->pose.data();
                 auto para_v_last = last_frame->Vw.data();
-                auto para_bg_last = last_frame->ImuBias.linearized_bg.data(); //恢复
-                auto para_ba_last = last_frame->ImuBias.linearized_ba.data(); //恢复
+                auto para_bg_last = last_frame->ImuBias.linearized_bg.data(); 
+                auto para_ba_last = last_frame->ImuBias.linearized_ba.data(); 
                 ceres::CostFunction *cost_function = ImuError::Create(current_frame->preintegration);
                 problem.AddResidualBlock(ProblemType::IMUError, cost_function, NULL, para_kf_last, para_v_last, para_ba_last, para_bg_last, para_kf, para_v, para_ba, para_bg);
             }
@@ -167,14 +166,14 @@ bool imu::InertialOptimization(Frames &key_frames, Matrix3d &Rwg, double priorG,
 {
     ceres::Problem problem;
     ceres::CostFunction *cost_function;
-    //先验BIAS约束
+    //prior bias
     auto para_gyroBias = key_frames.begin()->second->ImuBias.linearized_bg.data();
     problem.AddParameterBlock(para_gyroBias, 3);
 
     auto para_accBias = key_frames.begin()->second->ImuBias.linearized_ba.data();
     problem.AddParameterBlock(para_accBias, 3);
 
-    //优化重力、BIAS和速度的边
+    //optimize gravity, velocity, bias
     Quaterniond rwg(Rwg);
     SO3d RwgSO3(rwg);
     auto para_rwg = RwgSO3.data();
@@ -215,7 +214,7 @@ bool imu::InertialOptimization(Frames &key_frames, Matrix3d &Rwg, double priorG,
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
 
-    //数据恢复
+    //data recovery
     Quaterniond rwg2(RwgSO3.data()[3], RwgSO3.data()[0], RwgSO3.data()[1], RwgSO3.data()[2]);
     Rwg = rwg2.toRotationMatrix();
     for (int i = 0; i < 3; i++)

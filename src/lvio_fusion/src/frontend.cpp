@@ -188,7 +188,7 @@ void Frontend::PreintegrateIMU()
         }
     }
 
-    if (!imu_preintegrated_from_last_kf->bad) //如果imu帧没坏，就赋给当前帧
+    if (!imu_preintegrated_from_last_kf->bad) // if imu data is bad, set preintegration null.
         current_frame->preintegration = imu_preintegrated_from_last_kf;
     else
     {
@@ -329,7 +329,7 @@ int Frontend::TrackLastFrame(Frame::Ptr base_frame)
         Matrix3d R;
         cv::cv2eigen(cv_R, R);
         if (!Imu::Num() || !Imu::Get()->initialized ||
-            (Imu::Get()->initialized && current_frame->preintegration_last == nullptr)) //IMU
+            (Imu::Get()->initialized && current_frame->preintegration_last == nullptr)) 
             current_frame->pose = (Camera::Get()->extrinsic * SE3d(SO3d(R), Vector3d(tvec.at<double>(0, 0), tvec.at<double>(1, 0), tvec.at<double>(2, 0)))).inverse();
 
         cv::Mat img_track = current_frame->image_left;
@@ -536,9 +536,9 @@ void Frontend::UpdateCache()
     last_frame_pose_cache_ = last_frame->pose;
 }
 
-//IMU
 void Frontend::UpdateIMU(const Bias &bias_)
 {
+    //update velocity and pose from newest optimized frame
     if (last_keyframe->preintegration != nullptr)
         last_keyframe->bImu = true;
     last_frame->SetNewBias(bias_);
@@ -546,7 +546,7 @@ void Frontend::UpdateIMU(const Bias &bias_)
     Vector3d Gz;
     Gz << 0, 0, -Imu::Get()->G;
     Gz = Imu::Get()->Rwg * Gz;
-    double dt; // 时间间隔
+    double dt; // delta time
     Vector3d twb1;
     Matrix3d Rwb1;
     Vector3d Vwb1;
@@ -585,6 +585,7 @@ void Frontend::UpdateIMU(const Bias &bias_)
 
 void Frontend::PredictStateIMU()
 {
+    //compute frame pose an velocity from last frame
     if (last_keyframe_updated && last_keyframe)
     {
         Vector3d Gz;
@@ -601,7 +602,7 @@ void Frontend::PredictStateIMU()
         current_frame->SetVelocity(Vwb2);
         current_frame->SetPose(Rwb2, twb2);
         current_frame->SetNewBias(last_keyframe->GetImuBias());
-        last_keyframe_updated = false; //IMU
+        last_keyframe_updated = false; 
     }
     else if (!last_keyframe_updated)
     {

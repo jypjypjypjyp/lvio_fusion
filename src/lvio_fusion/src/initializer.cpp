@@ -33,14 +33,14 @@ bool Initializer::EstimateVelAndRwg(std::vector<Frame::Ptr> keyframes)
         }
         dirG = dirG / dirG.norm();
 
-        Vector3d gI(0.0, 0.0, 1.0); //沿-z的归一化的重力数值
-        // 计算旋转轴
+        Vector3d gI(0.0, 0.0, 1.0); //Normalized gravity values along - Z
+        // Compute the axis of rotation
         Vector3d v = gI.cross(dirG);
         const double nv = v.norm();
-        // 计算旋转角
+        // Compute rotation angle
         const double cosg = gI.dot(dirG);
         const double ang = acos(cosg);
-        // 计算mRwg，与-Z旋转偏差
+        // Compute Rotation deviation of - Z and mRwg
         Vector3d vzg = v * ang / nv;
         if (bimu)
         {
@@ -64,8 +64,8 @@ bool Initializer::EstimateVelAndRwg(std::vector<Frame::Ptr> keyframes)
 
 bool Initializer::Initialize(Frames keyframes, double priorA, double priorG)
 {
-    double minTime = 20.0; // 初始化需要的最小时间间隔
-    // 按时间顺序收集初始化imu使用的KF
+    double minTime = 20.0; //Minimum time interval required for initialization
+    //The KF used to initialize IMU is collected in chronological order
     std::list<Frame::Ptr> KeyFrames_list;
     Frames::reverse_iterator iter;
     for (iter = keyframes.rbegin(); iter != keyframes.rend(); iter++)
@@ -74,14 +74,14 @@ bool Initializer::Initialize(Frames keyframes, double priorA, double priorG)
     }
     std::vector<Frame::Ptr> Key_frames(KeyFrames_list.begin(), KeyFrames_list.end());
 
-    const int N = Key_frames.size(); // 待处理的关键帧数目
+    const int N = Key_frames.size(); // Number of keyframes to be processed
 
-    // 估计KF速度和重力方向
+    // Estimating velocity and gravity direction
     if (!EstimateVelAndRwg(Key_frames))
     {
         return false;
     }
-    bool isOptRwg = true; //reinit||!bimu;
+    bool isOptRwg = true; 
     bool isOK;
     if (priorA == 0)
     {
@@ -101,14 +101,11 @@ bool Initializer::Initialize(Frames keyframes, double priorA, double priorG)
     dirG = dirG / dirG.norm();
     if (!(dirG[0] == 0 && dirG[1] == 0 && dirG[2] == 1))
     {
-        Vector3d gI(0.0, 0.0, 1.0); //沿-z的归一化的重力数值
-        // 计算旋转轴
+        Vector3d gI(0.0, 0.0, 1.0); 
         Vector3d v = gI.cross(dirG);
         const double nv = v.norm();
-        // 计算旋转角
         const double cosg = gI.dot(dirG);
         const double ang = acos(cosg);
-        // 计算mRwg，与-Z旋转偏差
         Vector3d vzg = v * ang / nv;
         Rwg_ = ExpSO3(vzg);
     }

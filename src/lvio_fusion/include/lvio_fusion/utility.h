@@ -305,7 +305,7 @@ inline SE3d se3_slerp(const SE3d &a, const SE3d &b, double s)
     Vector3d t = s * b.translation() + (1 - s) * a.translation();
     return SE3d(q, t);
 }
-//IMU
+
 inline Vector3d LogSO3(const Matrix3d &R)
 {
     const double tr = R(0,0)+R(1,1)+R(2,2);

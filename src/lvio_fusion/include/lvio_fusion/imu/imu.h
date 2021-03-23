@@ -9,9 +9,9 @@ namespace lvio_fusion
 
 struct ImuData
 {
-    Vector3d a;
-    Vector3d w;
-    double t;
+    Vector3d a; //acceleration
+    Vector3d w;//angular velocity
+    double t;     //timestamp
 
     ImuData(const double &acc_x, const double &acc_y, const double &acc_z,
              const double &ang_vel_x, const double &ang_vel_y, const double &ang_vel_z,
@@ -27,8 +27,9 @@ struct ImuData
 
 struct Bias
 {
-    Vector3d linearized_ba;
-    Vector3d linearized_bg;
+    Vector3d linearized_ba;//accelerometer bias 
+    Vector3d linearized_bg;//gyroscope bias
+
     
     Bias() : linearized_ba(Vector3d::Zero()), linearized_bg(Vector3d::Zero()) {}
     Bias(Vector3d linearized_ba_, Vector3d linearized_bg_) : linearized_ba(linearized_ba_), linearized_bg(linearized_bg_) {}
@@ -66,10 +67,10 @@ public:
         return SE3d(Rwg.inverse() * pose.rotationMatrix(), Rwg.inverse() * pose.translation());
     }
     
-    double ACC_N, ACC_W;
+    double ACC_N, ACC_W;    //noise and  random walk
     double GYR_N, GYR_W;
-    double G;
-    Matrix3d Rwg;
+    double G;                               //value of Gravity
+    Matrix3d Rwg;                      //Gravity direction
     bool initialized = false;
 
 private:
