@@ -58,12 +58,12 @@ void ImageProjection::ProjectPointCloud(SegmentedInfo &segmented_info, PointIClo
 {
     // range image projection
     float vertical_angle, horizon_angle, range;
-    size_t row_ind, column_ind, index, size;
+    int row_ind, column_ind, index, size;
     PointI point;
 
     size = points.points.size();
 
-    for (size_t i = 0; i < size; ++i)
+    for (int i = 0; i < size; ++i)
     {
         point.x = points[i].x;
         point.y = points[i].y;
@@ -98,15 +98,15 @@ void ImageProjection::ProjectPointCloud(SegmentedInfo &segmented_info, PointIClo
 
 void ImageProjection::RemoveGround(SegmentedInfo &segmented_info)
 {
-    size_t lower_ind, upper_ind;
+    int lower_ind, upper_ind;
     float dx, dy, dz, angle;
     // groundMat
     // -1, no valid info to check if ground of not
     //  0, initial value, after validation, means not ground
     //  1, ground
-    for (size_t j = 0; j < horizon_scan_; ++j)
+    for (int j = 0; j < horizon_scan_; ++j)
     {
-        for (size_t i = 0; i < ground_rows_; ++i)
+        for (int i = 0; i < ground_rows_; ++i)
         {
 
             lower_ind = j + (i)*horizon_scan_;
@@ -137,9 +137,9 @@ void ImageProjection::RemoveGround(SegmentedInfo &segmented_info)
     // extract ground cloud (groundMat == 1)
     // mark entry that doesn't need to label (ground and invalid point) for segmentation
     // note that ground remove is from 0~num_scans_-1, need rangeMat for mark label matrix for the 16th scan
-    for (size_t i = 0; i < num_scans_; ++i)
+    for (int i = 0; i < num_scans_; ++i)
     {
-        for (size_t j = 0; j < horizon_scan_; ++j)
+        for (int j = 0; j < horizon_scan_; ++j)
         {
             if (ground_mat.at<int8_t>(i, j) == 1 || range_mat.at<float>(i, j) == FLT_MAX)
             {
@@ -152,19 +152,19 @@ void ImageProjection::RemoveGround(SegmentedInfo &segmented_info)
 void ImageProjection::Segment(SegmentedInfo &segmented_info, PointICloud &points_segmented)
 {
     // segmentation process
-    for (size_t i = 0; i < num_scans_; ++i)
-        for (size_t j = 0; j < horizon_scan_; ++j)
+    for (int i = 0; i < num_scans_; ++i)
+        for (int j = 0; j < horizon_scan_; ++j)
             if (label_mat.at<int>(i, j) == 0)
                 LabelComponents(i, j);
 
     int num_segmented = 0;
     // extract segmented cloud for lidar odometry
-    for (size_t i = 0; i < num_scans_; ++i)
+    for (int i = 0; i < num_scans_; ++i)
     {
 
         segmented_info.start_ring_index[i] = num_segmented - 1 + 5;
 
-        for (size_t j = 0; j < horizon_scan_; ++j)
+        for (int j = 0; j < horizon_scan_; ++j)
         {
             if (label_mat.at<int>(i, j) > 0 || ground_mat.at<int8_t>(i, j) == 1)
             {
@@ -299,7 +299,7 @@ void ImageProjection::LabelComponents(int row, int col)
     else if (all_pushed_ind_size >= num_segment_valid_points_)
     {
         int count = 0;
-        for (size_t i = 0; i < num_scans_; ++i)
+        for (int i = 0; i < num_scans_; ++i)
             if (line_count_flag[i] == true)
                 ++count;
         if (count >= num_segment_valid_lines_)
@@ -312,7 +312,7 @@ void ImageProjection::LabelComponents(int row, int col)
     }
     else
     { // segment is invalid, mark these points
-        for (size_t i = 0; i < all_pushed_ind_size; ++i)
+        for (int i = 0; i < all_pushed_ind_size; ++i)
         {
             label_mat.at<int>(all_pushed_ind_X[i], all_pushed_ind_y[i]) = OUTLIER_LABEL;
         }

@@ -14,7 +14,6 @@ void Map::InsertKeyFrame(Frame::Ptr frame)
 void Map::InsertLandmark(visual::Landmark::Ptr landmark)
 {
     std::unique_lock<std::mutex> lock(mutex_local_kfs);
-    visual::Landmark::current_landmark_id++;
     landmarks[landmark->id] = landmark;
 }
 
@@ -64,7 +63,7 @@ Frames Map::GetKeyFrames(double start, double end, int num)
     {
         auto iter = keyframes.upper_bound(start);
         Frames frames;
-        for (size_t i = 0; i < num && iter != keyframes.end(); i++)
+        for (int i = 0; i < num && iter != keyframes.end(); i++)
         {
             frames.insert(*(iter++));
         }
@@ -74,7 +73,7 @@ Frames Map::GetKeyFrames(double start, double end, int num)
     {
         auto iter = keyframes.lower_bound(end);
         Frames frames;
-        for (size_t i = 0; i < num && iter != keyframes.begin(); i++)
+        for (int i = 0; i < num && iter != keyframes.begin(); i++)
         {
             frames.insert(*(--iter));
         }

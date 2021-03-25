@@ -16,10 +16,12 @@ void imu::ReComputeBiasVel(Frames &frames, Frame::Ptr &prior_frame)
     Frame::Ptr last_frame = prior_frame;
     Frame::Ptr current_frame;
     bool first = true;
+    //int n=active_kfs.size();
     if (frames.size() > 0)
-        for (auto kf_pair : frames)
+    {
+        for (auto &pair_kf : frames)
         {
-            current_frame = kf_pair.second;
+            current_frame = pair_kf.second;
             if (!current_frame->bImu || current_frame->preintegration == nullptr)
             {
                 last_frame = current_frame;
@@ -38,8 +40,8 @@ void imu::ReComputeBiasVel(Frames &frames, Frame::Ptr &prior_frame)
             {
                 auto para_kf_last = last_frame->pose.data();
                 auto para_v_last = last_frame->Vw.data();
-                auto para_bg_last = last_frame->ImuBias.linearized_bg.data(); 
-                auto para_ba_last = last_frame->ImuBias.linearized_ba.data(); 
+                auto para_bg_last = last_frame->ImuBias.linearized_bg.data(); //恢复
+                auto para_ba_last = last_frame->ImuBias.linearized_ba.data(); //恢复
                 if (first)
                 {
                     problem.AddParameterBlock(para_kf_last, SE3d::num_parameters, local_parameterization);
@@ -57,6 +59,7 @@ void imu::ReComputeBiasVel(Frames &frames, Frame::Ptr &prior_frame)
             }
             last_frame = current_frame;
         }
+    }
     ceres::Solver::Options options;
     options.linear_solver_type = ceres::DENSE_SCHUR;
     options.trust_region_strategy_type = ceres::DOGLEG;
@@ -65,9 +68,9 @@ void imu::ReComputeBiasVel(Frames &frames, Frame::Ptr &prior_frame)
     options.num_threads = 4;
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
-    for (auto kf_pair : frames)
+    for (auto &pair_kf : frames)
     {
-        auto frame = kf_pair.second;
+        auto frame = pair_kf.second;
         if (!frame->preintegration || !frame->last_keyframe || !frame->bImu)
         {
             continue;
@@ -89,9 +92,10 @@ void imu::ReComputeBiasVel(Frames &frames)
     Frame::Ptr last_frame;
     Frame::Ptr current_frame;
     if (frames.size() > 0)
-        for (auto kf_pair : frames)
+    {
+        for (auto &pair_kf : frames)
         {
-            current_frame = kf_pair.second;
+            current_frame = pair_kf.second;
             if (!current_frame->bImu || current_frame->preintegration == nullptr)
             {
                 last_frame = current_frame;
@@ -110,13 +114,14 @@ void imu::ReComputeBiasVel(Frames &frames)
             {
                 auto para_kf_last = last_frame->pose.data();
                 auto para_v_last = last_frame->Vw.data();
-                auto para_bg_last = last_frame->ImuBias.linearized_bg.data(); 
-                auto para_ba_last = last_frame->ImuBias.linearized_ba.data(); 
+                auto para_bg_last = last_frame->ImuBias.linearized_bg.data(); //恢复
+                auto para_ba_last = last_frame->ImuBias.linearized_ba.data(); //恢复
                 ceres::CostFunction *cost_function = ImuError::Create(current_frame->preintegration);
                 problem.AddResidualBlock(ProblemType::IMUError, cost_function, NULL, para_kf_last, para_v_last, para_ba_last, para_bg_last, para_kf, para_v, para_ba, para_bg);
             }
             last_frame = current_frame;
         }
+    }
     ceres::Solver::Options options;
     options.linear_solver_type = ceres::DENSE_SCHUR;
     options.trust_region_strategy_type = ceres::DOGLEG;
@@ -125,9 +130,9 @@ void imu::ReComputeBiasVel(Frames &frames)
     options.num_threads = 4;
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
-    for (auto kf_pair : frames)
+    for (auto &pair_kf : frames)
     {
-        auto frame = kf_pair.second;
+        auto frame = pair_kf.second;
         if (!frame->preintegration || !frame->last_keyframe || !frame->bImu)
         {
             continue;
@@ -142,9 +147,9 @@ void imu::RePredictVel(Frames &frames, Frame::Ptr &prior_frame)
 {
     Frame::Ptr last_key_frame = prior_frame;
     bool first = true;
-    for (auto kf : frames)
+    for (auto &frame : frames)
     {
-        Frame::Ptr current_key_frame = kf.second;
+        Frame::Ptr current_key_frame = frame.second;
         Vector3d Gz;
         Gz << 0, 0, -Imu::Get()->G;
         Gz = Imu::Get()->Rwg * Gz;
@@ -153,7 +158,7 @@ void imu::RePredictVel(Frames &frames, Frame::Ptr &prior_frame)
         Matrix3d Rwb1 = last_key_frame->GetImuRotation();
         Vector3d Vwb1 = last_key_frame->Vw;
 
-        Matrix3d Rwb2 = NormalizeRotation(Rwb1 * current_key_frame->preintegration->GetDeltaRotation(last_key_frame->GetImuBias()).toRotationMatrix());
+        Matrix3d Rwb2 = normalize_R(Rwb1 * current_key_frame->preintegration->GetDeltaRotation(last_key_frame->GetImuBias()).toRotationMatrix());
         Vector3d twb2 = twb1 + Vwb1 * t12 + 0.5f * t12 * t12 * Gz + Rwb1 * current_key_frame->preintegration->GetDeltaPosition(last_key_frame->GetImuBias());
         Vector3d Vwb2 = Vwb1 + t12 * Gz + Rwb1 * current_key_frame->preintegration->GetDeltaVelocity(last_key_frame->GetImuBias());
         current_key_frame->SetVelocity(Vwb2);
@@ -166,14 +171,14 @@ bool imu::InertialOptimization(Frames &key_frames, Matrix3d &Rwg, double priorG,
 {
     ceres::Problem problem;
     ceres::CostFunction *cost_function;
-    //prior bias
+    //先验BIAS约束
     auto para_gyroBias = key_frames.begin()->second->ImuBias.linearized_bg.data();
     problem.AddParameterBlock(para_gyroBias, 3);
 
     auto para_accBias = key_frames.begin()->second->ImuBias.linearized_ba.data();
     problem.AddParameterBlock(para_accBias, 3);
 
-    //optimize gravity, velocity, bias
+    //优化重力、BIAS和速度的边
     Quaterniond rwg(Rwg);
     SO3d RwgSO3(rwg);
     auto para_rwg = RwgSO3.data();
@@ -214,7 +219,7 @@ bool imu::InertialOptimization(Frames &key_frames, Matrix3d &Rwg, double priorG,
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
 
-    //data recovery
+    //数据恢复
     Quaterniond rwg2(RwgSO3.data()[3], RwgSO3.data()[0], RwgSO3.data()[1], RwgSO3.data()[2]);
     Rwg = rwg2.toRotationMatrix();
     for (int i = 0; i < 3; i++)
@@ -254,12 +259,12 @@ void imu::FullInertialBA(Frames &key_frames, double priorG, double priorA)
     ceres::LossFunction *loss_function = new ceres::HuberLoss(1.0);
     double start_time = key_frames.begin()->first;
     SE3d old_pose = key_frames.begin()->second->pose;
-    for (auto pair_kf : key_frames)
+    for (auto &pair_kf : key_frames)
     {
         auto frame = pair_kf.second;
         double *para_kf = frame->pose.data();
         problem.AddParameterBlock(para_kf, SE3d::num_parameters, local_parameterization);
-        for (auto pair_feature : frame->features_left)
+        for (auto &pair_feature : frame->features_left)
         {
             auto feature = pair_feature.second;
             auto landmark = feature->landmark.lock();
@@ -277,10 +282,9 @@ void imu::FullInertialBA(Frames &key_frames, double priorG, double priorA)
 
     Frame::Ptr last_frame;
     Frame::Ptr current_frame;
-    //bool first=true;
-    for (auto kf_pair : key_frames)
+    for (auto &pair_kf : key_frames)
     {
-        current_frame = kf_pair.second;
+        current_frame = pair_kf.second;
         if (!current_frame->bImu || current_frame->preintegration == nullptr)
         {
             last_frame = current_frame;
@@ -338,9 +342,9 @@ void imu::RecoverData(Frames active_kfs, SE3d old_pose, bool set_bias)
     {
         translation = old_pose.rotationMatrix() * new_pose.inverse().rotationMatrix();
     }
-    for (auto kf_pair : active_kfs)
+    for (auto &pair_kf : active_kfs)
     {
-        auto frame = kf_pair.second;
+        auto frame = pair_kf.second;
         if (!frame->preintegration || !frame->last_keyframe || !frame->bImu)
         {
             continue;

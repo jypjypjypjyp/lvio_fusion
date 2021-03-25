@@ -15,15 +15,15 @@ public:
     typedef std::shared_ptr<Landmark> Ptr;
 
     Vector3d ToWorld();
+
     void Clear();
+    
     std::weak_ptr<Frame> FirstFrame();
     std::weak_ptr<Frame> LastFrame();
 
     void AddObservation(Feature::Ptr feature);
 
     void RemoveObservation(Feature::Ptr feature);
-
-    Vector3d GetPosition();
 
     static Landmark::Ptr Create(double depth);
 
@@ -37,7 +37,7 @@ public:
 private:
     Landmark()
     {
-        id = current_landmark_id + 1;
+        id = ++current_landmark_id;
     }
 };
 

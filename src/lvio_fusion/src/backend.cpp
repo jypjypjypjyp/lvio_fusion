@@ -109,7 +109,7 @@ void Backend::BuildProblem(Frames &active_kfs, adapt::Problem &problem, bool use
     {
         Frame::Ptr last_frame;
         Frame::Ptr current_frame;
-        for (auto kf_pair : active_kfs)
+        for (auto &kf_pair : active_kfs)
         {
             current_frame = kf_pair.second;
             if (!current_frame->bImu || current_frame->preintegration == nullptr)
@@ -129,8 +129,8 @@ void Backend::BuildProblem(Frames &active_kfs, adapt::Problem &problem, bool use
             {
                 auto para_kf_last = last_frame->pose.data();
                 auto para_v_last = last_frame->Vw.data();
-                auto para_bg_last = last_frame->ImuBias.linearized_bg.data();
-                auto para_ba_last = last_frame->ImuBias.linearized_ba.data();
+                auto para_bg_last = last_frame->ImuBias.linearized_bg.data(); //恢复
+                auto para_ba_last = last_frame->ImuBias.linearized_ba.data(); //恢复
                 ceres::CostFunction *cost_function = ImuError::Create(current_frame->preintegration);
                 problem.AddResidualBlock(ProblemType::IMUError, cost_function, NULL, para_kf_last, para_v_last, para_ba_last, para_bg_last, para_kf, para_v, para_ba, para_bg);
             }
@@ -187,26 +187,26 @@ void Backend::Optimize()
     }
 
     // reject outliers and clean the map
-    for (auto &pair_kf : active_kfs)
-    {
-        auto frame = pair_kf.second;
-        auto features_left = frame->features_left;
-        for (auto &pair_feature : features_left)
-        {
-            auto feature = pair_feature.second;
-            auto landmark = feature->landmark.lock();
-            auto first_frame = landmark->FirstFrame().lock();
-            if (frame != first_frame && compute_reprojection_error(cv2eigen(feature->keypoint), landmark->ToWorld(), frame->pose, Camera::Get()) > 10)
-            {
-                landmark->RemoveObservation(feature);
-                frame->RemoveFeature(feature);
-            }
-            if (landmark->observations.size() <= 1 && frame->id != Frame::current_frame_id)
-            {
-                Map::Instance().RemoveLandmark(landmark);
-            }
-        }
-    }
+    // for (auto &pair_kf : active_kfs)
+    // {
+    //     auto frame = pair_kf.second;
+    //     auto features_left = frame->features_left;
+    //     for (auto &pair_feature : features_left)
+    //     {
+    //         auto feature = pair_feature.second;
+    //         auto landmark = feature->landmark.lock();
+    //         auto first_frame = landmark->FirstFrame().lock();
+    //         if (frame != first_frame && compute_reprojection_error(cv2eigen(feature->keypoint), landmark->ToWorld(), frame->pose, Camera::Get()) > 10)
+    //         {
+    //             landmark->RemoveObservation(feature);
+    //             frame->RemoveFeature(feature);
+    //         }
+    //         if (landmark->observations.size() <= 1 && frame->id != Frame::current_frame_id)
+    //         {
+    //             Map::Instance().RemoveLandmark(landmark);
+    //         }
+    //     }
+    // }
 
     if (Lidar::Num() && mapping_)
     {
@@ -281,7 +281,6 @@ void Backend::ForwardPropagate(SE3d transform, double time)
 
 void Backend::InitializeIMU(Frames active_kfs, double time)
 {
-    //IMU initialization
     static double init_time = 0;
     static bool initA = false;
     static bool initB = false;
@@ -293,7 +292,7 @@ void Backend::InitializeIMU(Frames active_kfs, double time)
         priorA = 0;
         priorG = 0;
     }
-    if (Imu::Num() && Imu::Get()->initialized)//check is need reinit
+    if (Imu::Num() && Imu::Get()->initialized)
     {
         double dt = 0;
         if (init_time)
@@ -338,7 +337,7 @@ void Backend::InitializeIMU(Frames active_kfs, double time)
     if (initializing)
     {
         LOG(INFO) << "Initializer Start";
-        if (initializer_->Initialize(frames_init, priorA, priorG))//IMU Initialize
+        if (initializer_->Initialize(frames_init, priorA, priorG))
         {
             new_pose = (--frames_init.end())->second->pose;
             SE3d transform = new_pose * old_pose.inverse();

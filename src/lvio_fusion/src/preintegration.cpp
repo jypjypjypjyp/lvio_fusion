@@ -143,7 +143,6 @@ void Preintegration::Repropagate(const Vector3d &_linearized_ba, const Vector3d 
 Matrix<double, 15, 1> Preintegration::Evaluate(const Vector3d &Pi, const Quaterniond &Qi, const Vector3d &Vi, const Vector3d &Bai, const Vector3d &Bgi,
                                                const Vector3d &Pj, const Quaterniond &Qj, const Vector3d &Vj, const Vector3d &Baj, const Vector3d &Bgj)
 {
-    //compute residuals
     Matrix<double, 15, 1> residuals;
     Matrix3d dp_dba = jacobian.block<3, 3>(O_T, O_BA);
     Matrix3d dp_dbg = jacobian.block<3, 3>(O_T, O_BG);
@@ -166,7 +165,6 @@ Matrix<double, 15, 1> Preintegration::Evaluate(const Vector3d &Pi, const Quatern
 Matrix<double, 15, 1> Preintegration::Evaluate(const Vector3d &Pi, const Quaterniond &Qi, const Vector3d &Vi, const Vector3d &Bai, const Vector3d &Bgi,
                                                const Vector3d &Pj, const Quaterniond &Qj, const Vector3d &Vj, const Vector3d &Baj, const Vector3d &Bgj, const Quaterniond &Rg)
 {
-    //compute residuals
     Matrix<double, 15, 1> residuals;
     Matrix3d dp_dba = jacobian.block<3, 3>(O_T, O_BA);
     Matrix3d dp_dbg = jacobian.block<3, 3>(O_T, O_BG);
@@ -214,6 +212,7 @@ void Preintegration::SetNewBias(const Bias &new_bias)
     delta_bias(5) = new_bias.linearized_ba[2] - linearized_ba[2];
 }
 
+// 过去更新bias后的delta_R
 Quaterniond Preintegration::GetDeltaRotation(const Bias &b_)
 {
     Vector3d dbg;

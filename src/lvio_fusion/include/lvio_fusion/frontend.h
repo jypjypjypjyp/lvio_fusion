@@ -2,6 +2,7 @@
 #define lvio_fusion_FRONTEND_H
 
 #include "lvio_fusion/common.h"
+#include "lvio_fusion/visual/local_map.h"
 #include "lvio_fusion/visual/matcher.h"
 
 namespace lvio_fusion
@@ -54,7 +55,7 @@ private:
 
     void InitFrame();
 
-    int TrackLastFrame(Frame::Ptr base_frame);
+    int TrackLastFrame();
 
     int Relocate(Frame::Ptr base_frame);
 
@@ -72,8 +73,7 @@ private:
 
     // data
     std::weak_ptr<Backend> backend_;
-    ORBMatcher matcher_;
-    std::unordered_map<unsigned long, Vector3d> position_cache_;
+    LocalMap local_map_;
     SE3d last_frame_pose_cache_;
 
     // params

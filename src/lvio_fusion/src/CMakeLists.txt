@@ -9,6 +9,7 @@ add_library(lvio_fusion SHARED
         frontend.cpp
         initializer.cpp
         landmark.cpp
+        local_map.cpp
         manager.cpp
         map.cpp
         mapping.cpp

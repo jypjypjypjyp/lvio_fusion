@@ -64,7 +64,7 @@ public:
     Frame::Ptr last_keyframe;
     Vector3d Vw;// IMU linear velocity
     Bias ImuBias;
-    bool bImu=false;  //can be used in IMU optimization
+    bool bImu=false;  //是否经过imu尺度优化
 
 private:
     //NOTE: semantic map
