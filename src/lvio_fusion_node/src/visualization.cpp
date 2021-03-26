@@ -8,6 +8,7 @@
 ros::Publisher pub_path;
 ros::Publisher pub_navsat;
 ros::Publisher pub_points_cloud;
+ros::Publisher pub_local_map;
 ros::Publisher pub_car_model;
 nav_msgs::Path path, navsat_path;
 
@@ -20,6 +21,7 @@ void register_pub(ros::NodeHandle &n)
     pub_path = n.advertise<nav_msgs::Path>("path", 1000);
     pub_navsat = n.advertise<nav_msgs::Path>("navsat_path", 1000);
     pub_points_cloud = n.advertise<sensor_msgs::PointCloud2>("point_cloud", 1000);
+    pub_local_map = n.advertise<sensor_msgs::PointCloud2>("local_map", 1000);
     pub_car_model = n.advertise<visualization_msgs::Marker>("car_model", 1000);
 
     pub_camera_pose_visual = n.advertise<visualization_msgs::MarkerArray>("camera_pose_visual", 1000);
@@ -138,6 +140,15 @@ void publish_point_cloud(Estimator::Ptr estimator, double time)
     ros_cloud.header.stamp = ros::Time(time);
     ros_cloud.header.frame_id = "world";
     pub_points_cloud.publish(ros_cloud);
+}
+
+void publish_local_map(Estimator::Ptr estimator, double time)
+{
+    sensor_msgs::PointCloud2 ros_cloud;
+    pcl::toROSMsg(estimator->frontend->local_map.GetLocalLandmarks(), ros_cloud);
+    ros_cloud.header.stamp = ros::Time(time);
+    ros_cloud.header.frame_id = "world";
+    pub_local_map.publish(ros_cloud);
 }
 
 void publish_car_model(Estimator::Ptr estimator, double time)

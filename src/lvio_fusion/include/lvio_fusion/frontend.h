@@ -41,10 +41,8 @@ public:
     Frame::Ptr last_frame;
     Frame::Ptr last_keyframe;
     SE3d relative_i_j;
+    LocalMap local_map;
     std::mutex mutex;
-
-    imu::Preintegration::Ptr imu_preintegrated_from_last_kf;
-    std::list<ImuData> imu_buf;
     double valid_imu_time = 0;
     bool last_keyframe_updated = false;
 
@@ -73,8 +71,9 @@ private:
 
     // data
     std::weak_ptr<Backend> backend_;
-    LocalMap local_map_;
     SE3d last_frame_pose_cache_;
+    std::queue<ImuData> imu_buf_;
+    imu::Preintegration::Ptr imu_preintegrated_from_last_kf_;
 
     // params
     int num_features_;

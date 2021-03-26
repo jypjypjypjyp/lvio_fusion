@@ -29,7 +29,7 @@ public:
     typedef std::vector<Feature::Ptr> Features;
     typedef std::vector<std::vector<Feature::Ptr>> FeaturePyramid;
 
-    LocalMap() : detector_(cv::ORB::create(1000, 1.2, 1)),
+    LocalMap() : detector_(cv::ORB::create(1000, 1.2, 4)),
                  matcher_(cv::DescriptorMatcher::create("BruteForce-Hamming")),
                  num_levels_(detector_->getNLevels()),
                  scale_factor_(detector_->getScaleFactor())
@@ -50,6 +50,8 @@ public:
 
     Features GetLandmarks(Frame::Ptr frame);
 
+    PointRGBCloud GetLocalLandmarks();
+
     void UpdateCache();
 
     std::unordered_map<unsigned long, Vector3d> position_cache;
@@ -59,7 +61,7 @@ public:
 private:
     Vector3d ToWorld(Feature::Ptr feature);
 
-    void CheckNewLandmarks(Frame::Ptr frame);
+    void InsertNewLandmarks(Frame::Ptr frame);
 
     void GetFeaturePyramid(Frame::Ptr frame, FeaturePyramid &pyramid);
 
@@ -73,8 +75,7 @@ private:
     void Search(FeaturePyramid &last_pyramid, SE3d last_pose, FeaturePyramid &current_pyramid, Frame::Ptr frame);
     void Search(FeaturePyramid &last_pyramid, SE3d last_pose, Feature::Ptr feature, Frame::Ptr frame);
 
-    void LocalBA(Frame::Ptr frame);
-
+    std::mutex mutex_;
     cv::Ptr<cv::ORB> detector_;
     cv::Ptr<cv::DescriptorMatcher> matcher_;
     std::map<double, FeaturePyramid> local_features_;

@@ -49,7 +49,7 @@ bool Frontend::AddFrame(Frame::Ptr frame)
 
 void Frontend::AddImu(double time, Vector3d acc, Vector3d gyr)
 {
-    imu_buf.push_back(ImuData(acc, gyr, time));
+    imu_buf_.push(ImuData(acc, gyr, time));
 }
 
 void Frontend::PreintegrateIMU()
@@ -63,20 +63,20 @@ void Frontend::PreintegrateIMU()
     std::vector<ImuData> imu_from_last_frame;
     while (true)
     {
-        if (imu_buf.empty())
+        if (imu_buf_.empty())
         {
             usleep(500);
             continue;
         }
-        ImuData imu_data = imu_buf.front();
+        ImuData imu_data = imu_buf_.front();
         if (imu_data.t < last_frame->time - 0.001)
         {
-            imu_buf.pop_front();
+            imu_buf_.pop();
         }
         else if (imu_data.t < current_frame->time - 0.001)
         {
             imu_from_last_frame.push_back(imu_data);
-            imu_buf.pop_front();
+            imu_buf_.pop();
         }
         else
         {
@@ -86,8 +86,8 @@ void Frontend::PreintegrateIMU()
     }
     const int n = imu_from_last_frame.size() - 1;
     imu::Preintegration::Ptr imu_preintegrated_from_last_frame = imu::Preintegration::Create(last_frame->GetImuBias());
-    if (imu_preintegrated_from_last_kf == nullptr)
-        imu_preintegrated_from_last_kf = imu::Preintegration::Create(last_frame->GetImuBias());
+    if (imu_preintegrated_from_last_kf_ == nullptr)
+        imu_preintegrated_from_last_kf_ = imu::Preintegration::Create(last_frame->GetImuBias());
 
     if (imu_from_last_frame[0].t - last_frame->time > 0.015) //freq*1.5
     {
@@ -97,7 +97,7 @@ void Frontend::PreintegrateIMU()
             Imu::Get()->initialized = false;
             status = FrontendStatus::INITIALIZING;
         }
-        imu_preintegrated_from_last_kf->bad = true;
+        imu_preintegrated_from_last_kf_->bad = true;
         imu_preintegrated_from_last_frame->bad = true;
     }
     else
@@ -112,7 +112,7 @@ void Frontend::PreintegrateIMU()
                     Imu::Get()->initialized = false;
                     status = FrontendStatus::INITIALIZING;
                 }
-                imu_preintegrated_from_last_kf->bad = true;
+                imu_preintegrated_from_last_kf_->bad = true;
                 imu_preintegrated_from_last_frame->bad = true;
                 break;
             }
@@ -170,7 +170,7 @@ void Frontend::PreintegrateIMU()
             }
             if (tab == 0)
                 continue;
-            imu_preintegrated_from_last_kf->Append(tstep, acc, ang_vel, acc0, ang_vel0);
+            imu_preintegrated_from_last_kf_->Append(tstep, acc, ang_vel, acc0, ang_vel0);
             imu_preintegrated_from_last_frame->Append(tstep, acc, ang_vel, acc0, ang_vel0);
         }
         if ((n == 0))
@@ -181,13 +181,13 @@ void Frontend::PreintegrateIMU()
                 Imu::Get()->initialized = false;
                 status = FrontendStatus::INITIALIZING;
             }
-            imu_preintegrated_from_last_kf->bad = true;
+            imu_preintegrated_from_last_kf_->bad = true;
             imu_preintegrated_from_last_frame->bad = true;
         }
     }
 
-    if (!imu_preintegrated_from_last_kf->bad) //如果imu帧没坏，就赋给当前帧
-        current_frame->preintegration = imu_preintegrated_from_last_kf;
+    if (!imu_preintegrated_from_last_kf_->bad) //如果imu帧没坏，就赋给当前帧
+        current_frame->preintegration = imu_preintegrated_from_last_kf_;
     else
     {
         current_frame->preintegration = nullptr;
@@ -296,7 +296,7 @@ int Frontend::TrackLastFrame()
         // use project point
         auto feature = pair_feature.second;
         auto landmark = feature->landmark.lock();
-        auto px = Camera::Get()->World2Pixel(local_map_.position_cache[landmark->id], current_frame->pose);
+        auto px = Camera::Get()->World2Pixel(local_map.position_cache[landmark->id], current_frame->pose);
         kps_last.push_back(feature->keypoint);
         kps_current.push_back(cv::Point2f(px[0], px[1]));
         landmarks.push_back(landmark);
@@ -304,11 +304,11 @@ int Frontend::TrackLastFrame()
     // if last frame is a key frame, use new landmarks
     if (last_frame == last_keyframe)
     {
-        auto features = local_map_.GetLandmarks(last_frame);
+        auto features = local_map.GetLandmarks(last_frame);
         for (auto &feature : features)
         {
             auto landmark = feature->landmark;
-            auto px = Camera::Get()->World2Pixel(local_map_.position_cache[landmark->id], current_frame->pose);
+            auto px = Camera::Get()->World2Pixel(local_map.position_cache[landmark->id], current_frame->pose);
             kps_last.push_back(feature->kp.pt);
             kps_current.push_back(cv::Point2f(px[0], px[1]));
             landmarks.push_back(landmark);
@@ -326,7 +326,7 @@ int Frontend::TrackLastFrame()
         {
             map.push_back(i);
             points_2d.push_back(kps_current[i]);
-            Vector3d p = local_map_.position_cache[landmarks[i]->id];
+            Vector3d p = local_map.position_cache[landmarks[i]->id];
             points_3d.push_back(cv::Point3f(p.x(), p.y(), p.z()));
         }
     }
@@ -415,7 +415,7 @@ int Frontend::Relocate(Frame::Ptr base_frame)
 
 bool Frontend::InitMap()
 {
-    int num_new_features = local_map_.Init(current_frame);
+    int num_new_features = local_map.Init(current_frame);
     if (num_new_features < num_features_init_)
         return false;
 
@@ -423,7 +423,7 @@ bool Frontend::InitMap()
     {
         status = FrontendStatus::INITIALIZING;
         Imu::Get()->initialized = false;
-        imu_preintegrated_from_last_kf = nullptr;
+        imu_preintegrated_from_last_kf_ = nullptr;
         valid_imu_time = current_frame->time;
     }
     else
@@ -503,7 +503,7 @@ void Frontend::CreateKeyframe()
 {
     if (Imu::Num())
     {
-        imu_preintegrated_from_last_kf = nullptr;
+        imu_preintegrated_from_last_kf_ = nullptr;
     }
 
     // first, add new observations of old points
@@ -515,7 +515,7 @@ void Frontend::CreateKeyframe()
     }
 
     // detect new features, track in right image and triangulate map points
-    local_map_.AddKeyFrame(current_frame);
+    local_map.AddKeyFrame(current_frame);
 
     // insert!
     Map::Instance().InsertKeyFrame(current_frame);
@@ -539,7 +539,16 @@ bool Frontend::Reset()
 
 void Frontend::UpdateCache()
 {
-    local_map_.UpdateCache();
+    local_map.UpdateCache();
+    for (auto &pair_feature : last_frame->features_left)
+    {
+        auto feature = pair_feature.second;
+        auto landmark = feature->landmark.lock();
+        if (local_map.position_cache.find(landmark->id) == local_map.position_cache.end())
+        {
+            local_map.position_cache[landmark->id] = landmark->ToWorld();
+        }
+    }
     last_frame_pose_cache_ = last_frame->pose;
 }
 

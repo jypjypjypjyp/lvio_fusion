@@ -124,8 +124,6 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
         double gyr_w = Config::Get<double>("gyr_w");
         double g_norm = Config::Get<double>("g_norm");
         Imu::Create(SE3d(), acc_n, acc_w, gyr_n, gyr_w, g_norm);
-
-        frontend->imu_preintegrated_from_last_kf = imu::Preintegration::Create(Bias());
     }
 
     if (use_lidar)

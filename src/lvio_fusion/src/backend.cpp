@@ -187,26 +187,26 @@ void Backend::Optimize()
     }
 
     // reject outliers and clean the map
-    // for (auto &pair_kf : active_kfs)
-    // {
-    //     auto frame = pair_kf.second;
-    //     auto features_left = frame->features_left;
-    //     for (auto &pair_feature : features_left)
-    //     {
-    //         auto feature = pair_feature.second;
-    //         auto landmark = feature->landmark.lock();
-    //         auto first_frame = landmark->FirstFrame().lock();
-    //         if (frame != first_frame && compute_reprojection_error(cv2eigen(feature->keypoint), landmark->ToWorld(), frame->pose, Camera::Get()) > 10)
-    //         {
-    //             landmark->RemoveObservation(feature);
-    //             frame->RemoveFeature(feature);
-    //         }
-    //         if (landmark->observations.size() <= 1 && frame->id != Frame::current_frame_id)
-    //         {
-    //             Map::Instance().RemoveLandmark(landmark);
-    //         }
-    //     }
-    // }
+    for (auto &pair_kf : active_kfs)
+    {
+        auto frame = pair_kf.second;
+        auto features_left = frame->features_left;
+        for (auto &pair_feature : features_left)
+        {
+            auto feature = pair_feature.second;
+            auto landmark = feature->landmark.lock();
+            auto first_frame = landmark->FirstFrame().lock();
+            if (frame != first_frame && compute_reprojection_error(cv2eigen(feature->keypoint), landmark->ToWorld(), frame->pose, Camera::Get()) > 10)
+            {
+                landmark->RemoveObservation(feature);
+                frame->RemoveFeature(feature);
+            }
+            if (landmark->observations.size() <= 1 && frame->id != Frame::current_frame_id)
+            {
+                Map::Instance().RemoveLandmark(landmark);
+            }
+        }
+    }
 
     if (Lidar::Num() && mapping_)
     {

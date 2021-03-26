@@ -122,12 +122,12 @@ void sync_process()
             m_img_buf.lock();
             double time0 = img0_buf.front()->header.stamp.toSec();
             double time1 = img1_buf.front()->header.stamp.toSec();
-            // if (time0 < time1)
+            // if (time0 < time1 - epsilon)
             // {
             //     img0_buf.pop();
             //     printf("throw img0\n");
             // }
-            // else if (time0 > time1)
+            // else if (time0 > time1 + epsilon)
             // {
             //     img1_buf.pop();
             //     printf("throw img1\n");
@@ -138,36 +138,35 @@ void sync_process()
                 header = img0_buf.front()->header;
                 image0 = get_image_from_msg(img0_buf.front());
                 image1 = get_image_from_msg(img1_buf.front());
-            }
-            if (n++ % 7 == 0 && use_semantic)
-            {
-                pub_detector.publish(img0_buf.front());
-                img0_buf.pop();
-                img1_buf.pop();
-                m_img_buf.unlock();
-
-                std::unique_lock<std::mutex> lk(m_cond);
-                cond.wait_for(lk, 200ms);
-                if (obj_buf != nullptr)
+                if (n++ % 7 == 0 && use_semantic)
                 {
-                    auto objects = get_objects_from_msg(obj_buf);
-                    estimator->InputImage(time, image0, image1, objects);
+                    pub_detector.publish(img0_buf.front());
+                    img0_buf.pop();
+                    img1_buf.pop();
+                    m_img_buf.unlock();
+
+                    std::unique_lock<std::mutex> lk(m_cond);
+                    cond.wait_for(lk, 200ms);
+                    if (obj_buf != nullptr)
+                    {
+                        auto objects = get_objects_from_msg(obj_buf);
+                        estimator->InputImage(time, image0, image1, objects);
+                    }
+                    else
+                    {
+                        estimator->InputImage(time, image0, image1);
+                    }
                 }
                 else
                 {
+                    img0_buf.pop();
+                    img1_buf.pop();
+                    m_img_buf.unlock();
                     estimator->InputImage(time, image0, image1);
                 }
+                publish_car_model(estimator, time);
             }
-            else
-            {
-                img0_buf.pop();
-                img1_buf.pop();
-                m_img_buf.unlock();
-                estimator->InputImage(time, image0, image1);
-            }
-            publish_car_model(estimator, time);
         }
-
         chrono::milliseconds dura(2);
         this_thread::sleep_for(dura);
     }
@@ -223,6 +222,11 @@ void tf_timer_callback(const ros::TimerEvent &timer_event)
 void pc_timer_callback(const ros::TimerEvent &timer_event)
 {
     publish_point_cloud(estimator, timer_event.current_real.toSec() - delta_time);
+}
+
+void lm_timer_callback(const ros::TimerEvent &timer_event)
+{
+    publish_local_map(estimator, timer_event.current_real.toSec() - delta_time);
 }
 
 void od_timer_callback(const ros::TimerEvent &timer_event)
@@ -317,10 +321,10 @@ void read_ground_truth()
     double dt = lvio_fusion::Map::Instance().keyframes.begin()->first;
     Matrix3d R_tf;
     R_tf << 0, 0, 1,
-            -1, 0, 0,
-            0, -1, 0;
+        -1, 0, 0,
+        0, -1, 0;
     Quaterniond q_tf(R_tf);
-    auto RRR = ypr2R(Vector3d(90,-90,0));
+    auto RRR = ypr2R(Vector3d(90, -90, 0));
     Quaterniond qqq(RRR);
     SE3d tf(q_tf, Vector3d::Zero()); // tum ground truth to lvio_fusion
     if (in)
@@ -337,10 +341,9 @@ void read_ground_truth()
             // new_rpy[1] = rpy[];
             // new_rpy[2] = rpy[];
             // ceres::RPYToEigenQuaternion(new_rpy, e_q2);
-            
-            
+
             auto a = SE3d(Quaterniond(qw, qx, qy, qz), Vector3d(x, y, z));
-            a.so3() =  a.so3() * SO3d(q_tf.inverse());
+            a.so3() = a.so3() * SO3d(q_tf.inverse());
             Environment::ground_truths[dt + time] = tf * a;
             ss.clear();
         }
@@ -455,6 +458,7 @@ int main(int argc, char **argv)
     register_pub(n);
     ros::Timer tf_timer = n.createTimer(ros::Duration(0.0001), tf_timer_callback);
     ros::Timer od_timer = n.createTimer(ros::Duration(1), od_timer_callback);
+    ros::Timer lm_timer = n.createTimer(ros::Duration(0.1), lm_timer_callback);
     ros::Timer pc_timer;
     ros::Timer navsat_timer;
 
