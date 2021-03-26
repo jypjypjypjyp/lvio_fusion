@@ -29,7 +29,7 @@ public:
     typedef std::vector<Feature::Ptr> Features;
     typedef std::vector<std::vector<Feature::Ptr>> FeaturePyramid;
 
-    LocalMap() : detector_(cv::ORB::create(500, 1.2, 1)),
+    LocalMap() : detector_(cv::ORB::create(1000, 1.2, 1)),
                  matcher_(cv::DescriptorMatcher::create("BruteForce-Hamming")),
                  num_levels_(detector_->getNLevels()),
                  scale_factor_(detector_->getScaleFactor())

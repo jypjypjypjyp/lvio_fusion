@@ -242,7 +242,7 @@ void LocalMap::Search(FeaturePyramid &last_pyramid, SE3d last_pose, Feature::Ptr
     cv::Point2f p_in_last_right = eigen2cv(Camera::Get(1)->World2Pixel(position_cache[feature->landmark->id], last_pose));
     Features features_in_radius;
     std::vector<BRIEF> briefs;
-    double radius = 200 * scale_factors_[feature->kp.octave];
+    double radius = 20 * scale_factors_[feature->kp.octave];
     for (int i = min_level; i < max_level; i++)
     {
         for (auto &last_feature : last_pyramid[i])
@@ -259,8 +259,8 @@ void LocalMap::Search(FeaturePyramid &last_pyramid, SE3d last_pose, Feature::Ptr
     cv::Mat descriptors_last = briefs2mat(briefs), descriptors_current = brief2mat(feature->brief);
     std::vector<std::vector<cv::DMatch>> knn_matches;
     matcher_->knnMatch(descriptors_current, descriptors_last, knn_matches, 2);
-    const float ratio_thresh = 0.8;
-    if (!features_in_radius.empty() && !knn_matches.empty() &&
+    const float ratio_thresh = 0.5;
+    if (!features_in_radius.empty() && !knn_matches.empty() && knn_matches[0].size() == 2 &&
         knn_matches[0][0].distance < ratio_thresh * knn_matches[0][1].distance)
     {
         auto last_feature = features_in_radius[knn_matches[0][0].trainIdx];
