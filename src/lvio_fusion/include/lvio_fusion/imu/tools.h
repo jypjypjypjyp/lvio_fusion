@@ -14,11 +14,11 @@ void ReComputeBiasVel(Frames &frames);
 
 void RePredictVel(Frames &frames, Frame::Ptr &prior_frame);
 
-bool InertialOptimization(Frames &key_frames, Matrix3d &Rwg, double priorG, double priorA, bool isOptRwg);
+bool InertialOptimization(Frames &frames, Matrix3d &Rwg, double priorG, double priorA);
 
-void FullInertialBA(Frames &key_frames, double priorG, double priorA);
+void FullInertialBA(Frames &frames, double priorG, double priorA);
 
-void RecoverData(Frames active_kfs, SE3d old_pose, bool set_bias);
+void RecoverData(Frames &frames, SE3d old_pose, bool set_bias);
 
 } // namespace imu
 

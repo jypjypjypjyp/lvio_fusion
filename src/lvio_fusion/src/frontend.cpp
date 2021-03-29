@@ -58,7 +58,7 @@ void Frontend::PreintegrateIMU()
         return;
     if (Imu::Get()->initialized)
     {
-        current_frame->bImu = true;
+        current_frame->is_imu_good = true;
     }
     std::vector<ImuData> imu_from_last_frame;
     while (true)
@@ -191,7 +191,7 @@ void Frontend::PreintegrateIMU()
     else
     {
         current_frame->preintegration = nullptr;
-        current_frame->bImu = false;
+        current_frame->is_imu_good = false;
     }
 
     if (!imu_preintegrated_from_last_frame->bad)
@@ -556,7 +556,7 @@ void Frontend::UpdateCache()
 void Frontend::UpdateIMU(const Bias &bias_)
 {
     if (last_keyframe->preintegration != nullptr)
-        last_keyframe->bImu = true;
+        last_keyframe->is_imu_good = true;
     last_frame->SetNewBias(bias_);
     current_frame->SetNewBias(bias_);
     Vector3d Gz;

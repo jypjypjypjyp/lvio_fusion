@@ -112,7 +112,7 @@ void Backend::BuildProblem(Frames &active_kfs, adapt::Problem &problem, bool use
         for (auto &kf_pair : active_kfs)
         {
             current_frame = kf_pair.second;
-            if (!current_frame->bImu || current_frame->preintegration == nullptr)
+            if (!current_frame->is_imu_good || current_frame->preintegration == nullptr)
             {
                 last_frame = current_frame;
                 continue;
@@ -125,12 +125,12 @@ void Backend::BuildProblem(Frames &active_kfs, adapt::Problem &problem, bool use
             problem.AddParameterBlock(para_ba, 3);
             problem.AddParameterBlock(para_bg, 3);
 
-            if (last_frame && last_frame->bImu)
+            if (last_frame && last_frame->is_imu_good)
             {
                 auto para_kf_last = last_frame->pose.data();
                 auto para_v_last = last_frame->Vw.data();
-                auto para_bg_last = last_frame->ImuBias.linearized_bg.data(); //恢复
-                auto para_ba_last = last_frame->ImuBias.linearized_ba.data(); //恢复
+                auto para_bg_last = last_frame->ImuBias.linearized_bg.data();
+                auto para_ba_last = last_frame->ImuBias.linearized_ba.data();
                 ceres::CostFunction *cost_function = ImuError::Create(current_frame->preintegration);
                 problem.AddResidualBlock(ProblemType::IMUError, cost_function, NULL, para_kf_last, para_v_last, para_ba_last, para_bg_last, para_kf, para_v, para_ba, para_bg);
             }
@@ -287,7 +287,7 @@ void Backend::InitializeIMU(Frames active_kfs, double time)
     static bool initializing = false;
     double priorA = 1e3;
     double priorG = 1e1;
-    if (Imu::Num() && initializer_->bimu)
+    if (Imu::Num() && initializer_->first_init)
     {
         priorA = 0;
         priorG = 0;
@@ -299,7 +299,7 @@ void Backend::InitializeIMU(Frames active_kfs, double time)
             dt = (--active_kfs.end())->second->time - init_time;
         if (dt > 5 && !initA)
         {
-            initializer_->reinit = true;
+            initializer_->need_reinit = true;
             initA = true;
             priorA = 1e4;
             priorG = 1e1;
@@ -307,7 +307,7 @@ void Backend::InitializeIMU(Frames active_kfs, double time)
         }
         else if (dt > 15 && !initB)
         {
-            initializer_->reinit = true;
+            initializer_->need_reinit = true;
             initB = true;
             priorA = 0;
             priorG = 0;
@@ -317,7 +317,7 @@ void Backend::InitializeIMU(Frames active_kfs, double time)
     Frames frames_init;
     SE3d old_pose;
     SE3d new_pose;
-    if (Imu::Num() && (!Imu::Get()->initialized || initializer_->reinit))
+    if (Imu::Num() && (!Imu::Get()->initialized || initializer_->need_reinit))
     {
         frames_init = Map::Instance().GetKeyFrames(0, time, initializer_->num_frames);
         old_pose = (--frames_init.end())->second->pose;
@@ -348,7 +348,7 @@ void Backend::InitializeIMU(Frames active_kfs, double time)
             {
                 Frame::Ptr frame = kf.second;
                 if (frame->preintegration != nullptr)
-                    frame->bImu = true;
+                    frame->is_imu_good = true;
             }
             LOG(INFO) << "Initiaclizer Finished";
         }

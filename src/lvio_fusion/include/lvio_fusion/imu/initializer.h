@@ -15,11 +15,10 @@ public:
 
     bool EstimateVelAndRwg(std::vector<Frame::Ptr> keyframes);
 
-    bool Initialize(Frames keyframes, double priorA = 1e6, double priorG = 1e2);
+    bool Initialize(Frames frames, double priorA = 1e6, double priorG = 1e2);
 
-    bool bimu = false;        //是否经过imu尺度优化
-    bool reinit = false;
-
+    bool first_init = false;      // finished first init?
+    bool need_reinit = false;    // need re-init?
     const int num_frames = 10;
 private:
     Matrix3d Rwg_; //重力方向

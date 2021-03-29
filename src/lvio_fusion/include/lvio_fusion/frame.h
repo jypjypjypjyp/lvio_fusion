@@ -62,9 +62,9 @@ public:
     void SetPose(const Matrix3d &Rwb_,const Vector3d  &twb_);
 
     Frame::Ptr last_keyframe;
-    Vector3d Vw;// IMU linear velocity
+    Vector3d Vw;            // IMU linear velocity
     Bias ImuBias;
-    bool bImu=false;  //是否经过imu尺度优化
+    bool is_imu_good = false;        // can be used in IMU optimization?
 
 private:
     //NOTE: semantic map
