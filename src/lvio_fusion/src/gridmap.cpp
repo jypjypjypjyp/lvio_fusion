@@ -26,7 +26,7 @@ void Gridmap::ToCartesianCoordinates(PointICloud scan_msg,Frame::Ptr& frame)
     std::vector<Vector2d> scan_points;
     for(int i = 0; i < scan_msg.size(); ++i) {
         Vector3d point( scan_msg[i].x,scan_msg[i].y,scan_msg[i].z);
-        Vector3d trans_point=Rwg.inverse()*point;
+        Vector3d trans_point=Rwg.inverse()*frame->pose.rotationMatrix()* point+frame->pose.translation();
         scan_points.emplace_back(Vector2d(trans_point[0],trans_point[1]));
     }
     LaserScan::Ptr laser_scan=LaserScan::Ptr(new LaserScan(frame,scan_points));
