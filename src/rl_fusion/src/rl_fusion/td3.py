@@ -17,7 +17,7 @@ from torch.utils.tensorboard import SummaryWriter
 from rl_fusion.env import LvioFusionEnv
 from lvio_fusion_node.srv import *
 
-save_net_path = '/home/jyp/Projects/lvio_fusion/misc/td3.pt'
+save_net_path = '/home/zoet/Projects/lvio_fusion/misc/td3.pt'
 server_init = None
 client_create_env = None
 client_step = None
@@ -43,7 +43,7 @@ def get_args():
     parser.add_argument('--layer-num', type=int, default=1)
     parser.add_argument('--training-num', type=int, default=8)
     parser.add_argument('--test-num', type=int, default=100)
-    parser.add_argument('--logdir', type=str, default='/home/jyp/Projects/lvio_fusion/misc/log')
+    parser.add_argument('--logdir', type=str, default='/home/zoet/Projects/lvio_fusion/misc/log')
     parser.add_argument('--render', type=float, default=0.)
     parser.add_argument('--rew-norm', type=int, default=1)
     parser.add_argument('--ignore-done', type=int, default=1)
