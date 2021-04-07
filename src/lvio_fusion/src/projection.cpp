@@ -28,11 +28,13 @@ SegmentedInfo ImageProjection::Process(PointICloud &points, PointICloud &points_
 
     FindStartEndAngle(segmented_info, points);
 
-    ProjectPointCloud(segmented_info, points);
+    ProjectPointCloud(segmented_info, points);//要的
 
     RemoveGround(segmented_info);
 
-    Segment(segmented_info, points_segmented);
+    Segment(segmented_info, points_segmented);//5
+
+    Compute2DScanMsg();//NAVI
 
     Clear();
     return segmented_info;
@@ -317,6 +319,32 @@ void ImageProjection::LabelComponents(int row, int col)
             label_mat.at<int>(all_pushed_ind_X[i], all_pushed_ind_y[i]) = OUTLIER_LABEL;
         }
     }
+}
+//NAVI
+void ImageProjection::Compute2DScanMsg()
+{
+    PointICloud scan_msg;
+    for (int j = 0; j < horizon_scan_; ++j) {
+        float min_range = 1000;
+        int id_min = 0;
+        for (int i = 0; i < num_scans_; ++i) {
+            int Ind = j + (i)*horizon_scan_;
+            float Z = points_full[Ind].z;
+            if ((ground_mat.at<int8_t>(i, j) != 1) &&
+                (Z > 0.4) && (Z<1.2) &&
+                (range_mat.at<float>(i, j)<40)) {                     // 地面上点云忽略, 过高过矮的点忽略， 过远的点忽略
+                if(range_mat.at<float>(i, j) < min_range) {           // 计算最小距离
+                    min_range = range_mat.at<float>(i, j);
+                    id_min = Ind;
+                }
+            }
+        }
+        if (min_range<1000) {
+            scan_msg.push_back(points_full[id_min]);
+        }
+    }
+    gridmap_->AddScan(scan_msg);
+    LOG(INFO)<<"ADDSCAN TO GRIDMAP.  SIZE:  "<<scan_msg.size();
 }
 
 } // namespace lvio_fusion
