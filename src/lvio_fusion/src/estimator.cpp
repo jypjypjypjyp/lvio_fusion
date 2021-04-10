@@ -163,13 +163,12 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
     return true;
 }
 
-void Estimator::InputImage(double time, cv::Mat &left_image, cv::Mat &right_image, std::vector<DetectedObject> objects)
+void Estimator::InputImage(double time, cv::Mat &left_image, cv::Mat &right_image)
 {
     Frame::Ptr new_frame = Frame::Create();
     new_frame->time = time;
     cv::undistort(left_image, new_frame->image_left, Camera::Get(0)->K, Camera::Get(0)->D);
     cv::undistort(right_image, new_frame->image_right, Camera::Get(1)->K, Camera::Get(1)->D);
-    new_frame->objects = objects;
 
     auto t1 = std::chrono::steady_clock::now();
     bool success = frontend->AddFrame(new_frame);

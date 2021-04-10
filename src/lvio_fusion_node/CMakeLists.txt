@@ -18,13 +18,6 @@ find_package(catkin REQUIRED COMPONENTS
     message_generation)
 include_directories(${catkin_INCLUDE_DIRS})
 
-# message
-add_message_files(
-    FILES
-        BoundingBox.msg
-        BoundingBoxes.msg
-    )
-
 # server
 add_service_files(
     FILES 

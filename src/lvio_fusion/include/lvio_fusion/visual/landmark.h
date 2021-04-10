@@ -2,7 +2,6 @@
 #define lvio_fusion_LANDMARK_H
 
 #include "lvio_fusion/visual/feature.h"
-#include "lvio_fusion/semantic/detected_object.h"
 
 namespace lvio_fusion
 {
@@ -30,7 +29,6 @@ public:
     static unsigned long current_landmark_id;
     unsigned long id = 0;                   // ID
     double depth;                           // depth in the first observation
-    LabelType label = LabelType::None;      // Sematic Label
     Features observations;                  // only for left feature
     Feature::Ptr first_observation;         // the first right observation
 

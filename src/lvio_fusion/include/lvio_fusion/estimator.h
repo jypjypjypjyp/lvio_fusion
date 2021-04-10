@@ -11,7 +11,6 @@
 #include "lvio_fusion/loop/relocator.h"
 #include "lvio_fusion/loop/pose_graph.h"
 #include "lvio_fusion/navsat/navsat.h"
-#include "lvio_fusion/semantic/detected_object.h"
 
 namespace lvio_fusion
 {
@@ -25,7 +24,6 @@ enum Flag
     IMU = 1 << 3,
     Laser = 1 << 4,
     GNSS = 1 << 5,
-    Semantic = 1 << 6,
 };
 
 class Estimator
@@ -35,7 +33,7 @@ public:
 
     Estimator(std::string &config_path);
 
-    void InputImage(double time, cv::Mat &left_image, cv::Mat &right_image, std::vector<DetectedObject> objects = {});
+    void InputImage(double time, cv::Mat &left_image, cv::Mat &right_image);
 
     void InputNavSat(double time, double latitude, double longitude, double altitude, double posAccuracy);
 

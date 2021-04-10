@@ -35,11 +35,6 @@ bool Frontend::AddFrame(Frame::Ptr frame)
     case FrontendStatus::TRACKING_TRY:
         InitFrame();
         Track();
-        //NOTE: semantic map
-        if (!current_frame->objects.empty())
-        {
-            current_frame->UpdateLabel();
-        }
         break;
     }
     last_frame = current_frame;
@@ -61,19 +56,23 @@ void Frontend::PreintegrateIMU()
         current_frame->is_imu_good = true;
     }
     std::vector<ImuData> imu_from_last_frame;
+    int timeout = 100; // ms
     while (true)
     {
         if (imu_buf_.empty())
         {
-            usleep(500);
+            if (timeout < 0)
+                break;
+            usleep(1e3);
+            timeout--;
             continue;
         }
         ImuData imu_data = imu_buf_.front();
-        if (imu_data.t < last_frame->time - 0.001)
+        if (imu_data.t < last_frame->time - epsilon)
         {
             imu_buf_.pop();
         }
-        else if (imu_data.t < current_frame->time - 0.001)
+        else if (imu_data.t < current_frame->time - epsilon)
         {
             imu_from_last_frame.push_back(imu_data);
             imu_buf_.pop();
@@ -345,8 +344,8 @@ int Frontend::TrackLastFrame()
             current_frame->pose = (Camera::Get()->extrinsic * SE3d(SO3d(R), Vector3d(tvec.at<double>(0, 0), tvec.at<double>(1, 0), tvec.at<double>(2, 0)))).inverse();
         }
 
-        cv::Mat img_track = current_frame->image_left;
-        cv::cvtColor(img_track, img_track, cv::COLOR_GRAY2RGB);
+        cv::Mat img_track;
+        cv::cvtColor(current_frame->image_left, img_track, cv::COLOR_GRAY2RGB);
         for (int r = 0; r < inliers.rows; r++)
         {
             int i = map[inliers.at<int>(r)];

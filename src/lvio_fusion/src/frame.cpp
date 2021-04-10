@@ -34,28 +34,6 @@ void Frame::RemoveFeature(visual::Feature::Ptr feature)
     int a = features_left.erase(feature->landmark.lock()->id);
 }
 
-//NOTE:semantic map
-LabelType Frame::GetLabelType(int x, int y)
-{
-    for (auto &obj : objects)
-    {
-        if (obj.xmin < x && obj.xmax > x && obj.ymin < y && obj.ymax > y)
-        {
-            return obj.label;
-        }
-    }
-    return LabelType::None;
-}
-
-void Frame::UpdateLabel()
-{
-    for (auto &pair_feature : features_left)
-    {
-        auto landmark = pair_feature.second->landmark.lock();
-        landmark->label = GetLabelType(pair_feature.second->keypoint.x, pair_feature.second->keypoint.y);
-    }
-}
-
 Observation Frame::GetObservation()
 {
     assert(last_keyframe);

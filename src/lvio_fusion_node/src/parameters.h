@@ -15,7 +15,6 @@ extern int use_imu;
 extern int use_lidar;
 extern int use_navsat;
 extern int use_loop;
-extern int use_semantic;
 extern int use_adapt;
 extern int train;
 

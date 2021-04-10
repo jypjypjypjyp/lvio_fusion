@@ -136,7 +136,34 @@ void LocalMap::GetFeaturePyramid(Frame::Ptr frame, FeaturePyramid &pyramid)
     }
     std::vector<cv::KeyPoint> kps;
     cv::Mat descriptors;
-    detector_->detectAndCompute(frame->image_left, mask, kps, descriptors);
+    // detector_->detectAndCompute(frame->image_left, mask, kps, descriptors);
+    int part_width = frame->image_left.cols / 2, part_height = frame->image_left.rows / 2;
+    cv::Rect parts[4] = {cv::Rect(0, 0, part_width, part_height),
+                         cv::Rect(part_width, 0, part_width, part_height),
+                         cv::Rect(0, part_height, part_width, part_height),
+                         cv::Rect(part_width, part_height, part_width, part_height)};
+    for (int i = 0; i < 4; i++)
+    {
+        std::vector<cv::KeyPoint> part_kps;
+        cv::Mat part_descriptors;
+        detector_->detectAndCompute(frame->image_left(parts[i]), mask(parts[i]), part_kps, part_descriptors);
+        kps.reserve(kps.size() + part_kps.size());
+        for (auto &kp : part_kps)
+        {
+            kp.pt.x += parts[i].x;
+            kp.pt.y += parts[i].y;
+            kps.push_back(kp);
+        }
+        if (descriptors.empty())
+        {
+            descriptors = part_descriptors;
+        }
+        else
+        {
+            cv::vconcat(descriptors, part_descriptors, descriptors);
+        }
+    }
+
     std::vector<std::vector<int>> index_levels;
     index_levels.resize(num_levels_);
     for (int i = 0; i < kps.size(); i++)
@@ -229,8 +256,7 @@ std::vector<double> LocalMap::GetCovisibilityKeyFrames(Frame::Ptr frame)
 cv::Mat img_track;
 void LocalMap::Search(std::vector<double> kfs, Frame::Ptr frame)
 {
-    img_track = frame->image_left;
-    cv::cvtColor(img_track, img_track, cv::COLOR_GRAY2RGB);
+    cv::cvtColor(frame->image_left, img_track, cv::COLOR_GRAY2RGB);
     for (int i = 0; i < kfs.size(); i++)
     {
         Search(local_features_[kfs[i]], pose_cache[kfs[i]], local_features_[frame->time], frame);
