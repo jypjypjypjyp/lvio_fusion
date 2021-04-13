@@ -29,7 +29,7 @@ public:
     typedef std::vector<Feature::Ptr> Features;
     typedef std::vector<std::vector<Feature::Ptr>> FeaturePyramid;
 
-    LocalMap() : detector_(cv::ORB::create(1000, 1.2, 4)),
+    LocalMap() : detector_(cv::ORB::create(500, 1.2, 4)),
                  matcher_(cv::DescriptorMatcher::create("BruteForce-Hamming")),
                  num_levels_(detector_->getNLevels()),
                  scale_factor_(detector_->getScaleFactor())
@@ -54,7 +54,7 @@ public:
 
     void UpdateCache();
 
-    std::unordered_map<unsigned long, Vector3d> position_cache;
+    std::unordered_map<unsigned long, std::pair<double, Vector3d>> position_cache;
     std::unordered_map<double, SE3d> pose_cache;
     double oldest = 0;
 

@@ -158,8 +158,8 @@ void publish_car_model(Estimator::Ptr estimator, double time)
     car_mesh.header.frame_id = "world";
     car_mesh.type = visualization_msgs::Marker::MESH_RESOURCE;
     car_mesh.action = visualization_msgs::Marker::ADD;
-    car_mesh.mesh_resource = "package://lvio_fusion_node/models/car.dae";
-    // car_mesh.mesh_resource = "file:///home/jyp/Projects/lvio_fusion/src/lvio_fusion_node/models/car.dae";
+    // car_mesh.mesh_resource = "package://lvio_fusion_node/models/car.dae";
+    car_mesh.mesh_resource = "file:///home/jyp/Projects/lvio_fusion/src/lvio_fusion_node/models/car.dae";
     car_mesh.id = 0;
 
     SE3d pose = estimator->frontend->current_frame->pose;

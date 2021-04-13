@@ -33,7 +33,7 @@ inline void triangulate(const SE3d &pose0, const SE3d &pose1, const Vector3d &p0
     p_3d = (p_norm / p_norm(3)).head<3>();
 }
 
-inline double distance(cv::Point2f &pt1, cv::Point2f &pt2)
+inline double cv_distance(cv::Point2f &pt1, cv::Point2f &pt2)
 {
     double dx = pt1.x - pt2.x;
     double dy = pt1.y - pt2.y;
@@ -69,7 +69,7 @@ inline int optical_flow(cv::Mat &prevImg, cv::Mat &nextImg,
     for (int i = 0; i < status.size(); i++)
     {
         if (status[i] && reverse_status[i] &&
-            distance(prevPts[i], reverse_pts[i]) <= 0.5 &&
+            cv_distance(prevPts[i], reverse_pts[i]) <= 0.5 &&
             nextPts[i].x >= 0 && nextPts[i].x < prevImg.cols &&
             nextPts[i].y >= 0 && nextPts[i].y < prevImg.rows)
         {

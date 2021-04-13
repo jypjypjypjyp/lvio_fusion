@@ -76,7 +76,6 @@ private:
     imu::Preintegration::Ptr imu_preintegrated_from_last_kf_;
 
     // params
-    int num_features_;
     int num_features_init_;
     int num_features_tracking_bad_;
     int num_features_needed_for_keyframe_;

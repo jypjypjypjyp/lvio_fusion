@@ -23,7 +23,7 @@ void ORBMatcher::Match(cv::Mat &prevImg, cv::Mat &nextImg, std::vector<cv::Point
     status.resize(prevPts.size(), 0);
     for (int i = 0; i < knn_matches.size(); i++)
     {
-        if (knn_matches[i][0].distance < ratio_thresh * knn_matches[i][1].distance && distance(kps_prev[knn_matches[i][0].queryIdx].pt, kps_next[knn_matches[i][0].trainIdx].pt) < 200)
+        if (knn_matches[i][0].distance < ratio_thresh * knn_matches[i][1].distance && cv_distance(kps_prev[knn_matches[i][0].queryIdx].pt, kps_next[knn_matches[i][0].trainIdx].pt) < 200)
         {
             nextPts[knn_matches[i][0].queryIdx] = kps_next[knn_matches[i][0].trainIdx].pt;
             status[knn_matches[i][0].queryIdx] = 1;
@@ -53,7 +53,7 @@ int ORBMatcher::Relocate(Frame::Ptr last_frame, Frame::Ptr current_frame,
         {
             auto pt_fast_last = kps_fast_last[knn_matches[i][0].queryIdx].pt;
             auto pt_fast_current = kps_fast_current[knn_matches[i][0].trainIdx].pt;
-            if (distance(pt_fast_last, pt_fast_current) < 200 && mask.at<uchar>(pt_fast_current) != 0)
+            if (cv_distance(pt_fast_last, pt_fast_current) < 200 && mask.at<uchar>(pt_fast_current) != 0)
             {
                 cv::circle(mask, pt_fast_current, 20, 0, cv::FILLED);
                 kps_match_left.push_back(pt_fast_last);

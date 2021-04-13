@@ -1,6 +1,4 @@
 #include "lvio_fusion/visual/local_map.h"
-#include "lvio_fusion/adapt/problem.h"
-#include "lvio_fusion/ceres/visual_error.hpp"
 #include "lvio_fusion/map.h"
 #include "lvio_fusion/utility.h"
 #include "lvio_fusion/visual/camera.h"
@@ -96,7 +94,7 @@ void LocalMap::UpdateCache()
             {
                 if (feature->landmark && position_cache.find(feature->landmark->id) == position_cache.end())
                 {
-                    position_cache[feature->landmark->id] = ToWorld(feature);
+                    position_cache[feature->landmark->id] = std::make_pair(feature->landmark->depth, ToWorld(feature));
                     if (!feature->match)
                     {
                         map_[feature->landmark->id] = feature;
@@ -229,7 +227,7 @@ void LocalMap::Triangulate(Frame::Ptr frame, Features &featrues)
                 new_landmark->AddObservation(new_left_feature);
                 new_landmark->AddObservation(new_right_feature);
                 featrues[i]->landmark = new_landmark;
-                position_cache[new_landmark->id] = ToWorld(featrues[i]);
+                position_cache[new_landmark->id] = std::make_pair(new_landmark->depth, ToWorld(featrues[i]));
                 map_[new_landmark->id] = featrues[i];
             }
         }
@@ -253,16 +251,12 @@ std::vector<double> LocalMap::GetCovisibilityKeyFrames(Frame::Ptr frame)
     return kfs;
 }
 
-cv::Mat img_track;
 void LocalMap::Search(std::vector<double> kfs, Frame::Ptr frame)
 {
-    cv::cvtColor(frame->image_left, img_track, cv::COLOR_GRAY2RGB);
     for (int i = 0; i < kfs.size(); i++)
     {
         Search(local_features_[kfs[i]], pose_cache[kfs[i]], local_features_[frame->time], frame);
     }
-    cv::imshow("tracking2", img_track);
-    cv::waitKey(1);
 }
 
 void LocalMap::Search(FeaturePyramid &last_pyramid, SE3d last_pose, FeaturePyramid &current_pyramid, Frame::Ptr frame)
@@ -281,7 +275,7 @@ void LocalMap::Search(FeaturePyramid &last_pyramid, SE3d last_pose, FeaturePyram
 
 void LocalMap::Search(FeaturePyramid &last_pyramid, SE3d last_pose, Feature::Ptr feature, Frame::Ptr frame)
 {
-    auto pc = Camera::Get()->World2Sensor(position_cache[feature->landmark->id], last_pose);
+    auto pc = Camera::Get()->World2Sensor(position_cache[feature->landmark->id].second, last_pose);
     if (pc.z() < 0)
         return;
     cv::Point2f p_in_last_left = eigen2cv(Camera::Get()->Sensor2Pixel(pc));
@@ -294,7 +288,7 @@ void LocalMap::Search(FeaturePyramid &last_pyramid, SE3d last_pose, Feature::Ptr
         for (auto &last_feature : last_pyramid[i])
         {
             if (last_feature->landmark &&
-                distance(p_in_last_left, last_feature->kp.pt) < radius)
+                cv_distance(p_in_last_left, last_feature->kp.pt) < radius)
             {
                 features_in_radius.push_back(last_feature);
                 briefs.push_back(last_feature->brief);
@@ -313,8 +307,6 @@ void LocalMap::Search(FeaturePyramid &last_pyramid, SE3d last_pose, Feature::Ptr
         feature->landmark = last_feature->landmark;
         feature->match = true;
 
-        cv::arrowedLine(img_track, last_feature->kp.pt, feature->kp.pt, cv::Scalar(0, 255, 0), 1, 8, 0, 0.2);
-        cv::circle(img_track, last_feature->kp.pt, 2, cv::Scalar(0, 255, 0), cv::FILLED);
         auto new_left_feature = visual::Feature::Create(frame, feature->kp.pt, feature->landmark);
         feature->landmark->AddObservation(new_left_feature);
         frame->AddFeature(new_left_feature);
@@ -350,9 +342,10 @@ PointRGBCloud LocalMap::GetLocalLandmarks()
                 if (feature->insert)
                 {
                     PointRGB point_color;
-                    point_color.x = position_cache[feature->landmark->id].x();
-                    point_color.y = position_cache[feature->landmark->id].y();
-                    point_color.z = position_cache[feature->landmark->id].z();
+                    Vector3d pw = position_cache[feature->landmark->id].second;
+                    point_color.x = pw.x();
+                    point_color.y = pw.y();
+                    point_color.z = pw.z();
                     point_color.r = 255;
                     point_color.g = 255;
                     point_color.b = 255;

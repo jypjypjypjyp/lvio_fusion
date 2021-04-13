@@ -12,6 +12,8 @@ int num_threads = std::min(8, std::max(1, (int)(0.75 * get_nprocs())));
 namespace lvio_fusion
 {
 
+double Camera::BASELINE = 1;
+
 Estimator::Estimator(std::string &config_path)
     : config_file_path_(config_path) {}
 
@@ -82,6 +84,7 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
                        Config::Get<double>("camera1.cy"),
                        SE3d(q_body_to_cam1, t_body_to_cam1));
     }
+    lvio_fusion::Camera::BASELINE = (t_body_to_cam0 - t_body_to_cam1).norm();
 
     // create components and links
     frontend = Frontend::Ptr(new Frontend(

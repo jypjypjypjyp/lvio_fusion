@@ -8,6 +8,7 @@
 #include <sensor_msgs/NavSatFix.h>
 #include <sensor_msgs/PointCloud2.h>
 #include <termios.h>
+#include <ros/package.h>
 
 #include "lvio_fusion/adapt/agent.h"
 #include "lvio_fusion/adapt/environment.h"
