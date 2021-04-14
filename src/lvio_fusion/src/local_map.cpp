@@ -38,7 +38,7 @@ inline cv::Mat briefs2mat(std::vector<BRIEF> briefs)
     return descriptors;
 }
 
-inline Vector3d LocalMap::ToWorld(Feature::Ptr feature)
+inline Vector3d LocalMap::ToWorld(Point::Ptr feature)
 {
     Vector3d pb = Camera::Get(1)->Pixel2Robot(
         cv2eigen(feature->landmark->first_observation->keypoint),
@@ -49,7 +49,7 @@ inline Vector3d LocalMap::ToWorld(Feature::Ptr feature)
 int LocalMap::Init(Frame::Ptr new_kf)
 {
     // get feature pyramid
-    local_features_[new_kf->time] = FeaturePyramid();
+    local_features_[new_kf->time] = Pyramid();
     GetFeaturePyramid(new_kf, local_features_[new_kf->time]);
     GetNewLandmarks(new_kf, local_features_[new_kf->time]);
     return GetLandmarks(new_kf).size();
@@ -63,7 +63,7 @@ void LocalMap::Reset()
 void LocalMap::AddKeyFrame(Frame::Ptr new_kf)
 {
     // get feature pyramid
-    local_features_[new_kf->time] = FeaturePyramid();
+    local_features_[new_kf->time] = Pyramid();
     GetFeaturePyramid(new_kf, local_features_[new_kf->time]);
     // search
     pose_cache[new_kf->time] = new_kf->pose;
@@ -125,42 +125,54 @@ void LocalMap::InsertNewLandmarks(Frame::Ptr frame)
     }
 }
 
-void LocalMap::GetFeaturePyramid(Frame::Ptr frame, FeaturePyramid &pyramid)
+void orb_detect_and_compute(cv::Ptr<cv::ORB> orb,
+                            cv::Mat &image, cv::Mat &mask,
+                            std::vector<cv::KeyPoint> &keypoints,
+                            cv::Mat &descriptors,
+                            bool useProvidedKeypoints = false)
 {
+    
+}
+
+cv::Mat img_track;
+void LocalMap::GetFeaturePyramid(Frame::Ptr frame, Pyramid &pyramid)
+{
+    cv::cvtColor(frame->image_left, img_track, cv::COLOR_GRAY2RGB);
     cv::Mat mask = cv::Mat(frame->image_left.size(), CV_8UC1, 255);
-    for (auto &pair_feature : frame->features_left)
-    {
-        cv::circle(mask, pair_feature.second->keypoint, 20, 0, cv::FILLED);
-    }
+    // for (auto &pair_feature : frame->features_left)
+    // {
+    //     cv::circle(mask, pair_feature.second->keypoint, 20, 0, cv::FILLED);
+    // }
     std::vector<cv::KeyPoint> kps;
     cv::Mat descriptors;
-    // detector_->detectAndCompute(frame->image_left, mask, kps, descriptors);
-    int part_width = frame->image_left.cols / 2, part_height = frame->image_left.rows / 2;
-    cv::Rect parts[4] = {cv::Rect(0, 0, part_width, part_height),
-                         cv::Rect(part_width, 0, part_width, part_height),
-                         cv::Rect(0, part_height, part_width, part_height),
-                         cv::Rect(part_width, part_height, part_width, part_height)};
-    for (int i = 0; i < 4; i++)
-    {
-        std::vector<cv::KeyPoint> part_kps;
-        cv::Mat part_descriptors;
-        detector_->detectAndCompute(frame->image_left(parts[i]), mask(parts[i]), part_kps, part_descriptors);
-        kps.reserve(kps.size() + part_kps.size());
-        for (auto &kp : part_kps)
-        {
-            kp.pt.x += parts[i].x;
-            kp.pt.y += parts[i].y;
-            kps.push_back(kp);
-        }
-        if (descriptors.empty())
-        {
-            descriptors = part_descriptors;
-        }
-        else
-        {
-            cv::vconcat(descriptors, part_descriptors, descriptors);
-        }
-    }
+    orb_detect_and_compute(detector_, frame->image_left, mask, kps, descriptors);
+    // int part_width = frame->image_left.cols / 2, part_height = frame->image_left.rows / 2;
+    // cv::Rect parts[4] = {cv::Rect(0, 0, part_width, part_height),
+    //                      cv::Rect(part_width, 0, part_width, part_height),
+    //                      cv::Rect(0, part_height, part_width, part_height),
+    //                      cv::Rect(part_width, part_height, part_width, part_height)};
+    // for (int i = 0; i < 4; i++)
+    // {
+    //     std::vector<cv::KeyPoint> part_kps;
+    //     cv::Mat part_descriptors;
+    //     orb_detect_and_compute(frame->image_left(parts[i]), mask(parts[i]), part_kps, part_descriptors);
+    //     kps.reserve(kps.size() + part_kps.size());
+    //     for (auto &kp : part_kps)
+    //     {
+    //         kp.pt.x += parts[i].x;
+    //         kp.pt.y += parts[i].y;
+    //         kps.push_back(kp);
+    //         cv::circle(img_track, kp.pt, 2, cv::Scalar(0, 255, 0), cv::FILLED);
+    //     }
+    //     if (descriptors.empty())
+    //     {
+    //         descriptors = part_descriptors;
+    //     }
+    //     else
+    //     {
+    //         cv::vconcat(descriptors, part_descriptors, descriptors);
+    //     }
+    // }
 
     std::vector<std::vector<int>> index_levels;
     index_levels.resize(num_levels_);
@@ -171,18 +183,20 @@ void LocalMap::GetFeaturePyramid(Frame::Ptr frame, FeaturePyramid &pyramid)
     pyramid.clear();
     for (int i = 0; i < num_levels_; i++)
     {
-        Features level_features;
+        Points level_features;
         for (int index : index_levels[i])
         {
-            level_features.push_back(Feature::Ptr(new Feature(frame, kps[index], mat2brief(descriptors.row(index)))));
+            level_features.push_back(Point::Ptr(new Point(frame, kps[index], mat2brief(descriptors.row(index)))));
         }
         pyramid.push_back(level_features);
     }
+    cv::imshow("d", img_track);
+    cv::waitKey(1);
 }
 
-void LocalMap::GetNewLandmarks(Frame::Ptr frame, FeaturePyramid &pyramid)
+void LocalMap::GetNewLandmarks(Frame::Ptr frame, Pyramid &pyramid)
 {
-    Features featrues;
+    Points featrues;
     for (int i = 0; i < num_levels_; i++)
     {
         for (auto &feature : pyramid[i])
@@ -196,7 +210,7 @@ void LocalMap::GetNewLandmarks(Frame::Ptr frame, FeaturePyramid &pyramid)
     Triangulate(frame, featrues);
 }
 
-void LocalMap::Triangulate(Frame::Ptr frame, Features &featrues)
+void LocalMap::Triangulate(Frame::Ptr frame, Points &featrues)
 {
     std::vector<cv::Point2f> kps_left, kps_right;
     kps_left.resize(featrues.size());
@@ -259,7 +273,7 @@ void LocalMap::Search(std::vector<double> kfs, Frame::Ptr frame)
     }
 }
 
-void LocalMap::Search(FeaturePyramid &last_pyramid, SE3d last_pose, FeaturePyramid &current_pyramid, Frame::Ptr frame)
+void LocalMap::Search(Pyramid &last_pyramid, SE3d last_pose, Pyramid &current_pyramid, Frame::Ptr frame)
 {
     for (auto &features : current_pyramid)
     {
@@ -273,13 +287,13 @@ void LocalMap::Search(FeaturePyramid &last_pyramid, SE3d last_pose, FeaturePyram
     }
 }
 
-void LocalMap::Search(FeaturePyramid &last_pyramid, SE3d last_pose, Feature::Ptr feature, Frame::Ptr frame)
+void LocalMap::Search(Pyramid &last_pyramid, SE3d last_pose, Point::Ptr feature, Frame::Ptr frame)
 {
     auto pc = Camera::Get()->World2Sensor(position_cache[feature->landmark->id].second, last_pose);
     if (pc.z() < 0)
         return;
     cv::Point2f p_in_last_left = eigen2cv(Camera::Get()->Sensor2Pixel(pc));
-    Features features_in_radius;
+    Points features_in_radius;
     std::vector<BRIEF> briefs;
     int min_level = feature->kp.octave, max_level = feature->kp.octave + 1;
     for (int i = min_level; i <= max_level && i < num_levels_; i++)
@@ -313,9 +327,9 @@ void LocalMap::Search(FeaturePyramid &last_pyramid, SE3d last_pose, Feature::Ptr
     }
 }
 
-LocalMap::Features LocalMap::GetLandmarks(Frame::Ptr frame)
+LocalMap::Points LocalMap::GetLandmarks(Frame::Ptr frame)
 {
-    Features result;
+    Points result;
     for (auto &features : local_features_[frame->time])
     {
         for (auto &feature : features)

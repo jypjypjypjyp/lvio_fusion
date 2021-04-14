@@ -13,9 +13,9 @@ typedef std::bitset<256> BRIEF;
 class LocalMap
 {
 public:
-    struct Feature
+    struct Point
     {
-        typedef std::shared_ptr<Feature> Ptr;
+        typedef std::shared_ptr<Point> Ptr;
 
         cv::KeyPoint kp;
         visual::Landmark::Ptr landmark;
@@ -24,12 +24,12 @@ public:
         bool match = false;
         bool insert = false;
 
-        Feature(Frame::Ptr frame, cv::KeyPoint kp, BRIEF brief) : frame(frame), kp(kp), brief(brief) {}
+        Point(Frame::Ptr frame, cv::KeyPoint kp, BRIEF brief) : frame(frame), kp(kp), brief(brief) {}
     };
-    typedef std::vector<Feature::Ptr> Features;
-    typedef std::vector<std::vector<Feature::Ptr>> FeaturePyramid;
+    typedef std::vector<Point::Ptr> Points;
+    typedef std::vector<std::vector<Point::Ptr>> Pyramid;
 
-    LocalMap() : detector_(cv::ORB::create(500, 1.2, 4)),
+    LocalMap() : detector_(cv::ORB::create(250, 1.2, 4)),
                  matcher_(cv::DescriptorMatcher::create("BruteForce-Hamming")),
                  num_levels_(detector_->getNLevels()),
                  scale_factor_(detector_->getScaleFactor())
@@ -48,7 +48,7 @@ public:
 
     void AddKeyFrame(Frame::Ptr new_kf);
 
-    Features GetLandmarks(Frame::Ptr frame);
+    Points GetLandmarks(Frame::Ptr frame);
 
     PointRGBCloud GetLocalLandmarks();
 
@@ -59,27 +59,27 @@ public:
     double oldest = 0;
 
 private:
-    Vector3d ToWorld(Feature::Ptr feature);
+    Vector3d ToWorld(Point::Ptr feature);
 
     void InsertNewLandmarks(Frame::Ptr frame);
 
-    void GetFeaturePyramid(Frame::Ptr frame, FeaturePyramid &pyramid);
+    void GetFeaturePyramid(Frame::Ptr frame, Pyramid &pyramid);
 
-    void GetNewLandmarks(Frame::Ptr frame, FeaturePyramid &pyramid);
+    void GetNewLandmarks(Frame::Ptr frame, Pyramid &pyramid);
 
-    void Triangulate(Frame::Ptr frame, Features &featrues);
+    void Triangulate(Frame::Ptr frame, Points &featrues);
 
     std::vector<double> GetCovisibilityKeyFrames(Frame::Ptr frame);
 
     void Search(std::vector<double> kfs, Frame::Ptr frame);
-    void Search(FeaturePyramid &last_pyramid, SE3d last_pose, FeaturePyramid &current_pyramid, Frame::Ptr frame);
-    void Search(FeaturePyramid &last_pyramid, SE3d last_pose, Feature::Ptr feature, Frame::Ptr frame);
+    void Search(Pyramid &last_pyramid, SE3d last_pose, Pyramid &current_pyramid, Frame::Ptr frame);
+    void Search(Pyramid &last_pyramid, SE3d last_pose, Point::Ptr feature, Frame::Ptr frame);
 
     std::mutex mutex_;
     cv::Ptr<cv::ORB> detector_;
     cv::Ptr<cv::DescriptorMatcher> matcher_;
-    std::map<double, FeaturePyramid> local_features_;
-    std::unordered_map<unsigned long, Feature::Ptr> map_;
+    std::map<double, Pyramid> local_features_;
+    std::unordered_map<unsigned long, Point::Ptr> map_;
     std::vector<double> scale_factors_;
     const int num_levels_;
     const double scale_factor_;
