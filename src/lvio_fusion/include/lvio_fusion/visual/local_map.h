@@ -4,6 +4,7 @@
 #include "lvio_fusion/common.h"
 #include "lvio_fusion/frame.h"
 #include "lvio_fusion/visual/landmark.h"
+#include "lvio_fusion/visual/extractor.h"
 
 namespace lvio_fusion
 {
@@ -29,10 +30,10 @@ public:
     typedef std::vector<Point::Ptr> Points;
     typedef std::vector<std::vector<Point::Ptr>> Pyramid;
 
-    LocalMap() : detector_(cv::ORB::create(250, 1.2, 4)),
+    LocalMap() : extractor_(Extractor()),
                  matcher_(cv::DescriptorMatcher::create("BruteForce-Hamming")),
-                 num_levels_(detector_->getNLevels()),
-                 scale_factor_(detector_->getScaleFactor())
+                 num_levels_(extractor_.num_levels),
+                 scale_factor_(extractor_.scale_factor)
     {
         double current_factor = 1;
         for (int i = 0; i < num_levels_; i++)
@@ -76,7 +77,7 @@ private:
     void Search(Pyramid &last_pyramid, SE3d last_pose, Point::Ptr feature, Frame::Ptr frame);
 
     std::mutex mutex_;
-    cv::Ptr<cv::ORB> detector_;
+    Extractor extractor_;
     cv::Ptr<cv::DescriptorMatcher> matcher_;
     std::map<double, Pyramid> local_features_;
     std::unordered_map<unsigned long, Point::Ptr> map_;

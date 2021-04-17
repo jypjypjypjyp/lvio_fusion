@@ -125,27 +125,18 @@ void LocalMap::InsertNewLandmarks(Frame::Ptr frame)
     }
 }
 
-void orb_detect_and_compute(cv::Ptr<cv::ORB> orb,
-                            cv::Mat &image, cv::Mat &mask,
-                            std::vector<cv::KeyPoint> &keypoints,
-                            cv::Mat &descriptors,
-                            bool useProvidedKeypoints = false)
-{
-    
-}
-
 cv::Mat img_track;
 void LocalMap::GetFeaturePyramid(Frame::Ptr frame, Pyramid &pyramid)
 {
     cv::cvtColor(frame->image_left, img_track, cv::COLOR_GRAY2RGB);
     cv::Mat mask = cv::Mat(frame->image_left.size(), CV_8UC1, 255);
-    // for (auto &pair_feature : frame->features_left)
-    // {
-    //     cv::circle(mask, pair_feature.second->keypoint, 20, 0, cv::FILLED);
-    // }
+    for (auto &pair_feature : frame->features_left)
+    {
+        cv::circle(mask, pair_feature.second->keypoint, 20, 0, cv::FILLED);
+    }
     std::vector<cv::KeyPoint> kps;
     cv::Mat descriptors;
-    orb_detect_and_compute(detector_, frame->image_left, mask, kps, descriptors);
+    extractor_.DetectAndCompute(frame->image_left, mask, kps, descriptors);
     // int part_width = frame->image_left.cols / 2, part_height = frame->image_left.rows / 2;
     // cv::Rect parts[4] = {cv::Rect(0, 0, part_width, part_height),
     //                      cv::Rect(part_width, 0, part_width, part_height),
