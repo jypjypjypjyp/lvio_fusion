@@ -37,7 +37,8 @@ void Gridmap::ToCartesianCoordinates(PointICloud scan_msg,Frame::Ptr& frame)
 cv::Mat Gridmap::GetGridmap()    
 {
     LOG(INFO)<<"GetGridmap";
-    ClearMap();
+    //ClearMap();
+    int max_x=0,max_y=0,min_x=height,min_y=width;
     for(const LaserScan::Ptr&  scan : laser_scans_2d) {
         Vector3d trans_pose = Rwg.inverse()*scan->GetFrame()->pose.translation();
         Vector2d start =Vector2d(trans_pose[0],trans_pose[1]);
@@ -56,11 +57,16 @@ cv::Mat Gridmap::GetGridmap()
             }
             Vector2i index = GetIndex(points[n - 1][0], points[n - 1][1]);
             occupied_counter.at<int>(index[0],index[1])++;
+            if(index[0]>max_x)max_x=index[0]+1;
+            if(index[0]<min_x)min_x=index[0];
+            if(index[1]>max_y)max_y=index[1]+1;
+            if(index[1]<min_y)min_y=index[1];
         }
     }
-	for (int row = 0; row < height; ++row)
+    laser_scans_2d.clear();
+	for (int row = min_x; row < max_x; ++row)
 	{
-		for (int col = 0; col < width; ++col)
+		for (int col = min_y; col < max_y; ++col)
         {
             int visits = visual_counter.at<int>(row, col);
 			int occupieds = occupied_counter.at<int>(row, col);
@@ -75,7 +81,9 @@ cv::Mat Gridmap::GetGridmap()
             }
         }
     }
+
     LOG(INFO)<<"GetGridmap end";
+    //global_planner.SetGridMap(grid_map_int);
     return grid_map_int;
 }
 
@@ -112,7 +120,7 @@ void Gridmap::Bresenhamline (double x1,double y1,double x2,double y2, std::vecto
     p=2*dy-dx;
     for(i=1;i<=dx;i++)
     {
-        points.push_back(Vector2i(x,y));
+        points.push_back(Vector2i(y,x));
         if(p>=0)
         {
             if(interchange==0)

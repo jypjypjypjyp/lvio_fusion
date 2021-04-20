@@ -183,6 +183,9 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
         association->SetGridmap(gridmap);
         if(use_imu)
             initializer->SetGridmap(gridmap);
+        // globalplanner=Global_planner::Ptr(new Global_planner(
+        //     Config::Get<int>("grid_width"),
+        //     Config::Get<int>("grid_height")));
     }
     return true;
 }

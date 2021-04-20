@@ -13,7 +13,7 @@
 #include "lvio_fusion/navsat/navsat.h"
 #include "lvio_fusion/semantic/detected_object.h"
 #include "lvio_fusion/navigation/gridmap.h"//NAVI
-
+//#include "lvio_fusion/navigation/global_planner.h"//NAVI
 namespace lvio_fusion
 {
 
@@ -53,7 +53,7 @@ public:
     Mapping::Ptr mapping;
     Initializer::Ptr initializer;
     Gridmap::Ptr gridmap;
-
+   // Global_planner::Ptr globalplanner;
 private:
     std::string config_file_path_;
 };

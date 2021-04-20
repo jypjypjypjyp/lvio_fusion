@@ -217,6 +217,7 @@ void navsat_callback(const sensor_msgs::NavSatFixConstPtr &navsat_msg)
 void nav_goal_callback(const geometry_msgs::PoseStamped  &nav_goal_msg)
 {
    //发送给全局路径规划
+
    LOG(INFO)<<"nav_goal_msg:"<<nav_goal_msg.pose.position.x<<" "<<nav_goal_msg.pose.position.y<<" "<<nav_goal_msg.pose.position.z;
 }
 void tf_timer_callback(const ros::TimerEvent &timer_event)
@@ -507,7 +508,7 @@ int main(int argc, char **argv)
     //NAVI
     if(use_navigation)
     {
-        navigation_timer = n.createTimer(ros::Duration(1), navigation_timer_callback);
+        navigation_timer = n.createTimer(ros::Duration(2), navigation_timer_callback);
         sub_nav_goal = n.subscribe(NAV_GOAL_TOPIC, 100, nav_goal_callback);
     }
     if (train)

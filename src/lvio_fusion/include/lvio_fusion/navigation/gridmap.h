@@ -33,6 +33,7 @@ public:
           cycle_time_(cycle_time), min_range_(min_range), max_range_(max_range), deskew_(deskew), spacing_(spacing)
     {
         InitGridmap();
+        ClearMap();
     }
 
     void InitGridmap()

@@ -2,21 +2,23 @@
 
 # flags
 use_imu: 0
-use_lidar: 1
+use_lidar: 0
 use_navsat: 0
 use_loop: 0
 use_semantic: 0
 use_adapt: 0
-use_navigation: 1
+use_navigation: 0
 train: 0
+
 # ros parameters
-imu_topic: '/camera/imu'
-lidar_topic: '/lslidar_point_cloud'
+imu_topic: '/imu'
+lidar_topic: '/velodyne_points2'
 navsat_topic: '/kitti/oxts/gps/fix'
-image0_topic: '/camera/infra1/image_rect_raw'
-image1_topic: '/camera/infra2/image_rect_raw'
-color_topic: '/camera/color/image_raw'
-result_path: '/home/zoet/Projects/lvio-fusion/result/result.csv'
+image0_topic: '/D435i_camera/infra1/image_rect_raw'
+image1_topic: '/D435i_camera/infra2/image_rect_raw'
+color_topic: '/D435i_camera/color/image_raw'
+nav_goal_topic: '/move_base_simple/goal'
+result_path: '/home/zoet/Projects/lvio_fusion/result/result.csv'
 
 # cameras parameters
 undistort: 0
@@ -34,17 +36,17 @@ camera1.cx: 323.1204833984375
 camera1.cy: 236.7432098388672
 
 # lidar parameters
-num_scans: 32      
-horizon_scan: 2000
-ang_res_y: 1
-ang_bottom: 16
-ground_rows: 16
-cycle_time: 0.1
-min_range: 0.2
-max_range: 20
+num_scans: 32           # only for 16, 32, 64
+horizon_scan: 2187
+ang_res_y: 1.291875  
+ang_bottom: 30.67  
+ground_rows: 24
+cycle_time: 0.1 
+min_range: 0.5
+max_range: 30
 deskew: 0
-spacing: 5
-resolution: 0.5
+spacing: 0  
+resolution: 0.2 
 
 #imu parameters
 acc_n: 0.08             # accelerometer measurement noise standard deviation. #0.2   0.04
@@ -53,56 +55,24 @@ acc_w: 0.00004          # accelerometer bias random work noise standard deviatio
 gyr_w: 2.0e-6           # gyroscope bias random work noise standard deviation.     #4.0e-5
 g_norm: 9.81007         # gravity magnitude
 
-# # camera0 to body
-# body_to_cam0: !!opencv-matrix
-#    rows: 4
-#    cols: 4
-#    dt: d
-#    data: [1, 0, 0, 0,
-#           0, 1, 0, 0,
-#           0, 0, 1, 0,
-#           0, 0, 0, 1]
-
-# # camera1 to body
-# body_to_cam1: !!opencv-matrix
-#    rows: 4
-#    cols: 4
-#    dt: d
-#    data: [1, 0, 0, -0.05,
-#           0, 1, 0, 0,
-#           0, 0, 1, 0,
-#           0, 0, 0, 1]
-
-# # lidar to body
-# body_to_lidar: !!opencv-matrix
-#    rows: 4
-#    cols: 4
-#    dt: d
-#    data: [  -1,          -0,          0  ,      0.062,
-#             0 ,          0 ,          -1 ,       0.149,
-#             0 ,          -1,          0  ,     0.0945,
-#             -0,           0,           -0,            1]
-
-
 # camera0 to body
 body_to_cam0: !!opencv-matrix
    rows: 4
    cols: 4
    dt: d
-   data: [   0,  0,  1, -0,
+   data: [   0,  0,  1, -0.06,
             -1,  0, -0,  0,
-            0 ,-1 , 0 ,-0,
+            0 ,-1 , 0 ,0.022,
             0 , 0 ,-0 , 1]
-
 
 # camera1 to body
 body_to_cam1: !!opencv-matrix
    rows: 4
    cols: 4
    dt: d
-   data: [  0,   0,   1,     0,
+   data: [  0,   0,   1,    -0.06,
            -1,   0,   0, -0.05,
-            0,  -1,   0,    -0,
+            0,  -1,   0,   0.022,
             0,   0,  -0,     1]
 
 # lidar to body
@@ -110,17 +80,16 @@ body_to_lidar: !!opencv-matrix
    rows: 4
    cols: 4
    dt: d
-   data: [  0,   -1,   0, -0.0945,
-            1,    0,  -0,   0.062,
-           -0,   -0,   1,   0.149,
+   data: [  0,   -1,   0, -0.18,
+            1,    0,  -0,   0.0,
+           -0,   -0,   1,   0.022,
            -0,    0,  -0,       1]
-
 
 # number of features
 num_features: 200
 num_features_init: 50
 num_features_tracking_bad: 20
-num_features_needed_for_keyframe: 80
+num_features_needed_for_keyframe: 120
 
 # backend
 windows_size: 3
