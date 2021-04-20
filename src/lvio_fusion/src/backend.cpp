@@ -84,23 +84,13 @@ void Backend::BuildProblem(Frames &active_kfs, adapt::Problem &problem, bool use
             if (first_frame->time < start_time)
             {
                 cost_function = PoseOnlyReprojectionError::Create(cv2eigen(feature->keypoint), landmark->ToWorld(), Camera::Get(), frame->weights.visual);
-                problem.AddResidualBlock(ProblemType::VisualError, cost_function, loss_function, para_kf);
+                problem.AddResidualBlock(ProblemType::PoseOnlyReprojectionError, cost_function, loss_function, para_kf);
             }
             else if (first_frame != frame)
             {
                 double *para_fist_kf = first_frame->pose.data();
-                double *para_depth = &landmark->depth;
-                problem.AddParameterBlock(para_depth, 1);
-                // first ob is on right camera; current ob is on left camera;
-                cost_function = TwoFrameReprojectionError::Create(cv2eigen(landmark->first_observation->keypoint), cv2eigen(feature->keypoint), Camera::Get(0), Camera::Get(1), frame->weights.visual);
-                problem.AddResidualBlock(ProblemType::VisualError, cost_function, loss_function, para_depth, para_fist_kf, para_kf);
-            }
-            else
-            {
-                double *para_depth = &landmark->depth;
-                problem.AddParameterBlock(para_depth, 1);
-                cost_function = TwoCameraReprojectionError::Create(cv2eigen(feature->keypoint), cv2eigen(landmark->first_observation->keypoint), Camera::Get(0), Camera::Get(1), 5 * frame->weights.visual);
-                problem.AddResidualBlock(ProblemType::VisualError, cost_function, loss_function, para_depth);
+                cost_function = TwoFrameReprojectionError::Create(landmark->position, cv2eigen(feature->keypoint), Camera::Get(), frame->weights.visual);
+                problem.AddResidualBlock(ProblemType::TwoFrameReprojectionError, cost_function, loss_function, para_fist_kf, para_kf);
             }
         }
     }
@@ -109,7 +99,7 @@ void Backend::BuildProblem(Frames &active_kfs, adapt::Problem &problem, bool use
     {
         Frame::Ptr last_frame;
         Frame::Ptr current_frame;
-        for (auto &kf_pair : active_kfs)
+        for (auto kf_pair : active_kfs)
         {
             current_frame = kf_pair.second;
             if (!current_frame->bImu || current_frame->preintegration == nullptr)
@@ -172,7 +162,7 @@ void Backend::Optimize()
         options.max_solver_time_in_seconds = 0.6 * window_size_;
         options.num_threads = num_threads;
         ceres::Solver::Summary summary;
-        adapt::Solve(options, &problem, &summary);
+        ceres::Solve(options, &problem, &summary);
 
         if (Imu::Num() && Imu::Get()->initialized)
         {
@@ -219,8 +209,7 @@ void Backend::Optimize()
         std::unique_lock<std::mutex> lock(frontend_.lock()->mutex);
         SE3d old_pose = (--active_kfs.end())->second->pose;
         double navsat_start = Navsat::Get()->Optimize(end);
-        double fix_start = Navsat::Get()->QuickFix(start, end);
-        navsat_start = std::min(navsat_start, fix_start);
+        Navsat::Get()->QuickFix(end - window_size_, end);
         SE3d new_pose = (--active_kfs.end())->second->pose;
         SE3d transform = new_pose * old_pose.inverse();
         PoseGraph::Instance().ForwardPropagate(transform, end + epsilon, false);
@@ -255,7 +244,7 @@ void Backend::ForwardPropagate(SE3d transform, double time)
     options.max_num_iterations = 1;
     options.num_threads = num_threads;
     ceres::Solver::Summary summary;
-    adapt::Solve(options, &problem, &summary);
+    ceres::Solve(options, &problem, &summary);
 
     if (Imu::Num() && Imu::Get()->initialized)
     {

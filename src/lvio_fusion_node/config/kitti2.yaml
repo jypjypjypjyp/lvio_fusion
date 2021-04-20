@@ -2,7 +2,7 @@
 
 # flags
 use_imu: 0
-use_lidar: 1
+use_lidar: 0
 use_navsat: 1
 use_loop: 0             # 0 for only odometry, 1 for whole system
 use_semantic: 0
@@ -41,9 +41,9 @@ ang_bottom: 24.9
 ground_rows: 60
 cycle_time: 0.1036
 min_range: 5
-max_range: 50
+max_range: 30
 deskew: 0
-spacing: 0
+spacing: 3
 resolution: 0.2
 
 #imu parameters
@@ -84,14 +84,16 @@ body_to_lidar: !!opencv-matrix
             0          ,       -0          ,      -0        ,        1]
 
 # number of features
-num_features: 400
+num_features: 300
 num_features_init: 50
-num_features_tracking_bad: 40
-num_features_needed_for_keyframe: 120
+num_features_tracking_bad: 20
+num_features_needed_for_keyframe: 80
 
 # backend
-windows_size: 2
+windows_size: 3
 
 # loop
 relocator_mode: 0    # none = 0, visual = 1, lidar = 2, visual&&lidar = 3
-threshold: 30
+threshold: 10
+min_time: 1
+max_time: 20

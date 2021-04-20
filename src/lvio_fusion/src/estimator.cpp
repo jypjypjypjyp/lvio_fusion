@@ -15,7 +15,7 @@ namespace lvio_fusion
 Estimator::Estimator(std::string &config_path)
     : config_file_path_(config_path) {}
 
-bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, int use_adapt, int use_navigation)
+bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, int use_adapt)
 {
     LOG(INFO) << "System info:\n\tepsilon: " << epsilon << "\n\tnum_threads: " << num_threads;
 
@@ -124,6 +124,8 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
         double gyr_w = Config::Get<double>("gyr_w");
         double g_norm = Config::Get<double>("g_norm");
         Imu::Create(SE3d(), acc_n, acc_w, gyr_n, gyr_w, g_norm);
+
+        frontend->imu_preintegrated_from_last_kf = imu::Preintegration::Create(Bias());
     }
 
     if (use_lidar)
@@ -159,33 +161,6 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
         {
             relocator->SetMapping(mapping);
         }
-    }
-    else{    //NAVI
-        use_navigation=0;
-    }
-    //NAVI
-    if(use_navigation)
-    {
-        gridmap = Gridmap::Ptr(new Gridmap(
-            Config::Get<int>("grid_width"),
-            Config::Get<int>("grid_height"),
-            Config::Get<double>("grid_resolution"),
-              Config::Get<int>("num_scans"),
-            Config::Get<int>("horizon_scan"),
-            Config::Get<double>("ang_res_y"),
-            Config::Get<double>("ang_bottom"),
-            Config::Get<int>("ground_rows"),
-            Config::Get<double>("cycle_time"),
-            Config::Get<double>("min_range"),
-            Config::Get<double>("max_range"),
-            Config::Get<int>("deskew"),
-            Config::Get<int>("spacing")));
-        association->SetGridmap(gridmap);
-        if(use_imu)
-            initializer->SetGridmap(gridmap);
-        // globalplanner=Global_planner::Ptr(new Global_planner(
-        //     Config::Get<int>("grid_width"),
-        //     Config::Get<int>("grid_height")));
     }
     return true;
 }

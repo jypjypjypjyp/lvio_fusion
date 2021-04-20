@@ -8,9 +8,7 @@
 ros::Publisher pub_path;
 ros::Publisher pub_navsat;
 ros::Publisher pub_points_cloud;
-ros::Publisher pub_local_map;
 ros::Publisher pub_car_model;
-ros::Publisher pub_navigation;//NAVI
 nav_msgs::Path path, navsat_path;
 
 ros::Publisher pub_camera_pose_visual;
@@ -22,9 +20,8 @@ void register_pub(ros::NodeHandle &n)
     pub_path = n.advertise<nav_msgs::Path>("path", 1000);
     pub_navsat = n.advertise<nav_msgs::Path>("navsat_path", 1000);
     pub_points_cloud = n.advertise<sensor_msgs::PointCloud2>("point_cloud", 1000);
-    pub_local_map = n.advertise<sensor_msgs::PointCloud2>("local_map", 1000);
     pub_car_model = n.advertise<visualization_msgs::Marker>("car_model", 1000);
-    pub_navigation = n.advertise<nav_msgs::OccupancyGrid>("grid_map", 1);//NAVI
+
     pub_camera_pose_visual = n.advertise<visualization_msgs::MarkerArray>("camera_pose_visual", 1000);
 
     cameraposevisual.setScale(0.1);
@@ -143,15 +140,6 @@ void publish_point_cloud(Estimator::Ptr estimator, double time)
     pub_points_cloud.publish(ros_cloud);
 }
 
-void publish_local_map(Estimator::Ptr estimator, double time)
-{
-    sensor_msgs::PointCloud2 ros_cloud;
-    pcl::toROSMsg(estimator->frontend->local_map.GetLocalLandmarks(), ros_cloud);
-    ros_cloud.header.stamp = ros::Time(time);
-    ros_cloud.header.frame_id = "world";
-    pub_local_map.publish(ros_cloud);
-}
-
 void publish_car_model(Estimator::Ptr estimator, double time)
 {
     visualization_msgs::Marker car_mesh;
@@ -188,31 +176,4 @@ void publish_car_model(Estimator::Ptr estimator, double time)
     car_mesh.scale.z = major_scale;
 
     pub_car_model.publish(car_mesh);
-}
-//NAVI
-void publish_navigation(Estimator::Ptr estimator, double time)
-{
-    nav_msgs::OccupancyGrid grid_map_msg;
-    grid_map_msg.header.frame_id="world";
-    grid_map_msg.header.stamp =  ros::Time(time); 
-    int h=estimator->gridmap->height;
-    int w=estimator->gridmap->width;
-    grid_map_msg.info.resolution = estimator->gridmap->resolution;
-    grid_map_msg.info.width = h;
-    grid_map_msg.info.height = w;
-    grid_map_msg.info.origin.position.x = (-h/2)* estimator->gridmap->resolution;
-    grid_map_msg.info.origin.position.y = (-w/2)* estimator->gridmap->resolution;
-    grid_map_msg.info.origin.position.z = 100;
-    int p[w*h];
-    cv::Mat grid_map = estimator ->gridmap->GetGridmap();
-    std::vector<signed char> grid_map_vec;
-    for(int row = 0; row < h; ++row)
-    {
-        for(int col = 0; col < w; ++col)
-        {
-            grid_map_vec.push_back(grid_map.at<char>(row, col));
-        }
-    }
-    grid_map_msg.data=grid_map_vec;
-    pub_navigation.publish(grid_map_msg);
 }

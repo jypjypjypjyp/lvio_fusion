@@ -6,6 +6,25 @@
 namespace lvio_fusion
 {
 
+void ORBMatcher::FastFeatureToTrack(cv::Mat &image, std::vector<cv::Point2f> &corners, double minDistance, cv::Mat mask)
+{
+    if (mask.empty())
+    {
+        mask = cv::Mat(image.size(), CV_8UC1, 255);
+    }
+
+    std::vector<cv::KeyPoint> keypoints;
+    cv::FAST(image, keypoints, 10);
+    for (size_t i = 0; i < keypoints.size(); i++)
+    {
+        if (mask.at<uchar>(keypoints[i].pt) != 0)
+        {
+            cv::circle(mask, keypoints[i].pt, minDistance, 0, cv::FILLED);
+            corners.push_back(keypoints[i].pt);
+        }
+    }
+}
+
 void ORBMatcher::Match(cv::Mat &prevImg, cv::Mat &nextImg, std::vector<cv::Point2f> &prevPts, std::vector<cv::Point2f> &nextPts, std::vector<uchar> &status)
 {
     std::vector<cv::KeyPoint> kps_prev, kps_next;
@@ -21,7 +40,7 @@ void ORBMatcher::Match(cv::Mat &prevImg, cv::Mat &nextImg, std::vector<cv::Point
     const float ratio_thresh = 0.8;
     nextPts.resize(prevPts.size(), cv::Point2f(0, 0));
     status.resize(prevPts.size(), 0);
-    for (int i = 0; i < knn_matches.size(); i++)
+    for (size_t i = 0; i < knn_matches.size(); i++)
     {
         if (knn_matches[i][0].distance < ratio_thresh * knn_matches[i][1].distance && distance(kps_prev[knn_matches[i][0].queryIdx].pt, kps_next[knn_matches[i][0].trainIdx].pt) < 200)
         {
@@ -47,7 +66,7 @@ int ORBMatcher::Relocate(Frame::Ptr last_frame, Frame::Ptr current_frame,
     const float ratio_thresh = 0.8;
     std::vector<cv::Point2f> kps_match_left, kps_match_right, kps_match_current;
     cv::Mat mask = cv::Mat(current_frame->image_left.size(), CV_8UC1, 255);
-    for (int i = 0; i < knn_matches.size(); i++)
+    for (size_t i = 0; i < knn_matches.size(); i++)
     {
         if (knn_matches[i][0].distance < ratio_thresh * knn_matches[i][1].distance)
         {
@@ -73,7 +92,7 @@ int ORBMatcher::Relocate(Frame::Ptr last_frame, Frame::Ptr current_frame,
         std::vector<uchar> status;
         optical_flow(last_frame->image_left, last_frame->image_right, kps_match_left, kps_match_right, status);
 
-        for (int i = 0; i < kps_match_left.size(); ++i)
+        for (size_t i = 0; i < kps_match_left.size(); ++i)
         {
             if (status[i])
             {
@@ -139,7 +158,7 @@ int ORBMatcher::Relocate(Frame::Ptr last_frame, Frame::Ptr current_frame, SE3d &
     const float ratio_thresh = 0.8;
     std::vector<cv::Point3f> points_3d;
     std::vector<cv::Point2f> points_2d;
-    for (int i = 0; i < knn_matches.size(); i++)
+    for (size_t i = 0; i < knn_matches.size(); i++)
     {
         if (knn_matches[i][0].distance < ratio_thresh * knn_matches[i][1].distance)
         {
@@ -151,7 +170,7 @@ int ORBMatcher::Relocate(Frame::Ptr last_frame, Frame::Ptr current_frame, SE3d &
     // Solve PnP
     int num_good_pts = 0;
     cv::Mat rvec, tvec, inliers, cv_R;
-    if ((points_2d.size() > num_features_threshold_ )&&
+    if (points_2d.size() > num_features_threshold_ &&
         cv::solvePnPRansac(points_3d, points_2d, Camera::Get()->K, Camera::Get()->D, rvec, tvec, false, 100, 8.0F, 0.98, inliers, cv::SOLVEPNP_EPNP))
     {
         cv::Rodrigues(rvec, cv_R);

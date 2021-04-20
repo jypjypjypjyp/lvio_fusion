@@ -7,7 +7,7 @@ use_navsat: 1
 use_loop: 0             # 0 for only odometry, 1 for whole system
 use_semantic: 0
 use_adapt: 0
-train: 0
+train: 1
 
 # ros parameters
 imu_topic: '/imu/data_raw'
@@ -42,17 +42,17 @@ camera1.p1: 4.58583e-04
 camera1.p2: -1.7561082e-03
 
 # lidar parameters
-num_scans: 16           # only for 16, 32, 64
+num_scans: 64           # only for 16, 32, 64
 horizon_scan: 1800
-ang_res_y: 2.0
-ang_bottom: 15.1
-ground_rows: 0
+ang_res_y: 0.427
+ang_bottom: 24.9
+ground_rows: 60
 cycle_time: 0.1036
-min_range: 2
-max_range: 50
+min_range: 5
+max_range: 30
 deskew: 0
 spacing: 5
-resolution: 0.2
+resolution: 0.4
 
 #imu parameters
 acc_n: 0.08             # accelerometer measurement noise standard deviation. #0.2   0.04
@@ -66,20 +66,20 @@ body_to_cam0: !!opencv-matrix
    rows: 4
    cols: 4
    dt: d
-   data: [ 1.3801524189147485e-02, -7.7622816063446787e-03, 9.9987462459766463e-01, 1.5360092945087405e+00, 
-         -9.9989976047798446e-01, 3.0532746260474308e-03, 1.3825574495393678e-02, 2.5624794254063288e-01, 
-         -3.1602098231156561e-03, -9.9996521164404628e-01, -7.7193636753394301e-03, -1.6502062159982903e-01, 
-         0., 0., 0., 1.]
+   data: [-0.00680976,   -0.0153261  ,   0.999859  ,    1.71239,
+            -0.999977,  0.000329685 , -0.00680551  ,   0.247401,
+         -0.000225337,    -0.999882  ,  -0.015328  ,   -0.11589,
+                  0  ,          0    ,        0    ,        1]
 
 # camera1 to body
 body_to_cam1: !!opencv-matrix
    rows: 4
    cols: 4
    dt: d
-   data: [ 2.1297149521638525e-02, -1.0285870096768845e-02, 9.9972027702683186e-01, 1.4949942257202478e+00,
-         -9.9977294572207487e-01, 4.7988590205894077e-04, 2.1303208953728336e-02, -2.2243321249605580e-01,
-         -6.9887370689009076e-04, -9.9994698388758252e-01, -1.0273314444151804e-02, -1.6716048533765726e-01, 
-         0., 0., 0., 1. ]
+   data: [-0.0037342 , -0.0119365 ,   0.999922 ,    1.70911,
+            -0.999992 ,-0.00158823 ,-0.00375342 , -0.234088,
+            0.00163291 ,  -0.999927 , -0.0119304  , -0.115998,
+            0         ,  0        ,   0         ,  1]
 
 # lidar to body
 body_to_lidar: !!opencv-matrix
@@ -92,14 +92,13 @@ body_to_lidar: !!opencv-matrix
                   0   ,      0   ,      0   ,      1]
 
 # number of features
-num_features: 300
+num_features: 200
 num_features_init: 50
-num_features_tracking_bad: 20
-num_features_needed_for_keyframe: 120
+num_features_tracking_bad: 10
+num_features_needed_for_keyframe: 60
 
 # backend
-windows_size: 3
+windows_size: 1
 
 # loop
 relocator_mode: 0    # none = 0, visual = 1, lidar = 2, visual&&lidar = 3
-threshold: 20

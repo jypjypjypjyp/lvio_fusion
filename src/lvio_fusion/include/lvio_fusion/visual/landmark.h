@@ -6,7 +6,7 @@
 
 namespace lvio_fusion
 {
-    
+
 namespace visual
 {
 class Landmark
@@ -15,9 +15,7 @@ public:
     typedef std::shared_ptr<Landmark> Ptr;
 
     Vector3d ToWorld();
-
     void Clear();
-    
     std::weak_ptr<Frame> FirstFrame();
     std::weak_ptr<Frame> LastFrame();
 
@@ -25,19 +23,19 @@ public:
 
     void RemoveObservation(Feature::Ptr feature);
 
-    static Landmark::Ptr Create(double depth);
+    static Landmark::Ptr Create(Vector3d position);
 
     static unsigned long current_landmark_id;
     unsigned long id = 0;                   // ID
-    double depth;                           // depth in the first observation
+    Vector3d position;                      // position in the first robot coordinate
     LabelType label = LabelType::None;      // Sematic Label
     Features observations;                  // only for left feature
-    Feature::Ptr first_observation;         // the first right observation
+    Feature::Ptr first_observation;         // the first observation
 
 private:
     Landmark()
     {
-        id = ++current_landmark_id;
+        id = current_landmark_id + 1;
     }
 };
 

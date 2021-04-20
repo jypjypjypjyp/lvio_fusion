@@ -1,14 +1,13 @@
 %YAML:1.0
 
 # flags
-use_imu: 1
+use_imu: 0
 use_lidar: 1
-use_navsat: 0
+use_navsat: 1
 use_loop: 0
 use_semantic: 0
 use_adapt: 0
-use_navigation: 1
-train: 0
+train: 1
 
 # ros parameters
 imu_topic: '/kitti/oxts/imu'
@@ -17,8 +16,7 @@ navsat_topic: '/kitti/oxts/gps/fix'
 image0_topic: '/kitti/camera_gray_left/image_raw'
 image1_topic: '/kitti/camera_gray_right/image_raw'
 color_topic: '/kitti/camera_color_left/image_raw'
-nav_goal_topic: '/move_base_simple/goal'
-result_path: '/home/jyp/Projects/lvio_fusion/result/result.csv'
+result_path: '/home/zoet/Projects/lvio_fusion/result/result.csv'
 
 # cameras parameters
 undistort: 0
@@ -86,24 +84,19 @@ body_to_lidar: !!opencv-matrix
             0          ,       -0          ,      -0        ,        1]
 
 # number of features
-num_features: 200
+num_features: 300
 num_features_init: 50
-num_features_tracking_bad: 20
-num_features_needed_for_keyframe: 120
+num_features_tracking_bad: 10
+num_features_needed_for_keyframe: 80
 
 # backend
-windows_size: 3
+windows_size: 2
 
 # loop
 relocator_mode: 0    # none = 0, visual = 1, lidar = 2, visual&&lidar = 3
 threshold: 10
 
 # train
-ground_truth_path: /home/jyp/Projects/playground/kitti_00_tum_gd.txt
+ground_truth_path: /home/zoet/Projects/playground/kitti_00_tum_gd.txt
 obs_rows: 4
 obs_cols: 12
-
-#navigation
-grid_width: 1000
-grid_height: 1000
-grid_resolution: 1

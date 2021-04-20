@@ -7,10 +7,8 @@ add_library(lvio_fusion SHARED
         estimator.cpp
         frame.cpp
         frontend.cpp
-        gridmap.cpp
         initializer.cpp
         landmark.cpp
-        local_map.cpp
         manager.cpp
         map.cpp
         mapping.cpp

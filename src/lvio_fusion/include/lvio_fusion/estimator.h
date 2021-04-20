@@ -12,8 +12,7 @@
 #include "lvio_fusion/loop/pose_graph.h"
 #include "lvio_fusion/navsat/navsat.h"
 #include "lvio_fusion/semantic/detected_object.h"
-#include "lvio_fusion/navigation/gridmap.h"//NAVI
-//#include "lvio_fusion/navigation/global_planner.h"//NAVI
+
 namespace lvio_fusion
 {
 
@@ -44,7 +43,7 @@ public:
 
     void InputIMU(double time, Vector3d acc, Vector3d gyr);
 
-    bool Init(int use_imu, int use_lidar, int use_navsat, int use_loop, int use_adapt, int use_navigation);//NAVI
+    bool Init(int use_imu, int use_lidar, int use_navsat, int use_loop, int use_adapt);
 
     Frontend::Ptr frontend;
     Backend::Ptr backend;
@@ -52,8 +51,7 @@ public:
     FeatureAssociation::Ptr association;
     Mapping::Ptr mapping;
     Initializer::Ptr initializer;
-    Gridmap::Ptr gridmap;
-   // Global_planner::Ptr globalplanner;
+
 private:
     std::string config_file_path_;
 };

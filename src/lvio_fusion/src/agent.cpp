@@ -19,7 +19,7 @@ void Agent::AgentLoop()
         auto new_kfs = Map::Instance().GetKeyFrames(finished);
         if (!new_kfs.empty())
         {
-            for (auto &pair_kf : new_kfs)
+            for (auto pair_kf : new_kfs)
             {
                 UpdateWeights(pair_kf.second);
             }

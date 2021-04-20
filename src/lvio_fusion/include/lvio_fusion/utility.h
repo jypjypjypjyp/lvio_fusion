@@ -33,79 +33,54 @@ inline void triangulate(const SE3d &pose0, const SE3d &pose1, const Vector3d &p0
     p_3d = (p_norm / p_norm(3)).head<3>();
 }
 
-inline double distance(cv::Point2f &pt1, cv::Point2f &pt2)
-{
-    double dx = pt1.x - pt2.x;
-    double dy = pt1.y - pt2.y;
-    return sqrt(dx * dx + dy * dy);
-}
-
-/**
- * double calculate optical flow
- * @param prevImg     prev image,
- * @param nextImg     next image,
- * @param prevPts     point in prev image
- * @param nextPts     point in next image
- * @param status      status
- */
-inline int optical_flow(cv::Mat &prevImg, cv::Mat &nextImg,
-                        std::vector<cv::Point2f> &prevPts, std::vector<cv::Point2f> &nextPts,
-                        std::vector<uchar> &status)
-{
-    if (prevPts.empty())
-        return 0;
-
-    cv::Mat err;
-    cv::calcOpticalFlowPyrLK(prevImg, nextImg, prevPts, nextPts, status, err, cv::Size(21, 21), 3, cv::TermCriteria(cv::TermCriteria::COUNT + cv::TermCriteria::EPS, 30, 0.01), cv::OPTFLOW_USE_INITIAL_FLOW);
-
-    std::vector<uchar> reverse_status;
-    std::vector<cv::Point2f> reverse_pts = prevPts;
-    cv::calcOpticalFlowPyrLK(
-        nextImg, prevImg, nextPts, reverse_pts, reverse_status, err, cv::Size(3, 3), 1,
-        cv::TermCriteria(cv::TermCriteria::COUNT + cv::TermCriteria::EPS, 30, 0.01),
-        cv::OPTFLOW_USE_INITIAL_FLOW);
-
-    int num_success_pts = 0;
-    for (int i = 0; i < status.size(); i++)
-    {
-        if (status[i] && reverse_status[i] &&
-            distance(prevPts[i], reverse_pts[i]) <= 0.5 &&
-            nextPts[i].x >= 0 && nextPts[i].x < prevImg.cols &&
-            nextPts[i].y >= 0 && nextPts[i].y < prevImg.rows)
-        {
-            status[i] = 1;
-            num_success_pts++;
-        }
-        else
-            status[i] = 0;
-    }
-    return num_success_pts;
-}
-
 inline Vector2d cv2eigen(const cv::Point2f &p) { return Vector2d(p.x, p.y); }
 inline Vector3d cv2eigen(const cv::Point3f &p) { return Vector3d(p.x, p.y, p.z); }
 inline cv::Point2f eigen2cv(const Vector2d &p) { return cv::Point2f(p.x(), p.y()); }
 inline cv::Point3f eigen2cv(const Vector3d &p) { return cv::Point3f(p.x(), p.y(), p.z()); }
 
-// convert opencv points
-inline void convert_points(const std::vector<cv::KeyPoint> &kps, std::vector<cv::Point2f> &ps)
+/**
+ * line fitting
+ * @param P    points set
+ * @param A    A
+ * @param B    B
+ */
+inline void line_fitting(const MatrixX3d &P, Vector3d &A, Vector3d &B)
 {
-    ps.resize(kps.size());
-    for (int i = 0; i < kps.size(); i++)
-    {
-        ps[i] = kps[i].pt;
-    }
+    A = P.colwise().mean();
+    MatrixXd P0 = P.rowwise() - A.transpose();
+    auto cov = (P0.adjoint() * P0) / double(P.rows() - 1);
+    auto svd = cov.bdcSvd(ComputeThinV);
+    auto V = svd.matrixV();
+    Vector3d v(V.block<3, 1>(0, 0));
+    B = A + v * 1;
 }
 
-// convert opencv points
-inline void convert_points(const std::vector<cv::Point2f> &ps, std::vector<cv::KeyPoint> &kps)
+/**
+ * closest point on a line
+ * @param A    A
+ * @param B    B
+ * @param P    P
+ * @return closest point
+ */
+inline Vector3d closest_point_on_a_line(const Vector3d &A, const Vector3d &B, const Vector3d &P)
 {
-    kps.resize(ps.size());
-    for (int i = 0; i < ps.size(); i++)
-    {
-        kps[i] = cv::KeyPoint(ps[i], 1);
-    }
-}
+    Vector3d AB = B - A, AP = P - A;
+    double k = AB.dot(AP) / AB.norm();
+    return A + k * AB;
+};
+
+/**
+ * closest point on a plane
+ * @param norm norm
+ * @param A    A
+ * @param P    P
+ * @return closest point
+ */
+inline Vector3d closest_point_on_a_panel(const Vector3d &norm, const Vector3d &A, const Vector3d &P)
+{
+    auto t = (A - P).dot(norm) / norm.squaredNorm();
+    return P + t * norm;
+};
 
 /**
  * remove close points
@@ -122,8 +97,9 @@ void filter_points_by_distance(const pcl::PointCloud<PointT> &cloud_in, pcl::Poi
         cloud_out.points.resize(cloud_in.points.size());
     }
 
-    int j = 0;
-    for (int i = 0; i < cloud_in.points.size(); ++i)
+    size_t j = 0;
+
+    for (size_t i = 0; i < cloud_in.points.size(); ++i)
     {
         float d = cloud_in.points[i].x * cloud_in.points[i].x + cloud_in.points[i].y * cloud_in.points[i].y + cloud_in.points[i].z * cloud_in.points[i].z;
         if (d > min_range * min_range && d < max_range * max_range)
@@ -298,39 +274,103 @@ inline double vectors_degree_angle(Vector3d v1, Vector3d v2)
     return radian_angle * 180 / M_PI;
 }
 
+inline double vectors_height(Vector3d v1, Vector3d v2)
+{
+    return v1.cross(v2).norm() / v1.norm();
+}
+
+inline double vectors_height(Vector3d A, Vector3d B, Vector3d C)
+{
+    auto v1 = B - A, v2 = C - A;
+    return v1.cross(v2).norm() / v1.norm();
+}
+
+inline double panel_height(Vector3d A, Vector3d B, Vector3d C)
+{
+    A.z() = B.z() = C.z() = 0;
+    return vectors_height(A, B, C);
+}
+
+inline double distance(cv::Point2f &pt1, cv::Point2f &pt2)
+{
+    double dx = pt1.x - pt2.x;
+    double dy = pt1.y - pt2.y;
+    return sqrt(dx * dx + dy * dy);
+}
+
 // SE3d slerp, the bigger s(0,1), the closer the result is to b
 inline SE3d se3_slerp(const SE3d &a, const SE3d &b, double s)
-{
+{   
     Quaterniond q = a.unit_quaternion().slerp(s, b.unit_quaternion());
     Vector3d t = s * b.translation() + (1 - s) * a.translation();
     return SE3d(q, t);
 }
-
-inline Matrix3d exp_so3(const Vector3d &so3)
+//IMU
+inline Vector3d LogSO3(const Matrix3d &R)
 {
-    Matrix3d I = Matrix3d::Identity();
-    const double d = so3.norm();
-    const double d2 = d * d;
-    Matrix3d W;
-    W << 0, -so3.z(), so3.y(),
-        so3.z(), 0, -so3.x(),
-        -so3.y(), so3.x(), 0;
-    if (d < 1e-4)
-        return (I + W + 0.5f * W * W);
+    const double tr = R(0,0)+R(1,1)+R(2,2);
+    Vector3d w;
+    w << (R(2,1)-R(1,2))/2, (R(0,2)-R(2,0))/2, (R(1,0)-R(0,1))/2;
+    const double costheta = (tr-1.0)*0.5f;
+    if(costheta>1 || costheta<-1)
+        return w;
+    const double theta = acos(costheta);
+    const double s = sin(theta);
+    if(fabs(s)<1e-5)
+        return w;
     else
-        return (I + W * sin(d) / d + W * W * (1.0f - cos(d)) / d2);
+        return theta*w/s;
 }
 
-inline Matrix3d normalize_R(const Matrix3d &R_)
+inline Matrix3d InverseRightJacobianSO3(const double x, const double y, const double z)
 {
-    cv::Mat_<double> U, w, Vt;
-    cv::Mat_<double> R = (cv::Mat_<double>(3, 3) << R_(0, 0), R_(0, 1), R_(0, 2), R_(1, 0), R_(1, 1), R_(1, 2), R_(2, 0), R_(2, 1), R_(2, 2));
-    cv::SVDecomp(R, w, U, Vt, cv::SVD::FULL_UV);
+    const double d2 = x*x+y*y+z*z;
+    const double d = sqrt(d2);
+    Matrix3d W;
+    W << 0.0, -z, y,z, 0.0, -x,-y,  x, 0.0;
+    if(d<1e-5)
+        return Matrix3d::Identity();
+    else
+        return Matrix3d::Identity() + W/2 + W*W*(1.0/d2 - (1.0+cos(d))/(2.0*d*sin(d)));
+}
+
+inline Matrix3d InverseRightJacobianSO3(const Vector3d &v)
+{
+    return InverseRightJacobianSO3(v[0],v[1],v[2]);
+}
+
+
+inline Matrix3d ExpSO3(const double &x, const double &y, const double &z)
+{
+    Matrix3d I = Matrix3d::Identity();
+    const double d2 = x*x+y*y+z*z;
+    const double d = sqrt(d2);
+   Matrix3d W;
+   W << 0, -z, y,
+            z, 0, -x,
+            -y,  x, 0;
+    if(d<1e-4)
+        return (I + W + 0.5f*W*W);
+    else
+        return (I + W*sin(d)/d + W*W*(1.0f-cos(d))/d2);
+}
+
+inline Matrix3d ExpSO3(const Vector3d &v)
+{
+    return ExpSO3(v(0),v(1),v(2));
+}
+
+inline Matrix3d NormalizeRotation(const Matrix3d &R_)
+{ 
+    cv::Mat_<double> U,w,Vt;
+    cv::Mat_<double> R=(cv::Mat_<double>(3,3)<<R_(0,0),R_(0,1),R_(0,2),R_(1,0),R_(1,1),R_(1,2),R_(2,0),R_(2,1),R_(2,2));
+    cv::SVDecomp(R,w,U,Vt,cv::SVD::FULL_UV);
     Matrix3d uvt;
-    cv::cv2eigen(U * Vt, uvt);
+    cv::cv2eigen(U*Vt,uvt);
     return uvt;
 }
 
+//IMUEND
 } // namespace lvio_fusion
 
 #endif // lvio_fusion_UTILITY_H

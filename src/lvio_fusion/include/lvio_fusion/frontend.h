@@ -2,7 +2,6 @@
 #define lvio_fusion_FRONTEND_H
 
 #include "lvio_fusion/common.h"
-#include "lvio_fusion/visual/local_map.h"
 #include "lvio_fusion/visual/matcher.h"
 
 namespace lvio_fusion
@@ -41,8 +40,10 @@ public:
     Frame::Ptr last_frame;
     Frame::Ptr last_keyframe;
     SE3d relative_i_j;
-    LocalMap local_map;
     std::mutex mutex;
+
+    imu::Preintegration::Ptr imu_preintegrated_from_last_kf;
+    std::list<ImuData> imu_buf;
     double valid_imu_time = 0;
     bool last_keyframe_updated = false;
 
@@ -53,7 +54,7 @@ private:
 
     void InitFrame();
 
-    int TrackLastFrame();
+    int TrackLastFrame(Frame::Ptr base_frame);
 
     int Relocate(Frame::Ptr base_frame);
 
@@ -71,9 +72,9 @@ private:
 
     // data
     std::weak_ptr<Backend> backend_;
+    ORBMatcher matcher_;
+    std::unordered_map<unsigned long, Vector3d> position_cache_;
     SE3d last_frame_pose_cache_;
-    std::queue<ImuData> imu_buf_;
-    imu::Preintegration::Ptr imu_preintegrated_from_last_kf_;
 
     // params
     int num_features_;

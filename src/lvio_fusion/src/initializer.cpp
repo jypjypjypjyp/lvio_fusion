@@ -48,7 +48,7 @@ bool Initializer::EstimateVelAndRwg(std::vector<Frame::Ptr> keyframes)
         }
         else
         {
-            Rwg_ = exp_so3(vzg);
+            Rwg_ = ExpSO3(vzg);
         }
         Vector3d g;
         g << 0, 0, Imu::Get()->G;
@@ -110,7 +110,7 @@ bool Initializer::Initialize(Frames keyframes, double priorA, double priorG)
         const double ang = acos(cosg);
         // 计算mRwg，与-Z旋转偏差
         Vector3d vzg = v * ang / nv;
-        Rwg_ = exp_so3(vzg);
+        Rwg_ = ExpSO3(vzg);
     }
     else
     {
