@@ -287,25 +287,30 @@ int Frontend::TrackLastFrame()
     std::vector<visual::Landmark::Ptr> landmarks;
     std::vector<uchar> status;
     // use LK flow to estimate points in the last image
+    kps_last.reserve(last_frame->features_left.size());
+    kps_current.reserve(last_frame->features_left.size());
     for (auto &pair_feature : last_frame->features_left)
     {
         // use project point
         auto feature = pair_feature.second;
         auto landmark = feature->landmark.lock();
-        auto px = Camera::Get()->World2Pixel(local_map.position_cache[landmark->id].second, current_frame->pose);
-        kps_last.push_back(feature->keypoint);
+        auto px = Camera::Get()->World2Pixel(local_map.position_cache[landmark->id], current_frame->pose);
+        kps_last.push_back(feature->keypoint.pt);
         kps_current.push_back(cv::Point2f(px[0], px[1]));
         landmarks.push_back(landmark);
     }
     // if last frame is a key frame, use new landmarks
     if (last_frame == last_keyframe)
     {
-        auto features = local_map.GetLandmarks(last_frame);
+        auto features = local_map.GetFeatures(last_frame->time);
+        kps_last.reserve(kps_last.size() + features.size());
+        kps_current.reserve(kps_current.size() + features.size());
         for (auto &feature : features)
         {
-            auto landmark = feature->landmark;
-            auto px = Camera::Get()->World2Pixel(local_map.position_cache[landmark->id].second, current_frame->pose);
-            kps_last.push_back(feature->kp.pt);
+            auto landmark = feature->landmark.lock();
+            assert(landmark);
+            auto px = Camera::Get()->World2Pixel(local_map.position_cache[landmark->id], current_frame->pose);
+            kps_last.push_back(feature->keypoint.pt);
             kps_current.push_back(cv::Point2f(px[0], px[1]));
             landmarks.push_back(landmark);
         }
@@ -320,18 +325,18 @@ int Frontend::TrackLastFrame()
     {
         if (status[i])
         {
-            if (local_map.position_cache[landmarks[i]->id].first > Camera::BASELINE * 40)
+            if (landmarks[i]->depth > Camera::BASELINE * 40)
             {
                 map_far.push_back(i);
                 points_2d_far.push_back(kps_current[i]);
-                Vector3d pw = local_map.position_cache[landmarks[i]->id].second;
+                Vector3d pw = local_map.position_cache[landmarks[i]->id];
                 points_3d_far.push_back(cv::Point3f(pw.x(), pw.y(), pw.z()));
             }
             else
             {
                 map_near.push_back(i);
                 points_2d_near.push_back(kps_current[i]);
-                Vector3d pw = local_map.position_cache[landmarks[i]->id].second;
+                Vector3d pw = local_map.position_cache[landmarks[i]->id];
                 points_3d_near.push_back(cv::Point3f(pw.x(), pw.y(), pw.z()));
             }
         }
@@ -352,7 +357,7 @@ int Frontend::TrackLastFrame()
             {
                 cv::arrowedLine(img_track, kps_current[i], kps_last[i], cv::Scalar(0, 255, 0), 1, 8, 0, 0.2);
                 cv::circle(img_track, kps_current[i], 2, cv::Scalar(0, 255, 0), cv::FILLED);
-                auto feature = visual::Feature::Create(current_frame, kps_current[i], landmarks[i]);
+                auto feature = visual::Feature::Create(current_frame, cv::KeyPoint(kps_current[i], 1), landmarks[i]);
                 current_frame->AddFeature(feature);
                 num_good_pts++;
             }
@@ -380,7 +385,7 @@ int Frontend::TrackLastFrame()
                         int i = map_near[inliers.at<int>(r)];
                         cv::arrowedLine(img_track, kps_current[i], kps_last[i], cv::Scalar(0, 255, 0), 1, 8, 0, 0.2);
                         cv::circle(img_track, kps_current[i], 2, cv::Scalar(0, 255, 0), cv::FILLED);
-                        auto feature = visual::Feature::Create(current_frame, kps_current[i], landmarks[i]);
+                        auto feature = visual::Feature::Create(current_frame, cv::KeyPoint(kps_current[i], 1), landmarks[i]);
                         current_frame->AddFeature(feature);
                         num_good_pts++;
                     }
@@ -392,7 +397,7 @@ int Frontend::TrackLastFrame()
         {
             cv::arrowedLine(img_track, kps_current[i], kps_last[i], cv::Scalar(0, 255, 0), 1, 8, 0, 0.2);
             cv::circle(img_track, kps_current[i], 2, cv::Scalar(0, 255, 0), cv::FILLED);
-            auto feature = visual::Feature::Create(current_frame, kps_current[i], landmarks[i]);
+            auto feature = visual::Feature::Create(current_frame, cv::KeyPoint(kps_current[i], 1), landmarks[i]);
             current_frame->AddFeature(feature);
             num_good_pts++;
         }
@@ -586,7 +591,7 @@ void Frontend::UpdateCache()
         auto landmark = feature->landmark.lock();
         if (local_map.position_cache.find(landmark->id) == local_map.position_cache.end())
         {
-            local_map.position_cache[landmark->id] = std::make_pair(landmark->depth, landmark->ToWorld());
+            local_map.position_cache[landmark->id] = landmark->ToWorld();
         }
     }
     last_frame_pose_cache_ = last_frame->pose;

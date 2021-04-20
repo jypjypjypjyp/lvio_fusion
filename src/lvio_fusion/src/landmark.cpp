@@ -14,7 +14,7 @@ unsigned long Landmark::current_landmark_id = 0;
 
 Vector3d Landmark::ToWorld()
 {
-    Vector3d pb = Camera::Get(1)->Pixel2Robot(cv2eigen(first_observation->keypoint), depth);
+    Vector3d pb = Camera::Get(1)->Pixel2Robot(cv2eigen(first_observation->keypoint.pt), depth);
     return Camera::Get()->Robot2World(pb, FirstFrame().lock()->pose);
 }
 

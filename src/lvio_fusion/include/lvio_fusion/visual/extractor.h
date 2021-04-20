@@ -6,7 +6,7 @@
 namespace lvio_fusion
 {
 
-// from orb_slam_2_ros which is a ROS implementation of ORB_SLAM2(https://github.com/appliedAI-Initiative/orb_slam_2_ros)
+// from ORB_SLAM2
 class QuadTreeNode
 {
 public:
@@ -14,20 +14,23 @@ public:
 
     void DivideNode(QuadTreeNode &n1, QuadTreeNode &n2, QuadTreeNode &n3, QuadTreeNode &n4);
 
-    std::vector<cv::KeyPoint> vKeys;
+    std::vector<cv::KeyPoint> kps;
     cv::Point2i UL, UR, BL, BR;
-    std::list<QuadTreeNode>::iterator lit;
+    std::list<QuadTreeNode>::iterator iter;
     bool no_more;
 };
 
 class Extractor
 {
 public:
-    Extractor(int nfeatures = 1000, float scaleFactor = 1.2, int nlevels = 8, int iniThFAST = 20, int minThFAST = 7, int patchSize = 31, int edgeThreshold = 31);
+    Extractor(int nfeatures = 500, float scaleFactor = 1.2, int nlevels = 4, int iniThFAST = 20, int minThFAST = 7, int patchSize = 31, int edgeThreshold = 31);
 
-    // compute the ORB features and descriptors on an image.
+    // detect the ORB features on an image.
     // ORB are dispersed on the image using an quad tree.
-    void DetectAndCompute(cv::InputArray image, cv::InputArray mask, std::vector<cv::KeyPoint> &keypoints, cv::OutputArray descriptors);
+    void Detect(cv::Mat image, cv::Mat mask, std::vector<std::vector<cv::KeyPoint>> &keypoints);
+
+    // compute the ORB descriptors after detecting.
+    cv::Mat Compute(std::vector<std::vector<cv::KeyPoint>> &keypoints);
 
     const int num_features;
     const double scale_factor;
@@ -41,7 +44,7 @@ public:
 private:
     void ComputePyramid(cv::Mat image);
 
-    void ComputeKeyPointsQuadTree(std::vector<std::vector<cv::KeyPoint>> &allKeypoints);
+    void ComputeKeyPointsQuadTree(std::vector<std::vector<cv::KeyPoint>> &keypoints);
 
     std::vector<cv::KeyPoint> DistributeQuadTree(
         const std::vector<cv::KeyPoint> &vToDistributeKeys,
@@ -49,16 +52,17 @@ private:
         const int &minY, const int &maxY,
         const int &nFeatures, const int &level);
 
-    float ICAngle(const Mat &image, Point2f pt);
+    void ComputeOrientation(const cv::Mat &image, std::vector<cv::KeyPoint> &keypoints);
+    float ICAngle(const cv::Mat &image, cv::Point2f pt);
 
-    std::vector<int> num_features_per_levels_;
-    std::vector<int> umax;
+    std::vector<int> umax_;
     std::vector<float> scale_factor_per_levels_;
     std::vector<float> inv_scale_factor_per_levels_;
     std::vector<float> sigma2_per_levels_;
     std::vector<float> inv_sigma2_per_levels_;
+    std::vector<int> num_desired_features_;
+    
     std::vector<cv::Mat> image_pyramid_;
-    cv::Ptr<cv::ORB> orb_;
 };
 
 } //namespace lvio_fusion

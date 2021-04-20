@@ -263,7 +263,7 @@ void imu::FullInertialBA(Frames &frames, double priorG, double priorA)
             auto feature = pair_feature.second;
             auto landmark = feature->landmark.lock();
             auto first_frame = landmark->FirstFrame().lock();
-            cost_function = PoseOnlyReprojectionError::Create(cv2eigen(feature->keypoint), landmark->ToWorld(), Camera::Get(), frame->weights.visual);
+            cost_function = PoseOnlyReprojectionError::Create(cv2eigen(feature->keypoint.pt), landmark->ToWorld(), Camera::Get(), frame->weights.visual);
             problem.AddResidualBlock(cost_function, loss_function, para_kf);
         }
     }

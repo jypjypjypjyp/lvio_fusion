@@ -36,7 +36,7 @@ SE3d Environment::Optimize()
             auto landmark = feature->landmark.lock();
             auto first_frame = landmark->FirstFrame().lock();
             ceres::CostFunction *cost_function;
-            cost_function = PoseOnlyReprojectionError::Create(cv2eigen(feature->keypoint), landmark->ToWorld(), Camera::Get(), frame->weights.visual);
+            cost_function = PoseOnlyReprojectionError::Create(cv2eigen(feature->keypoint.pt), landmark->ToWorld(), Camera::Get(), frame->weights.visual);
             problem.AddResidualBlock(ProblemType::VisualError, cost_function, loss_function, para);
         }
 

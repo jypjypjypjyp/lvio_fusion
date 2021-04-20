@@ -128,7 +128,7 @@ int ORBMatcher::Relocate(Frame::Ptr last_frame, Frame::Ptr current_frame, SE3d &
     std::vector<visual::Landmark::Ptr> landmarks;
     for (auto pair_feature : last_frame->features_left)
     {
-        kps_fast_last.push_back(cv::KeyPoint(pair_feature.second->keypoint, 1));
+        kps_fast_last.push_back(pair_feature.second->keypoint);
         landmarks.push_back(pair_feature.second->landmark.lock());
     }
     cv::Mat descriptors_last, descriptors_current;

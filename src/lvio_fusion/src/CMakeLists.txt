@@ -4,6 +4,7 @@ add_library(lvio_fusion SHARED
         backend.cpp
         config.cpp
         environment.cpp
+        extractor.cpp
         estimator.cpp
         frame.cpp
         frontend.cpp
