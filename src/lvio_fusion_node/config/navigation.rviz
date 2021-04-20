@@ -5,7 +5,7 @@ Panels:
     Property Tree Widget:
       Expanded:
         - /Global Options1
-        - /PointCloud21
+        - /Marker1
       Splitter Ratio: 0.5
     Tree Height: 461
   - Class: rviz/Selection
@@ -34,23 +34,30 @@ Toolbars:
 Visualization Manager:
   Class: ""
   Displays:
-    - Alpha: 0.5
-      Cell Size: 1
-      Class: rviz/Grid
-      Color: 160; 160; 164
-      Enabled: true
-      Line Style:
-        Line Width: 0.029999999329447746
-        Value: Lines
-      Name: Grid
-      Normal Cell Count: 0
-      Offset:
-        X: 0
-        Y: 0
-        Z: 0
-      Plane: XY
-      Plane Cell Count: 10
+    - Class: rviz/Axes
+      Enabled: false
+      Length: 50
+      Name: Axes
+      Radius: 1
       Reference Frame: <Fixed Frame>
+      Value: false
+    - Class: rviz/Marker
+      Enabled: true
+      Marker Topic: /lvio_fusion_node/car_model_navigation
+      Name: Marker
+      Namespaces:
+        {}
+      Queue Size: 100
+      Value: true
+    - Alpha: 0.699999988079071
+      Class: rviz/Map
+      Color Scheme: map
+      Draw Behind: false
+      Enabled: true
+      Name: Map
+      Topic: /lvio_fusion_node/grid_map
+      Unreliable: false
+      Use Timestamp: false
       Value: true
     - Alpha: 1
       Buffer Length: 1
@@ -72,82 +79,14 @@ Visualization Manager:
       Radius: 0.029999999329447746
       Shaft Diameter: 0.10000000149011612
       Shaft Length: 0.10000000149011612
-      Topic: /lvio_fusion_node/path
+      Topic: /lvio_fusion_node/plan_path
       Unreliable: false
-      Value: true
-    - Alpha: 1
-      Autocompute Intensity Bounds: true
-      Autocompute Value Bounds:
-        Max Value: 2.000995397567749
-        Min Value: -2.0772438049316406
-        Value: true
-      Axis: Z
-      Channel Name: intensity
-      Class: rviz/PointCloud2
-      Color: 255; 255; 255
-      Color Transformer: RGB8
-      Decay Time: 0
-      Enabled: false
-      Invert Rainbow: false
-      Max Color: 255; 255; 255
-      Max Intensity: 4096
-      Min Color: 0; 0; 0
-      Min Intensity: 0
-      Name: PointCloud2
-      Position Transformer: XYZ
-      Queue Size: 10
-      Selectable: true
-      Size (Pixels): 3
-      Size (m): 0.20000000298023224
-      Style: Points
-      Topic: /lvio_fusion_node/point_cloud
-      Unreliable: false
-      Use Fixed Frame: true
-      Use rainbow: true
-      Value: false
-    - Alpha: 1
-      Buffer Length: 1
-      Class: rviz/Path
-      Color: 255; 25; 25
-      Enabled: true
-      Head Diameter: 0.30000001192092896
-      Head Length: 0.20000000298023224
-      Length: 0.30000001192092896
-      Line Style: Lines
-      Line Width: 0.029999999329447746
-      Name: Path
-      Offset:
-        X: 0
-        Y: 0
-        Z: 0
-      Pose Color: 255; 85; 255
-      Pose Style: None
-      Radius: 0.029999999329447746
-      Shaft Diameter: 0.10000000149011612
-      Shaft Length: 0.10000000149011612
-      Topic: /lvio_fusion_node/navsat_path
-      Unreliable: false
-      Value: true
-    - Class: rviz/Axes
-      Enabled: false
-      Length: 50
-      Name: Axes
-      Radius: 1
-      Reference Frame: <Fixed Frame>
-      Value: false
-    - Class: rviz/Marker
-      Enabled: true
-      Marker Topic: /lvio_fusion_node/car_model
-      Name: Marker
-      Namespaces:
-        {}
-      Queue Size: 100
       Value: true
   Enabled: true
   Global Options:
     Background Color: 0; 0; 0
     Default Light: true
-    Fixed Frame: world
+    Fixed Frame: navigation
     Frame Rate: 30
   Name: root
   Tools:
@@ -171,25 +110,25 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 80.84912109375
+      Distance: 577.6785278320312
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: 1.5665984153747559
-        Y: -0.05371987819671631
-        Z: -31.019699096679688
+        X: 207.72596740722656
+        Y: 61.4710578918457
+        Z: -17.73868751525879
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 1.5697963237762451
+      Pitch: 0.9397971034049988
       Target Frame: <Fixed Frame>
       Value: Orbit (rviz)
-      Yaw: 3.1404306888580322
+      Yaw: 3.9204752445220947
     Saved: ~
 Window Geometry:
   Displays:
@@ -207,5 +146,5 @@ Window Geometry:
   Views:
     collapsed: true
   Width: 902
-  X: 385
+  X: 703
   Y: 245

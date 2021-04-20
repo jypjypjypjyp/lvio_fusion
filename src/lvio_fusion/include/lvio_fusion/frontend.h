@@ -3,6 +3,7 @@
 
 #include "lvio_fusion/common.h"
 #include "lvio_fusion/visual/matcher.h"
+#include "lvio_fusion/navigation/global_planner.h"//NAVI
 
 namespace lvio_fusion
 {
@@ -30,6 +31,8 @@ public:
     void AddImu(double time, Vector3d acc, Vector3d gyr);
 
     void SetBackend(std::shared_ptr<Backend> backend) { backend_ = backend; }
+
+    void SetGlobalPlanner(Global_planner::Ptr globalplanner ) { globalplanner_ = globalplanner; }//NAVI
 
     void UpdateCache();
 
@@ -72,6 +75,7 @@ private:
 
     // data
     std::weak_ptr<Backend> backend_;
+    Global_planner::Ptr globalplanner_;//NAVI
     ORBMatcher matcher_;
     std::unordered_map<unsigned long, Vector3d> position_cache_;
     SE3d last_frame_pose_cache_;

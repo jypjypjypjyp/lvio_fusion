@@ -598,6 +598,9 @@ void Frontend::PredictStateIMU()
         current_frame->SetPose(Rwb2, twb2);
         current_frame->SetNewBias(last_frame->GetImuBias());
     }
+    Vector3d trans_pose = Imu::Get()->Rwg.inverse()*last_frame->pose.translation();
+    Vector2d pose2d(trans_pose[0],trans_pose[1]);
+    globalplanner_->SetRobotPose(pose2d);//NAVI
 }
 
 } // namespace lvio_fusion

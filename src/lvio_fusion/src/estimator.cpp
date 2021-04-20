@@ -15,7 +15,7 @@ namespace lvio_fusion
 Estimator::Estimator(std::string &config_path)
     : config_file_path_(config_path) {}
 
-bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, int use_adapt)
+bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, int use_adapt, int use_navigation)//NAVI
 {
     LOG(INFO) << "System info:\n\tepsilon: " << epsilon << "\n\tnum_threads: " << num_threads;
 
@@ -161,6 +161,35 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
         {
             relocator->SetMapping(mapping);
         }
+    }
+    else{    //NAVI
+        use_navigation=0;
+    }
+    //NAVI
+    if(use_navigation)
+    {
+        gridmap = Gridmap::Ptr(new Gridmap(
+            Config::Get<int>("grid_width"),
+            Config::Get<int>("grid_height"),
+            Config::Get<double>("grid_resolution"),
+              Config::Get<int>("num_scans"),
+            Config::Get<int>("horizon_scan"),
+            Config::Get<double>("ang_res_y"),
+            Config::Get<double>("ang_bottom"),
+            Config::Get<int>("ground_rows"),
+            Config::Get<double>("cycle_time"),
+            Config::Get<double>("min_range"),
+            Config::Get<double>("max_range"),
+            Config::Get<int>("deskew"),
+            Config::Get<int>("spacing")));
+        association->SetGridmap(gridmap);
+        if(use_imu)
+            initializer->SetGridmap(gridmap);
+        globalplanner=Global_planner::Ptr(new Global_planner(
+            Config::Get<int>("grid_width"),
+            Config::Get<int>("grid_height")));
+        frontend->SetGlobalPlanner(globalplanner);
+        gridmap->SetGlobalPlanner(globalplanner);
     }
     return true;
 }
