@@ -57,12 +57,10 @@ void Frontend::PreintegrateIMU()
     }
     std::vector<ImuData> imu_from_last_frame;
     int timeout = 100; // ms
-    while (true)
+    while (timeout)
     {
         if (imu_buf_.empty())
         {
-            if (timeout < 0)
-                break;
             usleep(1e3);
             timeout--;
             continue;
@@ -83,12 +81,13 @@ void Frontend::PreintegrateIMU()
             break;
         }
     }
+
     const int n = imu_from_last_frame.size() - 1;
     imu::Preintegration::Ptr imu_preintegrated_from_last_frame = imu::Preintegration::Create(last_frame->GetImuBias());
     if (imu_preintegrated_from_last_kf_ == nullptr)
         imu_preintegrated_from_last_kf_ = imu::Preintegration::Create(last_frame->GetImuBias());
 
-    if (imu_from_last_frame[0].t - last_frame->time > 0.015) //freq*1.5
+    if (n < 5)
     {
         valid_imu_time = imu_from_last_frame[0].t;
         if (Imu::Get()->initialized)
@@ -171,17 +170,6 @@ void Frontend::PreintegrateIMU()
                 continue;
             imu_preintegrated_from_last_kf_->Append(tstep, acc, ang_vel, acc0, ang_vel0);
             imu_preintegrated_from_last_frame->Append(tstep, acc, ang_vel, acc0, ang_vel0);
-        }
-        if ((n == 0))
-        {
-            valid_imu_time = imu_from_last_frame[0].t;
-            if (Imu::Get()->initialized)
-            {
-                Imu::Get()->initialized = false;
-                status = FrontendStatus::INITIALIZING;
-            }
-            imu_preintegrated_from_last_kf_->bad = true;
-            imu_preintegrated_from_last_frame->bad = true;
         }
     }
 

@@ -65,7 +65,20 @@ cv::Mat get_image_from_msg(const sensor_msgs::ImageConstPtr &img_msg)
 {
     cv_bridge::CvImageConstPtr ptr;
     cv::Mat image;
-    if (true || img_msg->encoding == "bgr8")
+    if (img_msg->encoding == "8UC1")
+    {
+        sensor_msgs::Image img;
+        img.header = img_msg->header;
+        img.height = img_msg->height;
+        img.width = img_msg->width;
+        img.is_bigendian = img_msg->is_bigendian;
+        img.step = img_msg->step;
+        img.data = img_msg->data;
+        img.encoding = "mono8";
+        ptr = cv_bridge::toCvCopy(img, sensor_msgs::image_encodings::MONO8);
+        image = ptr->image.clone();
+    }
+    else if (img_msg->encoding == "bgr8")
     {
         ptr = cv_bridge::toCvCopy(img_msg, sensor_msgs::image_encodings::BGR8);
         cv::cvtColor(ptr->image, image, cv::COLOR_BGR2GRAY);
@@ -75,6 +88,8 @@ cv::Mat get_image_from_msg(const sensor_msgs::ImageConstPtr &img_msg)
         ptr = cv_bridge::toCvCopy(img_msg, sensor_msgs::image_encodings::MONO8);
         image = ptr->image.clone();
     }
+
+    cv::equalizeHist(image, image);
     return image;
 }
 
