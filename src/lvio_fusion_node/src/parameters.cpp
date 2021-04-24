@@ -29,7 +29,6 @@ void read_parameters(string config_file)
     settings["use_lidar"] >> use_lidar;
     settings["use_navsat"] >> use_navsat;
     settings["use_loop"] >> use_loop;
-    settings["use_semantic"] >> use_semantic;
     settings["use_adapt"] >> use_adapt;
     settings["use_navigation"] >> use_navigation;//NAVI
     settings["train"] >> train;

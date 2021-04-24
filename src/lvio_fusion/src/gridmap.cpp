@@ -27,7 +27,7 @@ void Gridmap::ToCartesianCoordinates(PointICloud scan_msg,Frame::Ptr& frame)
     for(int i = 0; i < scan_msg.size(); ++i) {
         Vector3d point( scan_msg[i].x,scan_msg[i].y,scan_msg[i].z);
         Vector3d trans_point=Rwg.inverse()*frame->pose.rotationMatrix()* point+frame->pose.translation();
-        scan_points.emplace_back(Vector2d(trans_point[0],trans_point[1]));
+        scan_points.emplace_back(Vector2d(trans_point[0]/resolution,trans_point[1]/resolution));
     }
     LaserScan::Ptr laser_scan=LaserScan::Ptr(new LaserScan(frame,scan_points));
     laser_scans_2d.emplace_back(laser_scan);
@@ -36,12 +36,11 @@ void Gridmap::ToCartesianCoordinates(PointICloud scan_msg,Frame::Ptr& frame)
 
 cv::Mat Gridmap::GetGridmap()    
 {
-    LOG(INFO)<<"GetGridmap";
     //ClearMap();
     int max_x=0,max_y=0,min_x=height,min_y=width;
     for(const LaserScan::Ptr&  scan : laser_scans_2d) {
         Vector3d trans_pose = Rwg.inverse()*scan->GetFrame()->pose.translation();
-        Vector2d start =Vector2d(trans_pose[0],trans_pose[1]);
+        Vector2d start =Vector2d(trans_pose[0]/resolution,trans_pose[1]/resolution);
         for(Vector2d end : scan->GetPoints()) {
             std::vector<Eigen::Vector2i> points;
             Bresenhamline(start[0],  start[1], end[0], end[1], points);
@@ -81,9 +80,7 @@ cv::Mat Gridmap::GetGridmap()
             }
         }
     }
-
-    LOG(INFO)<<"GetGridmap end";
-    globalplanner_->SetGridMap(grid_map_int, max_x, max_y, min_x, min_y );
+    globalplanner_->SetNewMap(grid_map.clone(), max_x, max_y, min_x, min_y );
     return grid_map_int;
 }
 

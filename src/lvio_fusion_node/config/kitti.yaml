@@ -1,14 +1,13 @@
 %YAML:1.0
 
 # flags
-use_imu: 1
+use_imu: 0
 use_lidar: 1
 use_navsat: 0
 use_loop: 0
-use_semantic: 0
 use_adapt: 0
-use_navigation: 1  #navigation  
-train: 0
+use_navigation: 1
+
 
 # ros parameters
 imu_topic: '/kitti/oxts/imu'
@@ -55,7 +54,7 @@ acc_w: 0.00004          # accelerometer bias random work noise standard deviatio
 gyr_w: 2.0e-6           # gyroscope bias random work noise standard deviation.     #4.0e-5
 g_norm: 9.81007         # gravity magnitude
 
-# camera0 to body
+# body_to_cam0 is inverse of [R T]
 body_to_cam0: !!opencv-matrix
    rows: 4
    cols: 4
@@ -65,7 +64,7 @@ body_to_cam0: !!opencv-matrix
             0.0139602 ,  -0.999891 ,-0.00491796 ,   0.746066,
             0         ,  0         ,  0         ,  1]
 
-# camera1 to body
+# body_to_cam1 is inverse of [R T]
 body_to_cam1: !!opencv-matrix
    rows: 4
    cols: 4
@@ -86,24 +85,24 @@ body_to_lidar: !!opencv-matrix
             0          ,       -0          ,      -0        ,        1]
 
 # number of features
-num_features: 300
+num_features: 200
 num_features_init: 50
-num_features_tracking_bad: 10
-num_features_needed_for_keyframe: 80
+num_features_tracking_bad: 20
+num_features_needed_for_keyframe: 120
 
 # backend
-windows_size: 2
+windows_size: 3
 
 # loop
 relocator_mode: 0    # none = 0, visual = 1, lidar = 2, visual&&lidar = 3
 threshold: 10
 
 # train
-ground_truth_path: /home/zoet/Projects/playground/kitti_00_tum_gd.txt
+ground_truth_path: /home/jyp/Projects/playground/kitti_00_tum_gd.txt
 obs_rows: 4
 obs_cols: 12
 
-#navigation  
+#navigation
 grid_width: 1000
 grid_height: 1000
 grid_resolution: 1

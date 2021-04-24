@@ -82,7 +82,7 @@ private:
     const int num_segment_valid_lines_ = 3;
     const float segment_alpha_x_;
     const float segment_alpha_y_;
-     Gridmap::Ptr gridmap_;//NAVI
+    Gridmap::Ptr gridmap_;//NAVI
 };
 
 } // namespace lvio_fusion

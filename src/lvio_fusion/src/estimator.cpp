@@ -12,6 +12,8 @@ int num_threads = std::min(8, std::max(1, (int)(0.75 * get_nprocs())));
 namespace lvio_fusion
 {
 
+double Camera::BASELINE = 1;
+
 Estimator::Estimator(std::string &config_path)
     : config_file_path_(config_path) {}
 
@@ -82,6 +84,7 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
                        Config::Get<double>("camera1.cy"),
                        SE3d(q_body_to_cam1, t_body_to_cam1));
     }
+    lvio_fusion::Camera::BASELINE = (t_body_to_cam0 - t_body_to_cam1).norm();
 
     // create components and links
     frontend = Frontend::Ptr(new Frontend(
@@ -124,8 +127,6 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
         double gyr_w = Config::Get<double>("gyr_w");
         double g_norm = Config::Get<double>("g_norm");
         Imu::Create(SE3d(), acc_n, acc_w, gyr_n, gyr_w, g_norm);
-
-        frontend->imu_preintegrated_from_last_kf = imu::Preintegration::Create(Bias());
     }
 
     if (use_lidar)
@@ -187,20 +188,20 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
             initializer->SetGridmap(gridmap);
         globalplanner=Global_planner::Ptr(new Global_planner(
             Config::Get<int>("grid_width"),
-            Config::Get<int>("grid_height")));
+            Config::Get<int>("grid_height"),
+            Config::Get<double>("grid_resolution")));
         frontend->SetGlobalPlanner(globalplanner);
         gridmap->SetGlobalPlanner(globalplanner);
     }
     return true;
 }
 
-void Estimator::InputImage(double time, cv::Mat &left_image, cv::Mat &right_image, std::vector<DetectedObject> objects)
+void Estimator::InputImage(double time, cv::Mat &left_image, cv::Mat &right_image)
 {
     Frame::Ptr new_frame = Frame::Create();
     new_frame->time = time;
     cv::undistort(left_image, new_frame->image_left, Camera::Get(0)->K, Camera::Get(0)->D);
     cv::undistort(right_image, new_frame->image_right, Camera::Get(1)->K, Camera::Get(1)->D);
-    new_frame->objects = objects;
 
     auto t1 = std::chrono::steady_clock::now();
     bool success = frontend->AddFrame(new_frame);

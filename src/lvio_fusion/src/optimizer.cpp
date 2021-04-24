@@ -78,7 +78,8 @@ void PoseGraph::UpdateSections(double time)
             if (!turning && (degree >= 5 || vectors_degree_angle(B_ori, heading) > 15))
             {
                 // if we have enough keyframes and total degree, create new section
-                if (frames_distance(current_section.A, pair_kf.first) > 40)
+                if (current_section.A == current_section.B ||
+                    frames_distance(current_section.A, pair_kf.first) > 40)
                 {
                     current_section.C = pair_kf.first;
                     sections_[current_section.A] = current_section;
@@ -203,7 +204,7 @@ void PoseGraph::Optimize(Atlas &sections, Section &submap, adapt::Problem &probl
 void PoseGraph::ForwardPropagate(SE3d transform, double start_time, bool need_lock)
 {
     std::unique_lock<std::mutex> lock(frontend_->mutex, std::defer_lock);
-    if(need_lock)
+    if (need_lock)
     {
         lock.lock();
     }
@@ -223,8 +224,8 @@ void PoseGraph::Propagate(SE3d transform, const Frames &forward_kfs)
     for (auto &pair_kf : forward_kfs)
     {
         pair_kf.second->pose = transform * pair_kf.second->pose;
-        if( pair_kf.second->preintegration!=nullptr)
-            pair_kf.second->Vw=transform.rotationMatrix()*  pair_kf.second->Vw;//IMU
+        if (pair_kf.second->preintegration != nullptr)
+            pair_kf.second->Vw = transform.rotationMatrix() * pair_kf.second->Vw;
     }
 }
 

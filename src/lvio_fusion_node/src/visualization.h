@@ -29,6 +29,8 @@ void publish_navsat(Estimator::Ptr estimator, double time);
 
 void publish_point_cloud(Estimator::Ptr estimator, double time);
 
+void publish_local_map(Estimator::Ptr estimator, double time);
+
 void publish_tf(Estimator::Ptr estimator, double time);
 
 void publish_car_model(Estimator::Ptr estimator, double time);

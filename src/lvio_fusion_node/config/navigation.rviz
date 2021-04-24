@@ -42,13 +42,13 @@ Visualization Manager:
       Reference Frame: <Fixed Frame>
       Value: false
     - Class: rviz/Marker
-      Enabled: true
+      Enabled: false
       Marker Topic: /lvio_fusion_node/car_model_navigation
       Name: Marker
       Namespaces:
         {}
       Queue Size: 100
-      Value: true
+      Value: false
     - Alpha: 0.699999988079071
       Class: rviz/Map
       Color Scheme: map
@@ -82,6 +82,24 @@ Visualization Manager:
       Topic: /lvio_fusion_node/plan_path
       Unreliable: false
       Value: true
+    - Alpha: 0.5
+      Cell Size: 1
+      Class: rviz/Grid
+      Color: 160; 160; 164
+      Enabled: true
+      Line Style:
+        Line Width: 0.029999999329447746
+        Value: Lines
+      Name: Grid
+      Normal Cell Count: 0
+      Offset:
+        X: 0
+        Y: 0
+        Z: 0
+      Plane: XY
+      Plane Cell Count: 10
+      Reference Frame: <Fixed Frame>
+      Value: true
   Enabled: true
   Global Options:
     Background Color: 0; 0; 0
@@ -110,25 +128,25 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 577.6785278320312
+      Distance: 101.14286804199219
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: 207.72596740722656
-        Y: 61.4710578918457
-        Z: -17.73868751525879
+        X: -0.6227427124977112
+        Y: 1.1636091470718384
+        Z: -52.0734977722168
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.9397971034049988
+      Pitch: 1.5697963237762451
       Target Frame: <Fixed Frame>
       Value: Orbit (rviz)
-      Yaw: 3.9204752445220947
+      Yaw: 3.1354730129241943
     Saved: ~
 Window Geometry:
   Displays:
@@ -146,5 +164,5 @@ Window Geometry:
   Views:
     collapsed: true
   Width: 902
-  X: 703
-  Y: 245
+  X: 1018
+  Y: 130

@@ -1,0 +1,80 @@
+%YAML:1.0
+
+# flags
+use_imu: 0
+use_lidar: 0
+use_navsat: 0
+use_loop: 0             # 0 for only odometry, 1 for whole system
+use_adapt: 0
+
+# ros parameter
+imu_topic: '/zed/imu/data_raw'
+image0_topic: '/zed/left/image_raw'
+image1_topic: '/zed/right/image_raw'
+# color_topic: '/kitti/camera_color_left/image_raw'
+result_path: '/home/jyp/Projects/lvio_fusion/result/result.csv'
+
+# cameras parameters
+undistort: 1
+
+# camera0 intrinsics
+camera0.fx: 1059.22
+camera0.fy: 1058.64
+camera0.cx: 959.32
+camera0.cy: 512.407
+camera0.k1: -0.0418782
+camera0.k2: 0.0106298
+camera0.k3: -0.00507541
+camera0.p1: -0.000495605
+camera0.p2: -0.00036628
+
+# camera1 intrinsics
+camera1.fx: 1058.39
+camera1.fy: 1057.89
+camera1.cx: 983.18
+camera1.cy: 517.864
+camera1.k1: -0.0430645
+camera1.k2: 0.0121
+camera1.k3: -0.00544613
+camera1.p1: -0.000549084
+camera1.p2: 0.000373801
+
+#imu parameters
+acc_n: 0.08             # accelerometer measurement noise standard deviation. #0.2   0.04
+gyr_n: 0.004            # gyroscope measurement noise standard deviation.     #0.05  0.004
+acc_w: 0.00004          # accelerometer bias random work noise standard deviation.  #0.02
+gyr_w: 2.0e-6           # gyroscope bias random work noise standard deviation.     #4.0e-5
+g_norm: 9.81007         # gravity magnitude
+
+# body_to_cam0 is inverse of [R T]
+body_to_cam0: !!opencv-matrix
+   rows: 4
+   cols: 4
+   dt: d
+   data: [1, 0, 0, 0,
+          0, 1, 0, 0,
+          0, 0, 1, 0,
+          0, 0, 0, 1]
+
+# body_to_cam1 is inverse of [R T]
+body_to_cam1: !!opencv-matrix
+   rows: 4
+   cols: 4
+   dt: d
+   data: [0.9999987080997732,  -0.0004505777070288044,   0.001542977159386852 , -0.119755,
+         0.0004463767994693847 ,  0.9999961961013534  , 0.002721861601246437 , 0,
+         -0.001544197700217275 , -0.002721169335666749 ,  0.9999951053334757 ,  0,
+         0       , 0       , 0   ,1.0000]
+          
+# number of features
+num_features: 400
+num_features_init: 50
+num_features_tracking_bad: 40
+num_features_needed_for_keyframe: 120
+
+# backend
+windows_size: 2
+
+# loop
+relocator_mode: 0    # none = 0, visual = 1, lidar = 2, visual&&lidar = 3
+threshold: 30

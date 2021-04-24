@@ -9,9 +9,9 @@ namespace lvio_fusion
 
 struct ImuData
 {
-    Vector3d a;
-    Vector3d w;
-    double t;
+    Vector3d a;     // acceleration
+    Vector3d w;     // angular velocity
+    double t;       // time
 
     ImuData(const double &acc_x, const double &acc_y, const double &acc_z,
              const double &ang_vel_x, const double &ang_vel_y, const double &ang_vel_z,

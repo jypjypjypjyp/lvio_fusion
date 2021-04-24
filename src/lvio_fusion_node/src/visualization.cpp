@@ -8,11 +8,12 @@
 ros::Publisher pub_path;
 ros::Publisher pub_navsat;
 ros::Publisher pub_points_cloud;
+ros::Publisher pub_local_map;
 ros::Publisher pub_car_model;
 ros::Publisher pub_car_model_navigation;//NAVI
 ros::Publisher pub_plan_path;//NAVI
 ros::Publisher pub_navigation;//NAVI
-nav_msgs::Path path, navsat_path, plan_path;
+nav_msgs::Path path, navsat_path, plan_path;//NAVI
 
 ros::Publisher pub_camera_pose_visual;
 
@@ -23,10 +24,12 @@ void register_pub(ros::NodeHandle &n)
     pub_path = n.advertise<nav_msgs::Path>("path", 1000);
     pub_navsat = n.advertise<nav_msgs::Path>("navsat_path", 1000);
     pub_points_cloud = n.advertise<sensor_msgs::PointCloud2>("point_cloud", 1000);
-    pub_car_model = n.advertise<visualization_msgs::Marker>("car_model", 1000);
+    pub_local_map = n.advertise<sensor_msgs::PointCloud2>("local_map", 1000);
     pub_car_model_navigation = n.advertise<visualization_msgs::Marker>("car_model_navigation", 1000);//NAVI
     pub_navigation = n.advertise<nav_msgs::OccupancyGrid>("grid_map", 1);//NAVI
     pub_plan_path = n.advertise<nav_msgs::Path>("plan_path", 1000);//NAVI
+    pub_car_model = n.advertise<visualization_msgs::Marker>("car_model", 1000);
+
     pub_camera_pose_visual = n.advertise<visualization_msgs::MarkerArray>("camera_pose_visual", 1000);
 
     cameraposevisual.setScale(0.1);
@@ -145,6 +148,15 @@ void publish_point_cloud(Estimator::Ptr estimator, double time)
     pub_points_cloud.publish(ros_cloud);
 }
 
+void publish_local_map(Estimator::Ptr estimator, double time)
+{
+    sensor_msgs::PointCloud2 ros_cloud;
+    pcl::toROSMsg(estimator->frontend->local_map.GetLocalLandmarks(), ros_cloud);
+    ros_cloud.header.stamp = ros::Time(time);
+    ros_cloud.header.frame_id = "world";
+    pub_local_map.publish(ros_cloud);
+}
+
 void publish_car_model(Estimator::Ptr estimator, double time)
 {
     visualization_msgs::Marker car_mesh;
@@ -198,8 +210,11 @@ void publish_car_model_navigation(Estimator::Ptr estimator, double time)
     Matrix3d rotate;
     rotate << -1, 0, 0, 0, 0, 1, 0, 1, 0;
     Quaterniond Q;
-    Q =  Imu::Get()->Rwg.inverse()*pose.unit_quaternion() * rotate;
-    Vector3d t =  Imu::Get()->Rwg.inverse()*pose.translation();
+    Matrix3d rwginv=Matrix3d::Identity();
+    if(Imu::Num()>0)
+        rwginv= Imu::Get()->Rwg.inverse();
+    Q = rwginv*pose.unit_quaternion() * rotate;
+    Vector3d t =  rwginv*pose.translation();
     car_mesh.pose.position.x = t.x();
     car_mesh.pose.position.y = t.y();
     car_mesh.pose.position.z = 0;
@@ -231,8 +246,8 @@ void publish_navigation(Estimator::Ptr estimator, double time)
     grid_map_msg.info.resolution = estimator->gridmap->resolution;
     grid_map_msg.info.width = h;
     grid_map_msg.info.height = w;
-    grid_map_msg.info.origin.position.x = (-h/2)* estimator->gridmap->resolution;
-    grid_map_msg.info.origin.position.y = (-w/2)* estimator->gridmap->resolution;
+    grid_map_msg.info.origin.position.x = (-h/2-0.5)* estimator->gridmap->resolution;
+    grid_map_msg.info.origin.position.y = (-w/2-0.5)* estimator->gridmap->resolution;
     grid_map_msg.info.origin.position.z = 0;
     int p[w*h];
     cv::Mat grid_map = estimator ->gridmap->GetGridmap();
@@ -252,7 +267,9 @@ void publish_plan_path(Estimator::Ptr estimator, double time)
 {
     if(estimator->globalplanner->pathupdated)
     {
+        plan_path.poses.clear();
         list<Vector2d> plan_path_ = estimator->globalplanner->GetPath();
+ 
         for( auto point: plan_path_)
         {
             geometry_msgs::PoseStamped pose_stamped;
@@ -265,6 +282,7 @@ void publish_plan_path(Estimator::Ptr estimator, double time)
         }
         plan_path.header.stamp = ros::Time(time);
         plan_path.header.frame_id = "navigation";
+        LOG(INFO)<<"plan_path_: "<<plan_path_.size();
         pub_plan_path.publish(plan_path);
     }
 }

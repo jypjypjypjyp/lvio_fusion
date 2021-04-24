@@ -8,13 +8,13 @@
 #include <sensor_msgs/NavSatFix.h>
 #include <sensor_msgs/PointCloud2.h>
 #include <termios.h>
+#include <ros/package.h>
 
 #include "lvio_fusion/adapt/agent.h"
 #include "lvio_fusion/adapt/environment.h"
 #include "lvio_fusion/common.h"
 #include "lvio_fusion/estimator.h"
 #include "lvio_fusion/map.h"
-#include "lvio_fusion_node/BoundingBoxes.h"
 #include "lvio_fusion_node/CreateEnv.h"
 #include "lvio_fusion_node/Init.h"
 #include "lvio_fusion_node/Step.h"
@@ -36,7 +36,6 @@ ros::ServiceClient clt_init, clt_update_weights;
 queue<sensor_msgs::ImageConstPtr> img0_buf;
 queue<sensor_msgs::ImageConstPtr> img1_buf;
 GeographicLib::LocalCartesian geo_converter;
-lvio_fusion_node::BoundingBoxesConstPtr obj_buf;
 mutex m_img_buf, m_cond;
 condition_variable cond;
 double delta_time = 0;
@@ -65,6 +64,7 @@ void img1_callback(const sensor_msgs::ImageConstPtr &img_msg)
 cv::Mat get_image_from_msg(const sensor_msgs::ImageConstPtr &img_msg)
 {
     cv_bridge::CvImageConstPtr ptr;
+    cv::Mat image;
     if (img_msg->encoding == "8UC1")
     {
         sensor_msgs::Image img;
@@ -76,36 +76,21 @@ cv::Mat get_image_from_msg(const sensor_msgs::ImageConstPtr &img_msg)
         img.data = img_msg->data;
         img.encoding = "mono8";
         ptr = cv_bridge::toCvCopy(img, sensor_msgs::image_encodings::MONO8);
+        image = ptr->image.clone();
+    }
+    else if (img_msg->encoding == "bgr8")
+    {
+        ptr = cv_bridge::toCvCopy(img_msg, sensor_msgs::image_encodings::BGR8);
+        cv::cvtColor(ptr->image, image, cv::COLOR_BGR2GRAY);
     }
     else
-        ptr = cv_bridge::toCvCopy(img_msg, sensor_msgs::image_encodings::MONO8);
-
-    cv::Mat img = ptr->image.clone();
-    return img;
-}
-
-//NOTE： semantic map
-void objects_callback(const lvio_fusion_node::BoundingBoxesConstPtr &obj_msg)
-{
-    std::unique_lock<std::mutex> lk(m_cond);
-    obj_buf = obj_msg;
-    cond.notify_all();
-}
-const map<string, LabelType> map_label = {
-    {"person", LabelType::Person},
-    {"car", LabelType::Car},
-    {"truck", LabelType::Truck},
-};
-vector<DetectedObject> get_objects_from_msg(const lvio_fusion_node::BoundingBoxesConstPtr &obj_msg)
-{
-    vector<DetectedObject> objects;
-    for (auto &box : obj_msg->bounding_boxes)
     {
-        if (map_label.find(box.Class) == map_label.end())
-            continue;
-        objects.push_back(DetectedObject(map_label.at(box.Class), box.probability, box.xmin, box.ymin, box.xmax, box.ymax));
+        ptr = cv_bridge::toCvCopy(img_msg, sensor_msgs::image_encodings::MONO8);
+        image = ptr->image.clone();
     }
-    return objects;
+
+    cv::equalizeHist(image, image);
+    return image;
 }
 
 // extract images with same timestamp from two topics
@@ -122,54 +107,33 @@ void sync_process()
             m_img_buf.lock();
             double time0 = img0_buf.front()->header.stamp.toSec();
             double time1 = img1_buf.front()->header.stamp.toSec();
-            // if (time0 < time1)
-            // {
-            //     img0_buf.pop();
-            //     printf("throw img0\n");
-            // }
-            // else if (time0 > time1)
-            // {
-            //     img1_buf.pop();
-            //     printf("throw img1\n");
-            // }
-            // else
+            if (time0 < time1 - 5 * epsilon)
+            {
+                img0_buf.pop();
+                printf("throw img0\n");
+                m_img_buf.unlock();
+            }
+            else if (time0 > time1 + 5 * epsilon)
+            {
+                img1_buf.pop();
+                printf("throw img1\n");
+                m_img_buf.unlock();
+            }
+            else
             {
                 time = img0_buf.front()->header.stamp.toSec();
                 header = img0_buf.front()->header;
                 image0 = get_image_from_msg(img0_buf.front());
                 image1 = get_image_from_msg(img1_buf.front());
-            }
-            if (n++ % 7 == 0 && use_semantic)
-            {
-                pub_detector.publish(img0_buf.front());
-                img0_buf.pop();
-                img1_buf.pop();
-                m_img_buf.unlock();
-
-                std::unique_lock<std::mutex> lk(m_cond);
-                cond.wait_for(lk, 200ms);
-                if (obj_buf != nullptr)
-                {
-                    auto objects = get_objects_from_msg(obj_buf);
-                    estimator->InputImage(time, image0, image1, objects);
-                }
-                else
-                {
-                    estimator->InputImage(time, image0, image1);
-                }
-            }
-            else
-            {
                 img0_buf.pop();
                 img1_buf.pop();
                 m_img_buf.unlock();
                 estimator->InputImage(time, image0, image1);
+                publish_car_model(estimator, time);
+                if(use_navigation)
+                    publish_car_model_navigation(estimator, time);
             }
-            publish_car_model(estimator, time);
-            if(use_navigation)
-                publish_car_model_navigation(estimator, time);
         }
-
         chrono::milliseconds dura(2);
         this_thread::sleep_for(dura);
     }
@@ -181,8 +145,8 @@ void lidar_callback(const sensor_msgs::PointCloud2ConstPtr &lidar_msg)
     Point3Cloud point_cloud;
     pcl::fromROSMsg(*lidar_msg, point_cloud);
     Point3Cloud::Ptr laser_cloud_in_ptr(new Point3Cloud(point_cloud));
-    LOG(INFO)<<"point_cloud.size() "<<point_cloud.size();
     estimator->InputPointCloud(t, laser_cloud_in_ptr);
+    LOG(INFO)<<"lidar_callback: "<<point_cloud.size();
 }
 
 void imu_callback(const sensor_msgs::ImuConstPtr &imu_msg)
@@ -220,7 +184,7 @@ void navsat_callback(const sensor_msgs::NavSatFixConstPtr &navsat_msg)
 //NAVI
 void nav_goal_callback(const geometry_msgs::PoseStamped  &nav_goal_msg)
 {
-   LOG(INFO)<<"nav_goal_msg:"<<nav_goal_msg.pose.position.x<<" "<<nav_goal_msg.pose.position.y<<" "<<nav_goal_msg.pose.position.z;
+   //LOG(INFO)<<"nav_goal_msg:"<<nav_goal_msg.pose.position.x<<" "<<nav_goal_msg.pose.position.y<<" "<<nav_goal_msg.pose.position.z;
    estimator->globalplanner->SetGoalPose(Vector2d(nav_goal_msg.pose.position.x,nav_goal_msg.pose.position.y));
 }
 
@@ -232,6 +196,11 @@ void tf_timer_callback(const ros::TimerEvent &timer_event)
 void pc_timer_callback(const ros::TimerEvent &timer_event)
 {
     publish_point_cloud(estimator, timer_event.current_real.toSec() - delta_time);
+}
+
+void lm_timer_callback(const ros::TimerEvent &timer_event)
+{
+    publish_local_map(estimator, timer_event.current_real.toSec() - delta_time);
 }
 
 void od_timer_callback(const ros::TimerEvent &timer_event)
@@ -332,10 +301,10 @@ void read_ground_truth()
     double dt = lvio_fusion::Map::Instance().keyframes.begin()->first;
     Matrix3d R_tf;
     R_tf << 0, 0, 1,
-            -1, 0, 0,
-            0, -1, 0;
+        -1, 0, 0,
+        0, -1, 0;
     Quaterniond q_tf(R_tf);
-    auto RRR = ypr2R(Vector3d(90,-90,0));
+    auto RRR = ypr2R(Vector3d(90, -90, 0));
     Quaterniond qqq(RRR);
     SE3d tf(q_tf, Vector3d::Zero()); // tum ground truth to lvio_fusion
     if (in)
@@ -345,17 +314,8 @@ void read_ground_truth()
             ss << line;
             ss >> time >> x >> y >> z >> qx >> qy >> qz >> qw;
             cout << time << "," << x << "," << y << "," << z << "," << qx << "," << qy << "," << qz << "," << qw << endl;
-            // double rpy[3],new_rpy[3];
-            // double e_q[4] = {qx,qy,qz,qw}, e_q2[4];
-            // ceres::EigenQuaternionToRPY(e_q, rpy);
-            // new_rpy[0] = -rpy[1];
-            // new_rpy[1] = rpy[];
-            // new_rpy[2] = rpy[];
-            // ceres::RPYToEigenQuaternion(new_rpy, e_q2);
-            
-            
             auto a = SE3d(Quaterniond(qw, qx, qy, qz), Vector3d(x, y, z));
-            a.so3() =  a.so3() * SO3d(q_tf.inverse());
+            a.so3() = a.so3() * SO3d(q_tf.inverse());
             Environment::ground_truths[dt + time] = tf * a;
             ss.clear();
         }
@@ -470,44 +430,41 @@ int main(int argc, char **argv)
     register_pub(n);
     ros::Timer tf_timer = n.createTimer(ros::Duration(0.0001), tf_timer_callback);
     ros::Timer od_timer = n.createTimer(ros::Duration(1), od_timer_callback);
+    ros::Timer lm_timer = n.createTimer(ros::Duration(0.1), lm_timer_callback);
     ros::Timer pc_timer;
     ros::Timer navsat_timer;
     ros::Timer navigation_timer;//NAVI
-
+    
     cout << "image0:" << IMAGE0_TOPIC << endl;
-    sub_img0 = n.subscribe(IMAGE0_TOPIC, 100, img0_callback);
+    sub_img0 = n.subscribe(IMAGE0_TOPIC, 10, img0_callback);
     cout << "image1:" << IMAGE1_TOPIC << endl;
-    sub_img1 = n.subscribe(IMAGE1_TOPIC, 100, img1_callback);
+    sub_img1 = n.subscribe(IMAGE1_TOPIC, 10, img1_callback);
     if (use_imu)
     {
         cout << "imu:" << IMU_TOPIC << endl;
-        sub_imu = n.subscribe(IMU_TOPIC, 2000, imu_callback, ros::TransportHints().tcpNoDelay());
+        sub_imu = n.subscribe(IMU_TOPIC, 100, imu_callback, ros::TransportHints().tcpNoDelay());
     }
     if (use_lidar)
     {
         cout << "lidar:" << LIDAR_TOPIC << endl;
-        sub_lidar = n.subscribe(LIDAR_TOPIC, 100, lidar_callback);
+        sub_lidar = n.subscribe(LIDAR_TOPIC, 10, lidar_callback);
         pc_timer = n.createTimer(ros::Duration(10), pc_timer_callback);
     }
     if (use_navsat)
     {
         cout << "navsat:" << NAVSAT_TOPIC << endl;
-        sub_navsat = n.subscribe(NAVSAT_TOPIC, 100, navsat_callback);
+        sub_navsat = n.subscribe(NAVSAT_TOPIC, 10, navsat_callback);
         navsat_timer = n.createTimer(ros::Duration(1), navsat_timer_callback);
-    }
-    if (use_semantic)
-    {
-        sub_objects = n.subscribe("/lvio_fusion_node/output_objects", 10, objects_callback);
-        pub_detector = n.advertise<sensor_msgs::Image>("/lvio_fusion_node/image_raw", 10);
     }
     if (use_adapt)
     {
         clt_update_weights = n.serviceClient<lvio_fusion_node::UpdateWeights>("/lvio_fusion_node/update_weight");
         Agent::SetCore(new RealCore());
     }
-     //NAVI
+    //NAVI
     if(use_navigation)
     {
+          cout << "nav_goal:" << NAV_GOAL_TOPIC << endl;
         navigation_timer = n.createTimer(ros::Duration(2), navigation_timer_callback);
         sub_nav_goal = n.subscribe(NAV_GOAL_TOPIC, 100, nav_goal_callback);
     }

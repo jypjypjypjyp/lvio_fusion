@@ -8,7 +8,6 @@
 #include "lvio_fusion/lidar/feature.h"
 #include "lvio_fusion/loop/loop.h"
 #include "lvio_fusion/navsat/feature.h"
-#include "lvio_fusion/semantic/detected_object.h"
 #include "lvio_fusion/visual/feature.h"
 #include "lvio_fusion/visual/landmark.h"
 
@@ -30,16 +29,12 @@ public:
 
     void Clear();
 
-    //NOTE: semantic map
-    void UpdateLabel();
-
     static Frame::Ptr Create();
 
     static unsigned long current_frame_id;
     unsigned long id;
     double time;
     cv::Mat image_left, image_right;
-    std::vector<DetectedObject> objects;
     visual::Features features_left;          // extracted features in left image
     visual::Features features_right;         // corresponding features in right image, only for this frame
     lidar::Feature::Ptr feature_lidar;       // extracted features in lidar point cloud
@@ -62,13 +57,9 @@ public:
     void SetPose(const Matrix3d &Rwb_,const Vector3d  &twb_);
 
     Frame::Ptr last_keyframe;
-    Vector3d Vw;// IMU linear velocity
+    Vector3d Vw;            // IMU linear velocity
     Bias ImuBias;
-    bool bImu=false;  //是否经过imu尺度优化
-
-private:
-    //NOTE: semantic map
-    LabelType GetLabelType(int x, int y);
+    bool is_imu_good = false;        // can be used in IMU optimization?
 };
 
 typedef std::map<double, Frame::Ptr> Frames;

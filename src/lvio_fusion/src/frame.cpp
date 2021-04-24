@@ -17,14 +17,15 @@ Frame::Ptr Frame::Create()
 
 void Frame::AddFeature(visual::Feature::Ptr feature)
 {
-    assert(feature->frame.lock()->id == id);
+    auto landmark = feature->landmark.lock();
+    assert(feature->frame.lock()->id == id && landmark);
     if (feature->is_on_left_image)
     {
-        features_left[feature->landmark.lock()->id] = feature;
+        features_left[landmark->id] = feature;
     }
     else
     {
-        features_right[feature->landmark.lock()->id] = feature;
+        features_right[landmark->id] = feature;
     }
 }
 
@@ -32,28 +33,6 @@ void Frame::RemoveFeature(visual::Feature::Ptr feature)
 {
     assert(feature->is_on_left_image && id != feature->landmark.lock()->FirstFrame().lock()->id);
     int a = features_left.erase(feature->landmark.lock()->id);
-}
-
-//NOTE:semantic map
-LabelType Frame::GetLabelType(int x, int y)
-{
-    for (auto &obj : objects)
-    {
-        if (obj.xmin < x && obj.xmax > x && obj.ymin < y && obj.ymax > y)
-        {
-            return obj.label;
-        }
-    }
-    return LabelType::None;
-}
-
-void Frame::UpdateLabel()
-{
-    for (auto &pair_feature : features_left)
-    {
-        auto landmark = pair_feature.second->landmark.lock();
-        landmark->label = GetLabelType(pair_feature.second->keypoint.x, pair_feature.second->keypoint.y);
-    }
 }
 
 Observation Frame::GetObservation()
@@ -67,8 +46,8 @@ Observation Frame::GetObservation()
         auto observations = pair_feature.second->landmark.lock()->observations;
         if (observations.find(id - 1) != observations.end())
         {
-            auto pt = pair_feature.second->keypoint;
-            auto prev_pt = observations[id - 1]->keypoint;
+            auto pt = pair_feature.second->keypoint.pt;
+            auto prev_pt = observations[id - 1]->keypoint.pt;
             int row = (int)(pt.y / (height / obs_rows));
             int col = (int)(pt.x / (width / obs_cols));
             obs.at<cv::Vec3f>(row, col)[0] += 1;

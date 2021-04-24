@@ -5,9 +5,7 @@ use_imu: 0
 use_lidar: 0
 use_navsat: 0
 use_loop: 0             # 0 for only odometry, 1 for whole system
-use_semantic: 0
 use_adapt: 0
-train: 0
 
 # ros parameters
 imu_topic: "/imu0"
@@ -38,7 +36,7 @@ gyr_w: 0.0001       # gyroscope bias random work noise standard deviation.
 g_norm: 9.81007     # gravity magnitude
 
 
-# camera0 to body
+# body_to_cam0 is inverse of [R T]
 body_to_cam0: !!opencv-matrix
    rows: 4
    cols: 4
@@ -49,7 +47,7 @@ body_to_cam0: !!opencv-matrix
            0, 0, 0, 1]
 
 
-# camera1 to body
+# body_to_cam1 is inverse of [R T]
 body_to_cam1: !!opencv-matrix
    rows: 4
    cols: 4

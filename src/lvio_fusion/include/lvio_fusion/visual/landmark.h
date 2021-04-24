@@ -2,11 +2,10 @@
 #define lvio_fusion_LANDMARK_H
 
 #include "lvio_fusion/visual/feature.h"
-#include "lvio_fusion/semantic/detected_object.h"
 
 namespace lvio_fusion
 {
-
+    
 namespace visual
 {
 class Landmark
@@ -15,7 +14,9 @@ public:
     typedef std::shared_ptr<Landmark> Ptr;
 
     Vector3d ToWorld();
+
     void Clear();
+    
     std::weak_ptr<Frame> FirstFrame();
     std::weak_ptr<Frame> LastFrame();
 
@@ -23,19 +24,18 @@ public:
 
     void RemoveObservation(Feature::Ptr feature);
 
-    static Landmark::Ptr Create(Vector3d position);
+    static Landmark::Ptr Create(double depth);
 
     static unsigned long current_landmark_id;
     unsigned long id = 0;                   // ID
-    Vector3d position;                      // position in the first robot coordinate
-    LabelType label = LabelType::None;      // Sematic Label
+    double depth;                           // depth in the first observation
     Features observations;                  // only for left feature
-    Feature::Ptr first_observation;         // the first observation
+    Feature::Ptr first_observation;         // the first right observation
 
 private:
     Landmark()
     {
-        id = current_landmark_id + 1;
+        id = ++current_landmark_id;
     }
 };
 

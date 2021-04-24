@@ -212,7 +212,6 @@ void Preintegration::SetNewBias(const Bias &new_bias)
     delta_bias(5) = new_bias.linearized_ba[2] - linearized_ba[2];
 }
 
-// 过去更新bias后的delta_R
 Quaterniond Preintegration::GetDeltaRotation(const Bias &b_)
 {
     Vector3d dbg;

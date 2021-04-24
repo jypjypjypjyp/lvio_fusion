@@ -6,6 +6,8 @@
 namespace lvio_fusion
 {
 
+typedef std::bitset<256> BRIEF;
+
 class Frame;
 
 namespace visual
@@ -20,18 +22,24 @@ public:
 
     Feature() {}
 
-    static Feature::Ptr Create(std::shared_ptr<Frame> frame, const cv::Point2f &kp, std::shared_ptr<Landmark> landmark)
+    static Feature::Ptr Create(std::shared_ptr<Frame> frame, const cv::KeyPoint &keypoint, std::shared_ptr<Landmark> landmark = nullptr)
     {
         Feature::Ptr new_feature(new Feature);
         new_feature->frame = frame;
-        new_feature->keypoint = kp;
-        new_feature->landmark = landmark;
+        new_feature->keypoint = keypoint;
+        if (landmark)
+        {
+            new_feature->landmark = landmark;
+        }
         return new_feature;
     }
 
+    cv::KeyPoint keypoint;
     std::weak_ptr<Frame> frame;
-    cv::Point2f keypoint;
     std::weak_ptr<Landmark> landmark;
+    BRIEF brief;
+    bool match = false;
+    bool insert = false;
     bool is_on_left_image = true;
 };
 

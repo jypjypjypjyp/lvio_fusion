@@ -4,9 +4,7 @@ import pprint
 
 import gym
 import numpy as np
-from tianshou import policy
 import torch
-from std_msgs.msg import String
 from tianshou.data import Collector, ReplayBuffer, Batch
 from tianshou.env import DummyVectorEnv
 from tianshou.exploration import GaussianNoise
@@ -39,7 +37,7 @@ def get_args():
     parser.add_argument('--noise-clip', type=float, default=0.5)
     parser.add_argument('--update-actor-freq', type=int, default=2)
     parser.add_argument('--epoch', type=int, default=20)
-    parser.add_argument('--step-per-epoch', type=int, default=200)
+    parser.add_argument('--step-per-epoch', type=int, default=80)
     parser.add_argument('--collect-per-step', type=int, default=10)
     parser.add_argument('--batch-size', type=int, default=8)
     parser.add_argument('--layer-num', type=int, default=1)

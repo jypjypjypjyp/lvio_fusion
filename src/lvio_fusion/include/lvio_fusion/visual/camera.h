@@ -12,6 +12,8 @@ class Camera : public Sensor
 {
 public:
     typedef std::shared_ptr<Camera> Ptr;
+    
+    static double BASELINE;
 
     static int Create(double fx, double fy, double cx, double cy, const SE3d &extrinsic)
     {

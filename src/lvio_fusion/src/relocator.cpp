@@ -30,7 +30,7 @@ void Relocator::DetectorLoop()
     while (true)
     {
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        double end = Navsat::Num() ? Navsat::Get()->finished : backend_->finished;
+        double end = Navsat::Num() ? Navsat::Get()->finished - epsilon : backend_->finished;
         auto new_kfs = Map::Instance().GetKeyFrames(finished, end);
         if (new_kfs.empty())
             continue;
@@ -232,7 +232,7 @@ void Relocator::CorrectLoop(double old_time, double start_time, double end_time)
     // fix navsat
     if (Navsat::Num())
     {
-        Navsat::Get()->fix.z() = (new_pose.translation() - Navsat::Get()->GetAroundPoint((--new_submap_kfs.end())->first)).z();
+        // Navsat::Get()->fix.z() = (new_pose.translation() - Navsat::Get()->GetAroundPoint((--new_submap_kfs.end())->first)).z();
     }
     // update pointscloud
     if (Lidar::Num() && mapping_)
@@ -247,43 +247,43 @@ void Relocator::CorrectLoop(double old_time, double start_time, double end_time)
 
 void Relocator::UpdateNewSubmap(Frame::Ptr best_frame, Frames &new_submap_kfs)
 {
-    for (auto &pair_kf : new_submap_kfs)
-    {
-        pair_kf.second->pose.translation().z() = pair_kf.second->loop_closure->frame_old->pose.translation().z();
-    }
-    // optimize the best frame's rotation
-    // SE3d old_pose = best_frame->pose;
-    // {
-    //     adapt::Problem problem;
-    //     SE3d base = best_frame->pose;
-    //     best_frame->pose = best_frame->loop_closure->frame_old->pose * best_frame->loop_closure->relative_o_c;
-    //     SO3d r;
-    //     double *para = r.data();
-    //     problem.AddParameterBlock(para, 4, new ceres::EigenQuaternionParameterization());
-
-    //     for (auto &pair_kf : new_submap_kfs)
-    //     {
-    //         ceres::CostFunction *cost_function = RelocateRError::Create(
-    //             best_frame->pose.inverse() * pair_kf.second->loop_closure->frame_old->pose * pair_kf.second->loop_closure->relative_o_c,
-    //             base.inverse() * pair_kf.second->pose);
-    //         problem.AddResidualBlock(ProblemType::Other, cost_function, NULL, para);
-    //     }
-
-    //     ceres::Solver::Options options;
-    //     options.linear_solver_type = ceres::DENSE_QR;
-    //     ceres::Solver::Summary summary;
-    //     ceres::Solve(options, &problem, &summary);
-    //     best_frame->pose = best_frame->pose * SE3d(r, Vector3d::Zero());
-    // }
-    // SE3d new_pose = best_frame->pose;
-    // SE3d transform = new_pose * old_pose.inverse();
     // for (auto &pair_kf : new_submap_kfs)
     // {
-    //     if (pair_kf.second != best_frame)
-    //     {
-    //         pair_kf.second->pose = transform * pair_kf.second->pose;
-    //     }
+    //     pair_kf.second->pose.translation().z() = pair_kf.second->loop_closure->frame_old->pose.translation().z();
     // }
+    // optimize the best frame's rotation
+    SE3d old_pose = best_frame->pose;
+    {
+        adapt::Problem problem;
+        SE3d base = best_frame->pose;
+        best_frame->pose = best_frame->loop_closure->frame_old->pose * best_frame->loop_closure->relative_o_c;
+        SO3d r;
+        double *para = r.data();
+        problem.AddParameterBlock(para, 4, new ceres::EigenQuaternionParameterization());
+
+        for (auto &pair_kf : new_submap_kfs)
+        {
+            ceres::CostFunction *cost_function = RelocateRError::Create(
+                best_frame->pose.inverse() * pair_kf.second->loop_closure->frame_old->pose * pair_kf.second->loop_closure->relative_o_c,
+                base.inverse() * pair_kf.second->pose);
+            problem.AddResidualBlock(ProblemType::Other, cost_function, NULL, para);
+        }
+
+        ceres::Solver::Options options;
+        options.linear_solver_type = ceres::DENSE_QR;
+        ceres::Solver::Summary summary;
+        ceres::Solve(options, &problem, &summary);
+        best_frame->pose = best_frame->pose * SE3d(r, Vector3d::Zero());
+    }
+    SE3d new_pose = best_frame->pose;
+    SE3d transform = new_pose * old_pose.inverse();
+    for (auto &pair_kf : new_submap_kfs)
+    {
+        if (pair_kf.second != best_frame)
+        {
+            pair_kf.second->pose = transform * pair_kf.second->pose;
+        }
+    }
 }
 
 } // namespace lvio_fusion

@@ -85,17 +85,17 @@ public:
     template <typename T>
     bool operator()(const T *yaw, const T *pitch, const T *roll, T *residual) const
     {
-        T pose[4], new_pose[4], relative_pose[4], pi_o[4], pr[4];
+        T pose[4], new_pose[4], relative_pose[4], pi_o[4], pb[4];
         T rpy[3] = {yaw[0], pitch[0], roll[0]};
         ceres::RPYToEigenQuaternion(rpy, relative_pose);
         ceres::Cast(pose_.data(), SO3d::num_parameters, pose);
         ceres::Cast(pi_o_.data(), SO3d::num_parameters, pi_o);
-        ceres::EigenQuaternionProduct(pose, relative_pose, pr);
-        ceres::EigenQuaternionProduct(pr, pi_o, new_pose);
+        ceres::EigenQuaternionProduct(pose, relative_pose, pb);
+        ceres::EigenQuaternionProduct(pb, pi_o, new_pose);
         T y[3] = {T(0), T(1), T(0)};
         T tf_y[3];
         ceres::EigenQuaternionRotatePoint(new_pose, y, tf_y);
-        residual[0] = T(100) * tf_y[2] * tf_y[2];
+        residual[0] = T(1000) * tf_y[2] * tf_y[2];
         return true;
     }
 
@@ -118,21 +118,21 @@ public:
     template <typename T>
     bool operator()(const T *yaw, const T *pitch, const T *roll, T *residual) const
     {
-        T pose[4], relative_pose[4], pr[4];
+        T pose[4], relative_pose[4], pb[4];
         T rpy[3] = {yaw[0], pitch[0], roll[0]};
         ceres::RPYToEigenQuaternion(rpy, relative_pose);
         ceres::Cast(pose_.data(), SO3d::num_parameters, pose);
-        ceres::EigenQuaternionProduct(pose, relative_pose, pr);
-        T z[3] = {T(0), T(0), T(1)};
-        T tf_z[3];
-        ceres::EigenQuaternionRotatePoint(pr, z, tf_z);
-        if (tf_z[2] > T(0))
+        ceres::EigenQuaternionProduct(pose, relative_pose, pb);
+        T rpy_pr[3];
+        ceres::EigenQuaternionToRPY(pb, rpy_pr);
+        T p = abs(rpy_pr[1]);
+        if (p < T(0.1))
         {
             residual[0] = T(0);
         }
         else
         {
-            residual[0] = T(1000) * tf_z[2];
+            residual[0] = T(10000) * p;
         }
         return true;
     }
@@ -182,6 +182,7 @@ private:
     double x0_, y0_, z0_;
     double x1_, y1_, z1_;
     SE3d pose_;
+    bool trust_;
 };
 
 } // namespace lvio_fusion

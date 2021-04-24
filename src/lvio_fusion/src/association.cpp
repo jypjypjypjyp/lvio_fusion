@@ -316,7 +316,7 @@ void FeatureAssociation::ScanToMapWithGround(Frame::Ptr frame, Frame::Ptr map_fr
                                   points_ground_last[points_index[2]].z);
             ceres::CostFunction *cost_function;
             cost_function = LidarPlaneErrorRPZ::Create(curr_point, last_point_a, last_point_b, last_point_c, map_frame->pose, para, frame->weights.lidar_ground);
-            problem.AddResidualBlock(ProblemType::LidarPlaneErrorRPZ, cost_function, loss_function, para + 1, para + 2, para + 5);
+            problem.AddResidualBlock(ProblemType::LidarError, cost_function, loss_function, para + 1, para + 2, para + 5);
         }
     }
 
@@ -374,7 +374,7 @@ void FeatureAssociation::ScanToMapWithSegmented(Frame::Ptr frame, Frame::Ptr map
                                   points_surf_last[points_index[2]].z);
             ceres::CostFunction *cost_function;
             cost_function = LidarPlaneErrorYXY::Create(curr_point, last_point_a, last_point_b, last_point_c, map_frame->pose, para, frame->weights.lidar_surf);
-            problem.AddResidualBlock(ProblemType::LidarPlaneErrorYXY, cost_function, loss_function, para, para + 3, para + 4);
+            problem.AddResidualBlock(ProblemType::LidarError, cost_function, loss_function, para, para + 3, para + 4);
         }
     }
 

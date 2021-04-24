@@ -1,21 +1,20 @@
 #include "lvio_fusion/frontend.h"
 #include "lvio_fusion/backend.h"
+#include "lvio_fusion/ceres/base.hpp"
 #include "lvio_fusion/ceres/imu_error.hpp"
 #include "lvio_fusion/ceres/visual_error.hpp"
 #include "lvio_fusion/map.h"
+#include "lvio_fusion/navsat/navsat.h"
 #include "lvio_fusion/utility.h"
 #include "lvio_fusion/visual/camera.h"
 #include "lvio_fusion/visual/feature.h"
 #include "lvio_fusion/visual/landmark.h"
-#include <opencv2/core/eigen.hpp>
 
 namespace lvio_fusion
 {
 
 Frontend::Frontend(int num_features, int init, int tracking, int tracking_bad, int need_for_keyframe)
-    : num_features_(num_features), num_features_init_(init), num_features_tracking_bad_(tracking_bad),
-      num_features_needed_for_keyframe_(need_for_keyframe),
-      matcher_(ORBMatcher(tracking_bad))
+    : num_features_init_(init), num_features_tracking_bad_(tracking_bad), num_features_needed_for_keyframe_(need_for_keyframe)
 {
 }
 
@@ -36,11 +35,6 @@ bool Frontend::AddFrame(Frame::Ptr frame)
     case FrontendStatus::TRACKING_TRY:
         InitFrame();
         Track();
-        //NOTE: semantic map
-        if (!current_frame->objects.empty())
-        {
-            current_frame->UpdateLabel();
-        }
         break;
     }
     last_frame = current_frame;
@@ -50,7 +44,7 @@ bool Frontend::AddFrame(Frame::Ptr frame)
 
 void Frontend::AddImu(double time, Vector3d acc, Vector3d gyr)
 {
-    imu_buf.push_back(ImuData(acc, gyr, time));
+    imu_buf_.push(ImuData(acc, gyr, time));
 }
 
 void Frontend::PreintegrateIMU()
@@ -59,25 +53,27 @@ void Frontend::PreintegrateIMU()
         return;
     if (Imu::Get()->initialized)
     {
-        current_frame->bImu = true;
+        current_frame->is_imu_good = true;
     }
     std::vector<ImuData> imu_from_last_frame;
-    while (true)
+    int timeout = 100; // ms
+    while (timeout)
     {
-        if (imu_buf.empty())
+        if (imu_buf_.empty())
         {
-            usleep(500);
+            usleep(1e3);
+            timeout--;
             continue;
         }
-        ImuData imu_data = imu_buf.front();
-        if (imu_data.t < last_frame->time - 0.001)
+        ImuData imu_data = imu_buf_.front();
+        if (imu_data.t < last_frame->time - epsilon)
         {
-            imu_buf.pop_front();
+            imu_buf_.pop();
         }
-        else if (imu_data.t < current_frame->time - 0.001)
+        else if (imu_data.t < current_frame->time - epsilon)
         {
             imu_from_last_frame.push_back(imu_data);
-            imu_buf.pop_front();
+            imu_buf_.pop();
         }
         else
         {
@@ -85,21 +81,23 @@ void Frontend::PreintegrateIMU()
             break;
         }
     }
+
     const int n = imu_from_last_frame.size() - 1;
     imu::Preintegration::Ptr imu_preintegrated_from_last_frame = imu::Preintegration::Create(last_frame->GetImuBias());
-    if (imu_preintegrated_from_last_kf == nullptr)
-        imu_preintegrated_from_last_kf = imu::Preintegration::Create(last_frame->GetImuBias());
+    if (imu_preintegrated_from_last_kf_ == nullptr)
+        imu_preintegrated_from_last_kf_ = imu::Preintegration::Create(last_frame->GetImuBias());
 
-    if (imu_from_last_frame[0].t - last_frame->time > 0.015) //freq*1.5
+    if (n < 5)
     {
-        valid_imu_time = imu_from_last_frame[0].t;
+        if(n>=0)
+            valid_imu_time = imu_from_last_frame[0].t;
         if (Imu::Get()->initialized)
         {
             Imu::Get()->initialized = false;
             status = FrontendStatus::INITIALIZING;
         }
-        imu_preintegrated_from_last_kf->isBad = true;
-        imu_preintegrated_from_last_frame->isBad = true;
+        imu_preintegrated_from_last_kf_->bad = true;
+        imu_preintegrated_from_last_frame->bad = true;
     }
     else
     {
@@ -113,8 +111,8 @@ void Frontend::PreintegrateIMU()
                     Imu::Get()->initialized = false;
                     status = FrontendStatus::INITIALIZING;
                 }
-                imu_preintegrated_from_last_kf->isBad = true;
-                imu_preintegrated_from_last_frame->isBad = true;
+                imu_preintegrated_from_last_kf_->bad = true;
+                imu_preintegrated_from_last_frame->bad = true;
                 break;
             }
             double tstep;
@@ -171,31 +169,20 @@ void Frontend::PreintegrateIMU()
             }
             if (tab == 0)
                 continue;
-            imu_preintegrated_from_last_kf->Append(tstep, acc, ang_vel, acc0, ang_vel0);
+            imu_preintegrated_from_last_kf_->Append(tstep, acc, ang_vel, acc0, ang_vel0);
             imu_preintegrated_from_last_frame->Append(tstep, acc, ang_vel, acc0, ang_vel0);
-        }
-        if ((n == 0))
-        {
-            valid_imu_time = imu_from_last_frame[0].t;
-            if (Imu::Get()->initialized)
-            {
-                Imu::Get()->initialized = false;
-                status = FrontendStatus::INITIALIZING;
-            }
-            imu_preintegrated_from_last_kf->isBad = true;
-            imu_preintegrated_from_last_frame->isBad = true;
         }
     }
 
-    if (!imu_preintegrated_from_last_kf->isBad) //如果imu帧没坏，就赋给当前帧
-        current_frame->preintegration = imu_preintegrated_from_last_kf;
+    if (!imu_preintegrated_from_last_kf_->bad) //如果imu帧没坏，就赋给当前帧
+        current_frame->preintegration = imu_preintegrated_from_last_kf_;
     else
     {
         current_frame->preintegration = nullptr;
-        current_frame->bImu = false;
+        current_frame->is_imu_good = false;
     }
 
-    if (!imu_preintegrated_from_last_frame->isBad)
+    if (!imu_preintegrated_from_last_frame->bad)
         current_frame->preintegration_last = imu_preintegrated_from_last_frame;
 }
 
@@ -214,29 +201,40 @@ void Frontend::InitFrame()
     }
 }
 
+bool check_pose(SE3d current_pose, SE3d last_pose, SE3d init_pose)
+{
+    double current_relative[6], relative[6];
+    ceres::SE3ToRpyxyz((last_pose.inverse() * current_pose).data(), current_relative);
+    ceres::SE3ToRpyxyz((last_pose.inverse() * init_pose).data(), relative);
+    return std::fabs(current_relative[0] - relative[0]) < 0.5 &&
+           std::fabs(current_relative[1] - relative[1]) < 0.2 &&
+           std::fabs(current_relative[2] - relative[2]) < 0.2 &&
+           std::fabs(current_relative[3] - relative[3]) < 2 &&
+           std::fabs(current_relative[4] - relative[4]) < 1 &&
+           std::fabs(current_relative[5] - relative[5]) < 1;
+}
+
 bool Frontend::Track()
 {
-    int num_inliers = TrackLastFrame(last_frame);
-    bool success = num_inliers > num_features_tracking_bad_ &&
-                   (current_frame->pose.translation() - last_frame_pose_cache_.translation()).norm() < 5;
-
-    if (!success)
-    {
-        num_inliers = Relocate(last_frame);
-        success = num_inliers > num_features_tracking_bad_ &&
-                  (current_frame->pose.translation() - last_frame_pose_cache_.translation()).norm() < 5;
-    }
+    SE3d init_pose = current_frame->pose;
+    int num_inliers = TrackLastFrame();
+    // if (!num_inliers)
+    // {
+    //     num_inliers = Relocate(last_frame);
+    //     success = num_inliers > num_features_tracking_bad_ &&
+    //               check_pose(current_frame->pose, last_frame->pose, init_pose);
+    // }
 
     if (status == FrontendStatus::INITIALIZING)
     {
-        if (!success)
+        if (!num_inliers)
         {
             status = FrontendStatus::BUILDING;
         }
     }
     else
     {
-        if (true || success)
+        if (num_inliers)
         {
             // tracking good
             status = FrontendStatus::TRACKING_GOOD;
@@ -244,11 +242,20 @@ bool Frontend::Track()
         else
         {
             // tracking bad, but give a chance
-            status = FrontendStatus::TRACKING_TRY;
+            status = FrontendStatus::TRACKING_GOOD;
             current_frame->features_left.clear();
             InitMap();
-            current_frame->pose = last_frame_pose_cache_ * relative_i_j;
-            LOG(INFO) << "Lost, try again!";
+            if (Navsat::Num() && Navsat::Get()->initialized)
+            {
+                current_frame->pose = init_pose;
+                current_frame->pose.translation() = Navsat::Get()->GetAroundPoint(current_frame->time);
+            }
+            else
+            {
+                current_frame->pose = last_frame_pose_cache_ * relative_i_j;
+            }
+            LOG(INFO) << "Lost, disable cameras!";
+            return false;
         }
     }
 
@@ -263,65 +270,129 @@ bool Frontend::Track()
     return true;
 }
 
-int Frontend::TrackLastFrame(Frame::Ptr base_frame)
+int Frontend::TrackLastFrame()
 {
     std::vector<cv::Point2f> kps_last, kps_current;
     std::vector<visual::Landmark::Ptr> landmarks;
     std::vector<uchar> status;
     // use LK flow to estimate points in the last image
-    for (auto &pair_feature : base_frame->features_left)
+    kps_last.reserve(last_frame->features_left.size());
+    kps_current.reserve(last_frame->features_left.size());
+    for (auto &pair_feature : last_frame->features_left)
     {
         // use project point
         auto feature = pair_feature.second;
         auto landmark = feature->landmark.lock();
-        auto px = Camera::Get()->World2Pixel(position_cache_[landmark->id], current_frame->pose);
-        kps_last.push_back(feature->keypoint);
+        auto px = Camera::Get()->World2Pixel(local_map.position_cache[landmark->id], current_frame->pose);
+        kps_last.push_back(feature->keypoint.pt);
         kps_current.push_back(cv::Point2f(px[0], px[1]));
         landmarks.push_back(landmark);
     }
-    optical_flow(base_frame->image_left, current_frame->image_left, kps_last, kps_current, status);
+    // if last frame is a key frame, use new landmarks
+    if (last_frame == last_keyframe)
+    {
+        auto features = local_map.GetFeatures(last_frame->time);
+        kps_last.reserve(kps_last.size() + features.size());
+        kps_current.reserve(kps_current.size() + features.size());
+        for (auto &feature : features)
+        {
+            auto landmark = feature->landmark.lock();
+            assert(landmark);
+            auto px = Camera::Get()->World2Pixel(local_map.position_cache[landmark->id], current_frame->pose);
+            kps_last.push_back(feature->keypoint.pt);
+            kps_current.push_back(cv::Point2f(px[0], px[1]));
+            landmarks.push_back(landmark);
+        }
+    }
+    optical_flow(last_frame->image_left, current_frame->image_left, kps_last, kps_current, status);
 
     // Solve PnP
-    std::vector<cv::Point3f> points_3d;
-    std::vector<cv::Point2f> points_2d;
-    std::vector<int> map;
-    for (size_t i = 0; i < status.size(); ++i)
+    std::vector<cv::Point3f> points_3d_far, points_3d_near;
+    std::vector<cv::Point2f> points_2d_far, points_2d_near;
+    std::vector<int> map_far, map_near;
+    for (int i = 0; i < status.size(); ++i)
     {
         if (status[i])
         {
-            map.push_back(i);
-            points_2d.push_back(kps_current[i]);
-            Vector3d p = position_cache_[landmarks[i]->id];
-            points_3d.push_back(cv::Point3f(p.x(), p.y(), p.z()));
+            if (landmarks[i]->depth > Camera::BASELINE * 40)
+            {
+                map_far.push_back(i);
+                points_2d_far.push_back(kps_current[i]);
+                Vector3d pw = local_map.position_cache[landmarks[i]->id];
+                points_3d_far.push_back(cv::Point3f(pw.x(), pw.y(), pw.z()));
+            }
+            else
+            {
+                map_near.push_back(i);
+                points_2d_near.push_back(kps_current[i]);
+                Vector3d pw = local_map.position_cache[landmarks[i]->id];
+                points_3d_near.push_back(cv::Point3f(pw.x(), pw.y(), pw.z()));
+            }
         }
     }
 
+    bool use_imu = Imu::Num() && Imu::Get()->initialized && current_frame->preintegration_last;
+    bool use_pnp = (int)points_2d_near.size() > num_features_tracking_bad_;
+    bool use_far = (int)points_2d_far.size() > num_features_tracking_bad_;
     int num_good_pts = 0;
-    cv::Mat rvec, tvec, inliers, cv_R;
-    if ((int)points_2d.size() > num_features_tracking_bad_ &&
-        cv::solvePnPRansac(points_3d, points_2d, Camera::Get()->K, Camera::Get()->D, rvec, tvec, false, 100, 8.0F, 0.98, inliers, cv::SOLVEPNP_EPNP))
+    cv::Mat img_track;
+    cv::cvtColor(current_frame->image_left, img_track, cv::COLOR_GRAY2RGB);
+    if ((use_far || use_pnp))
     {
-        cv::Rodrigues(rvec, cv_R);
-        Matrix3d R;
-        cv::cv2eigen(cv_R, R);
-        if (!Imu::Num() || !Imu::Get()->initialized ||
-            (Imu::Get()->initialized && current_frame->preintegration_last == nullptr)) //IMU
-            current_frame->pose = (Camera::Get()->extrinsic * SE3d(SO3d(R), Vector3d(tvec.at<double>(0, 0), tvec.at<double>(1, 0), tvec.at<double>(2, 0)))).inverse();
-
-        cv::Mat img_track = current_frame->image_left;
-        cv::cvtColor(img_track, img_track, cv::COLOR_GRAY2RGB);
-        for (int r = 0; r < inliers.rows; r++)
+        // near
+        if (use_imu)
         {
-            int i = map[inliers.at<int>(r)];
+            for (auto &i : map_near)
+            {
+                cv::arrowedLine(img_track, kps_current[i], kps_last[i], cv::Scalar(0, 255, 0), 1, 8, 0, 0.2);
+                cv::circle(img_track, kps_current[i], 2, cv::Scalar(0, 255, 0), cv::FILLED);
+                auto feature = visual::Feature::Create(current_frame, cv::KeyPoint(kps_current[i], 1), landmarks[i]);
+                current_frame->AddFeature(feature);
+                num_good_pts++;
+            }
+        }
+        else
+        {
+            if (use_pnp)
+            {
+                cv::Mat rvec, tvec, inliers, cv_R;
+                bool success = cv::solvePnPRansac(points_3d_near, points_2d_near, Camera::Get()->K, Camera::Get()->D, rvec, tvec, false, 100, 8.0F, 0.98, inliers, cv::SOLVEPNP_EPNP);
+                SE3d current_pose;
+                if (success)
+                {
+                    cv::Rodrigues(rvec, cv_R);
+                    Matrix3d R;
+                    cv::cv2eigen(cv_R, R);
+                    current_pose = (Camera::Get()->extrinsic * SE3d(SO3d(R), Vector3d(tvec.at<double>(0, 0), tvec.at<double>(1, 0), tvec.at<double>(2, 0)))).inverse();
+                    success = inliers.rows > num_features_tracking_bad_ && check_pose(current_pose, last_frame->pose, current_frame->pose);
+                }
+                if (success)
+                {
+                    current_frame->pose = current_pose;
+                    for (int r = 0; r < inliers.rows; r++)
+                    {
+                        int i = map_near[inliers.at<int>(r)];
+                        cv::arrowedLine(img_track, kps_current[i], kps_last[i], cv::Scalar(0, 255, 0), 1, 8, 0, 0.2);
+                        cv::circle(img_track, kps_current[i], 2, cv::Scalar(0, 255, 0), cv::FILLED);
+                        auto feature = visual::Feature::Create(current_frame, cv::KeyPoint(kps_current[i], 1), landmarks[i]);
+                        current_frame->AddFeature(feature);
+                        num_good_pts++;
+                    }
+                }
+            }
+        }
+        // far
+        for (auto &i : map_far)
+        {
             cv::arrowedLine(img_track, kps_current[i], kps_last[i], cv::Scalar(0, 255, 0), 1, 8, 0, 0.2);
             cv::circle(img_track, kps_current[i], 2, cv::Scalar(0, 255, 0), cv::FILLED);
-            auto feature = visual::Feature::Create(current_frame, kps_current[i], landmarks[i]);
+            auto feature = visual::Feature::Create(current_frame, cv::KeyPoint(kps_current[i], 1), landmarks[i]);
             current_frame->AddFeature(feature);
             num_good_pts++;
         }
-        cv::imshow("tracking", img_track);
-        cv::waitKey(1);
     }
+    cv::imshow("tracking", img_track);
+    cv::waitKey(1);
 
     LOG(INFO) << "Find " << num_good_pts << " in the last image.";
     return num_good_pts;
@@ -329,57 +400,56 @@ int Frontend::TrackLastFrame(Frame::Ptr base_frame)
 
 int Frontend::Relocate(Frame::Ptr base_frame)
 {
-    std::vector<cv::Point2f> kps_left, kps_right, kps_current;
-    std::vector<Vector3d> pbs;
-    int num_good_pts = matcher_.Relocate(base_frame, current_frame, kps_left, kps_right, kps_current, pbs);
-    if (num_good_pts > num_features_tracking_bad_)
-    {
-        for (int i = 0; i < kps_left.size(); i++)
-        {
-            auto new_landmark = visual::Landmark::Create(pbs[i]);
-            auto new_left_feature = visual::Feature::Create(base_frame, kps_left[i], new_landmark);
-            auto new_right_feature = visual::Feature::Create(base_frame, kps_right[i], new_landmark);
-            new_right_feature->is_on_left_image = false;
-            new_landmark->AddObservation(new_left_feature);
-            new_landmark->AddObservation(new_right_feature);
-            base_frame->AddFeature(new_left_feature);
-            base_frame->AddFeature(new_right_feature);
-            Map::Instance().InsertLandmark(new_landmark);
-            position_cache_[new_landmark->id] = new_landmark->ToWorld();
+    // std::vector<cv::Point2f> kps_left, kps_right, kps_current;
+    // std::vector<Vector3d> pbs;
+    // int num_good_pts = matcher_.Relocate(base_frame, current_frame, kps_left, kps_right, kps_current, pbs);
+    // if (num_good_pts > num_features_tracking_bad_)
+    // {
+    //     for (int i = 0; i < kps_left.size(); i++)
+    //     {
+    //         auto new_landmark = visual::Landmark::Create(Camera::Get(1)->Robot2Sensor(pbs[i]).z());
+    //         auto new_left_feature = visual::Feature::Create(base_frame, kps_left[i], new_landmark);
+    //         auto new_right_feature = visual::Feature::Create(base_frame, kps_right[i], new_landmark);
+    //         new_right_feature->is_on_left_image = false;
+    //         new_landmark->AddObservation(new_left_feature);
+    //         new_landmark->AddObservation(new_right_feature);
+    //         base_frame->AddFeature(new_left_feature);
+    //         base_frame->AddFeature(new_right_feature);
+    //         Map::Instance().InsertLandmark(new_landmark);
+    //         local_mapping_.position_cache[new_landmark->id] = new_landmark->ToWorld();
 
-            auto feature = visual::Feature::Create(current_frame, kps_current[i], new_landmark);
-            current_frame->AddFeature(feature);
-            new_landmark->AddObservation(feature);
-        }
-    }
-    if (base_frame != last_keyframe)
-    {
-        // first, add new observations of old points
-        for (auto &pair_feature : base_frame->features_left)
-        {
-            auto feature = pair_feature.second;
-            auto landmark = feature->landmark.lock();
-            landmark->AddObservation(feature);
-        }
+    //         auto feature = visual::Feature::Create(current_frame, kps_current[i], new_landmark);
+    //         current_frame->AddFeature(feature);
+    //     }
+    // }
+    // if (base_frame != last_keyframe)
+    // {
+    //     // first, add new observations of old points
+    //     for (auto &pair_feature : base_frame->features_left)
+    //     {
+    //         auto feature = pair_feature.second;
+    //         auto landmark = feature->landmark.lock();
+    //         landmark->AddObservation(feature);
+    //     }
 
-        // insert!
-        current_frame->id++;
-        Map::Instance().InsertKeyFrame(base_frame);
-        last_keyframe = base_frame;
-        current_frame->last_keyframe = base_frame;
-        current_frame->preintegration = current_frame->preintegration_last;
-        imu_preintegrated_from_last_kf = current_frame->preintegration_last;
-        LOG(INFO) << "Make last frame a keyframe " << base_frame->id;
+    //     // insert!
+    //     current_frame->id++;
+    //     Map::Instance().InsertKeyFrame(base_frame);
+    //     last_keyframe = base_frame;
+    //     current_frame->last_keyframe = base_frame;
+    //     current_frame->preintegration = current_frame->preintegration_last;
+    //     imu_preintegrated_from_last_kf = current_frame->preintegration_last;
+    //     LOG(INFO) << "Make last frame a keyframe " << base_frame->id;
 
-        // update backend because we have a new keyframe
-        backend_.lock()->UpdateMap();
-    }
-    return num_good_pts;
+    //     // update backend because we have a new keyframe
+    //     backend_.lock()->UpdateMap();
+    // }
+    // return num_good_pts;
 }
 
 bool Frontend::InitMap()
 {
-    int num_new_features = DetectNewFeatures();
+    int num_new_features = local_map.Init(current_frame);
     if (num_new_features < num_features_init_)
         return false;
 
@@ -387,7 +457,7 @@ bool Frontend::InitMap()
     {
         status = FrontendStatus::INITIALIZING;
         Imu::Get()->initialized = false;
-        imu_preintegrated_from_last_kf = nullptr;
+        imu_preintegrated_from_last_kf_ = nullptr;
         valid_imu_time = current_frame->time;
     }
     else
@@ -408,69 +478,68 @@ bool Frontend::InitMap()
 
 int Frontend::DetectNewFeatures()
 {
-    int num_tries = 0;
-    int num_triangulated_pts = 0;
-    int num_good_pts = 0;
-    while (num_tries++ < 2 && current_frame->features_left.size() < 0.8 * num_features_)
-    {
-        cv::Mat mask(current_frame->image_left.size(), CV_8UC1, 255);
-        for (auto &pair_feature : current_frame->features_left)
-        {
-            auto feature = pair_feature.second;
-            cv::circle(mask, feature->keypoint, 20, 0, cv::FILLED);
-        }
+    // int num_tries = 0;
+    // int num_triangulated_pts = 0;
+    // int num_good_pts = 0;
+    // while (num_tries++ < 2 && current_frame->features_left.size() < 0.8 * num_features_)
+    // {
+    //     cv::Mat mask(current_frame->image_left.size(), CV_8UC1, 255);
+    //     for (auto &pair_feature : current_frame->features_left)
+    //     {
+    //         auto feature = pair_feature.second;
+    //         cv::circle(mask, feature->keypoint, 20, 0, cv::FILLED);
+    //     }
 
-        std::vector<cv::Point2f> kps_left, kps_right; // must be point2f
-        cv::goodFeaturesToTrack(current_frame->image_left, kps_left, num_features_ - current_frame->features_left.size(), 0.01, 20, mask);
+    //     std::vector<cv::Point2f> kps_left, kps_right; // must be point2f
+    //     cv::goodFeaturesToTrack(current_frame->image_left, kps_left, num_features_ - current_frame->features_left.size(), 0.01, 20, mask);
 
-        // use LK flow to estimate points in the right image
-        kps_right = kps_left;
-        std::vector<uchar> status;
-        optical_flow(current_frame->image_left, current_frame->image_right, kps_left, kps_right, status);
+    //     // use LK flow to estimate points in the right image
+    //     kps_right = kps_left;
+    //     std::vector<uchar> status;
+    //     optical_flow(current_frame->image_left, current_frame->image_right, kps_left, kps_right, status);
 
-        // triangulate new points
-        for (size_t i = 0; i < kps_left.size(); ++i)
-        {
-            if (status[i])
-            {
-                num_good_pts++;
-                // triangulation
-                Vector2d kp_left = cv2eigen(kps_left[i]);
-                Vector2d kp_right = cv2eigen(kps_right[i]);
-                Vector3d pb = Vector3d::Zero();
-                triangulate(Camera::Get()->extrinsic.inverse(), Camera::Get(1)->extrinsic.inverse(),
-                            Camera::Get()->Pixel2Sensor(kp_left), Camera::Get(1)->Pixel2Sensor(kp_right), pb);
-                if ((Camera::Get()->Robot2Pixel(pb) - kp_left).norm() < 0.5 && (Camera::Get(1)->Robot2Pixel(pb) - kp_right).norm() < 0.5)
-                {
-                    auto new_landmark = visual::Landmark::Create(pb);
-                    auto new_left_feature = visual::Feature::Create(current_frame, kps_left[i], new_landmark);
-                    auto new_right_feature = visual::Feature::Create(current_frame, kps_right[i], new_landmark);
-                    new_right_feature->is_on_left_image = false;
-                    new_landmark->AddObservation(new_left_feature);
-                    new_landmark->AddObservation(new_right_feature);
-                    current_frame->AddFeature(new_left_feature);
-                    current_frame->AddFeature(new_right_feature);
-                    Map::Instance().InsertLandmark(new_landmark);
-                    position_cache_[new_landmark->id] = new_landmark->ToWorld();
-                    num_triangulated_pts++;
-                }
-            }
-        }
-    }
+    //     // triangulate new points
+    //     for (int i = 0; i < kps_left.size(); ++i)
+    //     {
+    //         if (status[i])
+    //         {
+    //             num_good_pts++;
+    //             // triangulation
+    //             Vector2d kp_left = cv2eigen(kps_left[i]);
+    //             Vector2d kp_right = cv2eigen(kps_right[i]);
+    //             Vector3d pb = Vector3d::Zero();
+    //             triangulate(Camera::Get()->extrinsic.inverse(), Camera::Get(1)->extrinsic.inverse(),
+    //                         Camera::Get()->Pixel2Sensor(kp_left), Camera::Get(1)->Pixel2Sensor(kp_right), pb);
+    //             if ((Camera::Get()->Robot2Pixel(pb) - kp_left).norm() < 0.5 && (Camera::Get(1)->Robot2Pixel(pb) - kp_right).norm() < 0.5)
+    //             {
+    //                 auto new_landmark = visual::Landmark::Create(Camera::Get(1)->Robot2Sensor(pb).z());
+    //                 auto new_left_feature = visual::Feature::Create(current_frame, kps_left[i], new_landmark);
+    //                 auto new_right_feature = visual::Feature::Create(current_frame, kps_right[i], new_landmark);
+    //                 new_right_feature->is_on_left_image = false;
+    //                 new_landmark->AddObservation(new_left_feature);
+    //                 new_landmark->AddObservation(new_right_feature);
+    //                 current_frame->AddFeature(new_left_feature);
+    //                 current_frame->AddFeature(new_right_feature);
+    //                 Map::Instance().InsertLandmark(new_landmark);
+    //                 position_cache_[new_landmark->id] = new_landmark->ToWorld();
+    //                 num_triangulated_pts++;
+    //             }
+    //         }
+    //     }
+    // }
 
-    LOG(INFO) << "Find " << num_good_pts << " in the right image.";
-    LOG(INFO) << "new landmarks: " << num_triangulated_pts;
-    return num_triangulated_pts;
+    // LOG(INFO) << "Find " << num_good_pts << " in the right image.";
+    // LOG(INFO) << "new landmarks: " << num_triangulated_pts;
+    // return num_triangulated_pts;
 }
 
 void Frontend::CreateKeyframe()
 {
-    //IMU
     if (Imu::Num())
     {
-        imu_preintegrated_from_last_kf = nullptr;
+        imu_preintegrated_from_last_kf_ = nullptr;
     }
-    //IMUEND
+
     // first, add new observations of old points
     for (auto &pair_feature : current_frame->features_left)
     {
@@ -480,12 +549,21 @@ void Frontend::CreateKeyframe()
     }
 
     // detect new features, track in right image and triangulate map points
-    DetectNewFeatures();
+    local_map.AddKeyFrame(current_frame);
 
     // insert!
     Map::Instance().InsertKeyFrame(current_frame);
     last_keyframe = current_frame;
     LOG(INFO) << "Add a keyframe " << current_frame->id;
+    if(globalplanner_)//NAVI
+    {
+        Matrix3d rwginv=Matrix3d::Identity();
+        if(Imu::Num()>0)
+            rwginv= Imu::Get()->Rwg.inverse();
+        Vector3d trans_pose =rwginv*last_frame->pose.translation();
+        Vector2d pose2d(trans_pose[0],trans_pose[1]);
+        globalplanner_->SetRobotPose(pose2d);
+    }
 
     // update backend because we have a new keyframe
     backend_.lock()->UpdateMap();
@@ -504,12 +582,15 @@ bool Frontend::Reset()
 
 void Frontend::UpdateCache()
 {
-    position_cache_.clear();
+    local_map.UpdateCache();
     for (auto &pair_feature : last_frame->features_left)
     {
         auto feature = pair_feature.second;
-        auto camera_point = feature->landmark.lock();
-        position_cache_[camera_point->id] = camera_point->ToWorld();
+        auto landmark = feature->landmark.lock();
+        if (local_map.position_cache.find(landmark->id) == local_map.position_cache.end())
+        {
+            local_map.position_cache[landmark->id] = landmark->ToWorld();
+        }
     }
     last_frame_pose_cache_ = last_frame->pose;
 }
@@ -518,7 +599,7 @@ void Frontend::UpdateCache()
 void Frontend::UpdateIMU(const Bias &bias_)
 {
     if (last_keyframe->preintegration != nullptr)
-        last_keyframe->bImu = true;
+        last_keyframe->is_imu_good = true;
     last_frame->SetNewBias(bias_);
     current_frame->SetNewBias(bias_);
     Vector3d Gz;
@@ -573,7 +654,7 @@ void Frontend::PredictStateIMU()
         Matrix3d Rwb1 = last_keyframe->GetImuRotation();
         Vector3d Vwb1 = last_keyframe->Vw;
 
-        Matrix3d Rwb2 = NormalizeRotation(Rwb1 * current_frame->preintegration->GetDeltaRotation(last_keyframe->GetImuBias()).toRotationMatrix());
+        Matrix3d Rwb2 = normalize_R(Rwb1 * current_frame->preintegration->GetDeltaRotation(last_keyframe->GetImuBias()).toRotationMatrix());
         Vector3d twb2 = twb1 + Vwb1 * dt + 0.5f * dt * dt * Gz + Rwb1 * current_frame->preintegration->GetDeltaPosition(last_keyframe->GetImuBias());
         Vector3d Vwb2 = Vwb1 + dt * Gz + Rwb1 * current_frame->preintegration->GetDeltaVelocity(last_keyframe->GetImuBias());
         current_frame->SetVelocity(Vwb2);
@@ -590,7 +671,7 @@ void Frontend::PredictStateIMU()
         Vector3d twb1 = last_frame->GetImuPosition();
         Matrix3d Rwb1 = last_frame->GetImuRotation();
         Vector3d Vwb1 = last_frame->Vw;
-        Matrix3d Rwb2 = NormalizeRotation(Rwb1 * current_frame->preintegration_last->GetDeltaRotation(last_frame->GetImuBias()).toRotationMatrix());
+        Matrix3d Rwb2 = normalize_R(Rwb1 * current_frame->preintegration_last->GetDeltaRotation(last_frame->GetImuBias()).toRotationMatrix());
         Vector3d twb2 = twb1 + Vwb1 * dt + 0.5f * dt * dt * Gz + Rwb1 * current_frame->preintegration_last->GetDeltaPosition(last_frame->GetImuBias());
         Vector3d Vwb2 = Vwb1 + dt * Gz + Rwb1 * current_frame->preintegration_last->GetDeltaVelocity(last_frame->GetImuBias());
 
@@ -598,9 +679,6 @@ void Frontend::PredictStateIMU()
         current_frame->SetPose(Rwb2, twb2);
         current_frame->SetNewBias(last_frame->GetImuBias());
     }
-    Vector3d trans_pose = Imu::Get()->Rwg.inverse()*last_frame->pose.translation();
-    Vector2d pose2d(trans_pose[0],trans_pose[1]);
-    globalplanner_->SetRobotPose(pose2d);//NAVI
 }
 
 } // namespace lvio_fusion

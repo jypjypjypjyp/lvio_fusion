@@ -2,17 +2,15 @@
 
 # flags
 use_imu: 0
-use_lidar: 0
+use_lidar: 1
 use_navsat: 0
 use_loop: 0
-use_semantic: 0
 use_adapt: 0
-use_navigation: 0
-train: 0
+use_navigation: 1
 
 # ros parameters
-imu_topic: '/imu'
-lidar_topic: '/velodyne_points2'
+imu_topic: '/D435i_camera/imu/sample'
+lidar_topic: '/velodyne_points'
 navsat_topic: '/kitti/oxts/gps/fix'
 image0_topic: '/D435i_camera/infra1/image_rect_raw'
 image1_topic: '/D435i_camera/infra2/image_rect_raw'
@@ -36,17 +34,17 @@ camera1.cx: 320.0
 camera1.cy: 240.0
 
 # lidar parameters
-num_scans: 32           # only for 16, 32, 64
-horizon_scan: 2187
-ang_res_y: 1.291875  
-ang_bottom: 30.67  
-ground_rows: 24
-cycle_time: 0.1 
+num_scans: 16           # only for 16, 32, 64
+horizon_scan: 440
+ang_res_y: 2.0
+ang_bottom: 15.1
+ground_rows: 0
+cycle_time: 0.1036
 min_range: 0.5
-max_range: 30
+max_range: 50
 deskew: 0
-spacing: 0  
-resolution: 0.2 
+spacing: 5
+resolution: 0.2
 
 #imu parameters
 acc_n: 0.08             # accelerometer measurement noise standard deviation. #0.2   0.04
@@ -60,9 +58,9 @@ body_to_cam0: !!opencv-matrix
    rows: 4
    cols: 4
    dt: d
-   data: [   1,  0,  0, -0,
-            0,  1, -0,  0,
-            0 ,0 , 1 ,0.0,
+   data: [   0,  0,  1, -0,
+            -1,  0, -0,  0,
+            0 ,-1 , 0 ,-0,
             0 , 0 ,-0 , 1]
 
 # camera1 to body
@@ -70,26 +68,26 @@ body_to_cam1: !!opencv-matrix
    rows: 4
    cols: 4
    dt: d
-   data: [   1,  0,  0, -0.05,
-            0,  1, -0,  0,
-            0 ,0 , 1 ,0.0,
-            0 , 0 ,-0 , 1]
+   data: [  0,   0,   1,     0,
+           -1,   0,   0, -0.05,
+            0,  -1,   0,    -0,
+            0,   0,  -0,     1]
 
 # lidar to body
 body_to_lidar: !!opencv-matrix
    rows: 4
    cols: 4
    dt: d
-   data: [  0,   -1,   0, -0.18,
-            1,    0,  -0,   0.0,
-           -0,   -0,   1,   0.022,
+   data: [   1,  0,   0, -0.1,
+          0,    1,  -0,   0.0,
+            -0,   -0,   1,   0.0,
            -0,    0,  -0,       1]
 
 # number of features
-num_features: 30
-num_features_init: 10
+num_features: 200
+num_features_init: 30
 num_features_tracking_bad: 10
-num_features_needed_for_keyframe: 10
+num_features_needed_for_keyframe: 100
 
 # backend
 windows_size: 3
@@ -106,4 +104,4 @@ obs_cols: 12
 #navigation
 grid_width: 1000
 grid_height: 1000
-grid_resolution: 1
+grid_resolution: 0.05

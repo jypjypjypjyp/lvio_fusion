@@ -5,9 +5,7 @@ use_imu: 0
 use_lidar: 1
 use_navsat: 0
 use_loop: 0             # 0 for only odometry, 1 for whole system
-use_semantic: 0
 use_adapt: 0
-train: 0
 
 # ros parameters
 # imu_topic: '/kitti/oxts/imu'
@@ -54,7 +52,7 @@ acc_w: 0.00004          # accelerometer bias random work noise standard deviatio
 gyr_w: 2.0e-6           # gyroscope bias random work noise standard deviation.     #4.0e-5
 g_norm: 9.81007         # gravity magnitude
 
-# # camera0 to body
+# # body_to_cam0 is inverse of [R T]
 # body_to_cam0: !!opencv-matrix
 #    rows: 4
 #    cols: 4
@@ -64,7 +62,7 @@ g_norm: 9.81007         # gravity magnitude
 #           0, 0, 1, 0,
 #           0, 0, 0, 1]
 
-# # camera1 to body
+# # body_to_cam1 is inverse of [R T]
 # body_to_cam1: !!opencv-matrix
 #    rows: 4
 #    cols: 4
@@ -85,7 +83,7 @@ g_norm: 9.81007         # gravity magnitude
 #             -0,           0,           -0,            1]
 
 
-# camera0 to body
+# body_to_cam0 is inverse of [R T]
 body_to_cam0: !!opencv-matrix
    rows: 4
    cols: 4
@@ -96,7 +94,7 @@ body_to_cam0: !!opencv-matrix
             0 , 0 ,-0 , 1]
 
 
-# camera1 to body
+# body_to_cam1 is inverse of [R T]
 body_to_cam1: !!opencv-matrix
    rows: 4
    cols: 4

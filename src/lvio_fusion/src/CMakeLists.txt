@@ -5,12 +5,14 @@ add_library(lvio_fusion SHARED
         config.cpp
         Dstar.cpp
         environment.cpp
+        extractor.cpp
         estimator.cpp
         frame.cpp
         frontend.cpp
         gridmap.cpp
         initializer.cpp
         landmark.cpp
+        local_map.cpp
         manager.cpp
         map.cpp
         mapping.cpp
