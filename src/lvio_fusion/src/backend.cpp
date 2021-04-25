@@ -88,11 +88,6 @@ void Backend::BuildProblem(Frames &active_kfs, adapt::Problem &problem, bool use
                 cost_function = TwoCameraReprojectionError::Create(cv2eigen(feature->keypoint.pt), cv2eigen(landmark->first_observation->keypoint.pt), Camera::Get(0), Camera::Get(1), 5 * frame->weights.visual);
                 problem.AddResidualBlock(ProblemType::VisualError, cost_function, loss_function, para_depth);
             }
-            // else if (landmark->depth > Camera::BASELINE * 40)
-            // {
-            //     cost_function = FarLandmarkReprojectionError::Create(frame->pose.translation(), cv2eigen(feature->keypoint), landmark->ToWorld(), Camera::Get(), frame->weights.visual);
-            //     problem.AddResidualBlock(ProblemType::VisualError, cost_function, loss_function, para_kf);
-            // }
             else if (first_frame->time < start_time)
             {
                 cost_function = PoseOnlyReprojectionError::Create(cv2eigen(feature->keypoint.pt), landmark->ToWorld(), Camera::Get(), frame->weights.visual);

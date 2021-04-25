@@ -173,8 +173,10 @@ void Frontend::PreintegrateIMU()
         }
     }
 
-    if (!imu_preintegrated_from_last_kf_->bad) //如果imu帧没坏，就赋给当前帧
+    if (!imu_preintegrated_from_last_kf_->bad)
+    {
         current_frame->preintegration = imu_preintegrated_from_last_kf_;
+    }
     else
     {
         current_frame->preintegration = nullptr;
@@ -217,12 +219,6 @@ bool Frontend::Track()
 {
     SE3d init_pose = current_frame->pose;
     int num_inliers = TrackLastFrame();
-    // if (!num_inliers)
-    // {
-    //     num_inliers = Relocate(last_frame);
-    //     success = num_inliers > num_features_tracking_bad_ &&
-    //               check_pose(current_frame->pose, last_frame->pose, init_pose);
-    // }
 
     if (status == FrontendStatus::INITIALIZING)
     {
@@ -395,55 +391,6 @@ int Frontend::TrackLastFrame()
 
     LOG(INFO) << "Find " << num_good_pts << " in the last image.";
     return num_good_pts;
-}
-
-int Frontend::Relocate(Frame::Ptr base_frame)
-{
-    // std::vector<cv::Point2f> kps_left, kps_right, kps_current;
-    // std::vector<Vector3d> pbs;
-    // int num_good_pts = matcher_.Relocate(base_frame, current_frame, kps_left, kps_right, kps_current, pbs);
-    // if (num_good_pts > num_features_tracking_bad_)
-    // {
-    //     for (int i = 0; i < kps_left.size(); i++)
-    //     {
-    //         auto new_landmark = visual::Landmark::Create(Camera::Get(1)->Robot2Sensor(pbs[i]).z());
-    //         auto new_left_feature = visual::Feature::Create(base_frame, kps_left[i], new_landmark);
-    //         auto new_right_feature = visual::Feature::Create(base_frame, kps_right[i], new_landmark);
-    //         new_right_feature->is_on_left_image = false;
-    //         new_landmark->AddObservation(new_left_feature);
-    //         new_landmark->AddObservation(new_right_feature);
-    //         base_frame->AddFeature(new_left_feature);
-    //         base_frame->AddFeature(new_right_feature);
-    //         Map::Instance().InsertLandmark(new_landmark);
-    //         local_mapping_.position_cache[new_landmark->id] = new_landmark->ToWorld();
-
-    //         auto feature = visual::Feature::Create(current_frame, kps_current[i], new_landmark);
-    //         current_frame->AddFeature(feature);
-    //     }
-    // }
-    // if (base_frame != last_keyframe)
-    // {
-    //     // first, add new observations of old points
-    //     for (auto &pair_feature : base_frame->features_left)
-    //     {
-    //         auto feature = pair_feature.second;
-    //         auto landmark = feature->landmark.lock();
-    //         landmark->AddObservation(feature);
-    //     }
-
-    //     // insert!
-    //     current_frame->id++;
-    //     Map::Instance().InsertKeyFrame(base_frame);
-    //     last_keyframe = base_frame;
-    //     current_frame->last_keyframe = base_frame;
-    //     current_frame->preintegration = current_frame->preintegration_last;
-    //     imu_preintegrated_from_last_kf = current_frame->preintegration_last;
-    //     LOG(INFO) << "Make last frame a keyframe " << base_frame->id;
-
-    //     // update backend because we have a new keyframe
-    //     backend_.lock()->UpdateMap();
-    // }
-    // return num_good_pts;
 }
 
 bool Frontend::InitMap()
