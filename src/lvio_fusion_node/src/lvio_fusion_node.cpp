@@ -132,6 +132,8 @@ void sync_process()
                 publish_car_model(estimator, time);
                 if(use_navigation)
                     publish_car_model_navigation(estimator, time);
+                publish_CompressedImage0(image0);//CompressedImage
+                publish_CompressedImage1(image1);//CompressedImage
             }
         }
         chrono::milliseconds dura(2);

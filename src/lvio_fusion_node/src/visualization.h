@@ -41,4 +41,7 @@ void publish_plan_path(Estimator::Ptr estimator, double time);
 
 void publish_car_model_navigation(Estimator::Ptr estimator, double time);
 
+void publish_CompressedImage0(cv::Mat image);
+
+void publish_CompressedImage1(cv::Mat image);
 #endif // lvio_fusion_VISUALIZATION_H

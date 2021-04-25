@@ -2,11 +2,11 @@
 
 # flags
 use_imu: 0
-use_lidar: 1
+use_lidar: 0
 use_navsat: 0
 use_loop: 0
 use_adapt: 0
-use_navigation: 1
+use_navigation: 0
 
 # ros parameters
 imu_topic: '/D435i_camera/imu/sample'

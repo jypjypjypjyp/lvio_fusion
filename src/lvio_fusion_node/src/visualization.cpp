@@ -2,8 +2,12 @@
 #include "camera_pose.h"
 #include "lvio_fusion/map.h"
 #include "lvio_fusion/visual/camera.h"
-
+#include <opencv2/imgcodecs.hpp>
 #include <pcl_conversions/pcl_conversions.h>
+#include <sensor_msgs/image_encodings.h>    //图像编码格式
+#include <image_transport/image_transport.h>   //image_transport
+#include <cv_bridge/cv_bridge.h>              //cv_bridge
+
 
 ros::Publisher pub_path;
 ros::Publisher pub_navsat;
@@ -13,6 +17,7 @@ ros::Publisher pub_car_model;
 ros::Publisher pub_car_model_navigation;//NAVI
 ros::Publisher pub_plan_path;//NAVI
 ros::Publisher pub_navigation;//NAVI
+ros::Publisher pub_CompressedImage0,pub_CompressedImage1;//CompressedImage
 nav_msgs::Path path, navsat_path, plan_path;//NAVI
 
 ros::Publisher pub_camera_pose_visual;
@@ -29,6 +34,8 @@ void register_pub(ros::NodeHandle &n)
     pub_navigation = n.advertise<nav_msgs::OccupancyGrid>("grid_map", 1);//NAVI
     pub_plan_path = n.advertise<nav_msgs::Path>("plan_path", 1000);//NAVI
     pub_car_model = n.advertise<visualization_msgs::Marker>("car_model", 1000);
+    pub_CompressedImage0=n.advertise<sensor_msgs::CompressedImage>("CompressedImage0",1000);//CompressedImage
+    pub_CompressedImage1=n.advertise<sensor_msgs::CompressedImage>("CompressedImage1",1000);//CompressedImage
 
     pub_camera_pose_visual = n.advertise<visualization_msgs::MarkerArray>("camera_pose_visual", 1000);
 
@@ -285,4 +292,50 @@ void publish_plan_path(Estimator::Ptr estimator, double time)
         LOG(INFO)<<"plan_path_: "<<plan_path_.size();
         pub_plan_path.publish(plan_path);
     }
+}
+//CompressedImage
+sensor_msgs::CompressedImage cv_to_ros(cv::Mat image) // 将cv图像格式转换为ROS压缩图像格式
+{
+    std::string encoding = "bgr8";
+    int bitDepth = sensor_msgs::image_encodings::bitDepth(encoding);
+    int numChannels =sensor_msgs::image_encodings::numChannels(encoding);
+
+    sensor_msgs::CompressedImage compressed;
+    compressed.header = std_msgs::Header();
+    compressed.format = "bgr8";
+
+    std::vector<int> params;
+    params.resize(9, 0);
+    params[0] = 1;
+    params[1] = 90;
+    params[2] = 2;
+    params[3] = 0;
+    params[4] = 3;
+    params[5] = 0;
+    params[6] = 4;
+    params[7] = 0;
+    compressed.format += "; jpeg compressed ";
+
+    if ((bitDepth == 8) || (bitDepth == 16))
+    {
+        // Target image format
+        std::string targetFormat;
+        if (sensor_msgs::image_encodings::isColor(encoding))
+        {
+            // convert color images to BGR8 format
+            targetFormat = "bgr8";
+            compressed.format += targetFormat;
+        }
+        cv::imencode(".jpg", image, compressed.data, params);
+    }
+
+    return compressed;
+}
+void publish_CompressedImage0(cv::Mat image)
+{
+        pub_CompressedImage0.publish(cv_to_ros(image));
+}
+void publish_CompressedImage1(cv::Mat image)
+{
+        pub_CompressedImage1.publish(cv_to_ros(image));
 }
