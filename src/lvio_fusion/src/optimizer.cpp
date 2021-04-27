@@ -54,6 +54,7 @@ void PoseGraph::UpdateSections(double time)
     static Frame::Ptr last_frame;
     static Vector3d last_ori(1, 0, 0), B_ori(1, 0, 0);
     static double accumulate_degree = 0;
+    static double finished = 0;
 
     if (Map::Instance().end && !turning)
     {

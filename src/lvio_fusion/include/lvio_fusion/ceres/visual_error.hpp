@@ -23,9 +23,10 @@ inline void Reprojection(const T *pw, const T *Twc, Camera::Ptr camera, T *resul
 }
 
 template <typename T>
-inline void Pixel2Robot(const T *ob, const T *depth, Camera::Ptr camera, T *result)
+inline void Pixel2Robot(const T *ob, const T *inv_d, Camera::Ptr camera, T *result)
 {
-    T ps[3] = {T((ob[0] - camera->cx) / camera->fx) * depth[0], T((ob[1] - camera->cy) / camera->fy) * depth[0], depth[0]};
+    T d = T(1) / inv_d[0];
+    T ps[3] = {T((ob[0] - camera->cx) / camera->fx) * d, T((ob[1] - camera->cy) / camera->fy) * d, d};
     T e[7];
     ceres::Cast(camera->extrinsic.data(), SE3d::num_parameters, e);
     ceres::SE3TransformPoint(e, ps, result);
@@ -82,12 +83,12 @@ public:
         : first_ob_(first_ob), ob_(ob), left_(left), right_(right), weight_(weight) {}
 
     template <typename T>
-    bool operator()(const T *d, const T *Twc1, const T *Twc2, T *residuals) const
+    bool operator()(const T *inv_d, const T *Twc1, const T *Twc2, T *residuals) const
     {
         T pixel[2], pw[3], pb[3];
         T first_ob[2] = {T(first_ob_.x()), T(first_ob_.y())};
         T ob2[2] = {T(ob_.x()), T(ob_.y())};
-        Pixel2Robot(first_ob, d, right_, pb);
+        Pixel2Robot(first_ob, inv_d, right_, pb);
         ceres::SE3TransformPoint(Twc1, pb, pw);
         Reprojection(pw, Twc2, left_, pixel);
         residuals[0] = T(weight_) * (pixel[0] - ob2[0]);
@@ -114,12 +115,12 @@ public:
         : left_ob_(left_ob), right_ob_(right_ob), left_(left), right_(right), weight_(weight) {}
 
     template <typename T>
-    bool operator()(const T *d, T *residuals) const
+    bool operator()(const T *inv_d, T *residuals) const
     {
         T pixel[2], pb[3];
         T right_ob[2] = {T(right_ob_.x()), T(right_ob_.y())};
         T left_ob[2] = {T(left_ob_.x()), T(left_ob_.y())};
-        Pixel2Robot(right_ob, d, right_, pb);
+        Pixel2Robot(right_ob, inv_d, right_, pb);
         Robot2Pixel(pb, left_, pixel);
         residuals[0] = T(weight_) * (pixel[0] - left_ob[0]);
         residuals[1] = T(weight_) * (pixel[1] - left_ob[1]);
@@ -135,6 +136,39 @@ public:
 private:
     Vector2d left_ob_, right_ob_;
     Camera::Ptr left_, right_;
+    double weight_;
+};
+
+class FarLandmarkReprojectionError
+{
+public:
+    FarLandmarkReprojectionError(Vector3d twc, Vector2d ob, Vector3d pw, Camera::Ptr camera, double weight)
+        : twc_(twc), ob_(ob), pw_(pw), camera_(camera), weight_(weight) {}
+
+    template <typename T>
+    bool operator()(const T *Rwc, T *residuals) const
+    {
+        T p_p[2];
+        T pw[3] = {T(pw_.x()), T(pw_.y()), T(pw_.z())};
+        T ob[2] = {T(ob_.x()), T(ob_.y())};
+        T Twc[7] = {Rwc[0], Rwc[1], Rwc[2], Rwc[3], T(twc_.x()), T(twc_.y()), T(twc_.z())};
+        Reprojection(pw, Twc, camera_, p_p);
+        residuals[0] = T(weight_) * (p_p[0] - ob[0]);
+        residuals[1] = T(weight_) * (p_p[1] - ob[1]);
+        return true;
+    }
+
+    static ceres::CostFunction *Create(Vector3d twc, Vector2d ob, Vector3d pw, Camera::Ptr camera, double weight)
+    {
+        return (new ceres::AutoDiffCostFunction<FarLandmarkReprojectionError, 3, 7>(
+            new FarLandmarkReprojectionError(twc, ob, pw, camera, weight)));
+    }
+
+private:
+    Vector3d twc_;
+    Vector2d ob_;
+    Vector3d pw_;
+    Camera::Ptr camera_;
     double weight_;
 };
 

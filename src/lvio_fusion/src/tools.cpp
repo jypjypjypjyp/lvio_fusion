@@ -2,6 +2,8 @@
 #include "lvio_fusion/adapt/problem.h"
 #include "lvio_fusion/ceres/imu_error.hpp"
 #include "lvio_fusion/ceres/visual_error.hpp"
+#include "lvio_fusion/visual/landmark.h"
+
 namespace lvio_fusion
 {
 
@@ -37,24 +39,24 @@ void imu::ReComputeBiasVel(Frames &frames, Frame::Ptr &prior_frame)
             problem.SetParameterBlockConstant(para_kf);
             if (last_frame && last_frame->is_imu_good && last_frame->preintegration != nullptr)
             {
-                auto para_kf_last = last_frame->pose.data();
+                auto para_last_kf = last_frame->pose.data();
                 auto para_v_last = last_frame->Vw.data();
                 auto para_bg_last = last_frame->ImuBias.linearized_bg.data();
                 auto para_ba_last = last_frame->ImuBias.linearized_ba.data();
                 if (first)
                 {
-                    problem.AddParameterBlock(para_kf_last, SE3d::num_parameters, local_parameterization);
+                    problem.AddParameterBlock(para_last_kf, SE3d::num_parameters, local_parameterization);
                     problem.AddParameterBlock(para_v_last, 3);
                     problem.AddParameterBlock(para_bg_last, 3);
                     problem.AddParameterBlock(para_ba_last, 3);
-                    problem.SetParameterBlockConstant(para_kf_last);
+                    problem.SetParameterBlockConstant(para_last_kf);
                     problem.SetParameterBlockConstant(para_v_last);
                     problem.SetParameterBlockConstant(para_bg_last);
                     problem.SetParameterBlockConstant(para_ba_last);
                     first = false;
                 }
                 ceres::CostFunction *cost_function = ImuError::Create(current_frame->preintegration);
-                problem.AddResidualBlock(ProblemType::IMUError, cost_function, NULL, para_kf_last, para_v_last, para_ba_last, para_bg_last, para_kf, para_v, para_ba, para_bg);
+                problem.AddResidualBlock(ProblemType::ImuError, cost_function, NULL, para_last_kf, para_v_last, para_ba_last, para_bg_last, para_kf, para_v, para_ba, para_bg);
             }
             last_frame = current_frame;
         }
@@ -111,12 +113,12 @@ void imu::ReComputeBiasVel(Frames &frames)
             problem.SetParameterBlockConstant(para_kf);
             if (last_frame && last_frame->is_imu_good && last_frame->preintegration != nullptr)
             {
-                auto para_kf_last = last_frame->pose.data();
+                auto para_last_kf = last_frame->pose.data();
                 auto para_v_last = last_frame->Vw.data();
                 auto para_bg_last = last_frame->ImuBias.linearized_bg.data();
                 auto para_ba_last = last_frame->ImuBias.linearized_ba.data();
                 ceres::CostFunction *cost_function = ImuError::Create(current_frame->preintegration);
-                problem.AddResidualBlock(ProblemType::IMUError, cost_function, NULL, para_kf_last, para_v_last, para_ba_last, para_bg_last, para_kf, para_v, para_ba, para_bg);
+                problem.AddResidualBlock(ProblemType::ImuError, cost_function, NULL, para_last_kf, para_v_last, para_ba_last, para_bg_last, para_kf, para_v, para_ba, para_bg);
             }
             last_frame = current_frame;
         }
@@ -289,10 +291,10 @@ void imu::FullInertialBA(Frames &frames, double priorG, double priorA)
         problem.AddParameterBlock(para_v, 3);
         if (last_frame && last_frame->is_imu_good)
         {
-            auto para_kf_last = last_frame->pose.data();
+            auto para_last_kf = last_frame->pose.data();
             auto para_v_last = last_frame->Vw.data();
             cost_function = ImuErrorInit::Create(current_frame->preintegration, priorA, priorG);
-            problem.AddResidualBlock(cost_function, NULL, para_kf_last, para_v_last, para_accBias, para_gyroBias, para_kf, para_v);
+            problem.AddResidualBlock(cost_function, NULL, para_last_kf, para_v_last, para_accBias, para_gyroBias, para_kf, para_v);
         }
         last_frame = current_frame;
     }

@@ -12,8 +12,6 @@ int num_threads = std::min(8, std::max(1, (int)(0.75 * get_nprocs())));
 namespace lvio_fusion
 {
 
-double Camera::BASELINE = 1;
-
 Estimator::Estimator(std::string &config_path)
     : config_file_path_(config_path) {}
 
@@ -84,7 +82,6 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
                        Config::Get<double>("camera1.cy"),
                        SE3d(q_body_to_cam1, t_body_to_cam1));
     }
-    lvio_fusion::Camera::BASELINE = (t_body_to_cam0 - t_body_to_cam1).norm();
 
     // create components and links
     frontend = Frontend::Ptr(new Frontend(
@@ -166,10 +163,11 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
     return true;
 }
 
-void Estimator::InputImage(double time, cv::Mat &left_image, cv::Mat &right_image)
+void Estimator::InputImage(double time, cv::Mat &left_image, cv::Mat &right_image, SE3d init_odom)
 {
     Frame::Ptr new_frame = Frame::Create();
     new_frame->time = time;
+    new_frame->pose = init_odom;
     cv::undistort(left_image, new_frame->image_left, Camera::Get(0)->K, Camera::Get(0)->D);
     cv::undistort(right_image, new_frame->image_right, Camera::Get(1)->K, Camera::Get(1)->D);
 
@@ -192,7 +190,7 @@ void Estimator::InputPointCloud(double time, Point3Cloud::Ptr point_cloud)
         LOG(INFO) << "Lidar Preprocessing cost time: " << time_used.count() << " seconds.";
 }
 
-void Estimator::InputIMU(double time, Vector3d acc, Vector3d gyr)
+void Estimator::InputImu(double time, Vector3d acc, Vector3d gyr)
 {
     frontend->AddImu(time, acc, gyr);
 }

@@ -1,14 +1,15 @@
 #include <GeographicLib/LocalCartesian.hpp>
 #include <cv_bridge/cv_bridge.h>
+#include <nav_msgs/Path.h>
 #include <opencv2/imgproc.hpp>
 #include <opencv2/opencv.hpp>
 #include <pcl_conversions/pcl_conversions.h>
+#include <ros/package.h>
 #include <ros/ros.h>
 #include <sensor_msgs/Image.h>
 #include <sensor_msgs/NavSatFix.h>
 #include <sensor_msgs/PointCloud2.h>
 #include <termios.h>
-#include <ros/package.h>
 
 #include "lvio_fusion/adapt/agent.h"
 #include "lvio_fusion/adapt/environment.h"
@@ -28,16 +29,16 @@ using namespace std;
 
 Estimator::Ptr estimator;
 
-ros::Subscriber sub_imu, sub_lidar, sub_navsat, sub_img0, sub_img1, sub_objects, sub_step;
+ros::Subscriber sub_imu, sub_lidar, sub_navsat, sub_img0, sub_img1, sub_objects, sub_eskf;
 ros::Publisher pub_detector;
 ros::ServiceServer svr_create_env, svr_step;
 ros::ServiceClient clt_init, clt_update_weights;
 
 queue<sensor_msgs::ImageConstPtr> img0_buf;
 queue<sensor_msgs::ImageConstPtr> img1_buf;
+queue<geometry_msgs::PoseStamped> odom_buf;
 GeographicLib::LocalCartesian geo_converter;
-mutex m_img_buf, m_cond;
-condition_variable cond;
+mutex m_img_buf, m_odom_buf;
 double delta_time = 0;
 double init_time = 0;
 
@@ -93,6 +94,36 @@ cv::Mat get_image_from_msg(const sensor_msgs::ImageConstPtr &img_msg)
     return image;
 }
 
+SE3d get_pose_from_path(double timestamp)
+{
+    static bool has_first_pose = false;
+    static SE3d first_pose;
+    SE3d pose;
+    while (!odom_buf.empty())
+    {
+        std::unique_lock<std::mutex> lock(m_odom_buf);
+        auto pose_stamp = odom_buf.front();
+        odom_buf.pop();
+        if (odom_buf.empty() || pose_stamp.header.stamp.toSec() > timestamp)
+        {
+            auto q = Quaterniond(pose_stamp.pose.orientation.w,
+                                 pose_stamp.pose.orientation.x,
+                                 pose_stamp.pose.orientation.y,
+                                 pose_stamp.pose.orientation.z);
+            auto t = Vector3d(pose_stamp.pose.position.x,
+                              pose_stamp.pose.position.y,
+                              pose_stamp.pose.position.z);
+            if (!has_first_pose)
+            {
+                first_pose = SE3d(q, t);
+                has_first_pose = true;
+            }
+            pose = SE3d(q, t) * first_pose.inverse();
+        }
+    }
+    return pose;
+}
+
 // extract images with same timestamp from two topics
 void sync_process()
 {
@@ -128,7 +159,7 @@ void sync_process()
                 img0_buf.pop();
                 img1_buf.pop();
                 m_img_buf.unlock();
-                estimator->InputImage(time, image0, image1);
+                estimator->InputImage(time, image0, image1, get_pose_from_path(time));
                 publish_car_model(estimator, time);
             }
         }
@@ -157,7 +188,7 @@ void imu_callback(const sensor_msgs::ImuConstPtr &imu_msg)
     double rz = imu_msg->angular_velocity.z;
     Vector3d acc(dx, dy, dz);
     Vector3d gyr(rx, ry, rz);
-    estimator->InputIMU(t, acc, gyr);
+    estimator->InputImu(t, acc, gyr);
     return;
 }
 
@@ -177,6 +208,13 @@ void navsat_callback(const sensor_msgs::NavSatFixConstPtr &navsat_msg)
     }
     geo_converter.Forward(latitude, longitude, altitude, xyz[0], xyz[1], xyz[2]);
     estimator->InputNavSat(t, xyz[0], xyz[1], xyz[2], pos_accuracy);
+}
+
+void eskf_callback(const geometry_msgs::PoseStampedConstPtr &fused_msg)
+{
+    m_odom_buf.lock();
+    odom_buf.push(*fused_msg);
+    m_odom_buf.unlock();
 }
 
 void tf_timer_callback(const ros::TimerEvent &timer_event)
@@ -439,6 +477,10 @@ int main(int argc, char **argv)
         cout << "navsat:" << NAVSAT_TOPIC << endl;
         sub_navsat = n.subscribe(NAVSAT_TOPIC, 10, navsat_callback);
         navsat_timer = n.createTimer(ros::Duration(1), navsat_timer_callback);
+    }
+    if (use_eskf)
+    {
+        sub_eskf = n.subscribe("/eskf_fusion_node/fused_odom", 10, eskf_callback);
     }
     if (use_adapt)
     {

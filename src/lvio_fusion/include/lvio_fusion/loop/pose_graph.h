@@ -31,8 +31,6 @@ inline double frames_distance(double A, double B)
 class PoseGraph
 {
 public:
-    typedef std::shared_ptr<PoseGraph> Ptr;
-
     static PoseGraph &Instance()
     {
         static PoseGraph instance;
@@ -61,7 +59,6 @@ public:
     void Propagate(SE3d transfrom, const Frames &forward_kfs);
 
     Section current_section;
-    double finished = 0;
     bool turning = false;
 
 private:

@@ -33,13 +33,13 @@ public:
 
     Estimator(std::string &config_path);
 
-    void InputImage(double time, cv::Mat &left_image, cv::Mat &right_image);
+    void InputImage(double time, cv::Mat &left_image, cv::Mat &right_image, SE3d init_odom);
 
     void InputNavSat(double time, double latitude, double longitude, double altitude, double posAccuracy);
 
     void InputPointCloud(double time, Point3Cloud::Ptr point_cloud);
 
-    void InputIMU(double time, Vector3d acc, Vector3d gyr);
+    void InputImu(double time, Vector3d acc, Vector3d gyr);
 
     bool Init(int use_imu, int use_lidar, int use_navsat, int use_loop, int use_adapt);
 

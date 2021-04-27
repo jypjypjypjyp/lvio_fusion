@@ -9,7 +9,6 @@
 #include "lvio_fusion/loop/loop.h"
 #include "lvio_fusion/navsat/feature.h"
 #include "lvio_fusion/visual/feature.h"
-#include "lvio_fusion/visual/landmark.h"
 
 namespace lvio_fusion
 {
@@ -19,7 +18,7 @@ class Frame
 public:
     typedef std::shared_ptr<Frame> Ptr;
 
-    Frame() {}
+    Frame();
 
     void AddFeature(visual::Feature::Ptr feature);
 
@@ -57,9 +56,9 @@ public:
     void SetPose(const Matrix3d &Rwb_,const Vector3d  &twb_);
 
     Frame::Ptr last_keyframe;
-    Vector3d Vw;            // IMU linear velocity
+    Vector3d Vw;                    // IMU linear velocity
     Bias ImuBias;
-    bool is_imu_good = false;        // can be used in IMU optimization?
+    bool is_imu_good = false;       // can be used in IMU optimization?
 };
 
 typedef std::map<double, Frame::Ptr> Frames;

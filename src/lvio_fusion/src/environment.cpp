@@ -48,26 +48,26 @@ SE3d Environment::Optimize()
             auto para_v = frame->Vw.data();
             auto para_bg = frame->ImuBias.linearized_bg.data();
             auto para_ba = frame->ImuBias.linearized_ba.data();
-            auto para_kf_last = last_frame->pose.data();
+            auto para_last_kf = last_frame->pose.data();
             auto para_v_last = last_frame->Vw.data();
             auto para_bg_last = last_frame->ImuBias.linearized_bg.data();
             auto para_ba_last = last_frame->ImuBias.linearized_ba.data();
             problem.AddParameterBlock(para_v, 3);
             problem.AddParameterBlock(para_ba, 3);
             problem.AddParameterBlock(para_bg, 3);
-            problem.AddParameterBlock(para_kf_last, 7);
+            problem.AddParameterBlock(para_last_kf, 7);
             problem.AddParameterBlock(para_v_last, 3);
             problem.AddParameterBlock(para_ba_last, 3);
             problem.AddParameterBlock(para_bg_last, 3);
             problem.SetParameterBlockConstant(para_v);
             problem.SetParameterBlockConstant(para_ba);
             problem.SetParameterBlockConstant(para_bg);
-            problem.SetParameterBlockConstant(para_kf_last);
+            problem.SetParameterBlockConstant(para_last_kf);
             problem.SetParameterBlockConstant(para_v_last);
             problem.SetParameterBlockConstant(para_ba_last);
             problem.SetParameterBlockConstant(para_bg_last);
             ceres::CostFunction *cost_function = ImuError::Create(frame->preintegration);
-            problem.AddResidualBlock(ProblemType::IMUError, cost_function, NULL, para_kf_last, para_v_last, para_ba_last, para_bg_last, para, para_v, para_ba, para_bg);
+            problem.AddResidualBlock(ProblemType::ImuError, cost_function, NULL, para_last_kf, para_v_last, para_ba_last, para_bg_last, para, para_v, para_ba, para_bg);
         }
 
         ceres::Solver::Options options;

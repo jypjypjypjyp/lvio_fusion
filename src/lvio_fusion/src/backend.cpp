@@ -1,5 +1,6 @@
 #include "lvio_fusion/backend.h"
 #include "lvio_fusion/ceres/imu_error.hpp"
+#include "lvio_fusion/ceres/loop_error.hpp"
 #include "lvio_fusion/ceres/visual_error.hpp"
 #include "lvio_fusion/frontend.h"
 #include "lvio_fusion/imu/tools.h"
@@ -69,7 +70,8 @@ void Backend::BuildProblem(Frames &active_kfs, adapt::Problem &problem, bool use
         new ceres::IdentityParameterization(3));
 
     double start_time = active_kfs.begin()->first;
-
+    Frame::Ptr last_frame;
+    double *para_last_kf;
     for (auto &pair_kf : active_kfs)
     {
         auto frame = pair_kf.second;
@@ -83,11 +85,16 @@ void Backend::BuildProblem(Frames &active_kfs, adapt::Problem &problem, bool use
             ceres::CostFunction *cost_function;
             if (first_frame == frame)
             {
-                double *para_depth = &landmark->depth;
-                problem.AddParameterBlock(para_depth, 1);
+                double *para_inv_depth = &landmark->inv_depth;
+                problem.AddParameterBlock(para_inv_depth, 1);
                 cost_function = TwoCameraReprojectionError::Create(cv2eigen(feature->keypoint.pt), cv2eigen(landmark->first_observation->keypoint.pt), Camera::Get(0), Camera::Get(1), 5 * frame->weights.visual);
-                problem.AddResidualBlock(ProblemType::VisualError, cost_function, loss_function, para_depth);
+                problem.AddResidualBlock(ProblemType::VisualError, cost_function, loss_function, para_inv_depth);
             }
+            // else if (1 / landmark->inv_depth > frontend_.lock()->baseline * 40)
+            // {
+            //     cost_function = FarLandmarkReprojectionError::Create(frame->pose.translation(), cv2eigen(feature->keypoint.pt), landmark->ToWorld(), Camera::Get(), frame->weights.visual);
+            //     problem.AddResidualBlock(ProblemType::FarVisualError, cost_function, loss_function, para_kf);
+            // }
             else if (first_frame->time < start_time)
             {
                 cost_function = PoseOnlyReprojectionError::Create(cv2eigen(feature->keypoint.pt), landmark->ToWorld(), Camera::Get(), frame->weights.visual);
@@ -96,46 +103,55 @@ void Backend::BuildProblem(Frames &active_kfs, adapt::Problem &problem, bool use
             else
             {
                 double *para_fist_kf = first_frame->pose.data();
-                double *para_depth = &landmark->depth;
-                problem.AddParameterBlock(para_depth, 1);
+                double *para_inv_depth = &landmark->inv_depth;
+                problem.AddParameterBlock(para_inv_depth, 1);
                 // first ob is on right camera; current ob is on left camera;
                 cost_function = TwoFrameReprojectionError::Create(cv2eigen(landmark->first_observation->keypoint.pt), cv2eigen(feature->keypoint.pt), Camera::Get(0), Camera::Get(1), frame->weights.visual);
-                problem.AddResidualBlock(ProblemType::VisualError, cost_function, loss_function, para_depth, para_fist_kf, para_kf);
+                problem.AddResidualBlock(ProblemType::VisualError, cost_function, loss_function, para_inv_depth, para_fist_kf, para_kf);
             }
         }
-    }
 
-    if (Imu::Num() && Imu::Get()->initialized && use_imu)
-    {
-        Frame::Ptr last_frame;
-        Frame::Ptr current_frame;
-        for (auto &kf_pair : active_kfs)
+        // IMU
+        if (Imu::Num() && Imu::Get()->initialized && use_imu)
         {
-            current_frame = kf_pair.second;
-            if (!current_frame->is_imu_good || current_frame->preintegration == nullptr)
+            if (frame->is_imu_good && frame->preintegration != nullptr)
             {
-                last_frame = current_frame;
-                continue;
-            }
-            auto para_kf = current_frame->pose.data();
-            auto para_v = current_frame->Vw.data();
-            auto para_bg = current_frame->ImuBias.linearized_bg.data();
-            auto para_ba = current_frame->ImuBias.linearized_ba.data();
-            problem.AddParameterBlock(para_v, 3);
-            problem.AddParameterBlock(para_ba, 3);
-            problem.AddParameterBlock(para_bg, 3);
+                auto para_v = frame->Vw.data();
+                auto para_bg = frame->ImuBias.linearized_bg.data();
+                auto para_ba = frame->ImuBias.linearized_ba.data();
+                problem.AddParameterBlock(para_v, 3);
+                problem.AddParameterBlock(para_ba, 3);
+                problem.AddParameterBlock(para_bg, 3);
 
-            if (last_frame && last_frame->is_imu_good)
-            {
-                auto para_kf_last = last_frame->pose.data();
-                auto para_v_last = last_frame->Vw.data();
-                auto para_bg_last = last_frame->ImuBias.linearized_bg.data();
-                auto para_ba_last = last_frame->ImuBias.linearized_ba.data();
-                ceres::CostFunction *cost_function = ImuError::Create(current_frame->preintegration);
-                problem.AddResidualBlock(ProblemType::IMUError, cost_function, NULL, para_kf_last, para_v_last, para_ba_last, para_bg_last, para_kf, para_v, para_ba, para_bg);
+                if (last_frame && last_frame->is_imu_good)
+                {
+                    auto para_v_last = last_frame->Vw.data();
+                    auto para_bg_last = last_frame->ImuBias.linearized_bg.data();
+                    auto para_ba_last = last_frame->ImuBias.linearized_ba.data();
+                    ceres::CostFunction *cost_function = ImuError::Create(frame->preintegration);
+                    problem.AddResidualBlock(ProblemType::ImuError, cost_function, NULL, para_last_kf, para_v_last, para_ba_last, para_bg_last, para_kf, para_v, para_ba, para_bg);
+                }
             }
-            last_frame = current_frame;
         }
+
+        // check if not constraint the translation
+        auto num_types = problem.GetTypes(para_kf);
+        if (!num_types[ProblemType::ImuError] && !num_types[ProblemType::VisualError])
+        {
+            if (last_frame)
+            {
+                ceres::CostFunction *cost_function = PoseGraphErrorXYZ::Create(last_frame->pose, frame->pose);
+                problem.AddResidualBlock(ProblemType::Other, cost_function, NULL, para_last_kf, para_kf);
+            }
+            else
+            {
+                ceres::CostFunction *cost_function = PoseErrorXYZ::Create(frame->pose);
+                problem.AddResidualBlock(ProblemType::Other, cost_function, NULL, para_kf);
+            }
+        }
+
+        last_frame = frame;
+        para_last_kf = para_kf;
     }
 }
 
@@ -219,8 +235,8 @@ void Backend::Optimize()
         std::unique_lock<std::mutex> lock(frontend_.lock()->mutex);
         SE3d old_pose = (--active_kfs.end())->second->pose;
         double navsat_start = Navsat::Get()->Optimize(end);
-        double fix_start = Navsat::Get()->QuickFix(start, end);
-        navsat_start = std::min(navsat_start, fix_start);
+        // double fix_start = Navsat::Get()->QuickFix(start, end);
+        //navsat_start = std::min(navsat_start, fix_start);
         SE3d new_pose = (--active_kfs.end())->second->pose;
         SE3d transform = new_pose * old_pose.inverse();
         PoseGraph::Instance().ForwardPropagate(transform, end + epsilon, false);
@@ -245,7 +261,7 @@ void Backend::ForwardPropagate(SE3d transform, double time)
         active_kfs[last_frame->time] = last_frame;
     }
     PoseGraph::Instance().Propagate(transform, active_kfs);
-    InitializeIMU(active_kfs, time);
+    InitializeImu(active_kfs, time);
 
     adapt::Problem problem;
     BuildProblem(active_kfs, problem, false);
@@ -268,18 +284,18 @@ void Backend::ForwardPropagate(SE3d transform, double time)
         frontend_.lock()->last_keyframe_updated = true;
         if (active_kfs.size() == 0)
         {
-            frontend_.lock()->UpdateIMU(frame->GetImuBias());
+            frontend_.lock()->UpdateImu(frame->GetImuBias());
         }
         else
         {
-            frontend_.lock()->UpdateIMU((--active_kfs.end())->second->GetImuBias());
+            frontend_.lock()->UpdateImu((--active_kfs.end())->second->GetImuBias());
         }
     }
 
     frontend_.lock()->UpdateCache();
 }
 
-void Backend::InitializeIMU(Frames active_kfs, double time)
+void Backend::InitializeImu(Frames active_kfs, double time)
 {
     static double init_time = 0;
     static bool initA = false;

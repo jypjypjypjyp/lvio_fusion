@@ -5,7 +5,7 @@
 
 namespace lvio_fusion
 {
-    
+
 namespace visual
 {
 class Landmark
@@ -16,7 +16,7 @@ public:
     Vector3d ToWorld();
 
     void Clear();
-    
+
     std::weak_ptr<Frame> FirstFrame();
     std::weak_ptr<Frame> LastFrame();
 
@@ -27,10 +27,10 @@ public:
     static Landmark::Ptr Create(double depth);
 
     static unsigned long current_landmark_id;
-    unsigned long id = 0;                   // ID
-    double depth;                           // depth in the first observation
-    Features observations;                  // only for left feature
-    Feature::Ptr first_observation;         // the first right observation
+    unsigned long id = 0;           // ID
+    double inv_depth;               // inverse depth in the first observation
+    Features observations;          // only for left feature
+    Feature::Ptr first_observation; // the first right observation
 
 private:
     Landmark()

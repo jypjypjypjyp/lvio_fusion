@@ -16,9 +16,9 @@ typedef std::vector<Level> Pyramid;
 class LocalMap
 {
 public:
-    LocalMap() : extractor_(Extractor()),
-                 matcher_(cv::DescriptorMatcher::create("BruteForce-Hamming")),
-                 num_levels_(extractor_.num_levels)
+    LocalMap(int num_features) : extractor_(num_features),
+                                 matcher_(cv::DescriptorMatcher::create("BruteForce-Hamming")),
+                                 num_levels_(extractor_.num_levels)
     {
         double current_factor = 1;
         for (int i = 0; i < num_levels_; i++)

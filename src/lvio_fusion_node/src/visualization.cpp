@@ -32,6 +32,7 @@ void register_pub(ros::NodeHandle &n)
 
 void publish_odometry(Estimator::Ptr estimator, double time)
 {
+    auto &&submap = PoseGraph::Instance().GetSections(0, 0);
     if (estimator->frontend->status == FrontendStatus::TRACKING_GOOD)
     {
         path.poses.clear();
@@ -50,6 +51,18 @@ void publish_odometry(Estimator::Ptr estimator, double time)
             pose_stamped.pose.orientation.y = pose.unit_quaternion().y();
             pose_stamped.pose.orientation.z = pose.unit_quaternion().z();
             path.poses.push_back(pose_stamped);
+            if (pair.first == submap.begin()->first)
+            {
+                geometry_msgs::PoseStamped pose_stamped_loop;
+                pose_stamped_loop.header.stamp = ros::Time(pair.first);
+                pose_stamped_loop.header.frame_id = "world";
+                pose_stamped_loop.pose.position.x = pose.translation().x();
+                pose_stamped_loop.pose.position.y = pose.translation().y();
+                pose_stamped_loop.pose.position.z = pose.translation().z() + 10;
+                path.poses.push_back(pose_stamped_loop);
+                path.poses.push_back(pose_stamped);
+                submap.erase(submap.begin());
+            }
             if (pair.second->loop_closure)
             {
                 auto position = pair.second->loop_closure->frame_old->pose.translation();

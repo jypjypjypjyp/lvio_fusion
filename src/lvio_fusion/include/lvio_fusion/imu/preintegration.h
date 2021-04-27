@@ -78,8 +78,6 @@ public:
     Vector3d delta_v;
     Bias bias;
     Matrix<double, 6, 1> delta_bias;
-    bool bad = false;
-
     Matrix<double, 15, 15> jacobian, covariance;
     Matrix<double, 15, 15> step_jacobian;
     Matrix<double, 15, 18> step_V;

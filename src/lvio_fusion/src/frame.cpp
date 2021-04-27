@@ -1,12 +1,19 @@
 #include "lvio_fusion/frame.h"
 #include "lvio_fusion/map.h"
-#include "lvio_fusion/visual/feature.h"
+#include "lvio_fusion/visual/camera.h"
 #include "lvio_fusion/visual/landmark.h"
 
 namespace lvio_fusion
 {
 
 unsigned long Frame::current_frame_id = 0;
+
+Frame::Frame()
+{
+    weights.visual = Camera::Get()->fx / 1.5;
+    weights.lidar_ground = 1;
+    weights.lidar_surf = 0.01;
+}
 
 Frame::Ptr Frame::Create()
 {

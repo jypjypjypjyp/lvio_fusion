@@ -5,7 +5,7 @@ string LIDAR_TOPIC;
 string NAVSAT_TOPIC;
 string IMAGE0_TOPIC, IMAGE1_TOPIC;
 string result_path, ground_truth_path;
-int use_imu, use_lidar, use_navsat, use_loop, use_adapt, train;
+int use_imu, use_lidar, use_navsat, use_loop, use_eskf, use_adapt, train;
 
 void read_parameters(string config_file)
 {
@@ -28,8 +28,8 @@ void read_parameters(string config_file)
     settings["use_lidar"] >> use_lidar;
     settings["use_navsat"] >> use_navsat;
     settings["use_loop"] >> use_loop;
+    settings["use_eskf"] >> use_eskf;
     settings["use_adapt"] >> use_adapt;
-    settings["train"] >> train;
     settings["result_path"] >> result_path;
     settings["ground_truth_path"] >> ground_truth_path;
     settings["image0_topic"] >> IMAGE0_TOPIC;
@@ -46,6 +46,6 @@ void read_parameters(string config_file)
     {
         settings["navsat_topic"] >> NAVSAT_TOPIC;
     }
-    train = /*use_imu &&*/ use_lidar && train;
+    train = use_imu && use_lidar;
     settings.release();
 }

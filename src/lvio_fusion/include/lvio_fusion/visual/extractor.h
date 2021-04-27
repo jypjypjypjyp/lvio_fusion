@@ -61,7 +61,6 @@ private:
     std::vector<float> sigma2_per_levels_;
     std::vector<float> inv_sigma2_per_levels_;
     std::vector<int> num_desired_features_;
-    
     std::vector<cv::Mat> image_pyramid_;
 };
 

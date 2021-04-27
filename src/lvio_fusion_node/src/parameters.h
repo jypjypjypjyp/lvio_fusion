@@ -16,6 +16,7 @@ extern int use_lidar;
 extern int use_navsat;
 extern int use_loop;
 extern int use_adapt;
+extern int use_eskf;
 extern int train;
 
 void read_parameters(std::string config_file);

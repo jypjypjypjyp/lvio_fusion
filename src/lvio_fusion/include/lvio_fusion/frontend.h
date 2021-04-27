@@ -34,15 +34,16 @@ public:
 
     void UpdateCache();
 
-    void UpdateIMU(const Bias &bias_);
+    void UpdateImu(const Bias &bias_);
 
+    std::mutex mutex;
     FrontendStatus status = FrontendStatus::BUILDING;
     Frame::Ptr current_frame;
     Frame::Ptr last_frame;
     Frame::Ptr last_keyframe;
     SE3d relative_i_j;
     LocalMap local_map;
-    std::mutex mutex;
+    double baseline;
     double valid_imu_time = 0;
     bool last_keyframe_updated = false;
 
@@ -61,13 +62,11 @@ private:
 
     bool InitMap();
 
-    int DetectNewFeatures();
-
     int TriangulateNewPoints();
 
-    void PreintegrateIMU();
+    void PreintegrateImu();
 
-    void PredictStateIMU();
+    void PredictStateImu();
 
     // data
     std::weak_ptr<Backend> backend_;

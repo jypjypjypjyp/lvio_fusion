@@ -42,7 +42,7 @@ inline Vector3d LocalMap::ToWorld(visual::Feature::Ptr feature)
 {
     Vector3d pb = Camera::Get(1)->Pixel2Robot(
         cv2eigen(feature->landmark.lock()->first_observation->keypoint.pt),
-        feature->landmark.lock()->depth);
+        1 / feature->landmark.lock()->inv_depth);
     return Camera::Get()->Robot2World(pb, pose_cache[feature->frame.lock()->time]);
 }
 
@@ -226,7 +226,7 @@ void LocalMap::Triangulate(Frame::Ptr frame, Level &featrues)
             triangulate(Camera::Get()->extrinsic.inverse(), Camera::Get(1)->extrinsic.inverse(), Camera::Get()->Pixel2Sensor(kp_left), Camera::Get(1)->Pixel2Sensor(kp_right), pb);
             if ((Camera::Get()->Robot2Pixel(pb) - kp_left).norm() < 0.5 && (Camera::Get(1)->Robot2Pixel(pb) - kp_right).norm() < 0.5)
             {
-                auto new_landmark = visual::Landmark::Create(Camera::Get(1)->Robot2Sensor(pb).z());
+                auto new_landmark = visual::Landmark::Create(1 / Camera::Get(1)->Robot2Sensor(pb).z());
                 featrues[i]->landmark = new_landmark; // new left feature
                 auto new_right_feature = visual::Feature::Create(frame, cv::KeyPoint(kps_right[i], 1), new_landmark);
                 new_right_feature->is_on_left_image = false;
@@ -295,10 +295,14 @@ void LocalMap::Search(Pyramid &last_pyramid, SE3d last_pose, visual::Feature::Pt
         double radius = extractor_.patch_size * scale_factors_[i];
         for (auto &last_feature : last_pyramid[i])
         {
-            if (cv_distance(p_in_last_left, last_feature->keypoint.pt) < radius)
+            double rotate = std::abs(last_feature->keypoint.angle - feature->keypoint.angle);
+            if (rotate < 15)
             {
-                features_in_radius.push_back(last_feature);
-                briefs.push_back(last_feature->brief);
+                if (cv_distance(p_in_last_left, last_feature->keypoint.pt) < radius)
+                {
+                    features_in_radius.push_back(last_feature);
+                    briefs.push_back(last_feature->brief);
+                }
             }
         }
     }
@@ -313,25 +317,22 @@ void LocalMap::Search(Pyramid &last_pyramid, SE3d last_pose, visual::Feature::Pt
         knn_matches[0][0].distance < ratio_threshold * knn_matches[0][1].distance)
     {
         auto last_feature = features_in_radius[knn_matches[0][0].trainIdx];
-        double rotate = std::abs(last_feature->keypoint.angle - feature->keypoint.angle);
-        if (rotate < 15)
+
+        // add feature
+        feature->match = true;
+        feature->landmark = last_feature->landmark;
+        feature->frame.lock()->AddFeature(feature);
+        last_feature->landmark.lock()->AddObservation(feature);
+        // add last feature
+        if (!last_feature->match && !last_feature->insert)
         {
-            // add feature
-            feature->match = true;
-            feature->landmark = last_feature->landmark;
-            feature->frame.lock()->AddFeature(feature);
-            last_feature->landmark.lock()->AddObservation(feature);
-            // add last feature
-            if (!last_feature->match && !last_feature->insert)
-            {
-                auto last_frame = last_feature->frame.lock();
-                auto last_landmark = last_feature->landmark.lock();
-                last_feature->insert = true;
-                last_landmark->first_observation->insert = true;
-                last_frame->AddFeature(last_feature);
-                last_frame->AddFeature(last_landmark->first_observation);
-                Map::Instance().InsertLandmark(last_landmark);
-            }
+            auto last_frame = last_feature->frame.lock();
+            auto last_landmark = last_feature->landmark.lock();
+            last_feature->insert = true;
+            last_landmark->first_observation->insert = true;
+            last_frame->AddFeature(last_feature);
+            last_frame->AddFeature(last_landmark->first_observation);
+            Map::Instance().InsertLandmark(last_landmark);
         }
     }
 }

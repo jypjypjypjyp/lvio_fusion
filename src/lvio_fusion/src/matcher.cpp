@@ -1,5 +1,6 @@
 #include "lvio_fusion/visual/matcher.h"
 #include "lvio_fusion/visual/camera.h"
+#include "lvio_fusion/visual/landmark.h"
 
 #include <opencv2/flann.hpp>
 
@@ -151,7 +152,7 @@ int ORBMatcher::Relocate(Frame::Ptr last_frame, Frame::Ptr current_frame, SE3d &
     // Solve PnP
     int num_good_pts = 0;
     cv::Mat rvec, tvec, inliers, cv_R;
-    if ((points_2d.size() > num_features_threshold_ )&&
+    if ((points_2d.size() > num_features_threshold_) &&
         cv::solvePnPRansac(points_3d, points_2d, Camera::Get()->K, Camera::Get()->D, rvec, tvec, false, 100, 8.0F, 0.98, inliers, cv::SOLVEPNP_EPNP))
     {
         cv::Rodrigues(rvec, cv_R);

@@ -37,6 +37,32 @@ private:
     SE3d relative_i_j_;
 };
 
+class PoseGraphErrorXYZ
+{
+public:
+    PoseGraphErrorXYZ(SE3d last_frame, SE3d frame) : relative_i_j_(last_frame.inverse() * frame) {}
+
+    template <typename T>
+    bool operator()(const T *Twc1, const T *Twc2, T *residuals) const
+    {
+        T Twc1_inverse[7], relative_i_j[7];
+        ceres::SE3Inverse(Twc1, Twc1_inverse);
+        ceres::SE3Product(Twc1_inverse, Twc2, relative_i_j);
+        residuals[0] = T(relative_i_j_.data()[4]) - relative_i_j[4];
+        residuals[1] = T(relative_i_j_.data()[5]) - relative_i_j[5];
+        residuals[2] = T(relative_i_j_.data()[6]) - relative_i_j[6];
+        return true;
+    }
+
+    static ceres::CostFunction *Create(SE3d last_frame, SE3d frame)
+    {
+        return (new ceres::AutoDiffCostFunction<PoseGraphErrorXYZ, 3, 7, 7>(new PoseGraphErrorXYZ(last_frame, frame)));
+    }
+
+private:
+    SE3d relative_i_j_;
+};
+
 class PoseError
 {
 public:
@@ -55,6 +81,29 @@ public:
     static ceres::CostFunction *Create(SE3d pose)
     {
         return (new ceres::AutoDiffCostFunction<PoseError, 4, 7>(new PoseError(pose)));
+    }
+
+private:
+    SE3d pose_;
+};
+
+class PoseErrorXYZ
+{
+public:
+    PoseErrorXYZ(SE3d pose) : pose_(pose) {}
+
+    template <typename T>
+    bool operator()(const T *pose, T *residuals) const
+    {
+        residuals[0] = (pose[4] - T(pose_.data()[4]));
+        residuals[1] = (pose[5] - T(pose_.data()[5]));
+        residuals[2] = (pose[6] - T(pose_.data()[6]));
+        return true;
+    }
+
+    static ceres::CostFunction *Create(SE3d pose)
+    {
+        return (new ceres::AutoDiffCostFunction<PoseErrorXYZ, 3, 7>(new PoseErrorXYZ(pose)));
     }
 
 private:
