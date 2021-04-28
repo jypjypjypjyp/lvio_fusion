@@ -139,39 +139,6 @@ private:
     double weight_;
 };
 
-class FarLandmarkReprojectionError
-{
-public:
-    FarLandmarkReprojectionError(Vector3d twc, Vector2d ob, Vector3d pw, Camera::Ptr camera, double weight)
-        : twc_(twc), ob_(ob), pw_(pw), camera_(camera), weight_(weight) {}
-
-    template <typename T>
-    bool operator()(const T *Rwc, T *residuals) const
-    {
-        T p_p[2];
-        T pw[3] = {T(pw_.x()), T(pw_.y()), T(pw_.z())};
-        T ob[2] = {T(ob_.x()), T(ob_.y())};
-        T Twc[7] = {Rwc[0], Rwc[1], Rwc[2], Rwc[3], T(twc_.x()), T(twc_.y()), T(twc_.z())};
-        Reprojection(pw, Twc, camera_, p_p);
-        residuals[0] = T(weight_) * (p_p[0] - ob[0]);
-        residuals[1] = T(weight_) * (p_p[1] - ob[1]);
-        return true;
-    }
-
-    static ceres::CostFunction *Create(Vector3d twc, Vector2d ob, Vector3d pw, Camera::Ptr camera, double weight)
-    {
-        return (new ceres::AutoDiffCostFunction<FarLandmarkReprojectionError, 3, 7>(
-            new FarLandmarkReprojectionError(twc, ob, pw, camera, weight)));
-    }
-
-private:
-    Vector3d twc_;
-    Vector2d ob_;
-    Vector3d pw_;
-    Camera::Ptr camera_;
-    double weight_;
-};
-
 } // namespace lvio_fusion
 
 #endif // lvio_fusion_VISUAL_ERROR_H

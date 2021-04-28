@@ -90,11 +90,6 @@ void Backend::BuildProblem(Frames &active_kfs, adapt::Problem &problem, bool use
                 cost_function = TwoCameraReprojectionError::Create(cv2eigen(feature->keypoint.pt), cv2eigen(landmark->first_observation->keypoint.pt), Camera::Get(0), Camera::Get(1), 5 * frame->weights.visual);
                 problem.AddResidualBlock(ProblemType::VisualError, cost_function, loss_function, para_inv_depth);
             }
-            // else if (1 / landmark->inv_depth > frontend_.lock()->baseline * 40)
-            // {
-            //     cost_function = FarLandmarkReprojectionError::Create(frame->pose.translation(), cv2eigen(feature->keypoint.pt), landmark->ToWorld(), Camera::Get(), frame->weights.visual);
-            //     problem.AddResidualBlock(ProblemType::FarVisualError, cost_function, loss_function, para_kf);
-            // }
             else if (first_frame->time < start_time)
             {
                 cost_function = PoseOnlyReprojectionError::Create(cv2eigen(feature->keypoint.pt), landmark->ToWorld(), Camera::Get(), frame->weights.visual);
@@ -230,25 +225,25 @@ void Backend::Optimize()
         mapping_->Optimize(mapping_kfs);
     }
 
-    if (Navsat::Num() && Navsat::Get()->initialized)
-    {
-        std::unique_lock<std::mutex> lock(frontend_.lock()->mutex);
-        SE3d old_pose = (--active_kfs.end())->second->pose;
-        double navsat_start = Navsat::Get()->Optimize(end);
-        // double fix_start = Navsat::Get()->QuickFix(start, end);
-        //navsat_start = std::min(navsat_start, fix_start);
-        SE3d new_pose = (--active_kfs.end())->second->pose;
-        SE3d transform = new_pose * old_pose.inverse();
-        PoseGraph::Instance().ForwardPropagate(transform, end + epsilon, false);
-        if (navsat_start && mapping_)
-        {
-            Frames mapping_kfs = Map::Instance().GetKeyFrames(navsat_start);
-            for (auto &pair : mapping_kfs)
-            {
-                mapping_->ToWorld(pair.second);
-            }
-        }
-    }
+    // if (Navsat::Num() && Navsat::Get()->initialized)
+    // {
+    //     std::unique_lock<std::mutex> lock(frontend_.lock()->mutex);
+    //     SE3d old_pose = (--active_kfs.end())->second->pose;
+    //     double navsat_start = Navsat::Get()->Optimize(end);
+    //     // double fix_start = Navsat::Get()->QuickFix(start, end);
+    //     //navsat_start = std::min(navsat_start, fix_start);
+    //     SE3d new_pose = (--active_kfs.end())->second->pose;
+    //     SE3d transform = new_pose * old_pose.inverse();
+    //     PoseGraph::Instance().ForwardPropagate(transform, end + epsilon, false);
+    //     if (navsat_start && mapping_)
+    //     {
+    //         Frames mapping_kfs = Map::Instance().GetKeyFrames(navsat_start);
+    //         for (auto &pair : mapping_kfs)
+    //         {
+    //             mapping_->ToWorld(pair.second);
+    //         }
+    //     }
+    // }
 }
 
 void Backend::ForwardPropagate(SE3d transform, double time)

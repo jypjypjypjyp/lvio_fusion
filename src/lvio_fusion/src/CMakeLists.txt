@@ -20,7 +20,8 @@ add_library(lvio_fusion SHARED
         preintegration.cpp
         projection.cpp
         relocator.cpp
-        tools.cpp)
+        tools.cpp
+        utility.cpp)
 
 target_link_libraries(lvio_fusion ${THIRD_PARTY_LIBS} blas)
 target_compile_features(lvio_fusion PRIVATE cxx_std_14)

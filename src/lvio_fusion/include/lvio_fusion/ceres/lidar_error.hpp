@@ -38,21 +38,6 @@ private:
     Vector3d p_, pa_, abc_norm_;
 };
 
-inline void se32rpyxyz(const SE3d relatice_i_j, double *rpyxyz)
-{
-    ceres::EigenQuaternionToRPY(relatice_i_j.data(), rpyxyz);
-    rpyxyz[3] = relatice_i_j.data()[4];
-    rpyxyz[4] = relatice_i_j.data()[5];
-    rpyxyz[5] = relatice_i_j.data()[6];
-}
-
-inline SE3d rpyxyz2se3(const double *rpyxyz)
-{
-    double e_q[4];
-    ceres::RPYToEigenQuaternion(rpyxyz, e_q);
-    return SE3d(Quaterniond(e_q), Vector3d(rpyxyz[3], rpyxyz[4], rpyxyz[5]));
-}
-
 class LidarPlaneErrorRPZ
 {
 public:

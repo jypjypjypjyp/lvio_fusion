@@ -16,6 +16,7 @@
 #include "lvio_fusion/common.h"
 #include "lvio_fusion/estimator.h"
 #include "lvio_fusion/map.h"
+#include "lvio_fusion/utility.h"
 #include "lvio_fusion_node/CreateEnv.h"
 #include "lvio_fusion_node/Init.h"
 #include "lvio_fusion_node/Step.h"
@@ -327,8 +328,6 @@ void read_ground_truth()
         -1, 0, 0,
         0, -1, 0;
     Quaterniond q_tf(R_tf);
-    auto RRR = ypr2R(Vector3d(90, -90, 0));
-    Quaterniond qqq(RRR);
     SE3d tf(q_tf, Vector3d::Zero()); // tum ground truth to lvio_fusion
     if (in)
     {

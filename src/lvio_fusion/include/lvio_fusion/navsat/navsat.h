@@ -37,6 +37,7 @@ public:
     Vector3d GetPoint(double time);
 
     Vector3d GetAroundPoint(double time);
+    SE3d GetAroundPose(double time);
 
     double Optimize(double time);
     double QuickFix(double time, double end_time);

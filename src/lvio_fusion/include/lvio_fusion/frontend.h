@@ -43,7 +43,6 @@ public:
     Frame::Ptr last_keyframe;
     SE3d relative_i_j;
     LocalMap local_map;
-    double baseline;
     double valid_imu_time = 0;
     bool last_keyframe_updated = false;
 
@@ -73,6 +72,7 @@ private:
     SE3d last_frame_pose_cache_;
     std::queue<ImuData> imu_buf_;
     imu::Preintegration::Ptr imu_preintegrated_from_last_kf_;
+    double baseline_;
 
     // params
     int num_features_init_;
