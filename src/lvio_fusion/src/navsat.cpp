@@ -168,7 +168,7 @@ double Navsat::Optimize(double time)
             auto frame = pair_kf.second;
             OptimizeRX(frame, std::min(frame->time + 1, time), time, 1 + 2 + 4);
         }
-        finished = pair.second.C;
+        finished = pair.second.C + epsilon;
     }
 
     return sections.empty() ? 0 : sections.begin()->second.A;
@@ -228,17 +228,17 @@ void Navsat::OptimizeRX(Frame::Ptr frame, double end, double time, int mode)
     problem.AddParameterBlock(para + 2, 1); //r
     problem.AddParameterBlock(para + 1, 1); //p
     problem.AddParameterBlock(para + 0, 1); //y
-    if (frame->last_keyframe)
-    {
-        problem.SetParameterUpperBound(para + 3, 0, (frame->last_keyframe->pose.inverse() * frame->pose).translation().x());
-        problem.SetParameterLowerBound(para + 3, 0, -(frame->last_keyframe->pose.inverse() * frame->pose).translation().x());
-    }
-    problem.SetParameterUpperBound(para + 2, 0, 0.1);
-    problem.SetParameterLowerBound(para + 2, 0, -0.1);
-    problem.SetParameterUpperBound(para + 1, 0, 0.1);
-    problem.SetParameterLowerBound(para + 1, 0, -0.1);
-    problem.SetParameterUpperBound(para + 0, 0, 0.5);
-    problem.SetParameterLowerBound(para + 0, 0, -0.5);
+    // if (frame->last_keyframe)
+    // {
+    //     problem.SetParameterUpperBound(para + 3, 0, (frame->last_keyframe->pose.inverse() * frame->pose).translation().x());
+    //     problem.SetParameterLowerBound(para + 3, 0, -(frame->last_keyframe->pose.inverse() * frame->pose).translation().x());
+    // }
+    // problem.SetParameterUpperBound(para + 2, 0, 0.1);
+    // problem.SetParameterLowerBound(para + 2, 0, -0.1);
+    // problem.SetParameterUpperBound(para + 1, 0, 0.1);
+    // problem.SetParameterLowerBound(para + 1, 0, -0.1);
+    // problem.SetParameterUpperBound(para + 0, 0, 0.5);
+    // problem.SetParameterLowerBound(para + 0, 0, -0.5);
 
     if (mode & (1 << 0))
         problem.SetParameterBlockConstant(para);
@@ -249,6 +249,7 @@ void Navsat::OptimizeRX(Frame::Ptr frame, double end, double time, int mode)
     if (mode & (1 << 3))
         problem.SetParameterBlockConstant(para + 3);
 
+    Vector3d dp = frame->pose.translation() - GetFixPoint(frame);
     for (auto &pair_kf : active_kfs)
     {
         auto origin = pair_kf.second->pose;
@@ -259,13 +260,14 @@ void Navsat::OptimizeRX(Frame::Ptr frame, double end, double time, int mode)
             {
                 point.z() = frame->pose.translation().z();
             }
-            ceres::CostFunction *cost_function = NavsatRXError::Create(point, frame->pose.inverse() * origin.translation(), frame->pose);
+            ceres::CostFunction *cost_function = NavsatRXError::Create(point + dp, frame->pose.inverse() * origin.translation(), frame->pose);
             problem.AddResidualBlock(ProblemType::Other, cost_function, NULL, para, para + 1, para + 2, para + 3);
         }
     }
 
     if (!(mode & (1 << 0) && mode & (1 << 1) && mode & (1 << 2)))
     {
+        // ensure that vehicle can not roll over
         for (auto &pair_kf : active_kfs)
         {
             auto origin = pair_kf.second->pose;

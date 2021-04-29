@@ -36,6 +36,7 @@ void imu::ReComputeBiasVel(Frames &frames, Frame::Ptr &prior_frame)
             problem.AddParameterBlock(para_v, 3);
             problem.AddParameterBlock(para_ba, 3);
             problem.AddParameterBlock(para_bg, 3);
+            set_bias_bound(problem, para_ba, para_bg);
             problem.SetParameterBlockConstant(para_kf);
             if (last_frame && last_frame->is_imu_good && last_frame->preintegration != nullptr)
             {
@@ -110,6 +111,7 @@ void imu::ReComputeBiasVel(Frames &frames)
             problem.AddParameterBlock(para_v, 3);
             problem.AddParameterBlock(para_ba, 3);
             problem.AddParameterBlock(para_bg, 3);
+            set_bias_bound(problem, para_ba, para_bg);
             problem.SetParameterBlockConstant(para_kf);
             if (last_frame && last_frame->is_imu_good && last_frame->preintegration != nullptr)
             {

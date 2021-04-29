@@ -164,7 +164,7 @@ void PoseGraph::BuildProblem(Atlas &sections, Section &submap, adapt::Problem &p
         double *para_last_kf = last_frame->pose.data();
         ceres::CostFunction *cost_function1 = PoseGraphError::Create(last_frame->pose, frame_A->pose);
         problem.AddResidualBlock(ProblemType::Other, cost_function1, NULL, para_last_kf, para);
-        ceres::CostFunction *cost_function2 = PoseError::Create(frame_A->pose);
+        ceres::CostFunction *cost_function2 = RError::Create(frame_A->pose);
         problem.AddResidualBlock(ProblemType::Other, cost_function2, NULL, para);
         pair.second.pose = frame_A->pose;
         last_frame = frame_A;

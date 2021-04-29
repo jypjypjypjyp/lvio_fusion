@@ -27,13 +27,14 @@ Preintegration::Preintegration(const Vector3d &_linearized_ba, const Vector3d &_
     noise.block<3, 3>(15, 15) = (Imu::Get()->GYR_W * Imu::Get()->GYR_W) * Matrix3d::Identity();
 }
 
-void Preintegration::MidPointIntegration(double _dt,
-                                         const Vector3d &_acc_0, const Vector3d &_gyr_0,
-                                         const Vector3d &_acc_1, const Vector3d &_gyr_1,
-                                         const Vector3d &delta_p, const Quaterniond &delta_q, const Vector3d &delta_v,
-                                         const Vector3d &linearized_ba, const Vector3d &linearized_bg,
-                                         Vector3d &result_delta_p, Quaterniond &result_delta_q, Vector3d &result_delta_v,
-                                         Vector3d &result_linearized_ba, Vector3d &result_linearized_bg, bool update_jacobian)
+void Preintegration::MidPointIntegration(
+    double _dt,
+    const Vector3d &_acc_0, const Vector3d &_gyr_0,
+    const Vector3d &_acc_1, const Vector3d &_gyr_1,
+    const Vector3d &delta_p, const Quaterniond &delta_q, const Vector3d &delta_v,
+    const Vector3d &linearized_ba, const Vector3d &linearized_bg,
+    Vector3d &result_delta_p, Quaterniond &result_delta_q, Vector3d &result_delta_v,
+    Vector3d &result_linearized_ba, Vector3d &result_linearized_bg, bool update_jacobian)
 {
     Vector3d un_acc_0 = delta_q * (_acc_0 - linearized_ba);
     Vector3d un_gyr = 0.5 * (_gyr_0 + _gyr_1) - linearized_bg;
@@ -162,8 +163,9 @@ Matrix<double, 15, 1> Preintegration::Evaluate(const Vector3d &Pi, const Quatern
     return residuals;
 }
 
-Matrix<double, 15, 1> Preintegration::Evaluate(const Vector3d &Pi, const Quaterniond &Qi, const Vector3d &Vi, const Vector3d &Bai, const Vector3d &Bgi,
-                                               const Vector3d &Pj, const Quaterniond &Qj, const Vector3d &Vj, const Vector3d &Baj, const Vector3d &Bgj, const Quaterniond &Rg)
+Matrix<double, 15, 1> Preintegration::Evaluate(
+    const Vector3d &Pi, const Quaterniond &Qi, const Vector3d &Vi, const Vector3d &Bai, const Vector3d &Bgi,
+    const Vector3d &Pj, const Quaterniond &Qj, const Vector3d &Vj, const Vector3d &Baj, const Vector3d &Bgj, const Quaterniond &Rg)
 {
     Matrix<double, 15, 1> residuals;
     Matrix3d dp_dba = jacobian.block<3, 3>(O_T, O_BA);

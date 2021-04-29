@@ -35,6 +35,11 @@ public:
         return devices_[id];
     }
 
+    bool Far(const Vector3d &pw, const SE3d &Tcw)
+    {
+        return World2Sensor(pw, Tcw).z() > baseline * 40;
+    }
+
     // coordinate transform: world, sensor, pixel
     Vector2d Sensor2Pixel(const Vector3d &pc)
     {
@@ -71,6 +76,7 @@ public:
         return Sensor2Pixel(Robot2Sensor(pw));
     }
 
+    static double baseline;
     double fx = 0, fy = 0, cx = 0, cy = 0; // Camera intrinsics
     double k1 = 0, k2 = 0, p1 = 0, p2 = 0; // Camera intrinsics
     cv::Mat K, D;

@@ -72,7 +72,6 @@ private:
     SE3d last_frame_pose_cache_;
     std::queue<ImuData> imu_buf_;
     imu::Preintegration::Ptr imu_preintegrated_from_last_kf_;
-    double baseline_;
 
     // params
     int num_features_init_;

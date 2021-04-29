@@ -9,6 +9,22 @@
 namespace lvio_fusion
 {
 
+inline void set_bias_bound(ceres::Problem &problem, double *para_ba, double *para_bg)
+{
+    problem.SetParameterLowerBound(para_ba, 0, -0.2);
+    problem.SetParameterUpperBound(para_ba, 0, 0.2);
+    problem.SetParameterLowerBound(para_ba, 1, -0.2);
+    problem.SetParameterUpperBound(para_ba, 1, 0.2);
+    problem.SetParameterLowerBound(para_ba, 2, -0.2);
+    problem.SetParameterUpperBound(para_ba, 2, 0.2);
+    problem.SetParameterLowerBound(para_bg, 0, -0.02);
+    problem.SetParameterUpperBound(para_bg, 0, 0.02);
+    problem.SetParameterLowerBound(para_bg, 1, -0.02);
+    problem.SetParameterUpperBound(para_bg, 1, 0.02);
+    problem.SetParameterLowerBound(para_bg, 2, -0.02);
+    problem.SetParameterUpperBound(para_bg, 2, 0.02);
+}
+
 class ImuError : public ceres::SizedCostFunction<15, 7, 3, 3, 3, 7, 3, 3, 3>
 {
 public:

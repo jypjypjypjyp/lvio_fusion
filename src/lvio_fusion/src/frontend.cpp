@@ -16,7 +16,6 @@ namespace lvio_fusion
 Frontend::Frontend(int num_features, int init, int tracking, int tracking_bad, int need_for_keyframe)
     : num_features_init_(init), num_features_tracking_bad_(tracking_bad), num_features_needed_for_keyframe_(need_for_keyframe), local_map(num_features)
 {
-    baseline_ = (Camera::Get()->extrinsic.translation() - Camera::Get(1)->extrinsic.translation()).norm();
 }
 
 bool Frontend::AddFrame(Frame::Ptr frame)
@@ -292,7 +291,7 @@ int Frontend::TrackLastFrame()
     {
         if (status[i])
         {
-            if ((local_map.position_cache[i] - current_frame->pose.translation()).norm() > baseline_ * 100)
+            if (Camera::Get()->Far(local_map.position_cache[landmarks[i]->id], current_frame->pose))
             {
                 map_far.push_back(i);
                 points_2d_far.push_back(kps_current[i]);

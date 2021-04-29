@@ -82,18 +82,19 @@ void Backend::BuildProblem(Frames &active_kfs, adapt::Problem &problem, bool use
             auto feature = pair_feature.second;
             auto landmark = feature->landmark.lock();
             auto first_frame = landmark->FirstFrame().lock();
+            auto type = Camera::Get()->Far(landmark->ToWorld(), frame->pose) ? ProblemType::WeakError : ProblemType::VisualError;
             ceres::CostFunction *cost_function;
             if (first_frame == frame)
             {
                 double *para_inv_depth = &landmark->inv_depth;
                 problem.AddParameterBlock(para_inv_depth, 1);
                 cost_function = TwoCameraReprojectionError::Create(cv2eigen(feature->keypoint.pt), cv2eigen(landmark->first_observation->keypoint.pt), Camera::Get(0), Camera::Get(1), 5 * frame->weights.visual);
-                problem.AddResidualBlock(ProblemType::VisualError, cost_function, loss_function, para_inv_depth);
+                problem.AddResidualBlock(ProblemType::Other, cost_function, loss_function, para_inv_depth);
             }
             else if (first_frame->time < start_time)
             {
                 cost_function = PoseOnlyReprojectionError::Create(cv2eigen(feature->keypoint.pt), landmark->ToWorld(), Camera::Get(), frame->weights.visual);
-                problem.AddResidualBlock(ProblemType::VisualError, cost_function, loss_function, para_kf);
+                problem.AddResidualBlock(type, cost_function, loss_function, para_kf);
             }
             else
             {
@@ -102,7 +103,7 @@ void Backend::BuildProblem(Frames &active_kfs, adapt::Problem &problem, bool use
                 problem.AddParameterBlock(para_inv_depth, 1);
                 // first ob is on right camera; current ob is on left camera;
                 cost_function = TwoFrameReprojectionError::Create(cv2eigen(landmark->first_observation->keypoint.pt), cv2eigen(feature->keypoint.pt), Camera::Get(0), Camera::Get(1), frame->weights.visual);
-                problem.AddResidualBlock(ProblemType::VisualError, cost_function, loss_function, para_inv_depth, para_fist_kf, para_kf);
+                problem.AddResidualBlock(type, cost_function, loss_function, para_inv_depth, para_fist_kf, para_kf);
             }
         }
 
@@ -117,7 +118,7 @@ void Backend::BuildProblem(Frames &active_kfs, adapt::Problem &problem, bool use
                 problem.AddParameterBlock(para_v, 3);
                 problem.AddParameterBlock(para_ba, 3);
                 problem.AddParameterBlock(para_bg, 3);
-
+                set_bias_bound(problem, para_ba, para_bg);
                 if (last_frame && last_frame->is_imu_good)
                 {
                     auto para_v_last = last_frame->Vw.data();
@@ -129,18 +130,18 @@ void Backend::BuildProblem(Frames &active_kfs, adapt::Problem &problem, bool use
             }
         }
 
-        // check if not constraint the translation
+        // check if weak constraint
         auto num_types = problem.GetTypes(para_kf);
-        if (!num_types[ProblemType::ImuError] && !num_types[ProblemType::VisualError])
+        if (!num_types[ProblemType::ImuError] && num_types[ProblemType::VisualError] < 10)
         {
             if (last_frame)
             {
-                ceres::CostFunction *cost_function = PoseGraphErrorXYZ::Create(last_frame->pose, frame->pose);
+                ceres::CostFunction *cost_function = PoseGraphTError::Create(last_frame->pose, frame->pose, Camera::Get()->fx);
                 problem.AddResidualBlock(ProblemType::Other, cost_function, NULL, para_last_kf, para_kf);
             }
             else
             {
-                ceres::CostFunction *cost_function = PoseErrorXYZ::Create(frame->pose);
+                ceres::CostFunction *cost_function = TError::Create(frame->pose, Camera::Get()->fx);
                 problem.AddResidualBlock(ProblemType::Other, cost_function, NULL, para_kf);
             }
         }
@@ -225,25 +226,25 @@ void Backend::Optimize()
         mapping_->Optimize(mapping_kfs);
     }
 
-    // if (Navsat::Num() && Navsat::Get()->initialized)
-    // {
-    //     std::unique_lock<std::mutex> lock(frontend_.lock()->mutex);
-    //     SE3d old_pose = (--active_kfs.end())->second->pose;
-    //     double navsat_start = Navsat::Get()->Optimize(end);
-    //     // double fix_start = Navsat::Get()->QuickFix(start, end);
-    //     //navsat_start = std::min(navsat_start, fix_start);
-    //     SE3d new_pose = (--active_kfs.end())->second->pose;
-    //     SE3d transform = new_pose * old_pose.inverse();
-    //     PoseGraph::Instance().ForwardPropagate(transform, end + epsilon, false);
-    //     if (navsat_start && mapping_)
-    //     {
-    //         Frames mapping_kfs = Map::Instance().GetKeyFrames(navsat_start);
-    //         for (auto &pair : mapping_kfs)
-    //         {
-    //             mapping_->ToWorld(pair.second);
-    //         }
-    //     }
-    // }
+    if (Navsat::Num() && Navsat::Get()->initialized)
+    {
+        std::unique_lock<std::mutex> lock(frontend_.lock()->mutex);
+        SE3d old_pose = (--active_kfs.end())->second->pose;
+        double navsat_start = Navsat::Get()->Optimize(end);
+        double fix_start = Navsat::Get()->QuickFix(start, end);
+        navsat_start = std::min(navsat_start, fix_start);
+        SE3d new_pose = (--active_kfs.end())->second->pose;
+        SE3d transform = new_pose * old_pose.inverse();
+        PoseGraph::Instance().ForwardPropagate(transform, end + epsilon, false);
+        if (navsat_start && mapping_)
+        {
+            Frames mapping_kfs = Map::Instance().GetKeyFrames(navsat_start);
+            for (auto &pair : mapping_kfs)
+            {
+                mapping_->ToWorld(pair.second);
+            }
+        }
+    }
 }
 
 void Backend::ForwardPropagate(SE3d transform, double time)

@@ -11,7 +11,7 @@ namespace lvio_fusion
 enum class ProblemType
 {
     VisualError,
-    FarVisualError,
+    WeakError,
     LidarError,
     NavsatError,
     PoseError,
@@ -21,7 +21,7 @@ enum class ProblemType
 
 const std::map<ProblemType, int> init_num_types = {
         {ProblemType::VisualError, 0},
-        {ProblemType::FarVisualError, 0},
+        {ProblemType::WeakError, 0},
         {ProblemType::LidarError, 0},
         {ProblemType::NavsatError, 0},
         {ProblemType::PoseError, 0},
