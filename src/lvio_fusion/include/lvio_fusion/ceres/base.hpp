@@ -149,6 +149,13 @@ inline void RpyxyzToSE3(const T *rpyxyz, T *relatice_i_j)
     relatice_i_j[6] = rpyxyz[5];
 }
 
+class Error
+{
+protected:
+    Error(double weight) : weight_(weight) {}
+    double weight_;
+};
+
 } // namespace ceres
 
 #endif // lvio_fusion_BASE_H

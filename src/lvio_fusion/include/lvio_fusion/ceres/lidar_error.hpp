@@ -6,6 +6,7 @@
 
 namespace lvio_fusion
 {
+
 class LidarPlaneError
 {
 public:
@@ -38,11 +39,11 @@ private:
     Vector3d p_, pa_, abc_norm_;
 };
 
-class LidarPlaneErrorRPZ
+class LidarPlaneErrorRPZ: public ceres::Error
 {
 public:
     LidarPlaneErrorRPZ(LidarPlaneError origin_error, SE3d Twc1, double *rpyxyz, double weight)
-        : origin_error_(origin_error), Twc1_(Twc1), rpyxyz_(rpyxyz), weight_(weight) {}
+        : origin_error_(origin_error), Twc1_(Twc1), rpyxyz_(rpyxyz), Error(weight) {}
 
     template <typename T>
     bool operator()(const T *pitch, const T *roll, const T *z, T *residual) const
@@ -71,14 +72,13 @@ private:
     LidarPlaneError origin_error_;
     SE3d Twc1_;
     double *rpyxyz_;
-    double weight_;
 };
 
-class LidarPlaneErrorYXY
+class LidarPlaneErrorYXY: public ceres::Error
 {
 public:
     LidarPlaneErrorYXY(LidarPlaneError origin_error, SE3d Twc1, double *rpyxyz, double weight)
-        : origin_error_(origin_error), Twc1_(Twc1), rpyxyz_(rpyxyz), weight_(weight) {}
+        : origin_error_(origin_error), Twc1_(Twc1), rpyxyz_(rpyxyz), Error(weight) {}
 
     template <typename T>
     bool operator()(const T *yaw, const T *x, const T *y, T *residual) const
@@ -107,7 +107,6 @@ private:
     LidarPlaneError origin_error_;
     SE3d Twc1_;
     double *rpyxyz_;
-    double weight_;
 };
 
 } // namespace lvio_fusion

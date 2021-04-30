@@ -45,11 +45,11 @@ inline void Robot2Pixel(const T *pb, Camera::Ptr camera, T *result)
     result[1] = camera->fy * yp + camera->cy;
 }
 
-class PoseOnlyReprojectionError
+class PoseOnlyReprojectionError : public ceres::Error
 {
 public:
     PoseOnlyReprojectionError(Vector2d ob, Vector3d pw, Camera::Ptr camera, double weight)
-        : ob_(ob), pw_(pw), camera_(camera), weight_(weight) {}
+        : ob_(ob), pw_(pw), camera_(camera), Error(weight) {}
 
     template <typename T>
     bool operator()(const T *Twc, T *residuals) const
@@ -73,14 +73,13 @@ private:
     Vector2d ob_;
     Vector3d pw_;
     Camera::Ptr camera_;
-    double weight_;
 };
 
-class TwoFrameReprojectionError
+class TwoFrameReprojectionError: public ceres::Error
 {
 public:
     TwoFrameReprojectionError(Vector2d first_ob, Vector2d ob, Camera::Ptr left, Camera::Ptr right, double weight)
-        : first_ob_(first_ob), ob_(ob), left_(left), right_(right), weight_(weight) {}
+        : first_ob_(first_ob), ob_(ob), left_(left), right_(right), Error(weight) {}
 
     template <typename T>
     bool operator()(const T *inv_d, const T *Twc1, const T *Twc2, T *residuals) const
@@ -105,14 +104,13 @@ public:
 private:
     Vector2d first_ob_, ob_;
     Camera::Ptr left_, right_;
-    double weight_;
 };
 
-class TwoCameraReprojectionError
+class TwoCameraReprojectionError: public ceres::Error
 {
 public:
     TwoCameraReprojectionError(Vector2d left_ob, Vector2d right_ob, Camera::Ptr left, Camera::Ptr right, double weight)
-        : left_ob_(left_ob), right_ob_(right_ob), left_(left), right_(right), weight_(weight) {}
+        : left_ob_(left_ob), right_ob_(right_ob), left_(left), right_(right), Error(weight) {}
 
     template <typename T>
     bool operator()(const T *inv_d, T *residuals) const
@@ -136,7 +134,6 @@ public:
 private:
     Vector2d left_ob_, right_ob_;
     Camera::Ptr left_, right_;
-    double weight_;
 };
 
 } // namespace lvio_fusion

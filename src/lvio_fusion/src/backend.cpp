@@ -136,12 +136,12 @@ void Backend::BuildProblem(Frames &active_kfs, adapt::Problem &problem, bool use
         {
             if (last_frame)
             {
-                ceres::CostFunction *cost_function = PoseGraphTError::Create(last_frame->pose, frame->pose, Camera::Get()->fx);
+                ceres::CostFunction *cost_function = PoseGraphError::Create(last_frame->pose, frame->pose, 100);
                 problem.AddResidualBlock(ProblemType::Other, cost_function, NULL, para_last_kf, para_kf);
             }
             else
             {
-                ceres::CostFunction *cost_function = TError::Create(frame->pose, Camera::Get()->fx);
+                ceres::CostFunction *cost_function = PoseError::Create(frame->pose, 100);
                 problem.AddResidualBlock(ProblemType::Other, cost_function, NULL, para_kf);
             }
         }
