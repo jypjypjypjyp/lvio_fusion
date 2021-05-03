@@ -14,7 +14,6 @@ add_library(lvio_fusion SHARED
         manager.cpp
         map.cpp
         mapping.cpp
-        matcher.cpp
         navsat.cpp
         optimizer.cpp
         preintegration.cpp

@@ -69,9 +69,9 @@ void PoseGraph::UpdateSections(double time)
         return;
     Frames active_kfs = Map::Instance().GetKeyFrames(finished, time);
     finished = time + epsilon;
-    for (auto &pair_kf : active_kfs)
+    for (auto &pair : active_kfs)
     {
-        Vector3d heading = pair_kf.second->pose.so3() * Vector3d::UnitX();
+        Vector3d heading = pair.second->pose.so3() * Vector3d::UnitX();
         if (last_frame)
         {
             double degree = vectors_degree_angle(last_ori, heading);
@@ -80,28 +80,28 @@ void PoseGraph::UpdateSections(double time)
             {
                 // if we have enough keyframes and total degree, create new section
                 if (current_section.A == current_section.B ||
-                    frames_distance(current_section.A, pair_kf.first) > 40)
+                    frames_distance(current_section.A, pair.first) > 40)
                 {
-                    current_section.C = pair_kf.first;
+                    current_section.C = pair.first;
                     sections_[current_section.A] = current_section;
-                    current_section.A = pair_kf.first;
+                    current_section.A = pair.first;
                 }
                 turning = true;
             }
             // go straight requires
             else if (turning && degree < 1)
             {
-                current_section.B = pair_kf.first;
+                current_section.B = pair.first;
                 B_ori = heading;
                 turning = false;
             }
         }
         else
         {
-            current_section.A = pair_kf.first;
-            current_section.B = pair_kf.first;
+            current_section.A = pair.first;
+            current_section.B = pair.first;
         }
-        last_frame = pair_kf.second;
+        last_frame = pair.second;
         last_ori = heading;
     }
 }
@@ -222,11 +222,11 @@ void PoseGraph::ForwardPropagate(SE3d transform, double start_time, bool need_lo
 // new pose = transform * old pose;
 void PoseGraph::Propagate(SE3d transform, const Frames &forward_kfs)
 {
-    for (auto &pair_kf : forward_kfs)
+    for (auto &pair : forward_kfs)
     {
-        pair_kf.second->pose = transform * pair_kf.second->pose;
-        if (pair_kf.second->preintegration != nullptr)
-            pair_kf.second->Vw = transform.rotationMatrix() * pair_kf.second->Vw;
+        pair.second->pose = transform * pair.second->pose;
+        if (pair.second->preintegration != nullptr)
+            pair.second->Vw = transform.rotationMatrix() * pair.second->Vw;
     }
 }
 

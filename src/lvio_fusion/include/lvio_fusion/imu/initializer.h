@@ -13,15 +13,14 @@ class Initializer
 public:
     typedef std::shared_ptr<Initializer> Ptr;
 
-    bool EstimateVelAndRwg(std::vector<Frame::Ptr> keyframes);
+    bool Initialize(Frames frames, double prior_a, double prior_g);
 
-    bool Initialize(Frames frames, double priorA = 1e6, double priorG = 1e2);
-
-    bool first_init = false;      // finished first init?
-    bool need_reinit = false;    // need re-init?
+    bool finished_first_init = false;
     const int num_frames = 10;
+
 private:
-    Matrix3d Rwg_; //重力方向
+    bool EstimateVelAndRwg(Frames keyframes);
+    Matrix3d Rwg_; // R of gravity in world frame
 };
 
 } // namespace lvio_fusion

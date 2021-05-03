@@ -25,14 +25,14 @@ void FeatureAssociation::AddScan(double time, Point3Cloud::Ptr new_scan)
     raw_point_clouds_[time] = new_scan;
 
     Frames new_kfs = Map::Instance().GetKeyFrames(finished, time);
-    for (auto &pair_kf : new_kfs)
+    for (auto &pair : new_kfs)
     {
         PointICloud point_cloud;
-        if ((!last_frame || (pair_kf.second->pose.translation() - last_frame->pose.translation()).norm() > spacing_) && AlignScan(pair_kf.first, point_cloud))
+        if ((!last_frame || (pair.second->pose.translation() - last_frame->pose.translation()).norm() > spacing_) && AlignScan(pair.first, point_cloud))
         {
-            Process(point_cloud, pair_kf.second);
-            finished = pair_kf.first + epsilon;
-            last_frame = pair_kf.second;
+            Process(point_cloud, pair.second);
+            finished = pair.first + epsilon;
+            last_frame = pair.second;
         }
     }
 }

@@ -257,7 +257,10 @@ void Backend::ForwardPropagate(SE3d transform, double time)
         active_kfs[last_frame->time] = last_frame;
     }
     PoseGraph::Instance().Propagate(transform, active_kfs);
-    InitializeImu(active_kfs, time);
+    if (Imu::Num() && (!Navsat::Num() || (Navsat::Num() && Navsat::Get()->initialized)))
+    {
+        InitializeImu(active_kfs, time);
+    }
 
     adapt::Problem problem;
     BuildProblem(active_kfs, problem, false);
@@ -294,43 +297,44 @@ void Backend::ForwardPropagate(SE3d transform, double time)
 void Backend::InitializeImu(Frames active_kfs, double time)
 {
     static double init_time = 0;
-    static bool initA = false;
-    static bool initB = false;
-    static bool initializing = false;
-    double priorA = 1e3;
-    double priorG = 1e1;
-    if (Imu::Num() && initializer_->first_init)
+    static bool step_A = false;
+    static bool step_B = false;
+    bool need_init = false;
+    double prior_a = 1e3;
+    double prior_g = 1e1;
+    if (initializer_->finished_first_init)
     {
-        priorA = 0;
-        priorG = 0;
+        prior_a = 0;
+        prior_g = 0;
     }
-    if (Imu::Num() && Imu::Get()->initialized)
+    if (Imu::Get()->initialized)
     {
-        double dt = 0;
-        if (init_time)
-            dt = (--active_kfs.end())->second->time - init_time;
-        if (dt > 5 && !initA)
+        double dt = init_time ? (--active_kfs.end())->second->time - init_time : 0;
+        if (dt > 5 && !step_A)
         {
-            initializer_->need_reinit = true;
-            initA = true;
-            priorA = 1e4;
-            priorG = 1e1;
-            frontend_.lock()->status = FrontendStatus::INITIALIZING;
+            need_init = true;
+            step_A = true;
+            prior_a = 1e4;
+            prior_g = 1e1;
         }
-        else if (dt > 15 && !initB)
+        else if (dt > 15 && !step_B)
         {
-            initializer_->need_reinit = true;
-            initB = true;
-            priorA = 0;
-            priorG = 0;
-            frontend_.lock()->status = FrontendStatus::INITIALIZING;
+            need_init = true;
+            step_B = true;
+            prior_a = 0;
+            prior_g = 0;
         }
     }
+    else
+    {
+        need_init = true;
+    }
+
     Frames frames_init;
-    SE3d old_pose;
-    SE3d new_pose;
-    if (Imu::Num() && (!Imu::Get()->initialized || initializer_->need_reinit))
+    SE3d old_pose, new_pose;
+    if (need_init)
     {
+        need_init = false;
         frames_init = Map::Instance().GetKeyFrames(0, time, initializer_->num_frames);
         old_pose = (--frames_init.end())->second->pose;
 
@@ -342,35 +346,30 @@ void Backend::InitializeImu(Frames active_kfs, double time)
             {
                 init_time = (--frames_init.end())->second->time;
             }
-            initializing = true;
+            need_init = true;
         }
     }
-
-    if (initializing)
+    if (need_init)
     {
         LOG(INFO) << "Initializer Start";
-        if (initializer_->Initialize(frames_init, priorA, priorG))
+        if (initializer_->Initialize(frames_init, prior_a, prior_g))
         {
             new_pose = (--frames_init.end())->second->pose;
             SE3d transform = new_pose * old_pose.inverse();
             PoseGraph::Instance().Propagate(transform, active_kfs);
-            if (frontend_.lock()->status == FrontendStatus::INITIALIZING)
-                frontend_.lock()->status = FrontendStatus::TRACKING_GOOD;
             for (auto kf : active_kfs)
             {
                 Frame::Ptr frame = kf.second;
                 if (frame->preintegration != nullptr)
                     frame->is_imu_good = true;
             }
-            LOG(INFO) << "Initiaclizer Finished";
+            LOG(INFO) << "Initializer Finished";
         }
         else
         {
-            LOG(INFO) << "Initiaclizer Failed";
+            LOG(INFO) << "Initializer Failed";
         }
-        initializing = false;
     }
-    return;
 }
 
 } // namespace lvio_fusion

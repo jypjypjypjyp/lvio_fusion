@@ -142,7 +142,7 @@ private:
 class ImuErrorInit : public ceres::SizedCostFunction<15, 7, 3, 3, 3, 7, 3>
 {
 public:
-    ImuErrorInit(imu::Preintegration::Ptr preintegration, double priorA_, double priorG_) : preintegration_(preintegration), priorA(priorA_), priorG(priorG_) {}
+    ImuErrorInit(imu::Preintegration::Ptr preintegration, double priorA_, double priorG_) : preintegration_(preintegration), prior_a(priorA_), prior_g(priorG_) {}
 
     virtual bool Evaluate(double const *const *parameters, double *residuals, double **jacobians) const
     {
@@ -163,8 +163,8 @@ public:
         Eigen::Map<Matrix<double, 15, 1>> residual(residuals);
         residual = preintegration_->Evaluate(Pi, Qi, Vi, Bai, Bgi, Pj, Qj, Vj, Baj, Bgj);
         Matrix<double, 15, 15> cov_inv = preintegration_->covariance.inverse();
-        cov_inv.block<3, 3>(9, 9) = priorA * Matrix3d::Identity();
-        cov_inv.block<3, 3>(12, 12) = priorG * Matrix3d::Identity();
+        cov_inv.block<3, 3>(9, 9) = prior_a * Matrix3d::Identity();
+        cov_inv.block<3, 3>(12, 12) = prior_g * Matrix3d::Identity();
         Matrix<double, 15, 15> sqrt_info = LLT<Matrix<double, 15, 15>>(cov_inv).matrixL().transpose();
         residual = sqrt_info * residual;
         // LOG(INFO) << residual;
@@ -243,14 +243,14 @@ public:
 
 private:
     imu::Preintegration::Ptr preintegration_;
-    double priorA;
-    double priorG;
+    double prior_a;
+    double prior_g;
 };
 
 class ImuErrorG
 {
 public:
-    ImuErrorG(imu::Preintegration::Ptr preintegration, SE3d current_pose_, SE3d last_pose_, double priorA_, double priorG_) : preintegration_(preintegration), current_pose(current_pose_), last_pose(last_pose_), priorA(priorA_), priorG(priorG_) {}
+    ImuErrorG(imu::Preintegration::Ptr preintegration, SE3d current_pose_, SE3d last_pose_, double priorA_, double priorG_) : preintegration_(preintegration), current_pose(current_pose_), last_pose(last_pose_), prior_a(priorA_), prior_g(priorG_) {}
 
     bool operator()(const double *parameters0, const double *parameters1, const double *parameters2, const double *parameters3, const double *parameters4, double *residuals) const
     {
@@ -273,8 +273,8 @@ public:
         Eigen::Map<Matrix<double, 15, 1>> residual(residuals);
         residual = preintegration_->Evaluate(Pi, Qi, Vi, Bai, Bgi, Pj, Qj, Vj, Baj, Bgj, Rg);
         Matrix<double, 15, 15> cov_inv = preintegration_->covariance.inverse();
-        cov_inv.block<3, 3>(9, 9) = priorA * Matrix3d::Identity();
-        cov_inv.block<3, 3>(12, 12) = priorG * Matrix3d::Identity();
+        cov_inv.block<3, 3>(9, 9) = prior_a * Matrix3d::Identity();
+        cov_inv.block<3, 3>(12, 12) = prior_g * Matrix3d::Identity();
         Matrix<double, 15, 15> sqrt_info = LLT<Matrix<double, 15, 15>>(cov_inv).matrixL().transpose();
         residual = sqrt_info * residual;
 
@@ -290,8 +290,8 @@ private:
     imu::Preintegration::Ptr preintegration_;
     SE3d current_pose;
     SE3d last_pose;
-    double priorA;
-    double priorG;
+    double prior_a;
+    double prior_g;
 };
 } // namespace lvio_fusion
 

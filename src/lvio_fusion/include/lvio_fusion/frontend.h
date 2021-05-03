@@ -3,7 +3,6 @@
 
 #include "lvio_fusion/common.h"
 #include "lvio_fusion/visual/local_map.h"
-#include "lvio_fusion/visual/matcher.h"
 
 namespace lvio_fusion
 {

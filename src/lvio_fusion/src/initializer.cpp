@@ -6,33 +6,29 @@
 namespace lvio_fusion
 {
 
-bool Initializer::EstimateVelAndRwg(std::vector<Frame::Ptr> keyframes)
+bool Initializer::EstimateVelAndRwg(Frames frames)
 {
     if (!Imu::Get()->initialized)
     {
-        Vector3d ori_G = Vector3d::Zero();
+        Vector3d Ig = Vector3d::Zero();
         Vector3d velocity;
-        for (auto iter = keyframes.begin() + 1; iter != keyframes.end(); iter++)
+        for (auto &pair : frames)
         {
-            if ((*iter)->preintegration == nullptr)
+            auto frame = pair.second;
+            if (!frame->preintegration || !frame->last_keyframe)
                 return false;
-            if (!(*iter)->last_keyframe)
-                continue;
 
-            ori_G += (*iter)->last_keyframe->GetImuRotation() * (*iter)->preintegration->GetUpdatedDeltaVelocity();
-            velocity = ((*iter)->GetImuPosition() - (*(iter))->last_keyframe->GetImuPosition()) / ((*iter)->preintegration->sum_dt);
-            (*iter)->SetVelocity(velocity);
-            (*iter)->last_keyframe->SetVelocity(velocity);
+            Ig += frame->last_keyframe->GetImuRotation() * frame->preintegration->GetUpdatedDeltaVelocity();
+            velocity = (frame->GetImuPosition() - frame->last_keyframe->GetImuPosition()) / frame->preintegration->sum_dt;
+            frame->SetVelocity(velocity);
+            frame->last_keyframe->SetVelocity(velocity);
         }
-        ori_G = ori_G / ori_G.norm();
+        Ig = Ig / Ig.norm();
 
-        Vector3d gI(0.0, 0.0, 1.0);
-        Vector3d v = gI.cross(ori_G);
-        const double nv = v.norm();
-        const double cosg = gI.dot(ori_G);
-        const double ang = acos(cosg);
-        Vector3d vzg = v * ang / nv;
-        if (first_init)
+        Vector3d Iz(0.0, 0.0, 1.0);
+        Vector3d v = Iz.cross(Ig);
+        Vector3d vzg = v * acos(Iz.dot(Ig)) / v.norm();
+        if (finished_first_init)
         {
             Rwg_ = Imu::Get()->Rwg;
         }
@@ -52,41 +48,35 @@ bool Initializer::EstimateVelAndRwg(std::vector<Frame::Ptr> keyframes)
     return true;
 }
 
-bool Initializer::Initialize(Frames frames, double priorA, double priorG)
+bool Initializer::Initialize(Frames frames, double prior_a, double prior_g)
 {
-    double min_dt = 20.0;
-    std::list<Frame::Ptr> kfs_list;
-    for (Frames::reverse_iterator iter = frames.rbegin(); iter != frames.rend(); iter++)
-    {
-        kfs_list.push_front(iter->second);
-    }
-    std::vector<Frame::Ptr> kfs(kfs_list.begin(), kfs_list.end());
-
     // estimate velocity and gravity direction
-    if (!EstimateVelAndRwg(kfs))
+    if (!EstimateVelAndRwg(frames))
         return false;
-    bool ok;
-    if (priorA == 0)
+
+    // imu optimization
+    bool success;
+    if (prior_a == 0)
     {
-        ok = imu::InertialOptimization(frames, Rwg_, 1e2, 1e4);
+        success = imu::InertialOptimization(frames, Rwg_, 1e2, 1e4);
     }
     else
     {
-        ok = imu::InertialOptimization(frames, Rwg_, priorG, priorA);
+        success = imu::InertialOptimization(frames, Rwg_, prior_g, prior_a);
     }
-    if (!ok)
+    if (!success)
         return false;
 
-    Vector3d dirG;
-    dirG << 0, 0, Imu::Get()->G;
-    dirG = Rwg_ * dirG;
-    dirG = dirG / dirG.norm();
-    if (!(dirG[0] == 0 && dirG[1] == 0 && dirG[2] == 1))
+    Vector3d twg;
+    twg << 0, 0, Imu::Get()->G;
+    twg = Rwg_ * twg;
+    twg = twg / twg.norm();
+    if (!(twg[0] == 0 && twg[1] == 0 && twg[2] == 1))
     {
         Vector3d gI(0.0, 0.0, 1.0);
-        Vector3d v = gI.cross(dirG);
+        Vector3d v = gI.cross(twg);
         const double nv = v.norm();
-        const double cosg = gI.dot(dirG);
+        const double cosg = gI.dot(twg);
         const double ang = acos(cosg);
         Vector3d vzg = v * ang / nv;
         Rwg_ = exp_so3(vzg);
@@ -101,20 +91,19 @@ bool Initializer::Initialize(Frames frames, double priorA, double priorG)
     LOG(INFO) << "Gravity Vector again: " << (g2).transpose();
     Imu::Get()->Rwg = Rwg_;
 
-    for (int i = 0; i < kfs.size(); i++)
+    for (auto &pair : frames)
     {
-        Frame::Ptr pKF2 = kfs[i];
-        pKF2->is_imu_good = true;
+        pair.second->is_imu_good = true;
     }
 
-    if (priorA != 0)
+    // imu optimization with visual
+    if (prior_a != 0)
     {
-        imu::FullInertialBA(frames, priorG, priorA);
+        imu::FullInertialBA(frames, prior_g, prior_a);
     }
 
-    first_init = true;
+    finished_first_init = true;
     Imu::Get()->initialized = true;
-    need_reinit = false;
     return true;
 }
 

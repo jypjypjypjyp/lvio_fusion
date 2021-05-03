@@ -189,18 +189,18 @@ double Navsat::QuickFix(double current_time, double end_time)
         OptimizeZ(finished_frame, end_time);
         OptimizeRX(finished_frame, current_time, end_time, 8);
         Frames AB_kfs = Map::Instance().GetKeyFrames(finished + epsilon, B - epsilon);
-        for (auto &pair_kf : AB_kfs)
+        for (auto &pair : AB_kfs)
         {
-            auto frame = pair_kf.second;
+            auto frame = pair.second;
             // OptimizeRX(frame, std::min(B - epsilon, frame->time + 1), end_time, 1 + 2 + 4);
             OptimizeRX(frame, std::min(frame->time + 3, B - epsilon), end_time, 8);
         }
         // optimize B - C
         OptimizeRX(finished_frame, current_time, end_time, 8);
         Frames BC_kfs = Map::Instance().GetKeyFrames(B + epsilon, current_time - epsilon);
-        for (auto &pair_kf : BC_kfs)
+        for (auto &pair : BC_kfs)
         {
-            auto frame = pair_kf.second;
+            auto frame = pair.second;
             OptimizeRX(frame, std::min(frame->time + 1, end_time), end_time, 1 + 2 + 4);
         }
 
@@ -250,13 +250,13 @@ void Navsat::OptimizeRX(Frame::Ptr frame, double end, double time, int mode)
         problem.SetParameterBlockConstant(para + 3);
 
     Vector3d dp = frame->pose.translation() - GetFixPoint(frame);
-    for (auto &pair_kf : active_kfs)
+    for (auto &pair : active_kfs)
     {
-        auto origin = pair_kf.second->pose;
-        if (pair_kf.second->feature_navsat)
+        auto origin = pair.second->pose;
+        if (pair.second->feature_navsat)
         {
-            Vector3d point = GetFixPoint(pair_kf.second);
-            if (!pair_kf.second->feature_navsat->trust)
+            Vector3d point = GetFixPoint(pair.second);
+            if (!pair.second->feature_navsat->trust)
             {
                 point.z() = frame->pose.translation().z();
             }
@@ -268,9 +268,9 @@ void Navsat::OptimizeRX(Frame::Ptr frame, double end, double time, int mode)
     if (!(mode & (1 << 0) && mode & (1 << 1) && mode & (1 << 2)))
     {
         // ensure that vehicle can not roll over
-        for (auto &pair_kf : active_kfs)
+        for (auto &pair : active_kfs)
         {
-            auto origin = pair_kf.second->pose;
+            auto origin = pair.second->pose;
             ceres::CostFunction *cost_function = NavsatRError::Create(origin, frame->pose);
             problem.AddResidualBlock(ProblemType::Other, cost_function, NULL, para, para + 1, para + 2);
         }

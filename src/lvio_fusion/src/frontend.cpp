@@ -212,12 +212,16 @@ bool Frontend::Track()
 
     if (status == FrontendStatus::INITIALIZING)
     {
-        if (!num_inliers)
+        if (Imu::Num() && Imu::Get()->initialized)
+        {
+            status = FrontendStatus::TRACKING_GOOD;
+        }
+        else if (!num_inliers)
         {
             status = FrontendStatus::BUILDING;
         }
     }
-    else
+    if (status != FrontendStatus::INITIALIZING)
     {
         if (num_inliers)
         {
@@ -255,10 +259,10 @@ int Frontend::TrackLastFrame()
     // use LK flow to estimate points in the last image
     kps_last.reserve(last_frame->features_left.size());
     kps_current.reserve(last_frame->features_left.size());
-    for (auto &pair_feature : last_frame->features_left)
+    for (auto &pair : last_frame->features_left)
     {
         // use project point
-        auto feature = pair_feature.second;
+        auto feature = pair.second;
         auto landmark = feature->landmark.lock();
         auto px = Camera::Get()->World2Pixel(local_map.position_cache[landmark->id], current_frame->pose);
         kps_last.push_back(feature->keypoint.pt);
