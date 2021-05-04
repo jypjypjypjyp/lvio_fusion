@@ -13,6 +13,8 @@ namespace lvio_fusion
 typedef std::vector<visual::Feature::Ptr> Level;
 typedef std::vector<Level> Pyramid;
 
+extern cv::Mat img_track;
+
 class LocalMap
 {
 public:

@@ -18,11 +18,12 @@ Frontend::Frontend(int num_features, int init, int tracking, int tracking_bad, i
 {
 }
 
+cv::Mat img_track;
 bool Frontend::AddFrame(Frame::Ptr frame)
 {
     std::unique_lock<std::mutex> lock(mutex);
-
     current_frame = frame;
+    cv::cvtColor(current_frame->image_left, img_track, cv::COLOR_GRAY2RGB);
     switch (status)
     {
     case FrontendStatus::BUILDING:
@@ -37,6 +38,8 @@ bool Frontend::AddFrame(Frame::Ptr frame)
         Track();
         break;
     }
+    cv::imshow("tracking", img_track);
+    cv::waitKey(1);
     last_frame = current_frame;
     last_frame_pose_cache_ = last_frame->pose;
     return true;
@@ -162,6 +165,7 @@ bool check_pose(SE3d current_pose, SE3d last_pose, SE3d init_pose)
     double current_relative[6], relative[6];
     ceres::SE3ToRpyxyz((last_pose.inverse() * current_pose).data(), current_relative);
     ceres::SE3ToRpyxyz((last_pose.inverse() * init_pose).data(), relative);
+    // TODO： stat and change
     return std::fabs(current_relative[0] - relative[0]) < 0.5 &&
            std::fabs(current_relative[1] - relative[1]) < 0.2 &&
            std::fabs(current_relative[2] - relative[2]) < 0.2 &&
@@ -316,8 +320,6 @@ int Frontend::TrackLastFrame()
     bool use_pnp = (int)points_2d_near.size() > num_features_tracking_bad_;
     bool use_far = (int)points_2d_far.size() > num_features_tracking_bad_;
     int num_good_pts = 0;
-    cv::Mat img_track;
-    cv::cvtColor(current_frame->image_left, img_track, cv::COLOR_GRAY2RGB);
     if (use_far || use_pnp)
     {
         // near
@@ -372,8 +374,6 @@ int Frontend::TrackLastFrame()
             num_good_pts++;
         }
     }
-    cv::imshow("tracking", img_track);
-    cv::waitKey(1);
 
     LOG(INFO) << "Find " << num_good_pts << " in the last image.";
     return num_good_pts;

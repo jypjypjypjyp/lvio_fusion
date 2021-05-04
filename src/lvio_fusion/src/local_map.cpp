@@ -162,6 +162,16 @@ void LocalMap::GetNewLandmarks(Frame::Ptr frame, Pyramid &pyramid)
             features.push_back(feature);
         }
     }
+    // need to check if is a moving point
+    for (auto &pair_feature : frame->features_left)
+    {
+        auto feature = pair_feature.second;
+        auto landmark = feature->landmark.lock();
+        if (!Camera::Get()->Far(position_cache[landmark->id], frame->pose))
+        {
+            features.push_back(feature);
+        }
+    }
 
     Triangulate(frame, features);
 
@@ -203,13 +213,13 @@ void LocalMap::GetNewLandmarks(Frame::Ptr frame, Pyramid &pyramid)
     }
 }
 
-void LocalMap::Triangulate(Frame::Ptr frame, Level &featrues)
+void LocalMap::Triangulate(Frame::Ptr frame, Level &features)
 {
     std::vector<cv::Point2f> kps_left, kps_right;
-    kps_left.resize(featrues.size());
-    for (int i = 0; i < featrues.size(); i++)
+    kps_left.resize(features.size());
+    for (int i = 0; i < features.size(); i++)
     {
-        kps_left[i] = featrues[i]->keypoint.pt;
+        kps_left[i] = features[i]->keypoint.pt;
     }
     kps_right = kps_left;
     std::vector<uchar> status;
@@ -224,16 +234,31 @@ void LocalMap::Triangulate(Frame::Ptr frame, Level &featrues)
             Vector2d kp_right = cv2eigen(kps_right[i]);
             Vector3d pb = Vector3d::Zero();
             triangulate(Camera::Get()->extrinsic.inverse(), Camera::Get(1)->extrinsic.inverse(), Camera::Get()->Pixel2Sensor(kp_left), Camera::Get(1)->Pixel2Sensor(kp_right), pb);
-            if ((Camera::Get()->Robot2Pixel(pb) - kp_left).norm() < 0.5 && (Camera::Get(1)->Robot2Pixel(pb) - kp_right).norm() < 0.5)
+            if (pb.z() > 0 && (Camera::Get()->Robot2Pixel(pb) - kp_left).norm() < 0.5 && (Camera::Get(1)->Robot2Pixel(pb) - kp_right).norm() < 0.5)
             {
-                auto new_landmark = visual::Landmark::Create(1 / Camera::Get(1)->Robot2Sensor(pb).z());
-                featrues[i]->landmark = new_landmark; // new left feature
-                auto new_right_feature = visual::Feature::Create(frame, cv::KeyPoint(kps_right[i], 1), new_landmark);
-                new_right_feature->is_on_left_image = false;
-                new_landmark->AddObservation(featrues[i]);
-                new_landmark->AddObservation(new_right_feature);
-                position_cache[new_landmark->id] = ToWorld(featrues[i]);
-                landmarks[new_landmark->id] = new_landmark;
+                if (features[i]->landmark.expired())
+                {
+                    auto new_landmark = visual::Landmark::Create(1 / Camera::Get(1)->Robot2Sensor(pb).z());
+                    features[i]->landmark = new_landmark; // new left feature
+                    auto new_right_feature = visual::Feature::Create(frame, cv::KeyPoint(kps_right[i], 1), new_landmark);
+                    new_right_feature->is_on_left_image = false;
+                    new_landmark->AddObservation(features[i]);
+                    new_landmark->AddObservation(new_right_feature);
+                    position_cache[new_landmark->id] = ToWorld(features[i]);
+                    landmarks[new_landmark->id] = new_landmark;
+                    cv::circle(img_track, kps_left[i], 2, cv::Scalar(255, 0, 0), cv::FILLED);
+                }
+                else
+                {
+                    // check if is a moving point
+                    Vector3d pw = Camera::Get(1)->Robot2World(pb, frame->pose);
+                    double e = (pw - position_cache[features[i]->landmark.lock()->id]).norm() / pb.z();
+                    if (e > 0.5)
+                    {
+                        frame->RemoveFeature(features[i]);
+                        cv::putText(img_track, "X", kps_left[i], cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 0, 255));
+                    }
+                }
             }
         }
     }

@@ -37,7 +37,7 @@ public:
 
     bool Far(const Vector3d &pw, const SE3d &Tcw)
     {
-        return World2Sensor(pw, Tcw).z() > baseline * 40;
+        return World2Sensor(pw, Tcw).z() > baseline * 50;
     }
 
     // coordinate transform: world, sensor, pixel
