@@ -2,6 +2,8 @@
 
 ## Introduction
 
+A Self-adaptive Multi-sensor Fusion SLAM Framework Using Actor-critic Method. In 1.0, we built a common framework, and we will focus on the complex environment of vehicles in 2.0. 
+
 ## Dependencies
 
 * ros (Kinetic/Melodic/Noetic)
@@ -24,9 +26,6 @@ Run:
 source devel/setup.bash
 roslaunch lvio_fusion_node kitti.launch
 ```
-
-## Method
-
 
 ## Result
 
