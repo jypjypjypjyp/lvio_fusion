@@ -284,7 +284,7 @@ void Navsat::OptimizeRX(Frame::Ptr frame, double end, double time, int mode)
     frame->pose = frame->pose * rpyxyz2se3(para);
     SE3d new_pose = frame->pose;
     SE3d transform = new_pose * old_pose.inverse();
-    PoseGraph::Instance().Propagate(transform, Map::Instance().GetKeyFrames(frame->time + epsilon, time));
+    PoseGraph::Instance().ForwardUpdate(transform, Map::Instance().GetKeyFrames(frame->time + epsilon, time));
 }
 
 void Navsat::OptimizeZ(Frame::Ptr frame, double time)
@@ -295,7 +295,7 @@ void Navsat::OptimizeZ(Frame::Ptr frame, double time)
         frame->pose.translation() = GetFixPoint(frame);
         SE3d new_pose = frame->pose;
         SE3d transform = new_pose * old_pose.inverse();
-        PoseGraph::Instance().Propagate(transform, Map::Instance().GetKeyFrames(frame->time + epsilon, time));
+        PoseGraph::Instance().ForwardUpdate(transform, Map::Instance().GetKeyFrames(frame->time + epsilon, time));
     }
 }
 

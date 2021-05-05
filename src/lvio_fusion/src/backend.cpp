@@ -194,7 +194,7 @@ void Backend::Optimize()
         // propagate to the last frame
         SE3d new_pose = (--active_kfs.end())->second->pose;
         SE3d transform = new_pose * old_pose.inverse();
-        ForwardPropagate(transform, end + epsilon);
+        UpdateFrontend(transform, end + epsilon);
         finished = end + epsilon - window_size_;
     }
 
@@ -235,7 +235,7 @@ void Backend::Optimize()
         navsat_start = std::min(navsat_start, fix_start);
         SE3d new_pose = (--active_kfs.end())->second->pose;
         SE3d transform = new_pose * old_pose.inverse();
-        PoseGraph::Instance().ForwardPropagate(transform, end + epsilon, false);
+        PoseGraph::Instance().ForwardUpdate(transform, end + epsilon, false);
         if (navsat_start && mapping_)
         {
             Frames mapping_kfs = Map::Instance().GetKeyFrames(navsat_start);
@@ -247,7 +247,7 @@ void Backend::Optimize()
     }
 }
 
-void Backend::ForwardPropagate(SE3d transform, double time)
+void Backend::UpdateFrontend(SE3d transform, double time)
 {
     std::unique_lock<std::mutex> lock(frontend_.lock()->mutex);
     Frame::Ptr last_frame = frontend_.lock()->last_frame;
@@ -256,7 +256,7 @@ void Backend::ForwardPropagate(SE3d transform, double time)
     {
         active_kfs[last_frame->time] = last_frame;
     }
-    PoseGraph::Instance().Propagate(transform, active_kfs);
+    PoseGraph::Instance().ForwardUpdate(transform, active_kfs);
     if (Imu::Num() && (!Navsat::Num() || (Navsat::Num() && Navsat::Get()->initialized)))
     {
         InitializeImu(active_kfs, time);
@@ -356,7 +356,7 @@ void Backend::InitializeImu(Frames active_kfs, double time)
         {
             new_pose = (--frames_init.end())->second->pose;
             SE3d transform = new_pose * old_pose.inverse();
-            PoseGraph::Instance().Propagate(transform, active_kfs);
+            PoseGraph::Instance().ForwardUpdate(transform, active_kfs);
             for (auto kf : active_kfs)
             {
                 Frame::Ptr frame = kf.second;

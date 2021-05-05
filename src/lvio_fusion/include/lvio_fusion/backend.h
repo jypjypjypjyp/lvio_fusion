@@ -53,7 +53,7 @@ private:
 
     void Optimize();
 
-    void ForwardPropagate(SE3d transform, double time );
+    void UpdateFrontend(SE3d transform, double time );
 
     void BuildProblem(Frames &active_kfs, adapt::Problem &problem,bool isimu=true);
 

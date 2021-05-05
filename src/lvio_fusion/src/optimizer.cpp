@@ -191,18 +191,18 @@ void PoseGraph::Optimize(Atlas &sections, Section &submap, adapt::Problem &probl
         {
             SE3d transfrom = Map::Instance().GetKeyFrame(last_time)->pose * last_section.pose.inverse();
             Frames forward_kfs = Map::Instance().GetKeyFrames(last_time + epsilon, pair.first - epsilon);
-            Propagate(transfrom, forward_kfs);
+            ForwardUpdate(transfrom, forward_kfs);
         }
         last_time = pair.first;
         last_section = pair.second;
     }
     SE3d transfrom = Map::Instance().GetKeyFrame(last_time)->pose * last_section.pose.inverse();
     Frames forward_kfs = Map::Instance().GetKeyFrames(last_time + epsilon, submap.B - epsilon);
-    Propagate(transfrom, forward_kfs);
+    ForwardUpdate(transfrom, forward_kfs);
 }
 
 // new pose = transform * old pose;
-void PoseGraph::ForwardPropagate(SE3d transform, double start_time, bool need_lock)
+void PoseGraph::ForwardUpdate(SE3d transform, double start_time, bool need_lock)
 {
     std::unique_lock<std::mutex> lock(frontend_->mutex, std::defer_lock);
     if (need_lock)
@@ -215,12 +215,12 @@ void PoseGraph::ForwardPropagate(SE3d transform, double start_time, bool need_lo
     {
         forward_kfs[last_frame->time] = last_frame;
     }
-    Propagate(transform, forward_kfs);
+    ForwardUpdate(transform, forward_kfs);
     frontend_->UpdateCache();
 }
 
 // new pose = transform * old pose;
-void PoseGraph::Propagate(SE3d transform, const Frames &forward_kfs)
+void PoseGraph::ForwardUpdate(SE3d transform, const Frames &forward_kfs)
 {
     for (auto &pair : forward_kfs)
     {

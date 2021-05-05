@@ -180,7 +180,7 @@ void Mapping::Optimize(Frames &active_kfs)
         }
         SE3d new_pose = pair.second->pose;
         SE3d transform = new_pose * old_pose.inverse();
-        PoseGraph::Instance().ForwardPropagate(transform, pair.first + epsilon);
+        PoseGraph::Instance().ForwardUpdate(transform, pair.first + epsilon);
 
         ToWorld(pair.second);
 

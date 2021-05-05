@@ -54,9 +54,9 @@ public:
 
     void Optimize(Atlas &sections, Section &submap, adapt::Problem &problem);
 
-    void ForwardPropagate(SE3d transfrom, double start_time, bool need_lock = true);
+    void ForwardUpdate(SE3d transfrom, double start_time, bool need_lock = true);
 
-    void Propagate(SE3d transfrom, const Frames &forward_kfs);
+    void ForwardUpdate(SE3d transfrom, const Frames &forward_kfs);
 
     Section current_section;
     bool turning = false;

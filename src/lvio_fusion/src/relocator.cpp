@@ -228,7 +228,7 @@ void Relocator::CorrectLoop(double old_time, double start_time, double end_time)
     SE3d new_pose = (--new_submap_kfs.end())->second->pose;
     // forward propogate
     SE3d transform = new_pose * old_pose.inverse();
-    PoseGraph::Instance().ForwardPropagate(transform, end_time + epsilon);
+    PoseGraph::Instance().ForwardUpdate(transform, end_time + epsilon);
     // fix navsat
     if (Navsat::Num())
     {
