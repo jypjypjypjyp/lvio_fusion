@@ -7,3 +7,4 @@ notes
 src/CMakeLists.txt
 **/__pycache__
 misc/log/**
+result
