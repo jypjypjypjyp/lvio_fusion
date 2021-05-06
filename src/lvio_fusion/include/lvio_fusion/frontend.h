@@ -13,7 +13,8 @@ enum class FrontendStatus
 {
     BUILDING,
     INITIALIZING,
-    TRACKING
+    TRACKING,
+    LOST
 };
 
 class Frontend

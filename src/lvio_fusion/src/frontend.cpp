@@ -32,6 +32,7 @@ bool Frontend::AddFrame(Frame::Ptr frame)
         break;
     case FrontendStatus::INITIALIZING:
     case FrontendStatus::TRACKING:
+    case FrontendStatus::LOST:
         InitFrame();
         Track();
         break;
@@ -232,7 +233,7 @@ bool Frontend::Track()
         else
         {
             // tracking bad, init map again
-            status = FrontendStatus::BUILDING;
+            status = FrontendStatus::LOST;
             current_frame->features_left.clear();
             InitMap();
             current_frame->pose = init_pose;
