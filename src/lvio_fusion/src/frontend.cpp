@@ -152,19 +152,12 @@ bool check_pose(SE3d current_pose, SE3d last_pose)
 {
     double relative[6];
     ceres::SE3ToRpyxyz((last_pose.inverse() * current_pose).data(), relative);
-    // TODO： stat and change
-    LOG(INFO) << "1:" << std::fabs(relative[0]);
-    LOG(INFO) << "2:" << std::fabs(relative[1]);
-    LOG(INFO) << "3:" << std::fabs(relative[2]);
-    LOG(INFO) << "4:" << std::fabs(relative[3]);
-    LOG(INFO) << "5:" << std::fabs(relative[4]);
-    LOG(INFO) << "6:" << std::fabs(relative[5]);
-    return true ||(std::fabs(relative[0]) < 0.5 &&
-           std::fabs(relative[1]) < 0.2 &&
-           std::fabs(relative[2]) < 0.2 &&
-           std::fabs(relative[3]) < 2 &&
+    return std::fabs(relative[0]) < 0.1 &&
+           std::fabs(relative[1]) < 0.01 &&
+           std::fabs(relative[2]) < 0.01 &&
+           std::fabs(relative[3]) < 3 &&
            std::fabs(relative[4]) < 1 &&
-           std::fabs(relative[5]) < 1);
+           std::fabs(relative[5]) < 1;
 }
 
 void Frontend::InitFrame()
