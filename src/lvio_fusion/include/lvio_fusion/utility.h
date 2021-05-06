@@ -204,7 +204,7 @@ inline T normalize_angle(const T &angle_degrees)
 
 double vectors_degree_angle(Vector3d v1, Vector3d v2);
 
-// SE3d slerp, the bigger s(0,1), the closer the result is to b
+// SE3d slerp, the bigger s(0,1) is, the closer the result is to b
 SE3d se3_slerp(const SE3d &a, const SE3d &b, double s);
 
 Matrix3d exp_so3(const Vector3d &so3);

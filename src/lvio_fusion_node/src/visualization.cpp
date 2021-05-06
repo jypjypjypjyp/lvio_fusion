@@ -33,7 +33,7 @@ void register_pub(ros::NodeHandle &n)
 void publish_odometry(Estimator::Ptr estimator, double time)
 {
     auto &&submap = PoseGraph::Instance().GetSections(0, 0);
-    if (estimator->frontend->status == FrontendStatus::TRACKING_GOOD)
+    if (estimator->frontend->status == FrontendStatus::TRACKING)
     {
         path.poses.clear();
         cameraposevisual.reset();
@@ -123,7 +123,7 @@ void publish_tf(Estimator::Ptr estimator, double time)
     tf::Quaternion tf_q;
     tf::Vector3 tf_t;
     // base_link
-    if (estimator->frontend->status == FrontendStatus::TRACKING_GOOD)
+    if (estimator->frontend->status == FrontendStatus::TRACKING)
     {
         SE3d pose = estimator->frontend->current_frame->pose;
         Quaterniond pose_q = pose.unit_quaternion();

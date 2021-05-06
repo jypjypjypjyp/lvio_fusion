@@ -107,7 +107,6 @@ void Backend::BuildProblem(Frames &active_kfs, adapt::Problem &problem, bool use
             }
         }
 
-        // IMU
         if (Imu::Num() && Imu::Get()->initialized && use_imu)
         {
             if (frame->is_imu_good && frame->preintegration != nullptr)
@@ -290,7 +289,7 @@ void Backend::UpdateFrontend(SE3d transform, double time)
             frontend_.lock()->UpdateImu((--active_kfs.end())->second->GetImuBias());
         }
     }
-
+    
     frontend_.lock()->UpdateCache();
 }
 

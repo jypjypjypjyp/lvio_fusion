@@ -75,7 +75,7 @@ void imu::ReComputeBiasVel(Frames &frames, Frame::Ptr &prior_frame)
             continue;
         }
         Bias bias(frame->ImuBias.linearized_ba, frame->ImuBias.linearized_bg);
-        frame->SetNewBias(bias);
+        frame->SetImuBias(bias);
     }
     return;
 }
@@ -135,7 +135,7 @@ void imu::ReComputeBiasVel(Frames &frames)
             continue;
         }
         Bias bias(frame->ImuBias.linearized_ba, frame->ImuBias.linearized_bg);
-        frame->SetNewBias(bias);
+        frame->SetImuBias(bias);
     }
     return;
 }
@@ -158,7 +158,7 @@ void imu::RePredictVel(Frames &frames, Frame::Ptr &prior_frame)
         Vector3d twb2 = twb1 + Vwb1 * t12 + 0.5f * t12 * t12 * Gz + Rwb1 * current_key_frame->preintegration->GetDeltaPosition(last_key_frame->GetImuBias());
         Vector3d Vwb2 = Vwb1 + t12 * Gz + Rwb1 * current_key_frame->preintegration->GetDeltaVelocity(last_key_frame->GetImuBias());
         current_key_frame->SetVelocity(Vwb2);
-        current_key_frame->SetNewBias(last_key_frame->GetImuBias());
+        current_key_frame->SetImuBias(last_key_frame->GetImuBias());
         last_key_frame = current_key_frame;
     }
 }
@@ -230,12 +230,12 @@ bool imu::InertialOptimization(Frames &key_frames, Matrix3d &Rwg, double prior_g
         Vector3d dbg = current_frame->GetGyroBias() - bg;
         if (dbg.norm() > 0.01)
         {
-            current_frame->SetNewBias(bias);
+            current_frame->SetImuBias(bias);
             current_frame->preintegration->Repropagate(bias.linearized_ba, bias.linearized_bg);
         }
         else
         {
-            current_frame->SetNewBias(bias);
+            current_frame->SetImuBias(bias);
         }
     }
     return true;
@@ -330,7 +330,7 @@ void imu::FullInertialBA(Frames &frames, double prior_g, double prior_a)
         if (current_frame->is_imu_good)
         {
             Bias bias(para_ba[0], para_ba[1], para_ba[2], para_bg[0], para_bg[1], para_bg[2]);
-            current_frame->SetNewBias(bias);
+            current_frame->SetImuBias(bias);
         }
     }
 }
@@ -359,7 +359,7 @@ void imu::RecoverData(Frames &frames, SE3d old_pose, bool set_bias)
         frame->SetVelocity(translation * frame->Vw);
         if (set_bias)
         {
-            frame->SetNewBias(frame->GetImuBias());
+            frame->SetImuBias(frame->GetImuBias());
         }
     }
 }

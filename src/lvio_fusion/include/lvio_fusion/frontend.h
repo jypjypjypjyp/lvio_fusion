@@ -13,9 +13,7 @@ enum class FrontendStatus
 {
     BUILDING,
     INITIALIZING,
-    TRACKING_GOOD,
-    TRACKING_TRY,
-    LOST
+    TRACKING
 };
 
 class Frontend
@@ -40,7 +38,6 @@ public:
     Frame::Ptr current_frame;
     Frame::Ptr last_frame;
     Frame::Ptr last_keyframe;
-    SE3d relative_i_j;
     LocalMap local_map;
     double valid_imu_time = 0;
     bool last_keyframe_updated = false;
@@ -62,15 +59,17 @@ private:
 
     int TriangulateNewPoints();
 
-    void PreintegrateImu();
+    void Preintegrate();
 
-    void PredictStateImu();
+    void PredictState();
 
     // data
     std::weak_ptr<Backend> backend_;
-    SE3d last_frame_pose_cache_;
     std::queue<ImuData> imu_buf_;
-    imu::Preintegration::Ptr imu_preintegrated_from_last_kf_;
+    imu::Preintegration::Ptr preintegration_last_kf_; // imu pre integration from last key frame
+    SE3d last_frame_pose_cache_;
+    SE3d relative_i_j_;
+    double dt_ = 0;
 
     // params
     int num_features_init_;

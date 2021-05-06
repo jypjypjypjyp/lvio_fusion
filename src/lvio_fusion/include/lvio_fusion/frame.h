@@ -33,32 +33,32 @@ public:
     static unsigned long current_frame_id;
     unsigned long id;
     double time;
+    Frame::Ptr last_keyframe;
     cv::Mat image_left, image_right;
-    visual::Features features_left;          // extracted features in left image
-    visual::Features features_right;         // corresponding features in right image, only for this frame
-    lidar::Feature::Ptr feature_lidar;       // extracted features in lidar point cloud
-    imu::Preintegration::Ptr preintegration; // imu pre integration from last key frame
+    visual::Features features_left;               // extracted features in left image
+    visual::Features features_right;              // corresponding features in right image, only for this frame
+    lidar::Feature::Ptr feature_lidar;            // extracted features in lidar point cloud
+    imu::Preintegration::Ptr preintegration;      // imu pre integration from last key frame
     imu::Preintegration::Ptr preintegration_last; // imu pre integration from last frame
-    navsat::Feature::Ptr feature_navsat;     // navsat point
-    cv::Mat descriptors;                     // orb descriptors
-    loop::LoopClosure::Ptr loop_closure;     // loop closure
-    Weights weights;
+    navsat::Feature::Ptr feature_navsat;          // navsat point
+    cv::Mat descriptors;                          // orb descriptors
+    loop::LoopClosure::Ptr loop_closure;          // loop closure
+    Weights weights;                              // weights of different factors
     SE3d pose;
 
     Vector3d GetGyroBias();
     Vector3d GetAccBias();
-    Matrix3d  GetImuRotation();
-    Vector3d  GetImuPosition();
-    void SetVelocity(const Vector3d  &Vw_);
-    Bias GetImuBias();
+    Matrix3d GetImuRotation();
+    Vector3d GetImuPosition();
     Vector3d GetVelocity();
-    void SetNewBias(const Bias &bias_);
-    void SetPose(const Matrix3d &Rwb_,const Vector3d  &twb_);
+    void SetVelocity(const Vector3d &Vw_);
+    Bias GetImuBias();
+    void SetImuBias(const Bias &bias_);
+    void SetPose(const Matrix3d &Rwb_, const Vector3d &twb_);
 
-    Frame::Ptr last_keyframe;
-    Vector3d Vw;                    // IMU linear velocity
-    Bias ImuBias;
-    bool is_imu_good = false;       // can be used in IMU optimization?
+    Vector3d Vw;              // Imu linear velocity
+    Bias ImuBias;             // Imu bias
+    bool is_imu_good = false; // can be used in Imu optimization?
 };
 
 typedef std::map<double, Frame::Ptr> Frames;

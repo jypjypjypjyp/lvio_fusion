@@ -368,7 +368,7 @@ void keyboard_process()
     while (ros::ok())
     {
         key = getch();
-        if (estimator->frontend->status != FrontendStatus::TRACKING_GOOD)
+        if (estimator->frontend->status != FrontendStatus::TRACKING)
             continue;
         switch (key)
         {

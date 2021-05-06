@@ -164,6 +164,11 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
     return true;
 }
 
+std::map<FrontendStatus, std::string> map_status = {
+    {FrontendStatus::BUILDING, "Building"},
+    {FrontendStatus::INITIALIZING, "Initializing"},
+    {FrontendStatus::TRACKING, "Tracking"}
+};
 void Estimator::InputImage(double time, cv::Mat &left_image, cv::Mat &right_image, SE3d init_odom)
 {
     Frame::Ptr new_frame = Frame::Create();
@@ -177,7 +182,7 @@ void Estimator::InputImage(double time, cv::Mat &left_image, cv::Mat &right_imag
     auto t2 = std::chrono::steady_clock::now();
     auto time_used =
         std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);
-    LOG(INFO) << "VO status:" << (success ? "success" : "failed") << ",VO cost time: " << time_used.count() << " seconds.";
+    LOG(INFO) << "Frontend status:" << map_status[frontend->status] << ", cost time: " << time_used.count() << " seconds.";
 }
 
 void Estimator::InputPointCloud(double time, Point3Cloud::Ptr point_cloud)

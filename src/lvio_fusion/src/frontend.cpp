@@ -27,13 +27,11 @@ bool Frontend::AddFrame(Frame::Ptr frame)
     switch (status)
     {
     case FrontendStatus::BUILDING:
-    case FrontendStatus::LOST:
         // Reset();
         InitMap();
         break;
     case FrontendStatus::INITIALIZING:
-    case FrontendStatus::TRACKING_GOOD:
-    case FrontendStatus::TRACKING_TRY:
+    case FrontendStatus::TRACKING:
         InitFrame();
         Track();
         break;
@@ -50,13 +48,13 @@ void Frontend::AddImu(double time, Vector3d acc, Vector3d gyr)
     imu_buf_.push(ImuData(acc, gyr, time));
 }
 
-void Frontend::PreintegrateImu()
+void Frontend::Preintegrate()
 {
     if (!last_frame)
         return;
 
     std::vector<ImuData> imu_from_last_frame;
-    int timeout = 100; // ms
+    int timeout = dt_ * 1e3; // 100ms
     while (timeout)
     {
         if (imu_buf_.empty())
@@ -82,26 +80,25 @@ void Frontend::PreintegrateImu()
         }
     }
 
-    const int n = imu_from_last_frame.size() - 1;
-    imu::Preintegration::Ptr imu_preintegrated_from_last_frame = imu::Preintegration::Create(last_frame->GetImuBias());
-    if (imu_preintegrated_from_last_kf_ == nullptr)
-        imu_preintegrated_from_last_kf_ = imu::Preintegration::Create(last_frame->GetImuBias());
+    int n = imu_from_last_frame.size();
+    auto preintegration_last_frame = imu::Preintegration::Create(last_frame->GetImuBias());
+    preintegration_last_kf_ = preintegration_last_kf_ ? preintegration_last_kf_ : imu::Preintegration::Create(last_frame->GetImuBias());
 
-    bool last_kf_bad = false, last_frame_bad = false;
-    if (n < 5)
+    if (n < 4)
     {
+        // If n is smaller than 3, initialize again.
         valid_imu_time = last_frame->time + epsilon;
         if (Imu::Get()->initialized)
         {
             Imu::Get()->initialized = false;
             status = FrontendStatus::INITIALIZING;
         }
-        last_kf_bad = true;
-        last_frame_bad = true;
+        current_frame->preintegration = nullptr;
+        current_frame->is_imu_good = false;
     }
     else
     {
-        for (int i = 0; i < n; i++)
+        for (int i = 0; i < n - 1; i++)
         {
             double tstep;
             double tab;
@@ -117,7 +114,7 @@ void Frontend::PreintegrateImu()
                 ang_vel0 = imu_from_last_frame[i].w - (imu_from_last_frame[i + 1].w - imu_from_last_frame[i].w) * (tini / tab);
                 tstep = imu_from_last_frame[i + 1].t - last_frame->time;
             }
-            else if (i < n - 1)
+            else if (i < n - 2)
             {
                 acc = imu_from_last_frame[i + 1].a;
                 acc0 = imu_from_last_frame[i].a;
@@ -125,7 +122,7 @@ void Frontend::PreintegrateImu()
                 ang_vel0 = imu_from_last_frame[i].w;
                 tstep = imu_from_last_frame[i + 1].t - imu_from_last_frame[i].t;
             }
-            else if (i == n - 1)
+            else if (i == n - 2)
             {
                 tab = imu_from_last_frame[i + 1].t - imu_from_last_frame[i].t;
                 double tend = imu_from_last_frame[i + 1].t - current_frame->time;
@@ -137,56 +134,54 @@ void Frontend::PreintegrateImu()
             }
             if (tab == 0)
                 continue;
-            imu_preintegrated_from_last_kf_->Append(tstep, acc, ang_vel, acc0, ang_vel0);
-            imu_preintegrated_from_last_frame->Append(tstep, acc, ang_vel, acc0, ang_vel0);
+            preintegration_last_kf_->Append(tstep, acc, ang_vel, acc0, ang_vel0);
+            preintegration_last_frame->Append(tstep, acc, ang_vel, acc0, ang_vel0);
         }
-    }
 
-    if (!last_kf_bad)
-    {
         if (Imu::Get()->initialized)
         {
             current_frame->is_imu_good = true;
         }
-        current_frame->preintegration = imu_preintegrated_from_last_kf_;
+        current_frame->preintegration = preintegration_last_kf_;
+        current_frame->preintegration_last = preintegration_last_frame;
     }
-    else
-    {
-        current_frame->preintegration = nullptr;
-        current_frame->is_imu_good = false;
-    }
-
-    if (!last_frame_bad)
-        current_frame->preintegration_last = imu_preintegrated_from_last_frame;
 }
 
-bool check_pose(SE3d current_pose, SE3d last_pose, SE3d init_pose)
+bool check_pose(SE3d current_pose, SE3d last_pose)
 {
-    double current_relative[6], relative[6];
-    ceres::SE3ToRpyxyz((last_pose.inverse() * current_pose).data(), current_relative);
-    ceres::SE3ToRpyxyz((last_pose.inverse() * init_pose).data(), relative);
+    double relative[6];
+    ceres::SE3ToRpyxyz((last_pose.inverse() * current_pose).data(), relative);
     // TODO： stat and change
-    return std::fabs(current_relative[0] - relative[0]) < 0.5 &&
-           std::fabs(current_relative[1] - relative[1]) < 0.2 &&
-           std::fabs(current_relative[2] - relative[2]) < 0.2 &&
-           std::fabs(current_relative[3] - relative[3]) < 2 &&
-           std::fabs(current_relative[4] - relative[4]) < 1 &&
-           std::fabs(current_relative[5] - relative[5]) < 1;
+    LOG(INFO) << "1:" << std::fabs(relative[0]);
+    LOG(INFO) << "2:" << std::fabs(relative[1]);
+    LOG(INFO) << "3:" << std::fabs(relative[2]);
+    LOG(INFO) << "4:" << std::fabs(relative[3]);
+    LOG(INFO) << "5:" << std::fabs(relative[4]);
+    LOG(INFO) << "6:" << std::fabs(relative[5]);
+    return true ||(std::fabs(relative[0]) < 0.5 &&
+           std::fabs(relative[1]) < 0.2 &&
+           std::fabs(relative[2]) < 0.2 &&
+           std::fabs(relative[3]) < 2 &&
+           std::fabs(relative[4]) < 1 &&
+           std::fabs(relative[5]) < 1);
 }
 
 void Frontend::InitFrame()
 {
+    dt_ = current_frame->time - last_frame->time;
     current_frame->last_keyframe = last_keyframe;
+    // no kf input
     if (current_frame->pose.translation() == Vector3d::Zero())
     {
-        current_frame->pose = last_frame_pose_cache_ * relative_i_j;
+        current_frame->pose = last_frame_pose_cache_ * relative_i_j_;
+        check_pose(current_frame->pose, last_frame_pose_cache_);
         if (Imu::Num())
         {
-            current_frame->SetNewBias(last_frame->GetImuBias());
-            PreintegrateImu();
+            current_frame->SetImuBias(last_frame->GetImuBias());
+            Preintegrate();
             if (Imu::Get()->initialized)
             {
-                PredictStateImu();
+                PredictState();
             }
         }
         if (Navsat::Num() && Navsat::Get()->initialized)
@@ -198,7 +193,7 @@ void Frontend::InitFrame()
             {
                 // relative navsat pose
                 SE3d current_pose = last_frame_pose_cache_ * last_navsat_pose.inverse() * navsat_pose;
-                if (check_pose(current_pose, last_frame_pose_cache_, current_frame->pose))
+                if (check_pose(current_pose, last_frame_pose_cache_))
                 {
                     current_frame->pose = current_pose;
                 }
@@ -218,10 +213,12 @@ bool Frontend::Track()
     {
         if (Imu::Num() && Imu::Get()->initialized)
         {
-            status = FrontendStatus::TRACKING_GOOD;
+            // finish initialization
+            status = FrontendStatus::TRACKING;
         }
         else if (!num_inliers)
         {
+            // fail to initialize
             status = FrontendStatus::BUILDING;
         }
     }
@@ -230,28 +227,25 @@ bool Frontend::Track()
         if (num_inliers)
         {
             // tracking good
-            status = FrontendStatus::TRACKING_GOOD;
+            status = FrontendStatus::TRACKING;
         }
         else
         {
-            // tracking bad, but give a chance
-            status = FrontendStatus::TRACKING_GOOD;
+            // tracking bad, init map again
+            status = FrontendStatus::BUILDING;
             current_frame->features_left.clear();
             InitMap();
             current_frame->pose = init_pose;
-            LOG(INFO) << "Lost, disable cameras!";
+            LOG(INFO) << "Lost, init map again!";
             return false;
         }
     }
 
-    if ((status == FrontendStatus::TRACKING_GOOD && num_inliers < num_features_needed_for_keyframe_) ||
+    if ((status == FrontendStatus::TRACKING && num_inliers < num_features_needed_for_keyframe_) ||
         (status == FrontendStatus::INITIALIZING && current_frame->time - last_keyframe->time > 0.25))
     {
         CreateKeyframe();
     }
-
-    // smooth trajectory
-    relative_i_j = se3_slerp(relative_i_j, last_frame_pose_cache_.inverse() * current_frame->pose, 0.5);
     return true;
 }
 
@@ -335,7 +329,7 @@ int Frontend::TrackLastFrame()
                 Matrix3d R;
                 cv::cv2eigen(cv_R, R);
                 current_pose = (Camera::Get()->extrinsic * SE3d(SO3d(R), Vector3d(tvec.at<double>(0, 0), tvec.at<double>(1, 0), tvec.at<double>(2, 0)))).inverse();
-                success = inliers.rows > num_features_tracking_bad_ && check_pose(current_pose, last_frame_pose_cache_, current_frame->pose);
+                success = inliers.rows > num_features_tracking_bad_ && check_pose(current_pose, last_frame_pose_cache_);
             }
             if (success)
             {
@@ -389,12 +383,12 @@ bool Frontend::InitMap()
     {
         status = FrontendStatus::INITIALIZING;
         Imu::Get()->initialized = false;
-        imu_preintegrated_from_last_kf_ = nullptr;
+        preintegration_last_kf_ = nullptr;
         valid_imu_time = current_frame->time;
     }
     else
     {
-        status = FrontendStatus::TRACKING_GOOD;
+        status = FrontendStatus::TRACKING;
     }
 
     // the first frame is a keyframe
@@ -412,7 +406,7 @@ void Frontend::CreateKeyframe()
 {
     if (Imu::Num())
     {
-        imu_preintegrated_from_last_kf_ = nullptr;
+        preintegration_last_kf_ = nullptr;
     }
 
     // first, add new observations of old points
@@ -459,68 +453,53 @@ void Frontend::UpdateCache()
         }
     }
     last_frame_pose_cache_ = last_frame->pose;
+    auto last_keyframe2 = last_keyframe->last_keyframe;
+    if (last_keyframe2)
+    {
+        relative_i_j_ = se3_slerp(SE3d(), last_keyframe2->pose.inverse() * last_keyframe->pose, dt_ / (last_keyframe->time - last_keyframe2->time));
+    }
 }
 
 void Frontend::UpdateImu(const Bias &bias_)
 {
-    if (last_keyframe->preintegration != nullptr)
+    if (last_keyframe->preintegration)
         last_keyframe->is_imu_good = true;
 
-    last_frame->SetNewBias(bias_);
-    current_frame->SetNewBias(bias_);
-    Vector3d Gz;
-    Gz << 0, 0, -Imu::Get()->G;
+    last_frame->SetImuBias(bias_);
+    current_frame->SetImuBias(bias_);
+    Vector3d Gz(0, 0, -Imu::Get()->G);
     Gz = Imu::Get()->Rwg * Gz;
-    double dt;
-    Vector3d twb1, Vwb1, twb2, Vwb2;
-    Matrix3d Rwb1, Rwb2;
-    if (last_frame->last_keyframe && last_frame->preintegration)
+    if (last_frame != last_keyframe && last_frame->preintegration)
     {
-        if (std::fabs(last_frame->time - last_keyframe->time) > 0.001)
-        {
-            twb1 = last_frame->last_keyframe->GetImuPosition();
-            Rwb1 = last_frame->last_keyframe->GetImuRotation();
-            Vwb1 = last_frame->last_keyframe->GetVelocity();
-            dt = last_frame->preintegration->sum_dt;
-            Rwb2 = Rwb1 * last_frame->preintegration->GetUpdatedDeltaRotation();
-            twb2 = twb1 + Vwb1 * dt + 0.5f * dt * dt * Gz + Rwb1 * last_frame->preintegration->GetUpdatedDeltaPosition();
-            Vwb2 = Vwb1 + Gz * dt + Rwb1 * last_frame->preintegration->GetUpdatedDeltaVelocity();
-            last_frame->SetPose(Rwb2, twb2);
-            last_frame->SetVelocity(Vwb2);
-        }
-    }
-    if (std::fabs(current_frame->time - last_keyframe->time) > 0.001 &&
-        current_frame->preintegration && current_frame->last_keyframe)
-    {
-        twb1 = current_frame->last_keyframe->GetImuPosition();
-        Rwb1 = current_frame->last_keyframe->GetImuRotation();
-        Vwb1 = current_frame->last_keyframe->GetVelocity();
-        dt = current_frame->preintegration->sum_dt;
-        Rwb2 = Rwb1 * current_frame->preintegration->GetUpdatedDeltaRotation();
-        twb2 = twb1 + Vwb1 * dt + 0.5f * dt * dt * Gz + Rwb1 * current_frame->preintegration->GetUpdatedDeltaPosition();
-        Vwb2 = Vwb1 + Gz * dt + Rwb1 * current_frame->preintegration->GetUpdatedDeltaVelocity();
-        current_frame->SetPose(Rwb2, twb2);
-        current_frame->SetVelocity(Vwb2);
+        Vector3d twb1 = last_frame->last_keyframe->GetImuPosition();
+        Matrix3d Rwb1 = last_frame->last_keyframe->GetImuRotation();
+        Vector3d Vwb1 = last_frame->last_keyframe->GetVelocity();
+        double sum_dt = last_frame->preintegration->sum_dt;
+        Matrix3d Rwb2 = Rwb1 * last_frame->preintegration->GetUpdatedDeltaRotation();
+        Vector3d twb2 = twb1 + Vwb1 * sum_dt + 0.5f * sum_dt * sum_dt * Gz + Rwb1 * last_frame->preintegration->GetUpdatedDeltaPosition();
+        Vector3d Vwb2 = Vwb1 + Gz * sum_dt + Rwb1 * last_frame->preintegration->GetUpdatedDeltaVelocity();
+        last_frame->SetPose(Rwb2, twb2);
+        last_frame->SetVelocity(Vwb2);
     }
 }
 
-void Frontend::PredictStateImu()
+void Frontend::PredictState()
 {
     if (last_keyframe_updated && last_keyframe)
     {
         Vector3d Gz;
         Gz << 0, 0, -Imu::Get()->G;
         Gz = Imu::Get()->Rwg * Gz;
-        double dt = current_frame->preintegration->sum_dt;
+        double sum_dt = current_frame->preintegration->sum_dt;
         Vector3d twb1 = last_keyframe->GetImuPosition();
         Matrix3d Rwb1 = last_keyframe->GetImuRotation();
         Vector3d Vwb1 = last_keyframe->Vw;
         Matrix3d Rwb2 = normalize_R(Rwb1 * current_frame->preintegration->GetDeltaRotation(last_keyframe->GetImuBias()).toRotationMatrix());
-        Vector3d twb2 = twb1 + Vwb1 * dt + 0.5f * dt * dt * Gz + Rwb1 * current_frame->preintegration->GetDeltaPosition(last_keyframe->GetImuBias());
-        Vector3d Vwb2 = Vwb1 + dt * Gz + Rwb1 * current_frame->preintegration->GetDeltaVelocity(last_keyframe->GetImuBias());
+        Vector3d twb2 = twb1 + Vwb1 * sum_dt + 0.5f * sum_dt * sum_dt * Gz + Rwb1 * current_frame->preintegration->GetDeltaPosition(last_keyframe->GetImuBias());
+        Vector3d Vwb2 = Vwb1 + sum_dt * Gz + Rwb1 * current_frame->preintegration->GetDeltaVelocity(last_keyframe->GetImuBias());
         current_frame->SetVelocity(Vwb2);
         current_frame->SetPose(Rwb2, twb2);
-        current_frame->SetNewBias(last_keyframe->GetImuBias());
+        current_frame->SetImuBias(last_keyframe->GetImuBias());
         last_keyframe_updated = false;
     }
     else if (!last_keyframe_updated)
@@ -528,16 +507,16 @@ void Frontend::PredictStateImu()
         Vector3d Gz;
         Gz << 0, 0, -Imu::Get()->G;
         Gz = Imu::Get()->Rwg * Gz;
-        double dt = current_frame->preintegration_last->sum_dt;
+        double sum_dt = current_frame->preintegration_last->sum_dt;
         Vector3d twb1 = last_frame->GetImuPosition();
         Matrix3d Rwb1 = last_frame->GetImuRotation();
         Vector3d Vwb1 = last_frame->Vw;
         Matrix3d Rwb2 = normalize_R(Rwb1 * current_frame->preintegration_last->GetDeltaRotation(last_frame->GetImuBias()).toRotationMatrix());
-        Vector3d twb2 = twb1 + Vwb1 * dt + 0.5f * dt * dt * Gz + Rwb1 * current_frame->preintegration_last->GetDeltaPosition(last_frame->GetImuBias());
-        Vector3d Vwb2 = Vwb1 + dt * Gz + Rwb1 * current_frame->preintegration_last->GetDeltaVelocity(last_frame->GetImuBias());
+        Vector3d twb2 = twb1 + Vwb1 * sum_dt + 0.5f * sum_dt * sum_dt * Gz + Rwb1 * current_frame->preintegration_last->GetDeltaPosition(last_frame->GetImuBias());
+        Vector3d Vwb2 = Vwb1 + sum_dt * Gz + Rwb1 * current_frame->preintegration_last->GetDeltaVelocity(last_frame->GetImuBias());
         current_frame->SetVelocity(Vwb2);
         current_frame->SetPose(Rwb2, twb2);
-        current_frame->SetNewBias(last_frame->GetImuBias());
+        current_frame->SetImuBias(last_frame->GetImuBias());
     }
 }
 
