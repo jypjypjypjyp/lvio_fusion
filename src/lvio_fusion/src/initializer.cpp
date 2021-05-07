@@ -18,8 +18,8 @@ bool Initializer::EstimateVelAndRwg(Frames frames)
             if (!frame->preintegration || !frame->last_keyframe)
                 return false;
 
-            Ig += frame->last_keyframe->GetImuRotation() * frame->preintegration->GetUpdatedDeltaVelocity();
-            velocity = (frame->GetImuPosition() - frame->last_keyframe->GetImuPosition()) / frame->preintegration->sum_dt;
+            Ig += frame->last_keyframe->GetRotation() * frame->preintegration->GetUpdatedDeltaVelocity();
+            velocity = (frame->GetPosition() - frame->last_keyframe->GetPosition()) / frame->preintegration->sum_dt;
             frame->SetVelocity(velocity);
             frame->last_keyframe->SetVelocity(velocity);
         }

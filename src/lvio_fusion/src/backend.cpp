@@ -112,8 +112,8 @@ void Backend::BuildProblem(Frames &active_kfs, adapt::Problem &problem, bool use
             if (frame->is_imu_good && frame->preintegration != nullptr)
             {
                 auto para_v = frame->Vw.data();
-                auto para_bg = frame->ImuBias.linearized_bg.data();
-                auto para_ba = frame->ImuBias.linearized_ba.data();
+                auto para_bg = frame->bias.linearized_bg.data();
+                auto para_ba = frame->bias.linearized_ba.data();
                 problem.AddParameterBlock(para_v, 3);
                 problem.AddParameterBlock(para_ba, 3);
                 problem.AddParameterBlock(para_bg, 3);
@@ -121,8 +121,8 @@ void Backend::BuildProblem(Frames &active_kfs, adapt::Problem &problem, bool use
                 if (last_frame && last_frame->is_imu_good)
                 {
                     auto para_v_last = last_frame->Vw.data();
-                    auto para_bg_last = last_frame->ImuBias.linearized_bg.data();
-                    auto para_ba_last = last_frame->ImuBias.linearized_ba.data();
+                    auto para_bg_last = last_frame->bias.linearized_bg.data();
+                    auto para_ba_last = last_frame->bias.linearized_ba.data();
                     ceres::CostFunction *cost_function = ImuError::Create(frame->preintegration);
                     problem.AddResidualBlock(ProblemType::ImuError, cost_function, NULL, para_last_kf, para_v_last, para_ba_last, para_bg_last, para_kf, para_v, para_ba, para_bg);
                 }
@@ -282,11 +282,11 @@ void Backend::UpdateFrontend(SE3d transform, double time)
         frontend_.lock()->last_keyframe_updated = true;
         if (active_kfs.size() == 0)
         {
-            frontend_.lock()->UpdateImu(frame->GetImuBias());
+            frontend_.lock()->UpdateImu(frame->bias);
         }
         else
         {
-            frontend_.lock()->UpdateImu((--active_kfs.end())->second->GetImuBias());
+            frontend_.lock()->UpdateImu((--active_kfs.end())->second->bias);
         }
     }
     

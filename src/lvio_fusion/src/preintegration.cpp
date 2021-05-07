@@ -141,8 +141,9 @@ void Preintegration::Repropagate(const Vector3d &_linearized_ba, const Vector3d 
         Propagate(dt_buf[i], acc_buf[i], gyr_buf[i]);
 }
 
-Matrix<double, 15, 1> Preintegration::Evaluate(const Vector3d &Pi, const Quaterniond &Qi, const Vector3d &Vi, const Vector3d &Bai, const Vector3d &Bgi,
-                                               const Vector3d &Pj, const Quaterniond &Qj, const Vector3d &Vj, const Vector3d &Baj, const Vector3d &Bgj)
+Matrix<double, 15, 1> Preintegration::Evaluate(
+    const Vector3d &Pi, const Quaterniond &Qi, const Vector3d &Vi, const Vector3d &Bai, const Vector3d &Bgi,
+    const Vector3d &Pj, const Quaterniond &Qj, const Vector3d &Vj, const Vector3d &Baj, const Vector3d &Bgj)
 {
     Matrix<double, 15, 1> residuals;
     Matrix3d dp_dba = jacobian.block<3, 3>(O_T, O_BA);

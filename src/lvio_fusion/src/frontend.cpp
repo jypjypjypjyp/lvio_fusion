@@ -82,8 +82,8 @@ void Frontend::Preintegrate()
     }
 
     int n = imu_from_last_frame.size();
-    auto preintegration_last_frame = imu::Preintegration::Create(last_frame->GetImuBias());
-    preintegration_last_kf_ = preintegration_last_kf_ ? preintegration_last_kf_ : imu::Preintegration::Create(last_frame->GetImuBias());
+    auto preintegration_last_frame = imu::Preintegration::Create(last_frame->bias);
+    preintegration_last_kf_ = preintegration_last_kf_ ? preintegration_last_kf_ : imu::Preintegration::Create(last_frame->bias);
 
     if (n < 4)
     {
@@ -168,17 +168,16 @@ void Frontend::InitFrame()
     if (current_frame->pose.translation() == Vector3d::Zero())
     {
         current_frame->pose = last_frame_pose_cache_ * relative_i_j_;
-        check_pose(current_frame->pose, last_frame_pose_cache_);
         if (Imu::Num())
         {
-            current_frame->SetImuBias(last_frame->GetImuBias());
+            current_frame->SetImuBias(last_frame->bias);
             Preintegrate();
             if (Imu::Get()->initialized)
             {
                 PredictState();
             }
         }
-        if (Navsat::Num() && Navsat::Get()->initialized)
+        else if (Navsat::Num() && Navsat::Get()->initialized)
         {
             static bool has_last_pose = false;
             static SE3d last_navsat_pose;
@@ -465,10 +464,10 @@ void Frontend::UpdateImu(const Bias &bias_)
     Gz = Imu::Get()->Rwg * Gz;
     if (last_frame != last_keyframe && last_frame->preintegration)
     {
-        Vector3d twb1 = last_frame->last_keyframe->GetImuPosition();
-        Matrix3d Rwb1 = last_frame->last_keyframe->GetImuRotation();
-        Vector3d Vwb1 = last_frame->last_keyframe->GetVelocity();
         double sum_dt = last_frame->preintegration->sum_dt;
+        Vector3d twb1 = last_frame->last_keyframe->GetPosition();
+        Matrix3d Rwb1 = last_frame->last_keyframe->GetRotation();
+        Vector3d Vwb1 = last_frame->last_keyframe->Vw;
         Matrix3d Rwb2 = Rwb1 * last_frame->preintegration->GetUpdatedDeltaRotation();
         Vector3d twb2 = twb1 + Vwb1 * sum_dt + 0.5f * sum_dt * sum_dt * Gz + Rwb1 * last_frame->preintegration->GetUpdatedDeltaPosition();
         Vector3d Vwb2 = Vwb1 + Gz * sum_dt + Rwb1 * last_frame->preintegration->GetUpdatedDeltaVelocity();
@@ -485,15 +484,15 @@ void Frontend::PredictState()
         Gz << 0, 0, -Imu::Get()->G;
         Gz = Imu::Get()->Rwg * Gz;
         double sum_dt = current_frame->preintegration->sum_dt;
-        Vector3d twb1 = last_keyframe->GetImuPosition();
-        Matrix3d Rwb1 = last_keyframe->GetImuRotation();
+        Vector3d twb1 = last_keyframe->GetPosition();
+        Matrix3d Rwb1 = last_keyframe->GetRotation();
         Vector3d Vwb1 = last_keyframe->Vw;
-        Matrix3d Rwb2 = normalize_R(Rwb1 * current_frame->preintegration->GetDeltaRotation(last_keyframe->GetImuBias()).toRotationMatrix());
-        Vector3d twb2 = twb1 + Vwb1 * sum_dt + 0.5f * sum_dt * sum_dt * Gz + Rwb1 * current_frame->preintegration->GetDeltaPosition(last_keyframe->GetImuBias());
-        Vector3d Vwb2 = Vwb1 + sum_dt * Gz + Rwb1 * current_frame->preintegration->GetDeltaVelocity(last_keyframe->GetImuBias());
+        Matrix3d Rwb2 = normalize_R(Rwb1 * current_frame->preintegration->GetDeltaRotation(last_keyframe->bias).toRotationMatrix());
+        Vector3d twb2 = twb1 + Vwb1 * sum_dt + 0.5f * sum_dt * sum_dt * Gz + Rwb1 * current_frame->preintegration->GetDeltaPosition(last_keyframe->bias);
+        Vector3d Vwb2 = Vwb1 + sum_dt * Gz + Rwb1 * current_frame->preintegration->GetDeltaVelocity(last_keyframe->bias);
         current_frame->SetVelocity(Vwb2);
         current_frame->SetPose(Rwb2, twb2);
-        current_frame->SetImuBias(last_keyframe->GetImuBias());
+        current_frame->SetImuBias(last_keyframe->bias);
         last_keyframe_updated = false;
     }
     else if (!last_keyframe_updated)
@@ -502,15 +501,17 @@ void Frontend::PredictState()
         Gz << 0, 0, -Imu::Get()->G;
         Gz = Imu::Get()->Rwg * Gz;
         double sum_dt = current_frame->preintegration_last->sum_dt;
-        Vector3d twb1 = last_frame->GetImuPosition();
-        Matrix3d Rwb1 = last_frame->GetImuRotation();
+        Vector3d twb1 = last_frame->GetPosition();
+        Matrix3d Rwb1 = last_frame->GetRotation();
         Vector3d Vwb1 = last_frame->Vw;
-        Matrix3d Rwb2 = normalize_R(Rwb1 * current_frame->preintegration_last->GetDeltaRotation(last_frame->GetImuBias()).toRotationMatrix());
-        Vector3d twb2 = twb1 + Vwb1 * sum_dt + 0.5f * sum_dt * sum_dt * Gz + Rwb1 * current_frame->preintegration_last->GetDeltaPosition(last_frame->GetImuBias());
-        Vector3d Vwb2 = Vwb1 + sum_dt * Gz + Rwb1 * current_frame->preintegration_last->GetDeltaVelocity(last_frame->GetImuBias());
+        Matrix3d Rwb2 = normalize_R(Rwb1 * current_frame->preintegration_last->GetDeltaRotation(last_frame->bias).toRotationMatrix());
+        Vector3d twb2 = twb1 + Vwb1 * sum_dt + 0.5f * sum_dt * sum_dt * Gz + Rwb1 * current_frame->preintegration_last->GetDeltaPosition(last_frame->bias);
+        Vector3d Vwb2 = Vwb1 + sum_dt * Gz + Rwb1 * current_frame->preintegration_last->GetDeltaVelocity(last_frame->bias);
         current_frame->SetVelocity(Vwb2);
+        LOG(INFO) << "Vwb1:" << Vwb1;
+        LOG(INFO) << "Vwb2:" << Vwb2;
         current_frame->SetPose(Rwb2, twb2);
-        current_frame->SetImuBias(last_frame->GetImuBias());
+        current_frame->SetImuBias(last_frame->bias);
     }
 }
 

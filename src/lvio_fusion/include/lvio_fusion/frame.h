@@ -48,16 +48,15 @@ public:
 
     Vector3d GetGyroBias();
     Vector3d GetAccBias();
-    Matrix3d GetImuRotation();
-    Vector3d GetImuPosition();
-    Vector3d GetVelocity();
+    Matrix3d GetRotation();
+    Vector3d GetPosition();
     void SetVelocity(const Vector3d &Vw_);
-    Bias GetImuBias();
+    Bias bias;
     void SetImuBias(const Bias &bias_);
     void SetPose(const Matrix3d &Rwb_, const Vector3d &twb_);
 
     Vector3d Vw;              // Imu linear velocity
-    Bias ImuBias;             // Imu bias
+    Bias bias;             // Imu bias
     bool is_imu_good = false; // can be used in Imu optimization?
 };
 

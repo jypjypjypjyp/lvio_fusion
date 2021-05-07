@@ -12,8 +12,7 @@ int num_threads = std::min(8, std::max(1, (int)(0.75 * get_nprocs())));
 namespace lvio_fusion
 {
 
-Estimator::Estimator(std::string &config_path)
-    : config_file_path_(config_path) {}
+Estimator::Estimator(std::string &config_path) : config_file_path_(config_path) {}
 
 bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, int use_adapt)
 {
@@ -167,8 +166,8 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
 std::map<FrontendStatus, std::string> map_status = {
     {FrontendStatus::BUILDING, "Building"},
     {FrontendStatus::INITIALIZING, "Initializing"},
-    {FrontendStatus::TRACKING, "Tracking"}
-};
+    {FrontendStatus::TRACKING, "Tracking"},
+    {FrontendStatus::LOST, "Lost"}};
 void Estimator::InputImage(double time, cv::Mat &left_image, cv::Mat &right_image, SE3d init_odom)
 {
     Frame::Ptr new_frame = Frame::Create();
@@ -180,9 +179,8 @@ void Estimator::InputImage(double time, cv::Mat &left_image, cv::Mat &right_imag
     auto t1 = std::chrono::steady_clock::now();
     bool success = frontend->AddFrame(new_frame);
     auto t2 = std::chrono::steady_clock::now();
-    auto time_used =
-        std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);
-    LOG(INFO) << "Frontend status:" << map_status[frontend->status] << ", cost time: " << time_used.count() << " seconds.";
+    auto time_used = std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);
+    // LOG(INFO) << "Frontend status:" << map_status[frontend->status] << ", cost time: " << time_used.count() << " seconds.";
 }
 
 void Estimator::InputPointCloud(double time, Point3Cloud::Ptr point_cloud)
@@ -190,8 +188,7 @@ void Estimator::InputPointCloud(double time, Point3Cloud::Ptr point_cloud)
     auto t1 = std::chrono::steady_clock::now();
     association->AddScan(time, point_cloud);
     auto t2 = std::chrono::steady_clock::now();
-    auto time_used =
-        std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);
+    auto time_used = std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);
     if (time_used.count() > 1e-2)
         LOG(INFO) << "Lidar Preprocessing cost time: " << time_used.count() << " seconds.";
 }

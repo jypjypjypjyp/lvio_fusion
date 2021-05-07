@@ -46,12 +46,12 @@ SE3d Environment::Optimize()
         {
             auto para_kf = frame->pose.data();
             auto para_v = frame->Vw.data();
-            auto para_bg = frame->ImuBias.linearized_bg.data();
-            auto para_ba = frame->ImuBias.linearized_ba.data();
+            auto para_bg = frame->bias.linearized_bg.data();
+            auto para_ba = frame->bias.linearized_ba.data();
             auto para_last_kf = last_frame->pose.data();
             auto para_v_last = last_frame->Vw.data();
-            auto para_bg_last = last_frame->ImuBias.linearized_bg.data();
-            auto para_ba_last = last_frame->ImuBias.linearized_ba.data();
+            auto para_bg_last = last_frame->bias.linearized_bg.data();
+            auto para_ba_last = last_frame->bias.linearized_ba.data();
             problem.AddParameterBlock(para_v, 3);
             problem.AddParameterBlock(para_ba, 3);
             problem.AddParameterBlock(para_bg, 3);
