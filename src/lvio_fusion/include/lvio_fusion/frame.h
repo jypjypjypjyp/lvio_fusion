@@ -36,7 +36,7 @@ public:
     Frame::Ptr last_keyframe;
     cv::Mat image_left, image_right;
     visual::Features features_left;               // extracted features in left image
-    visual::Features features_right;              // corresponding features in right image, only for this frame
+    visual::Features features_right;              // new landmarks features in right image 
     lidar::Feature::Ptr feature_lidar;            // extracted features in lidar point cloud
     imu::Preintegration::Ptr preintegration;      // imu pre integration from last key frame
     imu::Preintegration::Ptr preintegration_last; // imu pre integration from last frame
@@ -46,12 +46,9 @@ public:
     Weights weights;                              // weights of different factors
     SE3d pose;
 
-    Vector3d GetGyroBias();
-    Vector3d GetAccBias();
     Matrix3d GetRotation();
     Vector3d GetPosition();
     void SetVelocity(const Vector3d &Vw_);
-    Bias bias;
     void SetImuBias(const Bias &bias_);
     void SetPose(const Matrix3d &Rwb_, const Vector3d &twb_);
 
