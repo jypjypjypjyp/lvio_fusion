@@ -87,15 +87,15 @@ void Frontend::Preintegrate()
 
     if (n < 4)
     {
-        // If n is smaller than 3, initialize again.
-        valid_imu_time = last_frame->time + epsilon;
+        // If n is smaller than 4, initialize again.
+        init_time = last_frame->time + epsilon;
         if (Imu::Get()->initialized)
         {
             Imu::Get()->initialized = false;
             status = FrontendStatus::INITIALIZING;
         }
         current_frame->preintegration = nullptr;
-        current_frame->is_imu_good = false;
+        current_frame->good_imu = false;
     }
     else
     {
@@ -141,7 +141,7 @@ void Frontend::Preintegrate()
 
         if (Imu::Get()->initialized)
         {
-            current_frame->is_imu_good = true;
+            current_frame->good_imu = true;
         }
         current_frame->preintegration = preintegration_last_kf_;
         current_frame->preintegration_last = preintegration_last_frame;
@@ -170,7 +170,7 @@ void Frontend::InitFrame()
         current_frame->pose = last_frame_pose_cache_ * relative_i_j_;
         if (Imu::Num())
         {
-            current_frame->SetImuBias(last_frame->bias);
+            current_frame->SetBias(last_frame->bias);
             Preintegrate();
             if (Imu::Get()->initialized)
             {
@@ -377,7 +377,7 @@ bool Frontend::InitMap()
         status = FrontendStatus::INITIALIZING;
         Imu::Get()->initialized = false;
         preintegration_last_kf_ = nullptr;
-        valid_imu_time = current_frame->time;
+        init_time = current_frame->time;
     }
     else
     {
@@ -456,10 +456,10 @@ void Frontend::UpdateCache()
 void Frontend::UpdateImu(const Bias &bias_)
 {
     if (last_keyframe->preintegration)
-        last_keyframe->is_imu_good = true;
+        last_keyframe->good_imu = true;
 
-    last_frame->SetImuBias(bias_);
-    current_frame->SetImuBias(bias_);
+    last_frame->SetBias(bias_);
+    current_frame->SetBias(bias_);
     Vector3d G(0, 0, -Imu::Get()->G);
     G = Imu::Get()->Rwg * G;
     if (last_frame != last_keyframe && last_frame->preintegration)
@@ -478,23 +478,23 @@ void Frontend::UpdateImu(const Bias &bias_)
 
 void Frontend::PredictState()
 {
-    if (last_keyframe_updated && last_keyframe)
-    {
-        Vector3d G(0, 0, -Imu::Get()->G);
-        G = Imu::Get()->Rwg * G;
-        double sum_dt = current_frame->preintegration->sum_dt;
-        Vector3d twb1 = last_keyframe->GetPosition();
-        Matrix3d Rwb1 = last_keyframe->GetRotation();
-        Vector3d Vwb1 = last_keyframe->Vw;
-        Matrix3d Rwb2 = normalize_R(Rwb1 * current_frame->preintegration->GetDeltaRotation(last_keyframe->bias).toRotationMatrix());
-        Vector3d twb2 = twb1 + Vwb1 * sum_dt + 0.5f * sum_dt * sum_dt * G + Rwb1 * current_frame->preintegration->GetDeltaPosition(last_keyframe->bias);
-        Vector3d Vwb2 = Vwb1 + sum_dt * G + Rwb1 * current_frame->preintegration->GetDeltaVelocity(last_keyframe->bias);
-        current_frame->SetVelocity(Vwb2);
-        current_frame->SetPose(Rwb2, twb2);
-        current_frame->SetImuBias(last_keyframe->bias);
-        last_keyframe_updated = false;
-    }
-    else if (!last_keyframe_updated)
+    // if (last_keyframe_updated)
+    // {
+    //     Vector3d G(0, 0, -Imu::Get()->G);
+    //     G = Imu::Get()->Rwg * G;
+    //     double sum_dt = current_frame->preintegration->sum_dt;
+    //     Vector3d twb1 = last_keyframe->GetPosition();
+    //     Matrix3d Rwb1 = last_keyframe->GetRotation();
+    //     Vector3d Vwb1 = last_keyframe->Vw;
+    //     Matrix3d Rwb2 = normalize_R(Rwb1 * current_frame->preintegration->GetDeltaRotation(last_keyframe->bias).toRotationMatrix());
+    //     Vector3d twb2 = twb1 + Vwb1 * sum_dt + 0.5f * sum_dt * sum_dt * G + Rwb1 * current_frame->preintegration->GetDeltaPosition(last_keyframe->bias);
+    //     Vector3d Vwb2 = Vwb1 + sum_dt * G + Rwb1 * current_frame->preintegration->GetDeltaVelocity(last_keyframe->bias);
+    //     current_frame->SetVelocity(Vwb2);
+    //     current_frame->SetPose(Rwb2, twb2);
+    //     current_frame->SetImuBias(last_keyframe->bias);
+    //     last_keyframe_updated = false;
+    // }
+    // else
     {
         Vector3d G(0, 0, -Imu::Get()->G);
         G = Imu::Get()->Rwg * G;
@@ -507,7 +507,7 @@ void Frontend::PredictState()
         Vector3d Vwb2 = Vwb1 + sum_dt * G + Rwb1 * current_frame->preintegration_last->GetDeltaVelocity(last_frame->bias);
         current_frame->SetVelocity(Vwb2);
         current_frame->SetPose(Rwb2, twb2);
-        current_frame->SetImuBias(last_frame->bias);
+        current_frame->SetBias(last_frame->bias);
     }
 }
 

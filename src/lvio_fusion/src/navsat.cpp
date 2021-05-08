@@ -15,23 +15,23 @@ void Navsat::AddPoint(double time, double x, double y, double z)
 
     static double finished = 0;
     Frames new_kfs = Map::Instance().GetKeyFrames(finished);
-    for (auto &pair_kf : new_kfs)
+    for (auto &pair : new_kfs)
     {
-        auto this_iter = raw.lower_bound(pair_kf.first);
+        auto this_iter = raw.lower_bound(pair.first);
         auto last_iter = this_iter;
         last_iter--;
-        if (this_iter == raw.begin() || this_iter == raw.end() || std::fabs(this_iter->first - pair_kf.first) > 1)
+        if (this_iter == raw.begin() || this_iter == raw.end() || std::fabs(this_iter->first - pair.first) > 1)
             continue;
 
-        double t1 = pair_kf.first - last_iter->first,
-               t2 = this_iter->first - pair_kf.first;
+        double t1 = pair.first - last_iter->first,
+               t2 = this_iter->first - pair.first;
         auto p = (this_iter->second * t1 + last_iter->second * t2) / (t1 + t2);
-        raw[pair_kf.first] = p;
-        pair_kf.second->feature_navsat = navsat::Feature::Ptr(new navsat::Feature(pair_kf.first));
+        raw[pair.first] = p;
+        pair.second->feature_navsat = navsat::Feature::Ptr(new navsat::Feature(pair.first));
         // check
-        pair_kf.second->feature_navsat->trust = (p.z() > -3 && p.z() < 3);
-        // pair_kf.second->feature_navsat->trust = true;
-        finished = pair_kf.first + epsilon;
+        pair.second->feature_navsat->trust = (p.z() > -3 && p.z() < 3);
+        // pair.second->feature_navsat->trust = true;
+        finished = pair.first + epsilon;
     }
     if (!initialized && !Map::Instance().keyframes.empty() && frames_distance(0, -1) > 40)
     {
@@ -112,12 +112,12 @@ void Navsat::Initialize()
     problem.SetParameterBlockConstant(para + 3);
     problem.SetParameterBlockConstant(para + 4);
 
-    for (auto &pair_kf : keyframes)
+    for (auto &pair : keyframes)
     {
-        auto position = pair_kf.second->pose.translation();
-        if (pair_kf.second->feature_navsat)
+        auto position = pair.second->pose.translation();
+        if (pair.second->feature_navsat)
         {
-            ceres::CostFunction *cost_function = NavsatInitError::Create(position, GetRawPoint(pair_kf.second->feature_navsat->time));
+            ceres::CostFunction *cost_function = NavsatInitError::Create(position, GetRawPoint(pair.second->feature_navsat->time));
             problem.AddResidualBlock(cost_function, NULL, para, para + 3, para + 4);
         }
     }

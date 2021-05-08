@@ -40,7 +40,7 @@ public:
     Frame::Ptr last_frame;
     Frame::Ptr last_keyframe;
     LocalMap local_map;
-    double valid_imu_time = 0;
+    double init_time = 0;
     bool last_keyframe_updated = false;
 
 private:

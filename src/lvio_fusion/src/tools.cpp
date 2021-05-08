@@ -21,7 +21,7 @@ void imu::ReComputeBiasVel(Frames &frames, Frame::Ptr &prior_frame)
     for (auto &pair : frames)
     {
         current_frame = pair.second;
-        if (!current_frame->is_imu_good || current_frame->preintegration == nullptr)
+        if (!current_frame->good_imu)
         {
             last_frame = current_frame;
             continue;
@@ -36,7 +36,7 @@ void imu::ReComputeBiasVel(Frames &frames, Frame::Ptr &prior_frame)
         problem.AddParameterBlock(para_bg, 3);
         set_bias_bound(problem, para_ba, para_bg);
         problem.SetParameterBlockConstant(para_kf);
-        if (last_frame && last_frame->is_imu_good && last_frame->preintegration != nullptr)
+        if (last_frame && last_frame->good_imu)
         {
             auto para_last_kf = last_frame->pose.data();
             auto para_v_last = last_frame->Vw.data();
@@ -70,12 +70,10 @@ void imu::ReComputeBiasVel(Frames &frames, Frame::Ptr &prior_frame)
     for (auto &pair : frames)
     {
         auto frame = pair.second;
-        if (!frame->preintegration || !frame->last_keyframe || !frame->is_imu_good)
+        if (frame->good_imu)
         {
-            continue;
+            frame->SetBias(frame->bias);
         }
-        Bias bias(frame->bias.linearized_ba, frame->bias.linearized_bg);
-        frame->SetImuBias(bias);
     }
     return;
 }
@@ -93,7 +91,7 @@ void imu::ReComputeBiasVel(Frames &frames)
     for (auto &pair : frames)
     {
         current_frame = pair.second;
-        if (!current_frame->is_imu_good || current_frame->preintegration == nullptr)
+        if (!current_frame->good_imu)
         {
             last_frame = current_frame;
             continue;
@@ -108,7 +106,7 @@ void imu::ReComputeBiasVel(Frames &frames)
         problem.AddParameterBlock(para_bg, 3);
         set_bias_bound(problem, para_ba, para_bg);
         problem.SetParameterBlockConstant(para_kf);
-        if (last_frame && last_frame->is_imu_good && last_frame->preintegration != nullptr)
+        if (last_frame && last_frame->good_imu)
         {
             auto para_last_kf = last_frame->pose.data();
             auto para_v_last = last_frame->Vw.data();
@@ -130,14 +128,11 @@ void imu::ReComputeBiasVel(Frames &frames)
     for (auto &pair : frames)
     {
         auto frame = pair.second;
-        if (!frame->preintegration || !frame->last_keyframe || !frame->is_imu_good)
+        if (frame->good_imu)
         {
-            continue;
+            frame->SetBias(frame->bias);
         }
-        Bias bias(frame->bias.linearized_ba, frame->bias.linearized_bg);
-        frame->SetImuBias(bias);
     }
-    return;
 }
 
 void imu::RePredictVel(Frames &frames, Frame::Ptr &prior_frame)
@@ -158,49 +153,46 @@ void imu::RePredictVel(Frames &frames, Frame::Ptr &prior_frame)
         Vector3d twb2 = twb1 + Vwb1 * t12 + 0.5f * t12 * t12 * Gz + Rwb1 * current_key_frame->preintegration->GetDeltaPosition(last_key_frame->bias);
         Vector3d Vwb2 = Vwb1 + t12 * Gz + Rwb1 * current_key_frame->preintegration->GetDeltaVelocity(last_key_frame->bias);
         current_key_frame->SetVelocity(Vwb2);
-        current_key_frame->SetImuBias(last_key_frame->bias);
+        current_key_frame->SetBias(last_key_frame->bias);
         last_key_frame = current_key_frame;
     }
 }
 
-bool imu::InertialOptimization(Frames &key_frames, Matrix3d &Rwg, double prior_g, double prior_a)
+bool imu::InertialOptimization(Frames &frames, Matrix3d &Rwg, double prior_g, double prior_a)
 {
     ceres::Problem problem;
     ceres::CostFunction *cost_function;
     // prior bias
-    auto para_gyroBias = key_frames.begin()->second->bias.linearized_bg.data();
+    auto para_gyroBias = frames.begin()->second->bias.linearized_bg.data();
     problem.AddParameterBlock(para_gyroBias, 3);
-
-    auto para_accBias = key_frames.begin()->second->bias.linearized_ba.data();
+    auto para_accBias = frames.begin()->second->bias.linearized_ba.data();
     problem.AddParameterBlock(para_accBias, 3);
-
     // optimize gravity, velocity, bias
     Quaterniond rwg(Rwg);
     SO3d RwgSO3(rwg);
     auto para_rwg = RwgSO3.data();
-
     ceres::LocalParameterization *local_parameterization = new ceres::EigenQuaternionParameterization();
     problem.AddParameterBlock(para_rwg, SO3d::num_parameters, local_parameterization);
+
     Frame::Ptr last_frame;
-    Frame::Ptr current_frame;
-    for (Frames::iterator iter = key_frames.begin(); iter != key_frames.end(); iter++)
+    for (auto &pair : frames)
     {
-        current_frame = iter->second;
-        if (current_frame->preintegration == nullptr)
+        Frame::Ptr frame = pair.second;
+        if (frame->preintegration)
         {
-            last_frame = current_frame;
+            last_frame = frame;
             continue;
         }
-        auto para_v = current_frame->Vw.data();
+        auto para_v = frame->Vw.data();
         problem.AddParameterBlock(para_v, 3);
 
         if (last_frame)
         {
             auto para_v_last = last_frame->Vw.data();
-            cost_function = ImuErrorG::Create(current_frame->preintegration, current_frame->pose, last_frame->pose, prior_a, prior_g);
+            cost_function = ImuErrorG::Create(frame->preintegration, frame->pose, last_frame->pose, prior_a, prior_g);
             problem.AddResidualBlock(cost_function, NULL, para_v_last, para_accBias, para_gyroBias, para_v, para_rwg);
         }
-        last_frame = current_frame;
+        last_frame = frame;
     }
 
     ceres::Solver::Options options;
@@ -222,20 +214,19 @@ bool imu::InertialOptimization(Frames &key_frames, Matrix3d &Rwg, double prior_g
         }
     }
     Bias bias(para_accBias[0], para_accBias[1], para_accBias[2], para_gyroBias[0], para_gyroBias[1], para_gyroBias[2]);
-    Vector3d bg;
-    bg << para_gyroBias[0], para_gyroBias[1], para_gyroBias[2];
-    for (Frames::iterator iter = key_frames.begin(); iter != key_frames.end(); iter++)
+    Vector3d bg(para_gyroBias[0], para_gyroBias[1], para_gyroBias[2]);
+    for (auto &pair : frames)
     {
-        current_frame = iter->second;
-        Vector3d dbg = current_frame->bias.linearized_bg - bg;
+        Frame::Ptr frame = pair.second;
+        Vector3d dbg = frame->bias.linearized_bg - bg;
         if (dbg.norm() > 0.01)
         {
-            current_frame->SetImuBias(bias);
-            current_frame->preintegration->Repropagate(bias.linearized_ba, bias.linearized_bg);
+            frame->SetBias(bias);
+            frame->preintegration->Repropagate(bias.linearized_ba, bias.linearized_bg);
         }
         else
         {
-            current_frame->SetImuBias(bias);
+            frame->SetBias(bias);
         }
     }
     return true;
@@ -252,9 +243,9 @@ void imu::FullInertialBA(Frames &frames, double prior_g, double prior_a)
     double start_time = frames.begin()->first;
     SE3d old_pose = frames.begin()->second->pose;
     // visual factor
-    for (auto &pair_kf : frames)
+    for (auto &pair : frames)
     {
-        auto frame = pair_kf.second;
+        auto frame = pair.second;
         double *para_kf = frame->pose.data();
         problem.AddParameterBlock(para_kf, SE3d::num_parameters, local_parameterization);
         for (auto &pair_feature : frame->features_left)
@@ -297,7 +288,7 @@ void imu::FullInertialBA(Frames &frames, double prior_g, double prior_a)
     for (auto &pair : frames)
     {
         current_frame = pair.second;
-        if (!current_frame->is_imu_good || current_frame->preintegration == nullptr)
+        if (!current_frame->good_imu)
         {
             last_frame = current_frame;
             continue;
@@ -306,7 +297,7 @@ void imu::FullInertialBA(Frames &frames, double prior_g, double prior_a)
         auto para_v = current_frame->Vw.data();
         problem.AddParameterBlock(para_kf, SE3d::num_parameters, local_parameterization);
         problem.AddParameterBlock(para_v, 3);
-        if (last_frame && last_frame->is_imu_good)
+        if (last_frame && last_frame->good_imu)
         {
             auto para_last_kf = last_frame->pose.data();
             auto para_v_last = last_frame->Vw.data();
@@ -327,10 +318,10 @@ void imu::FullInertialBA(Frames &frames, double prior_g, double prior_a)
     for (auto &pair : frames)
     {
         current_frame = pair.second;
-        if (current_frame->is_imu_good)
+        if (current_frame->good_imu)
         {
             Bias bias(para_ba[0], para_ba[1], para_ba[2], para_bg[0], para_bg[1], para_bg[2]);
-            current_frame->SetImuBias(bias);
+            current_frame->SetBias(bias);
         }
     }
 }
@@ -351,15 +342,13 @@ void imu::RecoverData(Frames &frames, SE3d old_pose, bool set_bias)
     for (auto &pair : frames)
     {
         auto frame = pair.second;
-        if (!frame->preintegration || !frame->last_keyframe || !frame->is_imu_good)
-        {
+        if (!frame->good_imu)
             continue;
-        }
         frame->SetPose(translation * frame->pose.rotationMatrix(), translation * (frame->pose.translation() - new_pose.translation()) + old_pose_translation);
         frame->SetVelocity(translation * frame->Vw);
         if (set_bias)
         {
-            frame->SetImuBias(frame->bias);
+            frame->SetBias(frame->bias);
         }
     }
 }

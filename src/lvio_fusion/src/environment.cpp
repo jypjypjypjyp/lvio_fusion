@@ -42,7 +42,7 @@ SE3d Environment::Optimize()
 
         // imu
         Frame::Ptr last_frame = frame->last_keyframe;
-        if (frame->is_imu_good && frame->preintegration && last_frame->is_imu_good && last_frame->preintegration)
+        if (frame->good_imu && last_frame->good_imu)
         {
             auto para_kf = frame->pose.data();
             auto para_v = frame->Vw.data();

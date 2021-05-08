@@ -83,7 +83,7 @@ void Frame::SetPose(const Matrix3d &_Rwb, const Vector3d &_twb)
     pose = SE3d(Quaterniond(_Rwb), _twb);
 }
 
-void Frame::SetImuBias(const Bias &_bias)
+void Frame::SetBias(const Bias &_bias)
 {
     bias = _bias;
     if (preintegration)

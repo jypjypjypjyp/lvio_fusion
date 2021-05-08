@@ -109,7 +109,7 @@ void Backend::BuildProblem(Frames &active_kfs, adapt::Problem &problem, bool use
 
         if (Imu::Num() && Imu::Get()->initialized && use_imu)
         {
-            if (frame->is_imu_good && frame->preintegration != nullptr)
+            if (frame->good_imu)
             {
                 auto para_v = frame->Vw.data();
                 auto para_bg = frame->bias.linearized_bg.data();
@@ -118,7 +118,7 @@ void Backend::BuildProblem(Frames &active_kfs, adapt::Problem &problem, bool use
                 problem.AddParameterBlock(para_ba, 3);
                 problem.AddParameterBlock(para_bg, 3);
                 set_bias_bound(problem, para_ba, para_bg);
-                if (last_frame && last_frame->is_imu_good)
+                if (last_frame && last_frame->good_imu)
                 {
                     auto para_v_last = last_frame->Vw.data();
                     auto para_bg_last = last_frame->bias.linearized_bg.data();
@@ -338,7 +338,7 @@ void Backend::InitializeImu(Frames active_kfs, double time)
         old_pose = (--frames_init.end())->second->pose;
 
         if (frames_init.size() == initializer_->num_frames &&
-            frames_init.begin()->first > frontend_.lock()->valid_imu_time &&
+            frames_init.begin()->first > frontend_.lock()->init_time &&
             frames_init.begin()->second->preintegration)
         {
             if (!Imu::Get()->initialized)
@@ -360,7 +360,7 @@ void Backend::InitializeImu(Frames active_kfs, double time)
             {
                 Frame::Ptr frame = kf.second;
                 if (frame->preintegration != nullptr)
-                    frame->is_imu_good = true;
+                    frame->good_imu = true;
             }
             LOG(INFO) << "Initializer Finished";
         }

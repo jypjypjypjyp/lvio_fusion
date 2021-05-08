@@ -33,58 +33,55 @@ void register_pub(ros::NodeHandle &n)
 void publish_odometry(Estimator::Ptr estimator, double time)
 {
     auto &&submap = PoseGraph::Instance().GetSections(0, 0);
-    if (estimator->frontend->status == FrontendStatus::TRACKING)
+    path.poses.clear();
+    cameraposevisual.reset();
+    for (auto &pair : lvio_fusion::Map::Instance().keyframes)
     {
-        path.poses.clear();
-        cameraposevisual.reset();
-        for (auto &pair : lvio_fusion::Map::Instance().keyframes)
+        auto pose = pair.second->pose;
+        geometry_msgs::PoseStamped pose_stamped;
+        pose_stamped.header.stamp = ros::Time(pair.first);
+        pose_stamped.header.frame_id = "world";
+        pose_stamped.pose.position.x = pose.translation().x();
+        pose_stamped.pose.position.y = pose.translation().y();
+        pose_stamped.pose.position.z = pose.translation().z();
+        pose_stamped.pose.orientation.w = pose.unit_quaternion().w();
+        pose_stamped.pose.orientation.x = pose.unit_quaternion().x();
+        pose_stamped.pose.orientation.y = pose.unit_quaternion().y();
+        pose_stamped.pose.orientation.z = pose.unit_quaternion().z();
+        path.poses.push_back(pose_stamped);
+        if (pair.first == submap.begin()->first)
         {
-            auto pose = pair.second->pose;
-            geometry_msgs::PoseStamped pose_stamped;
-            pose_stamped.header.stamp = ros::Time(pair.first);
-            pose_stamped.header.frame_id = "world";
-            pose_stamped.pose.position.x = pose.translation().x();
-            pose_stamped.pose.position.y = pose.translation().y();
-            pose_stamped.pose.position.z = pose.translation().z();
-            pose_stamped.pose.orientation.w = pose.unit_quaternion().w();
-            pose_stamped.pose.orientation.x = pose.unit_quaternion().x();
-            pose_stamped.pose.orientation.y = pose.unit_quaternion().y();
-            pose_stamped.pose.orientation.z = pose.unit_quaternion().z();
+            geometry_msgs::PoseStamped pose_stamped_loop;
+            pose_stamped_loop.header.stamp = ros::Time(pair.first);
+            pose_stamped_loop.header.frame_id = "world";
+            pose_stamped_loop.pose.position.x = pose.translation().x();
+            pose_stamped_loop.pose.position.y = pose.translation().y();
+            pose_stamped_loop.pose.position.z = pose.translation().z() + 10;
+            path.poses.push_back(pose_stamped_loop);
             path.poses.push_back(pose_stamped);
-            if (pair.first == submap.begin()->first)
-            {
-                geometry_msgs::PoseStamped pose_stamped_loop;
-                pose_stamped_loop.header.stamp = ros::Time(pair.first);
-                pose_stamped_loop.header.frame_id = "world";
-                pose_stamped_loop.pose.position.x = pose.translation().x();
-                pose_stamped_loop.pose.position.y = pose.translation().y();
-                pose_stamped_loop.pose.position.z = pose.translation().z() + 10;
-                path.poses.push_back(pose_stamped_loop);
-                path.poses.push_back(pose_stamped);
-                submap.erase(submap.begin());
-            }
-            if (pair.second->loop_closure)
-            {
-                auto position = pair.second->loop_closure->frame_old->pose.translation();
-                geometry_msgs::PoseStamped pose_stamped_loop;
-                pose_stamped_loop.header.stamp = ros::Time(pair.first);
-                pose_stamped_loop.header.frame_id = "world";
-                pose_stamped_loop.pose.position.x = position.x();
-                pose_stamped_loop.pose.position.y = position.y();
-                pose_stamped_loop.pose.position.z = position.z();
-                path.poses.push_back(pose_stamped_loop);
-                path.poses.push_back(pose_stamped);
-            }
-            SE3d left_camera_pose = pose * Camera::Get(0)->extrinsic;
-            SE3d right_camera_pose = pose * Camera::Get(1)->extrinsic;
-            cameraposevisual.add_pose(left_camera_pose.translation(), left_camera_pose.unit_quaternion());
-            cameraposevisual.add_pose(right_camera_pose.translation(), right_camera_pose.unit_quaternion());
+            submap.erase(submap.begin());
         }
-        path.header.stamp = ros::Time(time);
-        path.header.frame_id = "world";
-        pub_path.publish(path);
-        cameraposevisual.publish_by(pub_camera_pose_visual, path.header);
+        if (pair.second->loop_closure)
+        {
+            auto position = pair.second->loop_closure->frame_old->pose.translation();
+            geometry_msgs::PoseStamped pose_stamped_loop;
+            pose_stamped_loop.header.stamp = ros::Time(pair.first);
+            pose_stamped_loop.header.frame_id = "world";
+            pose_stamped_loop.pose.position.x = position.x();
+            pose_stamped_loop.pose.position.y = position.y();
+            pose_stamped_loop.pose.position.z = position.z();
+            path.poses.push_back(pose_stamped_loop);
+            path.poses.push_back(pose_stamped);
+        }
+        SE3d left_camera_pose = pose * Camera::Get(0)->extrinsic;
+        SE3d right_camera_pose = pose * Camera::Get(1)->extrinsic;
+        cameraposevisual.add_pose(left_camera_pose.translation(), left_camera_pose.unit_quaternion());
+        cameraposevisual.add_pose(right_camera_pose.translation(), right_camera_pose.unit_quaternion());
     }
+    path.header.stamp = ros::Time(time);
+    path.header.frame_id = "world";
+    pub_path.publish(path);
+    cameraposevisual.publish_by(pub_camera_pose_visual, path.header);
 }
 
 void publish_navsat(Estimator::Ptr estimator, double time)

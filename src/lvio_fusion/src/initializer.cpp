@@ -93,7 +93,7 @@ bool Initializer::Initialize(Frames frames, double prior_a, double prior_g)
 
     for (auto &pair : frames)
     {
-        pair.second->is_imu_good = true;
+        pair.second->good_imu = true;
     }
 
     // imu optimization with visual

@@ -49,12 +49,12 @@ public:
     Matrix3d GetRotation();
     Vector3d GetPosition();
     void SetVelocity(const Vector3d &Vw_);
-    void SetImuBias(const Bias &bias_);
+    void SetBias(const Bias &bias_);
     void SetPose(const Matrix3d &Rwb_, const Vector3d &twb_);
 
-    Vector3d Vw;              // Imu linear velocity
-    Bias bias;             // Imu bias
-    bool is_imu_good = false; // can be used in Imu optimization?
+    Vector3d Vw;                // Imu linear velocity
+    Bias bias;                  // Imu bias
+    bool good_imu = false;   // can be used in Imu optimization?
 };
 
 typedef std::map<double, Frame::Ptr> Frames;
