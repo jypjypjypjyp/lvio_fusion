@@ -18,7 +18,7 @@
  */
 Dstar::Dstar() { 
 
-  maxSteps = 80000;  // node expansions before we give up
+  maxSteps = 800000;  // node expansions before we give up
   C1       = 1;      // cost of an unseen cell
 
 }

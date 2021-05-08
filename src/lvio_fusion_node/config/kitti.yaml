@@ -103,6 +103,6 @@ obs_rows: 4
 obs_cols: 12
 
 #navigation
-grid_width: 1000
-grid_height: 1000
+grid_width: 1200
+grid_height: 1200
 grid_resolution: 1

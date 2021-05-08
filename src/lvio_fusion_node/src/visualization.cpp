@@ -307,7 +307,7 @@ sensor_msgs::CompressedImage cv_to_ros(cv::Mat image) // 将cv图像格式转换
     std::vector<int> params;
     params.resize(9, 0);
     params[0] = 1;
-    params[1] = 90;
+    params[1] = 30;
     params[2] = 2;
     params[3] = 0;
     params[4] = 3;

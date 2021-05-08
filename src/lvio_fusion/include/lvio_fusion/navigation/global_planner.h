@@ -50,18 +50,20 @@ public:
                    
                     if((newmap.at<float>(x,y)-costmap.at<float>(x,y))!=0)
                     {
-                        if(newmap.at<float>(x,y)<0.5)
+                        if(newmap.at<float>(x,y)<0.85)
                         {
-                            dstar_planner_->updateCell(y-1,x-1,-1);
-                            dstar_planner_->updateCell(y-1,x,-1);
-                            dstar_planner_->updateCell(y-1,x+1,-1);
-                            dstar_planner_->updateCell(y,x-1,-1);
                             dstar_planner_->updateCell(y,x,-1);
-                            dstar_planner_->updateCell(y,x+1,-1);
-                            dstar_planner_->updateCell(y+1,x-1,-1);
-                            dstar_planner_->updateCell(y+1,x,-1);
-                            dstar_planner_->updateCell(y+1,x+1,-1);
-                            
+                            if(newmap.at<float>(x,y)<0.45){
+                                dstar_planner_->updateCell(y-1,x-1,-1);
+                                dstar_planner_->updateCell(y-1,x,-1);
+                                dstar_planner_->updateCell(y-1,x+1,-1);
+                                dstar_planner_->updateCell(y,x-1,-1);
+
+                                dstar_planner_->updateCell(y,x+1,-1);
+                                dstar_planner_->updateCell(y+1,x-1,-1);
+                                dstar_planner_->updateCell(y+1,x,-1);
+                                dstar_planner_->updateCell(y+1,x+1,-1);
+                            }
                             LOG(INFO)<<"qian!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! "<<x<<"  "<<y<<"  "<<newmap.at<float>(x,y)<<" "<<costmap.at<float>(x,y);
                         }
                         else
