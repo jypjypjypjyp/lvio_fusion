@@ -151,4 +151,14 @@ Matrix3d normalize_R(const Matrix3d &R_)
     cv::cv2eigen(U * Vt, uvt);
     return uvt;
 }
+
+Matrix3d get_R_from_vector(Vector3d vec)
+{
+    vec.normalize();
+    Vector3d v = Vector3d::UnitZ().cross(vec);
+    double cosg = Vector3d::UnitZ().dot(vec);
+    double ang = acos(cosg);
+    Vector3d vzg = v * ang / v.norm();
+    return exp_so3(vzg);
+}
 } // namespace lvio_fusion

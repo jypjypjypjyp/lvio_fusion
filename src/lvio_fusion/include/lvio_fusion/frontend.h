@@ -41,12 +41,11 @@ public:
     Frame::Ptr last_keyframe;
     LocalMap local_map;
     double init_time = 0;
-    bool last_keyframe_updated = false;
 
 private:
     bool Track();
 
-    bool Reset();
+    void ResetImu();
 
     void InitFrame();
 

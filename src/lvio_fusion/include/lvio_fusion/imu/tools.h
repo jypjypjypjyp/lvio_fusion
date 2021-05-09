@@ -14,9 +14,9 @@ void ReComputeBiasVel(Frames &frames);
 
 void RePredictVel(Frames &frames, Frame::Ptr &prior_frame);
 
-bool InertialOptimization(Frames &frames, Matrix3d &Rwg, double prior_g, double prior_a);
+bool InertialOptimization(Frames &frames, Matrix3d &Rwg, double prior_a, double prior_g);
 
-void FullInertialBA(Frames &frames, double prior_g, double prior_a);
+void FullInertialBA(Frames &frames, double prior_a, double prior_g);
 
 void RecoverData(Frames &frames, SE3d old_pose, bool set_bias);
 

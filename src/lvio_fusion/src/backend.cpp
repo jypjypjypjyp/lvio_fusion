@@ -117,7 +117,6 @@ void Backend::BuildProblem(Frames &active_kfs, adapt::Problem &problem, bool use
                 problem.AddParameterBlock(para_v, 3);
                 problem.AddParameterBlock(para_ba, 3);
                 problem.AddParameterBlock(para_bg, 3);
-                set_bias_bound(problem, para_ba, para_bg);
                 if (last_frame && last_frame->good_imu)
                 {
                     auto para_v_last = last_frame->Vw.data();
@@ -258,7 +257,7 @@ void Backend::UpdateFrontend(SE3d transform, double time)
     PoseGraph::Instance().ForwardUpdate(transform, active_kfs);
     if (Imu::Num() && (!Navsat::Num() || (Navsat::Num() && Navsat::Get()->initialized)))
     {
-        InitializeImu(active_kfs, time);
+        initializer_->Initialize(frontend_.lock()->init_time, time);
     }
 
     adapt::Problem problem;
@@ -279,7 +278,6 @@ void Backend::UpdateFrontend(SE3d transform, double time)
             imu::RePredictVel(active_kfs, frame);
             imu::ReComputeBiasVel(active_kfs, frame);
         }
-        frontend_.lock()->last_keyframe_updated = true;
         if (active_kfs.size() == 0)
         {
             frontend_.lock()->UpdateImu(frame->bias);
@@ -289,86 +287,8 @@ void Backend::UpdateFrontend(SE3d transform, double time)
             frontend_.lock()->UpdateImu((--active_kfs.end())->second->bias);
         }
     }
-    
+
     frontend_.lock()->UpdateCache();
-}
-
-void Backend::InitializeImu(Frames active_kfs, double time)
-{
-    static double init_time = 0;
-    static bool step_A = false;
-    static bool step_B = false;
-    bool need_init = false;
-    double prior_a = 1e3;
-    double prior_g = 1e1;
-    if (initializer_->finished_first_init)
-    {
-        prior_a = 0;
-        prior_g = 0;
-    }
-    if (Imu::Get()->initialized)
-    {
-        double dt = init_time ? (--active_kfs.end())->second->time - init_time : 0;
-        if (dt > 5 && !step_A)
-        {
-            need_init = true;
-            step_A = true;
-            prior_a = 1e4;
-            prior_g = 1e1;
-        }
-        else if (dt > 15 && !step_B)
-        {
-            need_init = true;
-            step_B = true;
-            prior_a = 0;
-            prior_g = 0;
-        }
-    }
-    else
-    {
-        need_init = true;
-    }
-
-    Frames frames_init;
-    SE3d old_pose, new_pose;
-    if (need_init)
-    {
-        need_init = false;
-        frames_init = Map::Instance().GetKeyFrames(0, time, initializer_->num_frames);
-        old_pose = (--frames_init.end())->second->pose;
-
-        if (frames_init.size() == initializer_->num_frames &&
-            frames_init.begin()->first > frontend_.lock()->init_time &&
-            frames_init.begin()->second->preintegration)
-        {
-            if (!Imu::Get()->initialized)
-            {
-                init_time = (--frames_init.end())->second->time;
-            }
-            need_init = true;
-        }
-    }
-    if (need_init)
-    {
-        LOG(INFO) << "Initializer Start";
-        if (initializer_->Initialize(frames_init, prior_a, prior_g))
-        {
-            new_pose = (--frames_init.end())->second->pose;
-            SE3d transform = new_pose * old_pose.inverse();
-            PoseGraph::Instance().ForwardUpdate(transform, active_kfs);
-            for (auto kf : active_kfs)
-            {
-                Frame::Ptr frame = kf.second;
-                if (frame->preintegration != nullptr)
-                    frame->good_imu = true;
-            }
-            LOG(INFO) << "Initializer Finished";
-        }
-        else
-        {
-            LOG(INFO) << "Initializer Failed";
-        }
-    }
 }
 
 } // namespace lvio_fusion

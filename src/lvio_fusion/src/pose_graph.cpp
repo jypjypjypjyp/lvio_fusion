@@ -225,7 +225,7 @@ void PoseGraph::ForwardUpdate(SE3d transform, const Frames &forward_kfs)
     for (auto &pair : forward_kfs)
     {
         pair.second->pose = transform * pair.second->pose;
-        if (pair.second->preintegration != nullptr)
+        if (pair.second->preintegration)
             pair.second->Vw = transform.rotationMatrix() * pair.second->Vw;
     }
 }

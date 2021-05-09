@@ -40,8 +40,6 @@ public:
 
     void Continue();
 
-    void InitializeImu(Frames active_kfs,double time );
-
     BackendStatus status = BackendStatus::RUNNING;
     std::mutex mutex;
     double finished = 0;

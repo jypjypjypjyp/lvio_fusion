@@ -15,7 +15,7 @@ add_library(lvio_fusion SHARED
         map.cpp
         mapping.cpp
         navsat.cpp
-        optimizer.cpp
+        pose_graph.cpp
         preintegration.cpp
         projection.cpp
         relocator.cpp

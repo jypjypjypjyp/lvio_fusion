@@ -6,8 +6,10 @@
 
 namespace lvio_fusion
 {
+namespace imu
+{
 
-void imu::ReComputeBiasVel(Frames &frames, Frame::Ptr &prior_frame)
+void ReComputeBiasVel(Frames &frames, Frame::Ptr &prior_frame)
 {
     adapt::Problem problem;
     ceres::LossFunction *loss_function = new ceres::HuberLoss(1.0);
@@ -34,7 +36,6 @@ void imu::ReComputeBiasVel(Frames &frames, Frame::Ptr &prior_frame)
         problem.AddParameterBlock(para_v, 3);
         problem.AddParameterBlock(para_ba, 3);
         problem.AddParameterBlock(para_bg, 3);
-        set_bias_bound(problem, para_ba, para_bg);
         problem.SetParameterBlockConstant(para_kf);
         if (last_frame && last_frame->good_imu)
         {
@@ -78,7 +79,7 @@ void imu::ReComputeBiasVel(Frames &frames, Frame::Ptr &prior_frame)
     return;
 }
 
-void imu::ReComputeBiasVel(Frames &frames)
+void ReComputeBiasVel(Frames &frames)
 {
     adapt::Problem problem;
     ceres::LossFunction *loss_function = new ceres::HuberLoss(1.0);
@@ -104,7 +105,6 @@ void imu::ReComputeBiasVel(Frames &frames)
         problem.AddParameterBlock(para_v, 3);
         problem.AddParameterBlock(para_ba, 3);
         problem.AddParameterBlock(para_bg, 3);
-        set_bias_bound(problem, para_ba, para_bg);
         problem.SetParameterBlockConstant(para_kf);
         if (last_frame && last_frame->good_imu)
         {
@@ -135,30 +135,30 @@ void imu::ReComputeBiasVel(Frames &frames)
     }
 }
 
-void imu::RePredictVel(Frames &frames, Frame::Ptr &prior_frame)
+void RePredictVel(Frames &frames, Frame::Ptr &prior_frame)
 {
     Frame::Ptr last_key_frame = prior_frame;
+    Vector3d G(0, 0, -Imu::Get()->G);
+    G = Imu::Get()->Rwg * G;
+    Vector3d twb1, twb2, Vwb1, Vwb2;
+    Matrix3d Rwb1, Rwb2;
     for (auto &frame : frames)
     {
         Frame::Ptr current_key_frame = frame.second;
-        Vector3d Gz;
-        Gz << 0, 0, -Imu::Get()->G;
-        Gz = Imu::Get()->Rwg * Gz;
         double t12 = current_key_frame->preintegration->sum_dt;
-        Vector3d twb1 = last_key_frame->GetPosition();
-        Matrix3d Rwb1 = last_key_frame->GetRotation();
-        Vector3d Vwb1 = last_key_frame->Vw;
-
-        Matrix3d Rwb2 = normalize_R(Rwb1 * current_key_frame->preintegration->GetDeltaRotation(last_key_frame->bias).toRotationMatrix());
-        Vector3d twb2 = twb1 + Vwb1 * t12 + 0.5f * t12 * t12 * Gz + Rwb1 * current_key_frame->preintegration->GetDeltaPosition(last_key_frame->bias);
-        Vector3d Vwb2 = Vwb1 + t12 * Gz + Rwb1 * current_key_frame->preintegration->GetDeltaVelocity(last_key_frame->bias);
+        twb1 = last_key_frame->GetPosition();
+        Rwb1 = last_key_frame->GetRotation();
+        Vwb1 = last_key_frame->Vw;
+        Rwb2 = normalize_R(Rwb1 * current_key_frame->preintegration->GetDeltaRotation(last_key_frame->bias).toRotationMatrix());
+        twb2 = twb1 + Vwb1 * t12 + 0.5f * t12 * t12 * G + Rwb1 * current_key_frame->preintegration->GetDeltaPosition(last_key_frame->bias);
+        Vwb2 = Vwb1 + t12 * G + Rwb1 * current_key_frame->preintegration->GetDeltaVelocity(last_key_frame->bias);
         current_key_frame->SetVelocity(Vwb2);
         current_key_frame->SetBias(last_key_frame->bias);
         last_key_frame = current_key_frame;
     }
 }
 
-bool imu::InertialOptimization(Frames &frames, Matrix3d &Rwg, double prior_g, double prior_a)
+bool InertialOptimization(Frames &frames, Matrix3d &Rwg, double prior_a, double prior_g)
 {
     ceres::Problem problem;
     ceres::CostFunction *cost_function;
@@ -232,7 +232,7 @@ bool imu::InertialOptimization(Frames &frames, Matrix3d &Rwg, double prior_g, do
     return true;
 }
 
-void imu::FullInertialBA(Frames &frames, double prior_g, double prior_a)
+void FullInertialBA(Frames &frames, double prior_a, double prior_g)
 {
     ceres::Problem problem;
     ceres::CostFunction *cost_function;
@@ -326,7 +326,7 @@ void imu::FullInertialBA(Frames &frames, double prior_g, double prior_a)
     }
 }
 
-void imu::RecoverData(Frames &frames, SE3d old_pose, bool set_bias)
+void RecoverData(Frames &frames, SE3d old_pose, bool set_bias)
 {
     SE3d new_pose = frames.begin()->second->pose;
     Vector3d old_pose_translation = old_pose.translation();
@@ -353,4 +353,5 @@ void imu::RecoverData(Frames &frames, SE3d old_pose, bool set_bias)
     }
 }
 
+} // namespace imu
 } // namespace lvio_fusion

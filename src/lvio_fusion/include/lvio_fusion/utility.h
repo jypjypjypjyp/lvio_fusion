@@ -211,6 +211,8 @@ Matrix3d exp_so3(const Vector3d &so3);
 
 Matrix3d normalize_R(const Matrix3d &R_);
 
+Matrix3d get_R_from_vector(Vector3d vec);
+
 } // namespace lvio_fusion
 
 #endif // lvio_fusion_UTILITY_H
