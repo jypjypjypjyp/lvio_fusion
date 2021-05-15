@@ -290,7 +290,7 @@ int getch(void)
 
     return ch;
 }
-
+#include "lvio_fusion/ceres/base.hpp"
 void write_result(Estimator::Ptr estimator)
 {
     ROS_WARN("Writing result file: %s", result_path.c_str());
@@ -313,6 +313,32 @@ void write_result(Estimator::Ptr estimator)
     }
     out.close();
     ROS_WARN("Finished!!!");
+    {
+        ROS_WARN("Writing result file: %s", "/home/jyp/111.csv");
+        ofstream out("/home/jyp/111.csv", ios::out);
+        out.setf(ios::fixed, ios::floatfield);
+        out.precision(5);
+        Frame::Ptr last_frame;
+        double relative[6];
+        for (auto &pair : lvio_fusion::Map::Instance().keyframes)
+        {
+            Frame::Ptr frame = pair.second;
+            if (last_frame)
+            {
+                ceres::SE3ToRpyxyz((last_frame->pose.inverse() * frame->pose).data(), relative);
+                double dt = frame->time - last_frame->time;
+                out << std::fabs(relative[0] / dt) << ","
+                    << std::fabs(relative[1] / dt) << ","
+                    << std::fabs(relative[2] / dt) << ","
+                    << std::fabs(relative[3] / dt) << ","
+                    << std::fabs(relative[4] / dt) << ","
+                    << std::fabs(relative[5] / dt) << std::endl;
+            }
+            last_frame = frame;
+        }
+        out.close();
+        ROS_WARN("Finished!!!");
+    }
 }
 
 void read_ground_truth()

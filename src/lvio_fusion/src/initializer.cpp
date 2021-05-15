@@ -16,13 +16,9 @@ bool Initializer::EstimateVelAndRwg(Frames frames)
         for (auto &pair : frames)
         {
             auto frame = pair.second;
-            if (!frame->preintegration || !frame->last_keyframe)
-                return false;
-
             twg += frame->last_keyframe->GetRotation() * frame->preintegration->GetUpdatedDeltaVelocity();
             velocity = (frame->GetPosition() - frame->last_keyframe->GetPosition()) / frame->preintegration->sum_dt;
             frame->SetVelocity(velocity);
-            frame->last_keyframe->SetVelocity(velocity);
         }
         Rwg_ = get_R_from_vector(twg);
         Vector3d g(0, 0, Imu::Get()->G);
@@ -36,6 +32,7 @@ bool Initializer::EstimateVelAndRwg(Frames frames)
     return true;
 }
 
+// make sure than every frame has last_frame and preintegrate
 bool Initializer::Initialize(Frames frames, double prior_a, double prior_g)
 {
     // estimate velocity and gravity direction
@@ -76,7 +73,7 @@ void Initializer::Initialize(double init_time, double end_time)
             need_init = true;
             step = 3;
         }
-        else if (dt > 15 && step == 3)
+        else if (dt > 5 && step == 3)
         {
             need_init = true;
             step = 4;
@@ -101,13 +98,11 @@ void Initializer::Initialize(double init_time, double end_time)
     if (need_init)
     {
         need_init = false;
-        frames_init = Map::Instance().GetKeyFrames(0, end_time, num_frames_init);
-        old_pose = (--frames_init.end())->second->pose;
-
-        if (frames_init.size() == num_frames_init &&
-            frames_init.begin()->first > init_time &&
+        frames_init = Map::Instance().GetKeyFrames(init_time, end_time);
+        if (frames_init.size() >= num_frames_init &&
             frames_init.begin()->second->preintegration)
         {
+            old_pose = (--frames_init.end())->second->pose;
             if (!Imu::Get()->initialized)
             {
                 last_init_time = (--frames_init.end())->second->time;

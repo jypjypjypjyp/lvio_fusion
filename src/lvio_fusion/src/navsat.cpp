@@ -1,5 +1,5 @@
 #include "lvio_fusion/navsat/navsat.h"
-#include "lvio_fusion/ceres/loop_error.hpp"
+#include "lvio_fusion/ceres/pose_error.hpp"
 #include "lvio_fusion/ceres/navsat_error.hpp"
 #include "lvio_fusion/map.h"
 #include "lvio_fusion/utility.h"

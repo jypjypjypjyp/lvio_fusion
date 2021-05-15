@@ -1,8 +1,5 @@
 #include "lvio_fusion/frontend.h"
 #include "lvio_fusion/backend.h"
-#include "lvio_fusion/ceres/base.hpp"
-#include "lvio_fusion/ceres/imu_error.hpp"
-#include "lvio_fusion/ceres/visual_error.hpp"
 #include "lvio_fusion/map.h"
 #include "lvio_fusion/navsat/navsat.h"
 #include "lvio_fusion/utility.h"
@@ -48,23 +45,36 @@ void Frontend::AddImu(double time, Vector3d acc, Vector3d gyr)
     imu_buf_.push(ImuData(acc, gyr, time));
 }
 
-bool check_pose(SE3d current_pose, SE3d last_pose)
+bool check_velocity(SE3d &current_pose, SE3d last_pose, double dt)
 {
     double relative[6];
     ceres::SE3ToRpyxyz((last_pose.inverse() * current_pose).data(), relative);
-    return std::fabs(relative[0]) < 0.1 &&
-           std::fabs(relative[1]) < 0.01 &&
-           std::fabs(relative[2]) < 0.01 &&
-           std::fabs(relative[3]) < 3 &&
-           std::fabs(relative[4]) < 1 &&
-           std::fabs(relative[5]) < 1;
+    for (int i = 0; i < 6; i++)
+    {
+        relative[i] = std::fabs(relative[i]);
+    }
+    // speed is lower than 40m/s, and vy,vz change slowly.
+    if ((Vector3d(relative[3], relative[4], relative[5]) / dt).norm() < 40)
+    {
+        relative[4] = std::min(tan(relative[1] * relative[3]), relative[4]);
+        relative[5] = std::min(tan(relative[2] * relative[3]), relative[5]);
+        SE3d relative_i_j;
+        ceres::RpyxyzToSE3(relative, relative_i_j.data());
+        current_pose = last_pose * relative_i_j;
+        return true;
+    }
+    else
+    {
+        return false;
+    }
 }
 
 void Frontend::InitFrame()
 {
     dt_ = current_frame->time - last_frame->time;
     current_frame->last_keyframe = last_keyframe;
-    current_frame->pose = last_frame_pose_cache_ * relative_i_j_;
+    SE3d init_pose = last_frame_pose_cache_ * relative_i_j_;
+    bool success = false;
     if (Imu::Num())
     {
         current_frame->SetBias(last_frame->bias);
@@ -72,6 +82,7 @@ void Frontend::InitFrame()
         if (Imu::Get()->initialized)
         {
             PredictState();
+            success = check_velocity(current_frame->pose, last_frame_pose_cache_, dt_);
         }
     }
     else if (Navsat::Num() && Navsat::Get()->initialized)
@@ -82,14 +93,16 @@ void Frontend::InitFrame()
         if (has_last_pose)
         {
             // relative navsat pose
-            SE3d current_pose = last_frame_pose_cache_ * last_navsat_pose.inverse() * navsat_pose;
-            if (check_pose(current_pose, last_frame_pose_cache_))
-            {
-                current_frame->pose = current_pose;
-            }
+            current_frame->pose = last_frame_pose_cache_ * last_navsat_pose.inverse() * navsat_pose;
+            success = check_velocity(current_frame->pose, last_frame_pose_cache_, dt_);
+            LOG(INFO) << (success ? "success" : "failed");
         }
         last_navsat_pose = navsat_pose;
         has_last_pose = true;
+    }
+    if (!success)
+    {
+        current_frame->pose = init_pose;
     }
 }
 
@@ -106,7 +119,7 @@ bool Frontend::Track()
     else if (Imu::Num() && Imu::Get()->initialized)
     {
         // tracking bad, disable imu and try again
-        Imu::Get()->initialized = false;
+        ResetImu();
         current_frame->pose = last_frame_pose_cache_ * relative_i_j_;
         return Track();
     }
@@ -216,7 +229,7 @@ int Frontend::TrackLastFrame()
                 Matrix3d R;
                 cv::cv2eigen(cv_R, R);
                 current_pose = (Camera::Get()->extrinsic * SE3d(SO3d(R), Vector3d(tvec.at<double>(0, 0), tvec.at<double>(1, 0), tvec.at<double>(2, 0)))).inverse();
-                success = inliers.rows > num_features_tracking_bad_ && check_pose(current_pose, last_frame_pose_cache_);
+                success = inliers.rows > num_features_tracking_bad_ && check_velocity(current_pose, last_frame_pose_cache_, dt_);
             }
             if (success)
             {
@@ -354,9 +367,6 @@ void Frontend::UpdateImu(const Bias &bias_)
 
 void Frontend::Preintegrate()
 {
-    if (!last_frame)
-        return;
-
     // get imu data fron last frame
     std::vector<ImuData> imu_from_last_frame;
     int timeout = dt_ * 1e3; // 100ms
@@ -456,6 +466,7 @@ void Frontend::PredictState()
     Matrix3d Rwb2 = normalize_R(Rwb1 * current_frame->preintegration_last->GetDeltaRotation(last_frame->bias).toRotationMatrix());
     Vector3d twb2 = twb1 + Vwb1 * sum_dt + 0.5f * sum_dt * sum_dt * G + Rwb1 * current_frame->preintegration_last->GetDeltaPosition(last_frame->bias);
     Vector3d Vwb2 = Vwb1 + sum_dt * G + Rwb1 * current_frame->preintegration_last->GetDeltaVelocity(last_frame->bias);
+
     current_frame->SetVelocity(Vwb2);
     current_frame->SetPose(Rwb2, twb2);
     current_frame->SetBias(last_frame->bias);

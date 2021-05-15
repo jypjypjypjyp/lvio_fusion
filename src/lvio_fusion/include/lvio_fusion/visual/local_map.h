@@ -49,7 +49,7 @@ public:
 private:
     Vector3d ToWorld(visual::Feature::Ptr feature);
 
-    void InsertNewLandmarks(Frame::Ptr frame);
+    void LocalBA(Frame::Ptr frame);
 
     void GetFeaturePyramid(Frame::Ptr frame, Pyramid &pyramid);
 

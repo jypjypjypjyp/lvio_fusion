@@ -18,14 +18,12 @@ public:
     {
         Quaterniond Qi(parameters[0][3], parameters[0][0], parameters[0][1], parameters[0][2]);
         Vector3d Pi(parameters[0][4], parameters[0][5], parameters[0][6]);
-
         Vector3d Vi(parameters[1][0], parameters[1][1], parameters[1][2]);
         Vector3d Bai(parameters[2][0], parameters[2][1], parameters[2][2]);
         Vector3d Bgi(parameters[3][0], parameters[3][1], parameters[3][2]);
 
         Quaterniond Qj(parameters[4][3], parameters[4][0], parameters[4][1], parameters[4][2]);
         Vector3d Pj(parameters[4][4], parameters[4][5], parameters[4][6]);
-
         Vector3d Vj(parameters[5][0], parameters[5][1], parameters[5][2]);
         Vector3d Baj(parameters[6][0], parameters[6][1], parameters[6][2]);
         Vector3d Bgj(parameters[7][0], parameters[7][1], parameters[7][2]);
@@ -123,10 +121,10 @@ private:
     imu::Preintegration::Ptr preintegration_;
 };
 
-class ImuErrorInit : public ceres::SizedCostFunction<15, 7, 3, 3, 3, 7, 3>
+class ImuInitError : public ceres::SizedCostFunction<15, 7, 3, 3, 3, 7, 3>
 {
 public:
-    ImuErrorInit(imu::Preintegration::Ptr preintegration, double priorA_, double priorG_) : preintegration_(preintegration), prior_a(priorA_), prior_g(priorG_) {}
+    ImuInitError(imu::Preintegration::Ptr preintegration, double prior_a, double prior_g) : preintegration_(preintegration), prior_a_(prior_a), prior_g_(prior_g) {}
 
     virtual bool Evaluate(double const *const *parameters, double *residuals, double **jacobians) const
     {
@@ -147,8 +145,8 @@ public:
         Eigen::Map<Matrix<double, 15, 1>> residual(residuals);
         residual = preintegration_->Evaluate(Pi, Qi, Vi, Bai, Bgi, Pj, Qj, Vj, Baj, Bgj);
         Matrix<double, 15, 15> cov_inv = preintegration_->covariance.inverse();
-        cov_inv.block<3, 3>(9, 9) = prior_a * Matrix3d::Identity();
-        cov_inv.block<3, 3>(12, 12) = prior_g * Matrix3d::Identity();
+        cov_inv.block<3, 3>(9, 9) = prior_a_ * Matrix3d::Identity();
+        cov_inv.block<3, 3>(12, 12) = prior_g_ * Matrix3d::Identity();
         Matrix<double, 15, 15> sqrt_info = LLT<Matrix<double, 15, 15>>(cov_inv).matrixL().transpose();
         residual = sqrt_info * residual;
         // LOG(INFO) << residual;
@@ -220,62 +218,60 @@ public:
         return true;
     }
 
-    static ceres::CostFunction *Create(imu::Preintegration::Ptr preintegration, double priorA_, double priorG_)
+    static ceres::CostFunction *Create(imu::Preintegration::Ptr preintegration, double prior_a, double prior_g)
     {
-        return new ImuErrorInit(preintegration, priorA_, priorG_);
+        return new ImuInitError(preintegration, prior_a, prior_g);
     }
 
 private:
     imu::Preintegration::Ptr preintegration_;
-    double prior_a;
-    double prior_g;
+    double prior_a_;
+    double prior_g_;
 };
 
-class ImuErrorG
+class ImuInitGError
 {
 public:
-    ImuErrorG(imu::Preintegration::Ptr preintegration, SE3d current_pose_, SE3d last_pose_, double priorA_, double priorG_) : preintegration_(preintegration), current_pose(current_pose_), last_pose(last_pose_), prior_a(priorA_), prior_g(priorG_) {}
+    ImuInitGError(imu::Preintegration::Ptr preintegration, SE3d current_pose, SE3d last_pose, double prior_a, double prior_g) : preintegration_(preintegration), current_pose_(current_pose), last_pose_(last_pose), prior_a_(prior_a), prior_g_(prior_g) {}
 
-    bool operator()(const double *parameters0, const double *parameters1, const double *parameters2, const double *parameters3, const double *parameters4, double *residuals) const
+    bool operator()(const double *_Vi, const double *_Bai, const double *_Bgi, const double *_Vj, const double *_Rg, double *residuals) const
     {
-        Quaterniond Qi(last_pose.rotationMatrix());
-        Vector3d Pi = last_pose.translation();
+        Quaterniond Qi(last_pose_.rotationMatrix());
+        Vector3d Pi = last_pose_.translation();
+        Vector3d Vi(_Vi[0], _Vi[1], _Vi[2]);
+        Vector3d Bai(_Bai[0], _Bai[1], _Bai[2]);
+        Vector3d Bgi(_Bgi[0], _Bgi[1], _Bgi[2]);
 
-        Vector3d Vi(parameters0[0], parameters0[1], parameters0[2]);
-        Vector3d Bai(parameters1[0], parameters1[1], parameters1[2]);
-        Vector3d Bgi(parameters2[0], parameters2[1], parameters2[2]);
-
-        Quaterniond Qj(current_pose.rotationMatrix());
-        Vector3d Pj = current_pose.translation();
-
-        Vector3d Vj(parameters3[0], parameters3[1], parameters3[2]);
+        Quaterniond Qj(current_pose_.rotationMatrix());
+        Vector3d Pj = current_pose_.translation();
+        Vector3d Vj(_Vj[0], _Vj[1], _Vj[2]);
         Vector3d Baj(0, 0, 0);
         Vector3d Bgj(0, 0, 0);
 
-        Quaterniond Rg(parameters4[3], parameters4[0], parameters4[1], parameters4[2]);
+        Quaterniond Rg(_Rg[3], _Rg[0], _Rg[1], _Rg[2]);
 
         Eigen::Map<Matrix<double, 15, 1>> residual(residuals);
         residual = preintegration_->Evaluate(Pi, Qi, Vi, Bai, Bgi, Pj, Qj, Vj, Baj, Bgj, Rg);
         Matrix<double, 15, 15> cov_inv = preintegration_->covariance.inverse();
-        cov_inv.block<3, 3>(9, 9) = prior_a * Matrix3d::Identity();
-        cov_inv.block<3, 3>(12, 12) = prior_g * Matrix3d::Identity();
+        cov_inv.block<3, 3>(9, 9) = prior_a_ * Matrix3d::Identity();
+        cov_inv.block<3, 3>(12, 12) = prior_g_ * Matrix3d::Identity();
         Matrix<double, 15, 15> sqrt_info = LLT<Matrix<double, 15, 15>>(cov_inv).matrixL().transpose();
         residual = sqrt_info * residual;
 
         return true;
     }
 
-    static ceres::CostFunction *Create(imu::Preintegration::Ptr preintegration, SE3d current_pose_, SE3d last_pose_, double priorA_, double priorG_)
+    static ceres::CostFunction *Create(imu::Preintegration::Ptr preintegration, SE3d current_pose, SE3d last_pose, double prior_a, double prior_g)
     {
-        return new ceres::NumericDiffCostFunction<ImuErrorG, ceres::FORWARD, 15, 3, 3, 3, 3, 4>(new ImuErrorG(preintegration, current_pose_, last_pose_, priorA_, priorG_));
+        return new ceres::NumericDiffCostFunction<ImuInitGError, ceres::FORWARD, 15, 3, 3, 3, 3, 4>(new ImuInitGError(preintegration, current_pose, last_pose, prior_a, prior_g));
     }
 
 private:
     imu::Preintegration::Ptr preintegration_;
-    SE3d current_pose;
-    SE3d last_pose;
-    double prior_a;
-    double prior_g;
+    SE3d current_pose_;
+    SE3d last_pose_;
+    double prior_a_;
+    double prior_g_;
 };
 } // namespace lvio_fusion
 

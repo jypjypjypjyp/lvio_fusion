@@ -1,7 +1,7 @@
 #include "lvio_fusion/lidar/association.h"
 #include "lvio_fusion/adapt/problem.h"
 #include "lvio_fusion/ceres/lidar_error.hpp"
-#include "lvio_fusion/ceres/loop_error.hpp"
+#include "lvio_fusion/ceres/pose_error.hpp"
 #include "lvio_fusion/lidar/feature.h"
 #include "lvio_fusion/lidar/lidar.h"
 #include "lvio_fusion/map.h"

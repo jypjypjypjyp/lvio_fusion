@@ -45,11 +45,11 @@ spacing: 0
 resolution: 0.2
 
 #imu parameters
-acc_n: 0.08             # accelerometer measurement noise standard deviation. #0.2   0.04
-gyr_n: 0.004            # gyroscope measurement noise standard deviation.     #0.05  0.004
-acc_w: 0.00004          # accelerometer bias random work noise standard deviation.  #0.02
-gyr_w: 2.0e-6           # gyroscope bias random work noise standard deviation.     #4.0e-5
-g_norm: 9.81007         # gravity magnitude
+acc_n: 0.1        # accelerometer measurement noise standard deviation. #0.2   0.04
+gyr_n: 0.01       # gyroscope measurement noise standard deviation.     #0.05  0.004
+acc_w: 0.001      # accelerometer bias random work noise standard deviation.  #0.02
+gyr_w: 1.0e-4     # gyroscope bias random work noise standard deviation.     #4.0e-5
+g_norm: 9.81007   # gravity magnitude
 
 # body_to_cam0 is inverse of [R T]
 body_to_cam0: !!opencv-matrix

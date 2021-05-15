@@ -1,5 +1,5 @@
 #include "lvio_fusion/loop/relocator.h"
-#include "lvio_fusion/ceres/loop_error.hpp"
+#include "lvio_fusion/ceres/pose_error.hpp"
 #include "lvio_fusion/manager.h"
 #include "lvio_fusion/map.h"
 #include "lvio_fusion/utility.h"

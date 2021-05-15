@@ -1,6 +1,6 @@
 #include "lvio_fusion/backend.h"
 #include "lvio_fusion/ceres/imu_error.hpp"
-#include "lvio_fusion/ceres/loop_error.hpp"
+#include "lvio_fusion/ceres/pose_error.hpp"
 #include "lvio_fusion/ceres/visual_error.hpp"
 #include "lvio_fusion/frontend.h"
 #include "lvio_fusion/imu/tools.h"
@@ -9,6 +9,7 @@
 #include "lvio_fusion/utility.h"
 #include "lvio_fusion/visual/feature.h"
 #include "lvio_fusion/visual/landmark.h"
+
 namespace lvio_fusion
 {
 
@@ -179,7 +180,7 @@ void Backend::Optimize()
 
         ceres::Solver::Options options;
         options.linear_solver_type = ceres::DENSE_SCHUR;
-        options.max_solver_time_in_seconds = 0.6 * window_size_;
+        options.max_solver_time_in_seconds = 0.3;
         options.num_threads = num_threads;
         ceres::Solver::Summary summary;
         adapt::Solve(options, &problem, &summary);
@@ -218,11 +219,11 @@ void Backend::Optimize()
         }
     }
 
-    if (Lidar::Num() && mapping_)
-    {
-        Frames mapping_kfs = Map::Instance().GetKeyFrames(start, end - window_size_);
-        mapping_->Optimize(mapping_kfs);
-    }
+    // if (Lidar::Num() && mapping_)
+    // {
+    //     Frames mapping_kfs = Map::Instance().GetKeyFrames(start, end - window_size_);
+    //     mapping_->Optimize(mapping_kfs);
+    // }
 
     if (Navsat::Num() && Navsat::Get()->initialized)
     {

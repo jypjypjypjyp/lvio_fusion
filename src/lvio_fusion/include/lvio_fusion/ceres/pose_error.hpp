@@ -1,17 +1,47 @@
-#ifndef lvio_fusion_LOOP_ERROR_H
-#define lvio_fusion_LOOP_ERROR_H
+#ifndef lvio_fusion_POSE_ERROR_H
+#define lvio_fusion_POSE_ERROR_H
 
 #include "lvio_fusion/ceres/base.hpp"
-#include "lvio_fusion/ceres/lidar_error.hpp"
+#include "lvio_fusion/common.h"
 
 namespace lvio_fusion
 {
 
+// class VehicleError : public ceres::Error
+// {
+// public:
+//     VehicleError(double dt, double weight) : dt_(dt), Error(weight) {}
+
+//     template <typename T>
+//     bool operator()(const T *Twc1, const T *Twc2, T *residuals) const
+//     {
+//         T Twc1_inverse[7], relative_i_j[7];
+//         ceres::SE3Inverse(Twc1, Twc1_inverse);
+//         ceres::SE3Product(Twc1_inverse, Twc2, relative_i_j);
+//         residuals[0] = T(weight_) * (T(relative_i_j_.data()[0]) - relative_i_j[0]);
+//         residuals[1] = T(weight_) * (T(relative_i_j_.data()[1]) - relative_i_j[1]);
+//         residuals[2] = T(weight_) * (T(relative_i_j_.data()[2]) - relative_i_j[2]);
+//         residuals[3] = T(weight_) * (T(relative_i_j_.data()[3]) - relative_i_j[3]);
+//         residuals[4] = T(weight_) * (T(relative_i_j_.data()[4]) - relative_i_j[4]);
+//         residuals[5] = T(weight_) * (T(relative_i_j_.data()[5]) - relative_i_j[5]);
+//         residuals[6] = T(weight_) * (T(relative_i_j_.data()[6]) - relative_i_j[6]);
+//         return true;
+//     }
+
+//     static ceres::CostFunction *Create(double dt, double weight = 1)
+//     {
+//         return (new ceres::AutoDiffCostFunction<VehicleError, 6, 7, 7>(new VehicleError(dt, weight)));
+//     }
+
+// private:
+//     double dt_;
+// };
+
 class PoseGraphError : public ceres::Error
 {
 public:
-    PoseGraphError(SE3d last_frame, SE3d frame, double weight)
-        : relative_i_j_(last_frame.inverse() * frame), Error(weight) {}
+    PoseGraphError(SE3d last_pose, SE3d pose, double weight)
+        : relative_i_j_(last_pose.inverse() * pose), Error(weight) {}
 
     template <typename T>
     bool operator()(const T *Twc1, const T *Twc2, T *residuals) const
@@ -29,9 +59,9 @@ public:
         return true;
     }
 
-    static ceres::CostFunction *Create(SE3d last_frame, SE3d frame, double weight = 1)
+    static ceres::CostFunction *Create(SE3d last_pose, SE3d pose, double weight = 1)
     {
-        return (new ceres::AutoDiffCostFunction<PoseGraphError, 7, 7, 7>(new PoseGraphError(last_frame, frame, weight)));
+        return (new ceres::AutoDiffCostFunction<PoseGraphError, 7, 7, 7>(new PoseGraphError(last_pose, pose, weight)));
     }
 
 private:
@@ -203,4 +233,4 @@ private:
 
 } // namespace lvio_fusion
 
-#endif // lvio_fusion_LOOP_ERROR_H
+#endif // lvio_fusion_POSE_ERROR_H

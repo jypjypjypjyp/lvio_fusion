@@ -6,40 +6,6 @@
 namespace lvio_fusion
 {
 
-// class NavsatInitRError
-// {
-// public:
-//     NavsatInitRError(Vector3d p0, Vector3d p1)
-//         : x0_(p0.x()), y0_(p0.y()), z0_(p0.z()),
-//           x1_(p1.x()), y1_(p1.y()), z1_(p1.z())
-//     {
-//     }
-
-//     template <typename T>
-//     bool operator()(const T *yaw, T *residuals) const
-//     {
-//         T tf[7];
-//         T rpyxyz[6] = {yaw[0], T(0), T(0), T(0), T(0), T(0)};
-//         ceres::RpyxyzToSE3(rpyxyz, tf);
-//         T p1[3] = {T(x1_), T(y1_), T(z1_)};
-//         T tf_p1[3];
-//         ceres::SE3TransformPoint(tf, p1, tf_p1);
-//         residuals[0] = T(x0_) - tf_p1[0];
-//         residuals[1] = T(y0_) - tf_p1[1];
-//         residuals[2] = T(z0_) - tf_p1[2];
-//         return true;
-//     }
-
-//     static ceres::CostFunction *Create(Vector3d p0, Vector3d p1)
-//     {
-//         return (new ceres::AutoDiffCostFunction<NavsatInitRError, 3, 1>(new NavsatInitRError(p0, p1)));
-//     }
-
-// private:
-//     double x0_, y0_, z0_;
-//     double x1_, y1_, z1_;
-// };
-
 class NavsatInitError
 {
 public:
@@ -182,7 +148,6 @@ private:
     double x0_, y0_, z0_;
     double x1_, y1_, z1_;
     SE3d pose_;
-    bool trust_;
 };
 
 } // namespace lvio_fusion

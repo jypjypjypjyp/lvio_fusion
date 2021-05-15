@@ -15,7 +15,7 @@ public:
 
     void Initialize(double init_time, double end_time);
 
-    int step = 0;   // 0: never init; 1,2,3: next step 1,2,3; 4: finish;
+    int step = 1;   // 1,2,3: next step 1,2,3; 4: finish;
 
 private:
     bool EstimateVelAndRwg(Frames keyframes);

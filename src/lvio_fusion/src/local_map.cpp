@@ -1,7 +1,10 @@
 #include "lvio_fusion/visual/local_map.h"
+#include "lvio_fusion/ceres/visual_error.hpp"
 #include "lvio_fusion/map.h"
 #include "lvio_fusion/utility.h"
 #include "lvio_fusion/visual/camera.h"
+
+#include <fstream>
 
 namespace lvio_fusion
 {
@@ -86,6 +89,8 @@ void LocalMap::AddKeyFrame(Frame::Ptr new_kf)
             Map::Instance().InsertLandmark(landmark);
         }
     }
+    // local BA
+    LocalBA(new_kf);
     // get feature pyramid
     local_features_[new_kf->time] = Pyramid();
     GetFeaturePyramid(new_kf, local_features_[new_kf->time]);
@@ -149,6 +154,31 @@ void LocalMap::GetFeaturePyramid(Frame::Ptr frame, Pyramid &pyramid)
             pyramid[i].push_back(visual::Feature::Create(frame, kp));
         }
     }
+}
+
+void LocalMap::LocalBA(Frame::Ptr frame)
+{
+    ceres::Problem problem;
+    ceres::LossFunction *loss_function = new ceres::HuberLoss(1.0);
+    ceres::LocalParameterization *local_parameterization = new ceres::ProductParameterization(
+        new ceres::EigenQuaternionParameterization(),
+        new ceres::IdentityParameterization(3));
+    double *para_kf = frame->pose.data();
+    problem.AddParameterBlock(para_kf, SE3d::num_parameters, local_parameterization);
+    for (auto &pair_feature : frame->features_left)
+    {
+        auto feature = pair_feature.second;
+        auto landmark = feature->landmark.lock();
+        auto first_frame = landmark->FirstFrame().lock();
+        ceres::CostFunction *cost_function = PoseOnlyReprojectionError::Create(cv2eigen(feature->keypoint.pt), landmark->ToWorld(), Camera::Get(), frame->weights.visual);
+        problem.AddResidualBlock(cost_function, loss_function, para_kf);
+    }
+    ceres::Solver::Options options;
+    options.linear_solver_type = ceres::DENSE_QR;
+    options.max_num_iterations = 1;
+    options.num_threads = num_threads;
+    ceres::Solver::Summary summary;
+    ceres::Solve(options, &problem, &summary);
 }
 
 void LocalMap::GetNewLandmarks(Frame::Ptr frame, Pyramid &pyramid)
@@ -252,8 +282,9 @@ void LocalMap::Triangulate(Frame::Ptr frame, Level &features)
                 {
                     // check if is a moving point
                     Vector3d pw = Camera::Get(1)->Robot2World(pb, frame->pose);
-                    double e = (pw - position_cache[features[i]->landmark.lock()->id]).norm() / pb.z();
-                    if (e > 0.5)
+                    double dt = frame->time - features[i]->landmark.lock()->FirstFrame().lock()->time;
+                    double e = (pw - position_cache[features[i]->landmark.lock()->id]).norm();
+                    if (e / dt > 4 || e > 2)
                     {
                         frame->RemoveFeature(features[i]);
                         cv::putText(img_track, "X", kps_left[i], cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 0, 255));

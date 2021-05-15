@@ -418,7 +418,7 @@ void Extractor::ComputeKeyPointsQuadTree(vector<vector<KeyPoint>> &all_kps)
 
                 if (!cell_kps.empty())
                 {
-                    for (vector<cv::KeyPoint>::iterator vit = cell_kps.begin(); vit != cell_kps.end(); vit++)
+                    for (auto vit = cell_kps.begin(); vit != cell_kps.end(); vit++)
                     {
                         (*vit).pt.x += j * cell_width;
                         (*vit).pt.y += i * cell_height;
@@ -504,9 +504,9 @@ void Extractor::Detect(Mat image, Mat mask, vector<vector<KeyPoint>> &keypoints)
 Mat Extractor::Compute(vector<vector<KeyPoint>> &keypoints)
 {
     static Ptr<ORB> orb = ORB::create();
-    int num_kps=0;
-    for(auto &kps_level : keypoints)
-        num_kps+=kps_level.size();
+    int num_kps = 0;
+    for (auto &kps_level : keypoints)
+        num_kps += kps_level.size();
 
     Mat descriptors = Mat::zeros(num_kps, 32, CV_8U);
     int offset = 0;

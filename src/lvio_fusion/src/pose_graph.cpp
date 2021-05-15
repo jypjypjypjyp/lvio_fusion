@@ -1,4 +1,4 @@
-#include "lvio_fusion/ceres/loop_error.hpp"
+#include "lvio_fusion/ceres/pose_error.hpp"
 #include "lvio_fusion/loop/pose_graph.h"
 #include "lvio_fusion/utility.h"
 

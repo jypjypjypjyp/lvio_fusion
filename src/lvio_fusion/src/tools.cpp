@@ -18,20 +18,19 @@ void ReComputeBiasVel(Frames &frames, Frame::Ptr &prior_frame)
         new ceres::IdentityParameterization(3));
 
     Frame::Ptr last_frame = prior_frame;
-    Frame::Ptr current_frame;
     bool first = true;
     for (auto &pair : frames)
     {
-        current_frame = pair.second;
-        if (!current_frame->good_imu)
+        auto frame = pair.second;
+        if (!frame->good_imu)
         {
-            last_frame = current_frame;
+            last_frame = frame;
             continue;
         }
-        auto para_kf = current_frame->pose.data();
-        auto para_v = current_frame->Vw.data();
-        auto para_bg = current_frame->bias.linearized_bg.data();
-        auto para_ba = current_frame->bias.linearized_ba.data();
+        double *para_kf = frame->pose.data();
+        double *para_v = frame->Vw.data();
+        double *para_bg = frame->bias.linearized_bg.data();
+        double *para_ba = frame->bias.linearized_ba.data();
         problem.AddParameterBlock(para_kf, SE3d::num_parameters, local_parameterization);
         problem.AddParameterBlock(para_v, 3);
         problem.AddParameterBlock(para_ba, 3);
@@ -39,10 +38,10 @@ void ReComputeBiasVel(Frames &frames, Frame::Ptr &prior_frame)
         problem.SetParameterBlockConstant(para_kf);
         if (last_frame && last_frame->good_imu)
         {
-            auto para_last_kf = last_frame->pose.data();
-            auto para_v_last = last_frame->Vw.data();
-            auto para_bg_last = last_frame->bias.linearized_bg.data();
-            auto para_ba_last = last_frame->bias.linearized_ba.data();
+            double *para_last_kf = last_frame->pose.data();
+            double *para_v_last = last_frame->Vw.data();
+            double *para_bg_last = last_frame->bias.linearized_bg.data();
+            double *para_ba_last = last_frame->bias.linearized_ba.data();
             if (first)
             {
                 problem.AddParameterBlock(para_last_kf, SE3d::num_parameters, local_parameterization);
@@ -55,17 +54,16 @@ void ReComputeBiasVel(Frames &frames, Frame::Ptr &prior_frame)
                 problem.SetParameterBlockConstant(para_ba_last);
                 first = false;
             }
-            ceres::CostFunction *cost_function = ImuError::Create(current_frame->preintegration);
+            ceres::CostFunction *cost_function = ImuError::Create(frame->preintegration);
             problem.AddResidualBlock(ProblemType::ImuError, cost_function, NULL, para_last_kf, para_v_last, para_ba_last, para_bg_last, para_kf, para_v, para_ba, para_bg);
         }
-        last_frame = current_frame;
+        last_frame = frame;
     }
     ceres::Solver::Options options;
     options.linear_solver_type = ceres::DENSE_SCHUR;
     options.trust_region_strategy_type = ceres::DOGLEG;
-    options.max_num_iterations = 4;
-    options.max_solver_time_in_seconds = 0.1;
-    options.num_threads = 4;
+    options.max_num_iterations = 1;
+    options.num_threads = num_threads;
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
     for (auto &pair : frames)
@@ -97,10 +95,10 @@ void ReComputeBiasVel(Frames &frames)
             last_frame = current_frame;
             continue;
         }
-        auto para_kf = current_frame->pose.data();
-        auto para_v = current_frame->Vw.data();
-        auto para_bg = current_frame->bias.linearized_bg.data();
-        auto para_ba = current_frame->bias.linearized_ba.data();
+        double *para_kf = current_frame->pose.data();
+        double *para_v = current_frame->Vw.data();
+        double *para_bg = current_frame->bias.linearized_bg.data();
+        double *para_ba = current_frame->bias.linearized_ba.data();
         problem.AddParameterBlock(para_kf, SE3d::num_parameters, local_parameterization);
         problem.AddParameterBlock(para_v, 3);
         problem.AddParameterBlock(para_ba, 3);
@@ -108,10 +106,10 @@ void ReComputeBiasVel(Frames &frames)
         problem.SetParameterBlockConstant(para_kf);
         if (last_frame && last_frame->good_imu)
         {
-            auto para_last_kf = last_frame->pose.data();
-            auto para_v_last = last_frame->Vw.data();
-            auto para_bg_last = last_frame->bias.linearized_bg.data();
-            auto para_ba_last = last_frame->bias.linearized_ba.data();
+            double *para_last_kf = last_frame->pose.data();
+            double *para_v_last = last_frame->Vw.data();
+            double *para_bg_last = last_frame->bias.linearized_bg.data();
+            double *para_ba_last = last_frame->bias.linearized_ba.data();
             ceres::CostFunction *cost_function = ImuError::Create(current_frame->preintegration);
             problem.AddResidualBlock(ProblemType::ImuError, cost_function, NULL, para_last_kf, para_v_last, para_ba_last, para_bg_last, para_kf, para_v, para_ba, para_bg);
         }
@@ -137,24 +135,24 @@ void ReComputeBiasVel(Frames &frames)
 
 void RePredictVel(Frames &frames, Frame::Ptr &prior_frame)
 {
-    Frame::Ptr last_key_frame = prior_frame;
+    Frame::Ptr last_frame = prior_frame;
     Vector3d G(0, 0, -Imu::Get()->G);
     G = Imu::Get()->Rwg * G;
     Vector3d twb1, twb2, Vwb1, Vwb2;
     Matrix3d Rwb1, Rwb2;
-    for (auto &frame : frames)
+    for (auto &pair : frames)
     {
-        Frame::Ptr current_key_frame = frame.second;
-        double t12 = current_key_frame->preintegration->sum_dt;
-        twb1 = last_key_frame->GetPosition();
-        Rwb1 = last_key_frame->GetRotation();
-        Vwb1 = last_key_frame->Vw;
-        Rwb2 = normalize_R(Rwb1 * current_key_frame->preintegration->GetDeltaRotation(last_key_frame->bias).toRotationMatrix());
-        twb2 = twb1 + Vwb1 * t12 + 0.5f * t12 * t12 * G + Rwb1 * current_key_frame->preintegration->GetDeltaPosition(last_key_frame->bias);
-        Vwb2 = Vwb1 + t12 * G + Rwb1 * current_key_frame->preintegration->GetDeltaVelocity(last_key_frame->bias);
-        current_key_frame->SetVelocity(Vwb2);
-        current_key_frame->SetBias(last_key_frame->bias);
-        last_key_frame = current_key_frame;
+        Frame::Ptr frame = pair.second;
+        double t12 = frame->preintegration->sum_dt;
+        twb1 = last_frame->GetPosition();
+        Rwb1 = last_frame->GetRotation();
+        Vwb1 = last_frame->Vw;
+        Rwb2 = normalize_R(Rwb1 * frame->preintegration->GetDeltaRotation(last_frame->bias).toRotationMatrix());
+        twb2 = twb1 + Vwb1 * t12 + 0.5f * t12 * t12 * G + Rwb1 * frame->preintegration->GetDeltaPosition(last_frame->bias);
+        Vwb2 = Vwb1 + t12 * G + Rwb1 * frame->preintegration->GetDeltaVelocity(last_frame->bias);
+        frame->SetVelocity(Vwb2);
+        frame->SetBias(last_frame->bias);
+        last_frame = frame;
     }
 }
 
@@ -163,14 +161,14 @@ bool InertialOptimization(Frames &frames, Matrix3d &Rwg, double prior_a, double 
     ceres::Problem problem;
     ceres::CostFunction *cost_function;
     // prior bias
-    auto para_gyroBias = frames.begin()->second->bias.linearized_bg.data();
+    double *para_gyroBias = frames.begin()->second->bias.linearized_bg.data();
     problem.AddParameterBlock(para_gyroBias, 3);
-    auto para_accBias = frames.begin()->second->bias.linearized_ba.data();
+    double *para_accBias = frames.begin()->second->bias.linearized_ba.data();
     problem.AddParameterBlock(para_accBias, 3);
     // optimize gravity, velocity, bias
     Quaterniond rwg(Rwg);
     SO3d RwgSO3(rwg);
-    auto para_rwg = RwgSO3.data();
+    double *para_rwg = RwgSO3.data();
     ceres::LocalParameterization *local_parameterization = new ceres::EigenQuaternionParameterization();
     problem.AddParameterBlock(para_rwg, SO3d::num_parameters, local_parameterization);
 
@@ -178,28 +176,26 @@ bool InertialOptimization(Frames &frames, Matrix3d &Rwg, double prior_a, double 
     for (auto &pair : frames)
     {
         Frame::Ptr frame = pair.second;
-        if (frame->preintegration)
+        if (!frame->preintegration)
         {
             last_frame = frame;
             continue;
         }
-        auto para_v = frame->Vw.data();
+        double *para_v = frame->Vw.data();
         problem.AddParameterBlock(para_v, 3);
 
         if (last_frame)
         {
-            auto para_v_last = last_frame->Vw.data();
-            cost_function = ImuErrorG::Create(frame->preintegration, frame->pose, last_frame->pose, prior_a, prior_g);
+            double *para_v_last = last_frame->Vw.data();
+            cost_function = ImuInitGError::Create(frame->preintegration, frame->pose, last_frame->pose, prior_a, prior_g);
             problem.AddResidualBlock(cost_function, NULL, para_v_last, para_accBias, para_gyroBias, para_v, para_rwg);
         }
         last_frame = frame;
     }
 
     ceres::Solver::Options options;
-    options.linear_solver_type = ceres::DENSE_SCHUR;
-    options.trust_region_strategy_type = ceres::DOGLEG;
-    options.max_solver_time_in_seconds = 0.1;
-    options.num_threads = 4;
+    options.linear_solver_type = ceres::DENSE_QR;
+    options.num_threads = num_threads;
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
 
@@ -219,14 +215,10 @@ bool InertialOptimization(Frames &frames, Matrix3d &Rwg, double prior_a, double 
     {
         Frame::Ptr frame = pair.second;
         Vector3d dbg = frame->bias.linearized_bg - bg;
+        frame->SetBias(bias);
         if (dbg.norm() > 0.01)
         {
-            frame->SetBias(bias);
             frame->preintegration->Repropagate(bias.linearized_ba, bias.linearized_bg);
-        }
-        else
-        {
-            frame->SetBias(bias);
         }
     }
     return true;
@@ -278,9 +270,9 @@ void FullInertialBA(Frames &frames, double prior_a, double prior_g)
         }
     }
 
-    auto para_bg = frames.begin()->second->bias.linearized_bg.data();
+    double *para_bg = frames.begin()->second->bias.linearized_bg.data();
     problem.AddParameterBlock(para_bg, 3);
-    auto para_ba = frames.begin()->second->bias.linearized_ba.data();
+    double *para_ba = frames.begin()->second->bias.linearized_ba.data();
     problem.AddParameterBlock(para_ba, 3);
     // imu factor
     Frame::Ptr last_frame;
@@ -293,15 +285,15 @@ void FullInertialBA(Frames &frames, double prior_a, double prior_g)
             last_frame = current_frame;
             continue;
         }
-        auto para_kf = current_frame->pose.data();
-        auto para_v = current_frame->Vw.data();
+        double *para_kf = current_frame->pose.data();
+        double *para_v = current_frame->Vw.data();
         problem.AddParameterBlock(para_kf, SE3d::num_parameters, local_parameterization);
         problem.AddParameterBlock(para_v, 3);
         if (last_frame && last_frame->good_imu)
         {
-            auto para_last_kf = last_frame->pose.data();
-            auto para_v_last = last_frame->Vw.data();
-            cost_function = ImuErrorInit::Create(current_frame->preintegration, prior_a, prior_g);
+            double *para_last_kf = last_frame->pose.data();
+            double *para_v_last = last_frame->Vw.data();
+            cost_function = ImuInitError::Create(current_frame->preintegration, prior_a, prior_g);
             problem.AddResidualBlock(cost_function, NULL, para_last_kf, para_v_last, para_ba, para_bg, para_kf, para_v);
         }
         last_frame = current_frame;
