@@ -54,10 +54,10 @@ bool check_velocity(SE3d &current_pose, SE3d last_pose, double dt)
         relative[i] = std::fabs(relative[i]);
     }
     // speed is lower than 40m/s, and vy,vz change slowly.
-    if ((Vector3d(relative[3], relative[4], relative[5]) / dt).norm() < 40)
+    if ((Vector3d(relative[3], relative[4], relative[5]) / dt).norm() < max_speed)
     {
-        relative[4] = std::min(tan(relative[1] * relative[3]), relative[4]);
-        relative[5] = std::min(tan(relative[2] * relative[3]), relative[5]);
+        relative[4] = std::min(tan(relative[1]) * relative[3], relative[4]);
+        relative[5] = std::min(tan(relative[2]) * relative[3], relative[5]);
         SE3d relative_i_j;
         ceres::RpyxyzToSE3(relative, relative_i_j.data());
         current_pose = last_pose * relative_i_j;

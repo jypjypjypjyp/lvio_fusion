@@ -60,9 +60,8 @@ void ReComputeBiasVel(Frames &frames, Frame::Ptr &prior_frame)
         last_frame = frame;
     }
     ceres::Solver::Options options;
-    options.linear_solver_type = ceres::DENSE_SCHUR;
-    options.trust_region_strategy_type = ceres::DOGLEG;
-    options.max_num_iterations = 1;
+    options.linear_solver_type = ceres::DENSE_QR;
+    options.max_num_iterations = 4;
     options.num_threads = num_threads;
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
@@ -116,11 +115,9 @@ void ReComputeBiasVel(Frames &frames)
         last_frame = current_frame;
     }
     ceres::Solver::Options options;
-    options.linear_solver_type = ceres::DENSE_SCHUR;
-    options.trust_region_strategy_type = ceres::DOGLEG;
-    options.max_num_iterations = 4;
-    options.max_solver_time_in_seconds = 0.1;
-    options.num_threads = 4;
+    options.linear_solver_type = ceres::DENSE_QR;
+    options.max_num_iterations = 2;
+    options.num_threads = num_threads;
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
     for (auto &pair : frames)
@@ -302,7 +299,7 @@ void FullInertialBA(Frames &frames, double prior_a, double prior_g)
     //solve
     ceres::Solver::Options options;
     options.linear_solver_type = ceres::DENSE_SCHUR;
-    options.max_num_iterations = 4;
+    options.max_num_iterations = 2;
     options.num_threads = num_threads;
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);

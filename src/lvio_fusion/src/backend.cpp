@@ -129,6 +129,12 @@ void Backend::BuildProblem(Frames &active_kfs, adapt::Problem &problem, bool use
             }
         }
 
+        if (last_frame)
+        {
+            ceres::CostFunction *cost_function = VehicleError::Create(frame->time - last_frame->time, 10000);
+            problem.AddResidualBlock(ProblemType::Other, cost_function, NULL, para_last_kf, para_kf);
+        }
+
         // check if weak constraint
         auto num_types = problem.GetTypes(para_kf);
         if (!num_types[ProblemType::ImuError] && num_types[ProblemType::VisualError] < 10)
