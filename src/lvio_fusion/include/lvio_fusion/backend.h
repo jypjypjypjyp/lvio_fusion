@@ -14,13 +14,6 @@ namespace lvio_fusion
 
 class Frontend;
 
-enum class BackendStatus
-{
-    RUNNING,
-    TO_PAUSE,
-    PAUSING
-};
-
 class Backend
 {
 public:
@@ -36,11 +29,6 @@ public:
 
     void UpdateMap();
 
-    void Pause();
-
-    void Continue();
-
-    BackendStatus status = BackendStatus::RUNNING;
     std::mutex mutex;
     double finished = 0;
 
@@ -51,19 +39,18 @@ private:
 
     void Optimize();
 
-    void UpdateFrontend(SE3d transform, double time );
+    void UpdateFrontend(SE3d transform, double time);
 
-    void BuildProblem(Frames &active_kfs, adapt::Problem &problem,bool isimu=true);
+    void BuildProblem(Frames &active_kfs, adapt::Problem &problem);
 
     std::weak_ptr<Frontend> frontend_;
     Mapping::Ptr mapping_;
     Initializer::Ptr initializer_;
 
-    std::thread thread_;
-    std::mutex running_mutex_, pausing_mutex_;
-    std::condition_variable running_;
-    std::condition_variable pausing_;
+    std::thread thread_, thread_global_;
+    std::mutex mutex_optimize_;
     std::condition_variable map_update_;
+    double global_end_ = 0;
     const double window_size_;
     const bool update_weights_;
 };

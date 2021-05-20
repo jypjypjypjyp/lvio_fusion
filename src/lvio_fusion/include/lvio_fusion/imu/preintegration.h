@@ -59,7 +59,7 @@ public:
         const Vector3d &Pj, const Quaterniond &Qj, const Vector3d &Vj, const Vector3d &Baj, const Vector3d &Bgj, const Quaterniond &Rg);
 
     Vector3d GetUpdatedDeltaVelocity();
-    void SetNewBias(const Bias &new_bias);
+    void UpdateBias(const Bias &new_bias);
     Quaterniond GetUpdatedDeltaRotation();
     Vector3d GetUpdatedDeltaPosition();
     Quaterniond GetDeltaRotation(const Bias &b_);
@@ -79,7 +79,6 @@ public:
     Vector3d delta_p;
     Quaterniond delta_q;
     Vector3d delta_v;
-    Bias bias;
     Matrix<double, 6, 1> delta_bias;
     Matrix<double, 15, 15> jacobian, covariance;
     Matrix<double, 15, 15> step_jacobian;

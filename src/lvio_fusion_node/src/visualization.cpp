@@ -63,7 +63,7 @@ void publish_odometry(Estimator::Ptr estimator, double time)
         }
         if (pair.second->loop_closure)
         {
-            auto position = pair.second->loop_closure->frame_old->pose.translation();
+            auto position = pair.second->loop_closure->frame_old->GetPosition();
             geometry_msgs::PoseStamped pose_stamped_loop;
             pose_stamped_loop.header.stamp = ros::Time(pair.first);
             pose_stamped_loop.header.frame_id = "world";

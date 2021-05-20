@@ -17,6 +17,7 @@ Backend::Backend(double window_size, bool update_weights)
     : window_size_(window_size), update_weights_(update_weights)
 {
     thread_ = std::thread(std::bind(&Backend::BackendLoop, this));
+    thread_global_ = std::thread(std::bind(&Backend::GlobalLoop, this));
 }
 
 void Backend::UpdateMap()
@@ -24,36 +25,11 @@ void Backend::UpdateMap()
     map_update_.notify_one();
 }
 
-void Backend::Pause()
-{
-    if (status == BackendStatus::RUNNING)
-    {
-        std::unique_lock<std::mutex> lock(pausing_mutex_);
-        status = BackendStatus::TO_PAUSE;
-        pausing_.wait(lock);
-    }
-}
-
-void Backend::Continue()
-{
-    if (status == BackendStatus::PAUSING)
-    {
-        status = BackendStatus::RUNNING;
-        running_.notify_one();
-    }
-}
-
 void Backend::BackendLoop()
 {
     while (true)
     {
-        std::unique_lock<std::mutex> lock(running_mutex_);
-        if (status == BackendStatus::TO_PAUSE)
-        {
-            status = BackendStatus::PAUSING;
-            pausing_.notify_one();
-            running_.wait(lock);
-        }
+        std::unique_lock<std::mutex> lock(mutex_optimize_);
         map_update_.wait(lock);
         auto t1 = std::chrono::steady_clock::now();
         Optimize();
@@ -63,7 +39,61 @@ void Backend::BackendLoop()
     }
 }
 
-void Backend::BuildProblem(Frames &active_kfs, adapt::Problem &problem, bool use_imu)
+void Backend::GlobalLoop()
+{
+    double start = 0;
+    while (true)
+    {
+        std::this_thread::sleep_for(std::chrono::seconds(2));
+        auto t1 = std::chrono::steady_clock::now();
+        auto sections = PoseGraph::Instance().GetSections(start, global_end_);
+        if (sections.empty())
+            continue;
+        Section new_section = sections.begin()->second;
+        start = new_section.C;
+        SE3d old_pose = Map::Instance().GetKeyFrame(start)->pose;
+
+        // new section has nothing to do with backend's window, so run at the sametime.
+        if (Navsat::Num() && Navsat::Get()->initialized)
+        {
+            Navsat::Get()->Optimize(new_section);
+            // double fix_start = Navsat::Get()->QuickFix(start, end);
+            // navsat_start = std::min(navsat_start, fix_start);
+            // SE3d new_pose = (--active_kfs.end())->second->pose;
+            // SE3d transform = new_pose * old_pose.inverse();
+            // PoseGraph::Instance().ForwardUpdate(transform, end + epsilon, false);
+            // if (navsat_start && mapping_)
+            // {
+            //     Frames mapping_kfs = Map::Instance().GetKeyFrames(navsat_start);
+            //     for (auto &pair : mapping_kfs)
+            //     {
+            //         mapping_->ToWorld(pair.second);
+            //     }
+            // }
+        }
+
+        // if (Lidar::Num() && mapping_)
+        // {
+        //     Frames mapping_kfs = Map::Instance().GetKeyFrames(start, end - window_size_);
+        //     mapping_->Optimize(mapping_kfs);
+        // }
+
+        // update backend and frontend
+        {
+            std::unique_lock<std::mutex> lock1(mutex_optimize_);
+            std::unique_lock<std::mutex> lock2(frontend_.lock()->mutex);
+            SE3d new_pose = Map::Instance().GetKeyFrame(start)->pose;
+            SE3d transform = new_pose * old_pose.inverse();
+            // quick fix
+            PoseGraph::Instance().ForwardUpdate(transform, start + epsilon, false);
+        }
+        auto t2 = std::chrono::steady_clock::now();
+        auto time_used = std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);
+        LOG(INFO) << "Global cost time: " << time_used.count() << " seconds.";
+    }
+}
+
+void Backend::BuildProblem(Frames &active_kfs, adapt::Problem &problem)
 {
     ceres::LossFunction *loss_function = new ceres::HuberLoss(1.0);
     ceres::LocalParameterization *local_parameterization = new ceres::ProductParameterization(
@@ -94,6 +124,7 @@ void Backend::BuildProblem(Frames &active_kfs, adapt::Problem &problem, bool use
             }
             else if (first_frame->time < start_time)
             {
+                global_end_ = std::min(first_frame->time, global_end_);
                 cost_function = PoseOnlyReprojectionError::Create(cv2eigen(feature->keypoint.pt), landmark->ToWorld(), Camera::Get(), frame->weights.visual);
                 problem.AddResidualBlock(type, cost_function, loss_function, para_kf);
             }
@@ -108,7 +139,7 @@ void Backend::BuildProblem(Frames &active_kfs, adapt::Problem &problem, bool use
             }
         }
 
-        if (Imu::Num() && Imu::Get()->initialized && use_imu)
+        if (Imu::Num() && Imu::Get()->initialized)
         {
             if (frame->good_imu)
             {
@@ -129,9 +160,10 @@ void Backend::BuildProblem(Frames &active_kfs, adapt::Problem &problem, bool use
             }
         }
 
+        // vehicle constraints
         if (last_frame)
         {
-            ceres::CostFunction *cost_function = VehicleError::Create(frame->time - last_frame->time, 10000);
+            ceres::CostFunction *cost_function = VehicleError::Create(frame->time - last_frame->time, 1e4);
             problem.AddResidualBlock(ProblemType::Other, cost_function, NULL, para_last_kf, para_kf);
         }
 
@@ -172,36 +204,29 @@ void Backend::Optimize()
 
     double start = active_kfs.begin()->first;
     double end = (--active_kfs.end())->first;
+    global_end_ = start;
+    SE3d old_pose = (--active_kfs.end())->second->pose;
+    SE3d start_pose = active_kfs.begin()->second->pose;
+
+    adapt::Problem problem;
+    BuildProblem(active_kfs, problem);
+
+    ceres::Solver::Options options;
+    options.linear_solver_type = ceres::DENSE_SCHUR;
+    options.max_solver_time_in_seconds = (end - start) / active_kfs.size();
+    options.num_threads = num_threads;
+    ceres::Solver::Summary summary;
+    adapt::Solve(options, &problem, &summary);
+    if (Imu::Num() && Imu::Get()->initialized)
     {
-        SE3d old_pose = (--active_kfs.end())->second->pose;
-        SE3d start_pose = active_kfs.begin()->second->pose;
-
-        if (Imu::Num() && Imu::Get()->initialized)
-        {
-            imu::ReComputeBiasVel(active_kfs);
-        }
-
-        adapt::Problem problem;
-        BuildProblem(active_kfs, problem);
-
-        ceres::Solver::Options options;
-        options.linear_solver_type = ceres::DENSE_SCHUR;
-        options.max_solver_time_in_seconds = 0.3;
-        options.num_threads = num_threads;
-        ceres::Solver::Summary summary;
-        adapt::Solve(options, &problem, &summary);
-
-        if (Imu::Num() && Imu::Get()->initialized)
-        {
-            imu::RecoverData(active_kfs, start_pose, true);
-        }
-
-        // propagate to the last frame
-        SE3d new_pose = (--active_kfs.end())->second->pose;
-        SE3d transform = new_pose * old_pose.inverse();
-        UpdateFrontend(transform, end + epsilon);
-        finished = end + epsilon - window_size_;
+        imu::RecoverBias(active_kfs);
     }
+
+    // update frontend
+    SE3d new_pose = (--active_kfs.end())->second->pose;
+    SE3d transform = new_pose * old_pose.inverse();
+    UpdateFrontend(transform, end + epsilon);
+    finished = end + epsilon - window_size_;
 
     // reject outliers and clean the map
     for (auto &pair_kf : active_kfs)
@@ -224,36 +249,11 @@ void Backend::Optimize()
             }
         }
     }
-
-    // if (Lidar::Num() && mapping_)
-    // {
-    //     Frames mapping_kfs = Map::Instance().GetKeyFrames(start, end - window_size_);
-    //     mapping_->Optimize(mapping_kfs);
-    // }
-
-    if (Navsat::Num() && Navsat::Get()->initialized)
-    {
-        std::unique_lock<std::mutex> lock(frontend_.lock()->mutex);
-        SE3d old_pose = (--active_kfs.end())->second->pose;
-        double navsat_start = Navsat::Get()->Optimize(end);
-        double fix_start = Navsat::Get()->QuickFix(start, end);
-        navsat_start = std::min(navsat_start, fix_start);
-        SE3d new_pose = (--active_kfs.end())->second->pose;
-        SE3d transform = new_pose * old_pose.inverse();
-        PoseGraph::Instance().ForwardUpdate(transform, end + epsilon, false);
-        if (navsat_start && mapping_)
-        {
-            Frames mapping_kfs = Map::Instance().GetKeyFrames(navsat_start);
-            for (auto &pair : mapping_kfs)
-            {
-                mapping_->ToWorld(pair.second);
-            }
-        }
-    }
 }
 
 void Backend::UpdateFrontend(SE3d transform, double time)
 {
+    // perpare for active kfs
     std::unique_lock<std::mutex> lock(frontend_.lock()->mutex);
     Frame::Ptr last_frame = frontend_.lock()->last_frame;
     Frames active_kfs = Map::Instance().GetKeyFrames(time);
@@ -262,13 +262,9 @@ void Backend::UpdateFrontend(SE3d transform, double time)
         active_kfs[last_frame->time] = last_frame;
     }
     PoseGraph::Instance().ForwardUpdate(transform, active_kfs);
-    if (Imu::Num() && (!Navsat::Num() || (Navsat::Num() && Navsat::Get()->initialized)))
-    {
-        initializer_->Initialize(frontend_.lock()->init_time, time);
-    }
 
     adapt::Problem problem;
-    BuildProblem(active_kfs, problem, false);
+    BuildProblem(active_kfs, problem);
 
     ceres::Solver::Options options;
     options.linear_solver_type = ceres::DENSE_SCHUR;
@@ -276,18 +272,25 @@ void Backend::UpdateFrontend(SE3d transform, double time)
     options.num_threads = num_threads;
     ceres::Solver::Summary summary;
     adapt::Solve(options, &problem, &summary);
-
     if (Imu::Num() && Imu::Get()->initialized)
     {
-        Frame::Ptr frame = Map::Instance().GetKeyFrames(0, active_kfs.begin()->first, 1).begin()->second;
-        if (active_kfs.size() > 0)
-        {
-            imu::RePredictVel(active_kfs, frame);
-            imu::ReComputeBiasVel(active_kfs, frame);
-        }
+        imu::RecoverBias(active_kfs);
+    }
+
+    // imu initialization
+    if (Imu::Num() && (!Navsat::Num() || (Navsat::Num() && Navsat::Get()->initialized)))
+    {
+        initializer_->Initialize(frontend_.lock()->init_time, time);
+    }
+    // update imu
+    if (Imu::Num() && Imu::Get()->initialized)
+    {
+        Frame::Ptr prior_frame = Map::Instance().GetKeyFrames(0, time, 1).begin()->second;
+        imu::RePredictVel(active_kfs, prior_frame);
+        // imu::ReComputeBiasVel(active_kfs, prior_frame);
         if (active_kfs.size() == 0)
         {
-            frontend_.lock()->UpdateImu(frame->bias);
+            frontend_.lock()->UpdateImu(prior_frame->bias);
         }
         else
         {
@@ -295,6 +298,7 @@ void Backend::UpdateFrontend(SE3d transform, double time)
         }
     }
 
+    // update frontend landmarks and pose
     frontend_.lock()->UpdateCache();
 }
 

@@ -65,15 +65,7 @@ void ReComputeBiasVel(Frames &frames, Frame::Ptr &prior_frame)
     options.num_threads = num_threads;
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
-    for (auto &pair : frames)
-    {
-        auto frame = pair.second;
-        if (frame->good_imu)
-        {
-            frame->SetBias(frame->bias);
-        }
-    }
-    return;
+    RecoverBias(frames);
 }
 
 void ReComputeBiasVel(Frames &frames)
@@ -120,14 +112,7 @@ void ReComputeBiasVel(Frames &frames)
     options.num_threads = num_threads;
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
-    for (auto &pair : frames)
-    {
-        auto frame = pair.second;
-        if (frame->good_imu)
-        {
-            frame->SetBias(frame->bias);
-        }
-    }
+    RecoverBias(frames);
 }
 
 void RePredictVel(Frames &frames, Frame::Ptr &prior_frame)
@@ -193,35 +178,26 @@ bool InertialOptimization(Frames &frames, Matrix3d &Rwg, double prior_a, double 
     ceres::Solver::Options options;
     options.linear_solver_type = ceres::DENSE_QR;
     options.num_threads = num_threads;
+    options.max_num_iterations = 4;
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
 
     // data recovery
     Quaterniond rwg2(RwgSO3.data()[3], RwgSO3.data()[0], RwgSO3.data()[1], RwgSO3.data()[2]);
     Rwg = rwg2.toRotationMatrix();
-    for (int i = 0; i < 3; i++)
-    {
-        if (std::fabs(para_gyroBias[i]) > 0.1)
-        {
-            return false;
-        }
-    }
-    Bias bias(para_accBias[0], para_accBias[1], para_accBias[2], para_gyroBias[0], para_gyroBias[1], para_gyroBias[2]);
-    Vector3d bg(para_gyroBias[0], para_gyroBias[1], para_gyroBias[2]);
+    Bias bias = frames.begin()->second->bias;
+    if (bias.linearized_bg.norm() > 0.2)
+        return false;
     for (auto &pair : frames)
     {
         Frame::Ptr frame = pair.second;
-        Vector3d dbg = frame->bias.linearized_bg - bg;
         frame->SetBias(bias);
-        if (dbg.norm() > 0.01)
-        {
-            frame->preintegration->Repropagate(bias.linearized_ba, bias.linearized_bg);
-        }
+        frame->preintegration->Repropagate(bias.linearized_ba, bias.linearized_bg);
     }
     return true;
 }
 
-void FullInertialBA(Frames &frames, double prior_a, double prior_g)
+void FullBA(Frames &frames, double prior_a, double prior_g)
 {
     ceres::Problem problem;
     ceres::CostFunction *cost_function;
@@ -273,72 +249,42 @@ void FullInertialBA(Frames &frames, double prior_a, double prior_g)
     problem.AddParameterBlock(para_ba, 3);
     // imu factor
     Frame::Ptr last_frame;
-    Frame::Ptr current_frame;
     for (auto &pair : frames)
     {
-        current_frame = pair.second;
-        if (!current_frame->good_imu)
+        auto frame = pair.second;
+        if (frame->good_imu)
         {
-            last_frame = current_frame;
-            continue;
+            double *para_kf = frame->pose.data();
+            double *para_v = frame->Vw.data();
+            problem.AddParameterBlock(para_kf, SE3d::num_parameters, local_parameterization);
+            problem.AddParameterBlock(para_v, 3);
+            if (last_frame && last_frame->good_imu)
+            {
+                double *para_last_kf = last_frame->pose.data();
+                double *para_v_last = last_frame->Vw.data();
+                cost_function = ImuInitError::Create(frame->preintegration, prior_a, prior_g);
+                problem.AddResidualBlock(cost_function, NULL, para_last_kf, para_v_last, para_ba, para_bg, para_kf, para_v);
+            }
         }
-        double *para_kf = current_frame->pose.data();
-        double *para_v = current_frame->Vw.data();
-        problem.AddParameterBlock(para_kf, SE3d::num_parameters, local_parameterization);
-        problem.AddParameterBlock(para_v, 3);
-        if (last_frame && last_frame->good_imu)
-        {
-            double *para_last_kf = last_frame->pose.data();
-            double *para_v_last = last_frame->Vw.data();
-            cost_function = ImuInitError::Create(current_frame->preintegration, prior_a, prior_g);
-            problem.AddResidualBlock(cost_function, NULL, para_last_kf, para_v_last, para_ba, para_bg, para_kf, para_v);
-        }
-        last_frame = current_frame;
+        last_frame = frame;
     }
 
     //solve
     ceres::Solver::Options options;
     options.linear_solver_type = ceres::DENSE_SCHUR;
-    options.max_num_iterations = 2;
+    options.max_num_iterations = 4;
     options.num_threads = num_threads;
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
-    RecoverData(frames, old_pose, false);
-    for (auto &pair : frames)
-    {
-        current_frame = pair.second;
-        if (current_frame->good_imu)
-        {
-            Bias bias(para_ba[0], para_ba[1], para_ba[2], para_bg[0], para_bg[1], para_bg[2]);
-            current_frame->SetBias(bias);
-        }
-    }
+    RecoverBias(frames);
 }
 
-void RecoverData(Frames &frames, SE3d old_pose, bool set_bias)
+void RecoverBias(Frames &frames)
 {
-    SE3d new_pose = frames.begin()->second->pose;
-    Vector3d old_pose_translation = old_pose.translation();
-    Vector3d old_pose_rotation = R2ypr(old_pose.rotationMatrix());
-    Vector3d new_pose_rotation = R2ypr(new_pose.rotationMatrix());
-    double y_translation = old_pose_rotation.x() - new_pose_rotation.x();
-    Matrix3d translation = ypr2R(Vector3d(y_translation, 0, 0));
-    if (std::fabs(std::fabs(old_pose_rotation.y()) - 90) < 1.0 ||
-        std::fabs(std::fabs(new_pose_rotation.y()) - 90) < 1.0)
-    {
-        translation = old_pose.rotationMatrix() * new_pose.inverse().rotationMatrix();
-    }
     for (auto &pair : frames)
     {
         auto frame = pair.second;
-        if (!frame->good_imu)
-            continue;
-        frame->SetPose(translation * frame->pose.rotationMatrix(), translation * (frame->pose.translation() - new_pose.translation()) + old_pose_translation);
-        frame->SetVelocity(translation * frame->Vw);
-        if (set_bias)
-        {
-            frame->SetBias(frame->bias);
-        }
+        frame->SetBias(frame->bias);
     }
 }
 

@@ -16,9 +16,9 @@ void RePredictVel(Frames &frames, Frame::Ptr &prior_frame);
 
 bool InertialOptimization(Frames &frames, Matrix3d &Rwg, double prior_a, double prior_g);
 
-void FullInertialBA(Frames &frames, double prior_a, double prior_g);
+void FullBA(Frames &frames, double prior_a, double prior_g);
 
-void RecoverData(Frames &frames, SE3d old_pose, bool set_bias);
+void RecoverBias(Frames &frames);
 
 } // namespace imu
 

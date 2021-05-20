@@ -97,7 +97,7 @@ SE3d Map::ComputePose(double time)
     double t_t = frame2->time - frame1->time;
     double s = d_t / t_t;
     Quaterniond q = frame1->pose.unit_quaternion().slerp(s, frame2->pose.unit_quaternion());
-    Vector3d t = (1 - s) * frame1->pose.translation() + s * frame2->pose.translation();
+    Vector3d t = (1 - s) * frame1->GetPosition() + s * frame2->GetPosition();
     return SE3d(q, t);
 }
 

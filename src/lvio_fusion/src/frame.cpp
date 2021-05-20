@@ -87,17 +87,17 @@ void Frame::SetBias(const Bias &_bias)
 {
     bias = _bias;
     if (preintegration)
-        preintegration->SetNewBias(bias);
+        preintegration->UpdateBias(bias);
 }
 
 Matrix3d Frame::GetRotation()
 {
-    return pose.matrix().block<3, 3>(0, 0);
+    return pose.rotationMatrix();
 }
 
 Vector3d Frame::GetPosition()
 {
-    return pose.matrix().block<3, 1>(0, 3);
+    return pose.translation();
 }
 
 } // namespace lvio_fusion

@@ -12,13 +12,13 @@ bool Initializer::EstimateVelAndRwg(Frames frames)
     if (!Imu::Get()->initialized)
     {
         Vector3d twg = Vector3d::Zero();
-        Vector3d velocity;
+        Vector3d Vw;
         for (auto &pair : frames)
         {
             auto frame = pair.second;
             twg += frame->last_keyframe->GetRotation() * frame->preintegration->GetUpdatedDeltaVelocity();
-            velocity = (frame->GetPosition() - frame->last_keyframe->GetPosition()) / frame->preintegration->sum_dt;
-            frame->SetVelocity(velocity);
+            Vw = (frame->GetPosition() - frame->last_keyframe->GetPosition()) / frame->preintegration->sum_dt;
+            frame->SetVelocity(Vw);
         }
         Rwg_ = get_R_from_vector(twg);
         Vector3d g(0, 0, Imu::Get()->G);
@@ -55,11 +55,12 @@ bool Initializer::Initialize(Frames frames, double prior_a, double prior_g)
     }
 
     // imu optimization with visual
-    imu::FullInertialBA(frames, prior_a, prior_g);
+    imu::FullBA(frames, prior_a, prior_g);
     Imu::Get()->initialized = true;
     return true;
 }
 
+// 3-step initialization
 void Initializer::Initialize(double init_time, double end_time)
 {
     static double last_init_time = 0;

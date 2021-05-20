@@ -93,8 +93,8 @@ bool Relocator::DetectLoop(Frame::Ptr frame, Frame::Ptr &old_frame)
     for (auto pair : active_kfs)
     {
         PointI p;
-        p.x = pair.second->pose.translation().x();
-        p.y = pair.second->pose.translation().y();
+        p.x = pair.second->GetPosition().x();
+        p.y = pair.second->GetPosition().y();
         p.z = 0;
         p.intensity = pair.second->id;
         map[p.intensity] = pair.first;
@@ -103,20 +103,18 @@ bool Relocator::DetectLoop(Frame::Ptr frame, Frame::Ptr &old_frame)
     if (points.empty())
         return false;
     PointI p;
-    p.x = frame->pose.translation().x();
-    p.y = frame->pose.translation().y();
+    p.x = frame->GetPosition().x();
+    p.y = frame->GetPosition().y();
     p.z = 0;
     std::vector<int> points_index;
     std::vector<float> points_distance;
     pcl::KdTreeFLANN<PointI> kdtree;
     kdtree.setInputCloud(boost::make_shared<PointICloud>(points));
     kdtree.nearestKSearch(p, 3, points_index, points_distance);
-    // clang-format off
     double threshold = threshold_ * threshold_;
-    if (points_index[0] < points.size() && points_distance[0] < threshold 
-        && points_index[1] < points.size() && points_distance[1] < threshold 
-        && points_index[2] < points.size() && points_distance[2] < threshold)
-    // clang-format on
+    if (points_index[0] < points.size() && points_distance[0] < threshold &&
+        points_index[1] < points.size() && points_distance[1] < threshold &&
+        points_index[2] < points.size() && points_distance[2] < threshold)
     {
         double time = map[points[points_index[0]].intensity];
         old_frame = Map::Instance().GetKeyFrame(time);
@@ -138,7 +136,7 @@ bool Relocator::Relocate(Frame::Ptr frame, Frame::Ptr old_frame)
     frame->loop_closure->score = 0;
     // put it on the same level
     SE3d init_pose = frame->pose;
-    init_pose.translation().z() = old_frame->pose.translation().z();
+    init_pose.translation().z() = old_frame->GetPosition().z();
     frame->loop_closure->relative_o_c = old_frame->pose.inverse() * init_pose;
     // check its orientation
     double rpyxyz_o[6], rpyxyz_i[6], rpy_o_i[3];

@@ -204,9 +204,8 @@ Vector3d Preintegration::GetUpdatedDeltaPosition()
     Matrix3d dp_dbg = jacobian.block<3, 3>(O_T, O_BG);
     return delta_p + dp_dbg * delta_bias.block<3, 1>(0, 0) + dp_dba * delta_bias.block<3, 1>(3, 0);
 }
-void Preintegration::SetNewBias(const Bias &new_bias)
+void Preintegration::UpdateBias(const Bias &new_bias)
 {
-    bias = new_bias;
     delta_bias(0) = new_bias.linearized_bg[0] - linearized_bg[0];
     delta_bias(1) = new_bias.linearized_bg[1] - linearized_bg[1];
     delta_bias(2) = new_bias.linearized_bg[2] - linearized_bg[2];
