@@ -112,34 +112,34 @@ private:
     SE3d pose_;
 };
 
-class NavsatPlaneError
-{
-public:
-    NavsatPlaneError(LidarPlaneError origin_error, SE3d Twc1)
-        : origin_error_(origin_error), Twc1_(Twc1) {}
+// class NavsatPlaneError
+// {
+// public:
+//     NavsatPlaneError(LidarPlaneError origin_error, SE3d Twc1)
+//         : origin_error_(origin_error), Twc1_(Twc1) {}
 
-    template <typename T>
-    bool operator()(const T *yaw, const T *pitch, const T *roll, T *residual) const
-    {
-        T Twc1[7], Twc2[7], relative_i_j[7];
-        T rpyxyz[6] = {*yaw, *pitch, *roll, T(0), T(0), T(0)};
-        ceres::RpyxyzToSE3(rpyxyz, relative_i_j);
-        ceres::Cast(Twc1_.data(), SE3d::num_parameters, Twc1);
-        ceres::SE3Product(Twc1, relative_i_j, Twc2);
-        origin_error_(Twc2, residual);
-        return true;
-    }
+//     template <typename T>
+//     bool operator()(const T *yaw, const T *pitch, const T *roll, T *residual) const
+//     {
+//         T Twc1[7], Twc2[7], relative_i_j[7];
+//         T rpyxyz[6] = {*yaw, *pitch, *roll, T(0), T(0), T(0)};
+//         ceres::RpyxyzToSE3(rpyxyz, relative_i_j);
+//         ceres::Cast(Twc1_.data(), SE3d::num_parameters, Twc1);
+//         ceres::SE3Product(Twc1, relative_i_j, Twc2);
+//         origin_error_(Twc2, residual);
+//         return true;
+//     }
 
-    static ceres::CostFunction *Create(Vector3d p, Vector3d pa, Vector3d pb, Vector3d pc, SE3d Twc1)
-    {
-        LidarPlaneError origin_error(p, pa, pb, pc);
-        return (new ceres::AutoDiffCostFunction<NavsatPlaneError, 1, 1, 1, 1>(new NavsatPlaneError(origin_error, Twc1)));
-    }
+//     static ceres::CostFunction *Create(Vector3d p, Vector3d pa, Vector3d pb, Vector3d pc, SE3d Twc1)
+//     {
+//         LidarPlaneError origin_error(p, pa, pb, pc);
+//         return (new ceres::AutoDiffCostFunction<NavsatPlaneError, 1, 1, 1, 1>(new NavsatPlaneError(origin_error, Twc1)));
+//     }
 
-private:
-    LidarPlaneError origin_error_;
-    SE3d Twc1_;
-};
+// private:
+//     LidarPlaneError origin_error_;
+//     SE3d Twc1_;
+// };
 
 } // namespace lvio_fusion
 

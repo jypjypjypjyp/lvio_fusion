@@ -16,7 +16,6 @@ public:
     Feature(double time) : time(time) {}
 
     double time;
-    bool trust;
 };
 
 } // namespace navsat

@@ -93,11 +93,11 @@ void PoseGraph::UpdateSections(double time)
         {
             double degree = vectors_degree_angle(last_ori, current_ori);
             // turning requires
-            if (!turning && (degree >= 5 || vectors_degree_angle(B_ori, current_ori) > 10))
+            if (!turning && (degree >= 10 || vectors_degree_angle(B_ori, current_ori) > 20))
             {
                 // if we have enough keyframes and total degree, create new section
                 if (current_section.A == current_section.B ||
-                    frames_distance(current_section.A, pair.first) > 20)
+                    frames_distance(current_section.A, pair.first) > 40)
                 {
                     current_section.C = pair.first;
                     sections_[current_section.A] = current_section;
@@ -135,8 +135,8 @@ Section PoseGraph::GetSection(double time)
 
 bool PoseGraph::AddSection(double time)
 {
-    if ((!sections_.empty() && time > (--sections_.end())->second.C &&
-         !turning && frames_distance(current_section.B, time) > 40))
+    if (!sections_.empty() && time > (--sections_.end())->second.C &&
+        !turning && frames_distance(current_section.B, time) > 40)
     {
         current_section.C = time;
         sections_[current_section.A] = current_section;

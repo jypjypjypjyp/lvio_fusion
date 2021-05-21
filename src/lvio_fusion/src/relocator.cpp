@@ -30,7 +30,8 @@ void Relocator::DetectorLoop()
     while (true)
     {
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        double end = Navsat::Num() ? Navsat::Get()->finished - epsilon : backend_->finished;
+        // TODO
+        double end = backend_->finished;
         auto new_kfs = Map::Instance().GetKeyFrames(finished, end);
         if (new_kfs.empty())
             continue;

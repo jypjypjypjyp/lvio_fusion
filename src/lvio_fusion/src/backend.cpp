@@ -29,7 +29,7 @@ void Backend::BackendLoop()
 {
     while (true)
     {
-        std::unique_lock<std::mutex> lock(mutex_optimize_);
+        std::unique_lock<std::mutex> lock(mutex);
         map_update_.wait(lock);
         auto t1 = std::chrono::steady_clock::now();
         Optimize();
@@ -45,51 +45,51 @@ void Backend::GlobalLoop()
     while (true)
     {
         std::this_thread::sleep_for(std::chrono::seconds(2));
-        auto t1 = std::chrono::steady_clock::now();
         auto sections = PoseGraph::Instance().GetSections(start, global_end_);
-        if (sections.empty())
-            continue;
-        Section new_section = sections.begin()->second;
-        start = new_section.C;
-        SE3d old_pose = Map::Instance().GetKeyFrame(start)->pose;
+        if (!sections.empty())
+        {
+            auto t1 = std::chrono::steady_clock::now();
+            // new section has nothing to do with backend's window, so run at the sametime.
+            Section new_section = sections.begin()->second;
+            start = new_section.C;
+            SE3d old_pose = Map::Instance().GetKeyFrame(start)->pose;
+            bool change = false;
 
-        // new section has nothing to do with backend's window, so run at the sametime.
+            if (Navsat::Num() && Navsat::Get()->initialized)
+            {
+                Navsat::Get()->Optimize(new_section);
+                change = true;
+            }
+
+            if (Lidar::Num() && mapping_)
+            {
+                // Frames mapping_kfs = Map::Instance().GetKeyFrames(start, end - window_size_);
+                // mapping_->Optimize(mapping_kfs);
+                change = true;
+            }
+
+            if (change)
+            {
+                // update backend and frontend
+                std::unique_lock<std::mutex> lock(mutex);
+                SE3d new_pose = Map::Instance().GetKeyFrame(start)->pose;
+                SE3d transform = new_pose * old_pose.inverse();
+                PoseGraph::Instance().ForwardUpdate(transform, start + epsilon);
+                auto t2 = std::chrono::steady_clock::now();
+                auto time_used = std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);
+                LOG(INFO) << "Global cost time: " << time_used.count() << " seconds.";
+            }
+        }
         if (Navsat::Num() && Navsat::Get()->initialized)
         {
-            Navsat::Get()->Optimize(new_section);
-            // double fix_start = Navsat::Get()->QuickFix(start, end);
-            // navsat_start = std::min(navsat_start, fix_start);
-            // SE3d new_pose = (--active_kfs.end())->second->pose;
-            // SE3d transform = new_pose * old_pose.inverse();
-            // PoseGraph::Instance().ForwardUpdate(transform, end + epsilon, false);
-            // if (navsat_start && mapping_)
-            // {
-            //     Frames mapping_kfs = Map::Instance().GetKeyFrames(navsat_start);
-            //     for (auto &pair : mapping_kfs)
-            //     {
-            //         mapping_->ToWorld(pair.second);
-            //     }
-            // }
-        }
-
-        // if (Lidar::Num() && mapping_)
-        // {
-        //     Frames mapping_kfs = Map::Instance().GetKeyFrames(start, end - window_size_);
-        //     mapping_->Optimize(mapping_kfs);
-        // }
-
-        // update backend and frontend
-        {
-            std::unique_lock<std::mutex> lock1(mutex_optimize_);
-            std::unique_lock<std::mutex> lock2(frontend_.lock()->mutex);
-            SE3d new_pose = Map::Instance().GetKeyFrame(start)->pose;
-            SE3d transform = new_pose * old_pose.inverse();
             // quick fix
-            PoseGraph::Instance().ForwardUpdate(transform, start + epsilon, false);
+            std::unique_lock<std::mutex> lock(mutex);
+            SE3d old_pose = Map::Instance().GetKeyFrame(global_end_)->pose;
+            Navsat::Get()->QuickFix(start, global_end_);
+            SE3d new_pose = Map::Instance().GetKeyFrame(global_end_)->pose;
+            SE3d transform = new_pose * old_pose.inverse();
+            PoseGraph::Instance().ForwardUpdate(transform, global_end_ + epsilon);
         }
-        auto t2 = std::chrono::steady_clock::now();
-        auto time_used = std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);
-        LOG(INFO) << "Global cost time: " << time_used.count() << " seconds.";
     }
 }
 
@@ -101,6 +101,7 @@ void Backend::BuildProblem(Frames &active_kfs, adapt::Problem &problem)
         new ceres::IdentityParameterization(3));
 
     double start_time = active_kfs.begin()->first;
+    double global_end = start_time;
     Frame::Ptr last_frame;
     double *para_last_kf;
     for (auto &pair_kf : active_kfs)
@@ -124,7 +125,7 @@ void Backend::BuildProblem(Frames &active_kfs, adapt::Problem &problem)
             }
             else if (first_frame->time < start_time)
             {
-                global_end_ = std::min(first_frame->time, global_end_);
+                global_end = std::min(first_frame->last_keyframe ? first_frame->last_keyframe->time : 0, global_end);
                 cost_function = PoseOnlyReprojectionError::Create(cv2eigen(feature->keypoint.pt), landmark->ToWorld(), Camera::Get(), frame->weights.visual);
                 problem.AddResidualBlock(type, cost_function, loss_function, para_kf);
             }
@@ -186,6 +187,7 @@ void Backend::BuildProblem(Frames &active_kfs, adapt::Problem &problem)
         last_frame = frame;
         para_last_kf = para_kf;
     }
+    global_end_ = global_end;
 }
 
 double compute_reprojection_error(Vector2d ob, Vector3d pw, SE3d pose, Camera::Ptr camera)
@@ -197,14 +199,12 @@ double compute_reprojection_error(Vector2d ob, Vector3d pw, SE3d pose, Camera::P
 
 void Backend::Optimize()
 {
-    std::unique_lock<std::mutex> lock(mutex);
     Frames active_kfs = Map::Instance().GetKeyFrames(finished);
     if (active_kfs.empty())
         return;
 
     double start = active_kfs.begin()->first;
     double end = (--active_kfs.end())->first;
-    global_end_ = start;
     SE3d old_pose = (--active_kfs.end())->second->pose;
     SE3d start_pose = active_kfs.begin()->second->pose;
 

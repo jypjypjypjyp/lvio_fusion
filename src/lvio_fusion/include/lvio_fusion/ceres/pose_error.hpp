@@ -25,15 +25,15 @@ public:
         residuals[2] = T(0);
         if (norm > T(max_speed * dt_))
         {
-            residuals[0] = T(weight_) * (norm - T(max_speed * dt_)); // m
+            residuals[0] = T(weight_) * (norm - T(max_speed * dt_));
         }
-        if (relative[4] > tan(relative[1]) * relative[3])
+        if (relative[4] > tan(relative[0]) * relative[3])
         {
-            residuals[1] = T(weight_) * (relative[4] - tan(relative[1]) * relative[3]); // m
+            residuals[1] = T(weight_) * (relative[4] - tan(relative[1]) * relative[3]); 
         }
-        if (relative[5] > tan(relative[2]) * relative[3])
+        if (relative[5] > tan(relative[1]) * relative[3])
         {
-            residuals[2] = T(weight_) * (relative[5] - tan(relative[2]) * relative[3]); // m
+            residuals[2] = T(weight_) * (relative[5] - tan(relative[2]) * relative[3]); 
         }
         return true;
     }
@@ -158,13 +158,13 @@ public:
     PoseErrorRPZ(double *rpyxyz, double weight)
         : Error(weight)
     {
-        r_ = rpyxyz[1];
-        p_ = rpyxyz[2];
+        p_ = rpyxyz[1];
+        r_ = rpyxyz[2];
         z_ = rpyxyz[5];
     }
 
     template <typename T>
-    bool operator()(const T *r, const T *p, const T *z, T *residuals) const
+    bool operator()(const T *p, const T *r, const T *z, T *residuals) const
     {
         residuals[0] = T(weight_) * (r[0] - T(r_));
         residuals[1] = T(weight_) * (p[0] - T(p_));

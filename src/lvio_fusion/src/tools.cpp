@@ -77,19 +77,18 @@ void ReComputeBiasVel(Frames &frames)
         new ceres::IdentityParameterization(3));
 
     Frame::Ptr last_frame;
-    Frame::Ptr current_frame;
     for (auto &pair : frames)
     {
-        current_frame = pair.second;
-        if (!current_frame->good_imu)
+        auto frame = pair.second;
+        if (!frame->good_imu)
         {
-            last_frame = current_frame;
+            last_frame = frame;
             continue;
         }
-        double *para_kf = current_frame->pose.data();
-        double *para_v = current_frame->Vw.data();
-        double *para_bg = current_frame->bias.linearized_bg.data();
-        double *para_ba = current_frame->bias.linearized_ba.data();
+        double *para_kf = frame->pose.data();
+        double *para_v = frame->Vw.data();
+        double *para_bg = frame->bias.linearized_bg.data();
+        double *para_ba = frame->bias.linearized_ba.data();
         problem.AddParameterBlock(para_kf, SE3d::num_parameters, local_parameterization);
         problem.AddParameterBlock(para_v, 3);
         problem.AddParameterBlock(para_ba, 3);
@@ -101,10 +100,10 @@ void ReComputeBiasVel(Frames &frames)
             double *para_v_last = last_frame->Vw.data();
             double *para_bg_last = last_frame->bias.linearized_bg.data();
             double *para_ba_last = last_frame->bias.linearized_ba.data();
-            ceres::CostFunction *cost_function = ImuError::Create(current_frame->preintegration);
+            ceres::CostFunction *cost_function = ImuError::Create(frame->preintegration);
             problem.AddResidualBlock(ProblemType::ImuError, cost_function, NULL, para_last_kf, para_v_last, para_ba_last, para_bg_last, para_kf, para_v, para_ba, para_bg);
         }
-        last_frame = current_frame;
+        last_frame = frame;
     }
     ceres::Solver::Options options;
     options.linear_solver_type = ceres::DENSE_QR;
@@ -178,7 +177,7 @@ bool InertialOptimization(Frames &frames, Matrix3d &Rwg, double prior_a, double 
     ceres::Solver::Options options;
     options.linear_solver_type = ceres::DENSE_QR;
     options.num_threads = num_threads;
-    options.max_num_iterations = 4;
+    options.max_num_iterations = 2;
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
 
@@ -272,7 +271,7 @@ void FullBA(Frames &frames, double prior_a, double prior_g)
     //solve
     ceres::Solver::Options options;
     options.linear_solver_type = ceres::DENSE_SCHUR;
-    options.max_num_iterations = 4;
+    options.max_num_iterations = 2;
     options.num_threads = num_threads;
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);

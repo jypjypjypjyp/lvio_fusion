@@ -40,11 +40,10 @@ public:
     SE3d GetAroundPose(double time);
 
     void Optimize(const Section &section);
-    double QuickFix(double time, double end_time);
+    void QuickFix(double start, double end);
 
     bool initialized = false;
     std::map<double, Vector3d> raw;
-    double finished = 0;
     Vector3d fix = Vector3d::Zero();
 
 private:
@@ -55,8 +54,8 @@ private:
     void Initialize();
 
     // mode: y p r x y z;
-    void OptimizeRX(Frame::Ptr frame, double end, double forward_time, unsigned char mode);
-    void OptimizePlane(Frame::Ptr frame, double end, double forward_time, Vector3d A, Vector3d B, Vector3d C);
+    void OptimizeRX(Frame::Ptr frame, double end, double forward, unsigned char mode);
+    void OptimizeAB(Frame::Ptr A, Frame::Ptr B, SE3d old_B);
 
     static std::vector<Navsat::Ptr> devices_;
 };
