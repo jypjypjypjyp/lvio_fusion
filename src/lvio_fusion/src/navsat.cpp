@@ -154,7 +154,7 @@ void Navsat::Optimize(const Section &section)
         OptimizeRX(frame, frame->time + epsilon, section.C, 0b110111);
     }
     // optimize A - B
-    // OptimizeAB(A, B, old_B);
+    OptimizeAB(A, B, old_B);
 }
 
 void Navsat::QuickFix(double start, double end)
@@ -182,7 +182,7 @@ void Navsat::QuickFix(double start, double end)
             }
             if ((avg_p1 / num - avg_p2 / num).norm() > 3)
             {
-                // PoseGraph::Instance().AddSection(C->time);
+                PoseGraph::Instance().AddSection(C->time);
             }
         }
     }
