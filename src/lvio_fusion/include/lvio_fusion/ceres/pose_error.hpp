@@ -10,7 +10,7 @@ namespace lvio_fusion
 class VehicleError : public ceres::Error
 {
 public:
-    VehicleError(double dt, double weight) : dt_(dt), Error(weight) {}
+    VehicleError(double dt, double y, double p, double r, double weight) : dt_(dt), y_(y), p_(p), r_(r), Error(weight) {}
 
     template <typename T>
     bool operator()(const T *Twc1, const T *Twc2, T *residuals) const
@@ -20,30 +20,41 @@ public:
         ceres::SE3Product(Twc1_inverse, Twc2, relative_i_j);
         ceres::SE3ToRpyxyz(relative_i_j, relative);
         ceres::Norm(relative + 3, &norm);
-        residuals[0] = T(0);
-        residuals[1] = T(0);
-        residuals[2] = T(0);
+        residuals[0] = residuals[1] = residuals[2] = residuals[3] = residuals[4] = residuals[5] = T(0);
+        if (abs(relative[0]) > T(y_))
+        {
+            residuals[0] = T(weight_) * (abs(relative[0]) - T(y_)) * relative[3];
+        }
+        if (abs(relative[1]) > T(p_))
+        {
+            residuals[1] = T(weight_) * (abs(relative[1]) - T(p_)) * relative[3];
+        }
+        if (abs(relative[2]) > T(r_))
+        {
+            residuals[2] = T(weight_) * (abs(relative[2]) - T(r_)) * relative[3];
+        }
         if (norm > T(max_speed * dt_))
         {
-            residuals[0] = T(weight_) * (norm - T(max_speed * dt_));
+            residuals[4] = T(weight_) * (norm - T(max_speed * dt_));
         }
         if (relative[4] > tan(relative[0]) * relative[3])
         {
-            residuals[1] = T(weight_) * (relative[4] - tan(relative[1]) * relative[3]); 
+            residuals[5] = T(weight_) * (relative[4] - tan(relative[1]) * relative[3]);
         }
         if (relative[5] > tan(relative[1]) * relative[3])
         {
-            residuals[2] = T(weight_) * (relative[5] - tan(relative[2]) * relative[3]); 
+            residuals[6] = T(weight_) * (relative[5] - tan(relative[2]) * relative[3]);
         }
         return true;
     }
 
-    static ceres::CostFunction *Create(double dt, double weight = 1)
+    static ceres::CostFunction *Create(double dt, double y = 0.5, double p = 0.2, double r = 0.1, double weight = 1)
     {
-        return (new ceres::AutoDiffCostFunction<VehicleError, 3, 7, 7>(new VehicleError(dt, weight)));
+        return (new ceres::AutoDiffCostFunction<VehicleError, 6, 7, 7>(new VehicleError(dt, y, p, r, weight)));
     }
 
 private:
+    double y_, p_, r_;
     double dt_;
 };
 
@@ -132,24 +143,24 @@ private:
 class TError : public ceres::Error
 {
 public:
-    TError(SE3d pose, double weight) : pose_(pose), Error(weight) {}
+    TError(Vector3d p, double weight) : p_(p), Error(weight) {}
 
     template <typename T>
     bool operator()(const T *pose, T *residuals) const
     {
-        residuals[0] = T(weight_) * (pose[4] - T(pose_.data()[4]));
-        residuals[1] = T(weight_) * (pose[5] - T(pose_.data()[5]));
-        residuals[2] = T(weight_) * (pose[6] - T(pose_.data()[6]));
+        residuals[0] = T(weight_) * (pose[4] - T(p_.data()[0]));
+        residuals[1] = T(weight_) * (pose[5] - T(p_.data()[1]));
+        residuals[2] = T(weight_) * (pose[6] - T(p_.data()[2]));
         return true;
     }
 
-    static ceres::CostFunction *Create(SE3d pose, double weight = 1)
+    static ceres::CostFunction *Create(Vector3d p, double weight = 1)
     {
-        return (new ceres::AutoDiffCostFunction<TError, 3, 7>(new TError(pose, weight)));
+        return (new ceres::AutoDiffCostFunction<TError, 3, 7>(new TError(p, weight)));
     }
 
 private:
-    SE3d pose_;
+    Vector3d p_;
 };
 
 class PoseErrorRPZ : public ceres::Error

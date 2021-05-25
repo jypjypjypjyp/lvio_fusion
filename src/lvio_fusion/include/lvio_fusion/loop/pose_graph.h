@@ -58,6 +58,7 @@ public:
 
     void ForwardUpdate(SE3d transfrom, const Frames &forward_kfs);
 
+    std::mutex mutex;
     Section current_section;
     bool turning = false;
 
@@ -68,7 +69,7 @@ private:
 
     Frontend::Ptr frontend_;
 
-    Atlas submaps_; // loop submaps [end : {old, start, end}]
+    Atlas submaps_;  // loop submaps [end : {old, start, end}]
     Atlas sections_; // sections [A : {A, B, C}]
 };
 

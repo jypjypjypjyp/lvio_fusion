@@ -51,6 +51,7 @@ Atlas PoseGraph::FilterOldSubmaps(double start, double end)
 
 void PoseGraph::UpdateSections(double time)
 {
+    std::unique_lock<std::mutex> lock(mutex);
     static bool initialized = false;
     static Vector3d last_ori(1, 0, 0), B_ori(1, 0, 0), current_ori(0, 0, 0);
     static double accumulate_degree = 0;
@@ -93,11 +94,11 @@ void PoseGraph::UpdateSections(double time)
         {
             double degree = vectors_degree_angle(last_ori, current_ori);
             // turning requires
-            if (!turning && (degree >= 10 || vectors_degree_angle(B_ori, current_ori) > 20))
+            if (!turning && (degree >= 5 || vectors_degree_angle(B_ori, current_ori) > 20))
             {
                 // if we have enough keyframes and total degree, create new section
                 if (current_section.A == current_section.B ||
-                    frames_distance(current_section.A, pair.first) > 40)
+                    frames_distance(current_section.A, pair.first) > 100)
                 {
                     current_section.C = pair.first;
                     sections_[current_section.A] = current_section;
@@ -135,8 +136,9 @@ Section PoseGraph::GetSection(double time)
 
 bool PoseGraph::AddSection(double time)
 {
-    if (!sections_.empty() && time > (--sections_.end())->second.C &&
-        !turning && frames_distance(current_section.B, time) > 40)
+    std::unique_lock<std::mutex> lock(mutex);
+    if (!sections_.empty() && !turning && time > current_section.B &&
+        frames_distance(current_section.B, time) > 100)
     {
         current_section.C = time;
         sections_[current_section.A] = current_section;
@@ -165,7 +167,6 @@ void PoseGraph::BuildProblem(Atlas &sections, Section &submap, adapt::Problem &p
     problem.SetParameterBlockConstant(para_start);
 
     Frame::Ptr last_frame = old_frame;
-    double aa;
     for (auto &pair : sections)
     {
         auto frame_A = Map::Instance().GetKeyFrame(pair.second.A);

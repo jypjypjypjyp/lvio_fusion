@@ -51,13 +51,13 @@ void publish_odometry(Estimator::Ptr estimator, double time)
         path.poses.push_back(pose_stamped);
         if (pair.first == submap.begin()->first)
         {
-            geometry_msgs::PoseStamped pose_stamped_loop;
-            pose_stamped_loop.header.stamp = ros::Time(pair.first);
-            pose_stamped_loop.header.frame_id = "world";
-            pose_stamped_loop.pose.position.x = pose.translation().x();
-            pose_stamped_loop.pose.position.y = pose.translation().y();
-            pose_stamped_loop.pose.position.z = pose.translation().z() + 10;
-            path.poses.push_back(pose_stamped_loop);
+            geometry_msgs::PoseStamped pose_stamped_sec;
+            pose_stamped_sec.header.stamp = ros::Time(pair.first);
+            pose_stamped_sec.header.frame_id = "world";
+            pose_stamped_sec.pose.position.x = pose.translation().x();
+            pose_stamped_sec.pose.position.y = pose.translation().y();
+            pose_stamped_sec.pose.position.z = pose.translation().z() + 10;
+            path.poses.push_back(pose_stamped_sec);
             path.poses.push_back(pose_stamped);
             submap.erase(submap.begin());
         }
@@ -191,7 +191,7 @@ void publish_car_model(Estimator::Ptr estimator, double time)
     car_mesh.color.g = 0.0;
     car_mesh.color.b = 0.0;
 
-    float major_scale = 2.0;
+    float major_scale = 1.0;
     car_mesh.scale.x = major_scale;
     car_mesh.scale.y = major_scale;
     car_mesh.scale.z = major_scale;
