@@ -1,9 +1,9 @@
 %YAML:1.0
 
 # flags
-use_imu: 1
+use_imu: 0
 use_lidar: 0
-use_navsat: 0
+use_navsat: 1
 use_loop: 0
 use_adapt: 0
 
@@ -89,6 +89,9 @@ num_features_needed_for_keyframe: 120
 
 # backend
 windows_size: 3
+
+# navsat
+accuracy: 2
 
 # loop
 relocator_mode: 0    # none = 0, visual = 1, lidar = 2, visual&&lidar = 3

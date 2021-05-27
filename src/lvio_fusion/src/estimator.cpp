@@ -83,6 +83,7 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
                        SE3d(q_body_to_cam1, t_body_to_cam1));
     }
     Camera::baseline = (t_body_to_cam0 - t_body_to_cam1).norm();
+    Camera::sqrt_info = Camera::Get()->fx / 1.5;
 
     // create components and links
     frontend = Frontend::Ptr(new Frontend(
@@ -111,7 +112,7 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
 
     if (use_navsat)
     {
-        Navsat::Create();
+        Navsat::Create(Config::Get<double>("accuracy"));
     }
 
     if (use_imu)
@@ -181,7 +182,7 @@ void Estimator::InputImage(double time, cv::Mat &left_image, cv::Mat &right_imag
     bool success = frontend->AddFrame(new_frame);
     auto t2 = std::chrono::steady_clock::now();
     auto time_used = std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);
-    // LOG(INFO) << "Frontend status:" << map_status[frontend->status] << ", cost time: " << time_used.count() << " seconds.";
+    LOG(INFO) << "Frontend status:" << map_status[frontend->status] << ", cost time: " << time_used.count() << " seconds.";
 }
 
 void Estimator::InputPointCloud(double time, Point3Cloud::Ptr point_cloud)
@@ -199,9 +200,9 @@ void Estimator::InputImu(double time, Vector3d acc, Vector3d gyr)
     frontend->AddImu(time, acc, gyr);
 }
 
-void Estimator::InputNavSat(double time, double x, double y, double z, double posAccuracy)
+void Estimator::InputNavSat(double time, double x, double y, double z, Vector3d cov)
 {
-    Navsat::Get()->AddPoint(time, x, y, z);
+    Navsat::Get()->AddPoint(time, x, y, z, cov);
 }
 
 } // namespace lvio_fusion

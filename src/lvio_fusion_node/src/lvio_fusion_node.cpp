@@ -199,7 +199,8 @@ void navsat_callback(const sensor_msgs::NavSatFixConstPtr &navsat_msg)
     double latitude = navsat_msg->latitude;
     double longitude = navsat_msg->longitude;
     double altitude = navsat_msg->altitude;
-    double pos_accuracy = navsat_msg->position_covariance[0];
+    auto &cov = navsat_msg->position_covariance;
+    Vector3d cov_vec = {cov[0], cov[4], cov[8]};
     double xyz[3];
     static bool init = false;
     if (!init)
@@ -208,7 +209,7 @@ void navsat_callback(const sensor_msgs::NavSatFixConstPtr &navsat_msg)
         init = true;
     }
     geo_converter.Forward(latitude, longitude, altitude, xyz[0], xyz[1], xyz[2]);
-    estimator->InputNavSat(t, xyz[0], xyz[1], xyz[2], pos_accuracy);
+    estimator->InputNavSat(t, xyz[0], xyz[1], xyz[2], cov_vec);
 }
 
 void eskf_callback(const geometry_msgs::PoseStampedConstPtr &fused_msg)
@@ -290,7 +291,7 @@ int getch(void)
 
     return ch;
 }
-#include "lvio_fusion/ceres/base.hpp"
+
 void write_result(Estimator::Ptr estimator)
 {
     ROS_WARN("Writing result file: %s", result_path.c_str());
@@ -313,32 +314,6 @@ void write_result(Estimator::Ptr estimator)
     }
     out.close();
     ROS_WARN("Finished!!!");
-    {
-        ROS_WARN("Writing result file: %s", "/home/jyp/111.csv");
-        ofstream out("/home/jyp/111.csv", ios::out);
-        out.setf(ios::fixed, ios::floatfield);
-        out.precision(5);
-        Frame::Ptr last_frame;
-        double relative[6];
-        for (auto &pair : lvio_fusion::Map::Instance().keyframes)
-        {
-            Frame::Ptr frame = pair.second;
-            if (last_frame)
-            {
-                ceres::SE3ToRpyxyz((last_frame->pose.inverse() * frame->pose).data(), relative);
-                double dt = frame->time - last_frame->time;
-                out << std::fabs(relative[0] / dt) << ","
-                    << std::fabs(relative[1] / dt) << ","
-                    << std::fabs(relative[2] / dt) << ","
-                    << std::fabs(relative[3] / dt) << ","
-                    << std::fabs(relative[4] / dt) << ","
-                    << std::fabs(relative[5] / dt) << std::endl;
-            }
-            last_frame = frame;
-        }
-        out.close();
-        ROS_WARN("Finished!!!");
-    }
 }
 
 void read_ground_truth()

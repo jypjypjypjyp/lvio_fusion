@@ -70,7 +70,7 @@ private:
     std::vector<double> scale_factors_;
 
     const int num_levels_;
-    const int windows_size_ = 3;
+    const int windows_size_ = 4;
 };
 } // namespace lvio_fusion
 

@@ -53,28 +53,17 @@ void Backend::GlobalLoop()
             Section new_section = sections.begin()->second;
             start = new_section.C;
             SE3d old_pose = Map::Instance().GetKeyFrame(start)->pose;
-            bool change = false;
 
             if (Navsat::Num() && Navsat::Get()->initialized)
             {
                 Navsat::Get()->Optimize(new_section);
-                change = true;
-            }
-
-            if (Lidar::Num() && mapping_)
-            {
-                // Frames mapping_kfs = Map::Instance().GetKeyFrames(start, end - window_size_);
-                // mapping_->Optimize(mapping_kfs);
-                change = true;
-            }
-
-            if (change)
-            {
-                // update backend and frontend
-                std::unique_lock<std::mutex> lock(mutex);
-                SE3d new_pose = Map::Instance().GetKeyFrame(start)->pose;
-                SE3d transform = new_pose * old_pose.inverse();
-                PoseGraph::Instance().ForwardUpdate(transform, start + epsilon);
+                {
+                    // update backend and frontend
+                    std::unique_lock<std::mutex> lock(mutex);
+                    SE3d new_pose = Map::Instance().GetKeyFrame(start)->pose;
+                    SE3d transform = new_pose * old_pose.inverse();
+                    PoseGraph::Instance().ForwardUpdate(transform, start + epsilon);
+                }
                 auto t2 = std::chrono::steady_clock::now();
                 auto time_used = std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);
                 LOG(INFO) << "Global cost time: " << time_used.count() << " seconds.";
@@ -212,7 +201,7 @@ void Backend::Optimize()
     BuildProblem(active_kfs, problem);
 
     ceres::Solver::Options options;
-    options.linear_solver_type = ceres::DENSE_SCHUR;
+    options.linear_solver_type = ceres::SPARSE_SCHUR;
     options.max_solver_time_in_seconds = (end - start) / active_kfs.size();
     options.num_threads = num_threads;
     ceres::Solver::Summary summary;
@@ -228,6 +217,12 @@ void Backend::Optimize()
     UpdateFrontend(transform, end + epsilon);
     finished = end + epsilon - window_size_;
 
+    if (Lidar::Num() && mapping_)
+    {
+        Frames mapping_kfs = Map::Instance().GetKeyFrames(start, end - window_size_);
+        mapping_->Optimize(mapping_kfs);
+    }
+
     // reject outliers and clean the map
     for (auto &pair_kf : active_kfs)
     {
@@ -242,10 +237,6 @@ void Backend::Optimize()
             {
                 landmark->RemoveObservation(feature);
                 frame->RemoveFeature(feature);
-            }
-            if (landmark->observations.size() <= 1 && frame->id != Frame::current_frame_id)
-            {
-                Map::Instance().RemoveLandmark(landmark);
             }
         }
     }
@@ -267,7 +258,7 @@ void Backend::UpdateFrontend(SE3d transform, double time)
     BuildProblem(active_kfs, problem);
 
     ceres::Solver::Options options;
-    options.linear_solver_type = ceres::DENSE_SCHUR;
+    options.linear_solver_type = ceres::SPARSE_SCHUR;
     options.max_num_iterations = 1;
     options.num_threads = num_threads;
     ceres::Solver::Summary summary;

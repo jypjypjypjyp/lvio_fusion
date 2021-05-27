@@ -90,7 +90,7 @@ void LocalMap::AddKeyFrame(Frame::Ptr new_kf)
         }
     }
     // local BA
-    // LocalBA(new_kf);
+    LocalBA(new_kf);
     // get feature pyramid
     local_features_[new_kf->time] = Pyramid();
     GetFeaturePyramid(new_kf, local_features_[new_kf->time]);
@@ -98,7 +98,7 @@ void LocalMap::AddKeyFrame(Frame::Ptr new_kf)
     pose_cache[new_kf->time] = new_kf->pose;
     std::vector<double> kfs = GetCovisibilityKeyFrames(new_kf);
     GetNewLandmarks(new_kf, local_features_[new_kf->time]);
-    // Search(kfs, new_kf);
+    Search(kfs, new_kf);
     // remove old key frame and old landmarks
     if (local_features_.size() > windows_size_)
     {
@@ -284,7 +284,7 @@ void LocalMap::Triangulate(Frame::Ptr frame, Level &features)
                     Vector3d pw = Camera::Get(1)->Robot2World(pb, frame->pose);
                     double dt = frame->time - features[i]->landmark.lock()->FirstFrame().lock()->time;
                     double e = (pw - position_cache[features[i]->landmark.lock()->id]).norm();
-                    if (e / dt > 4 || e > 2)
+                    if (e / dt > 4 || e > 4)
                     {
                         frame->RemoveFeature(features[i]);
                         cv::putText(img_track, "X", kps_left[i], cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 0, 255));

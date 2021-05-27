@@ -47,26 +47,20 @@ void Frontend::AddImu(double time, Vector3d acc, Vector3d gyr)
 
 bool check_velocity(SE3d &current_pose, SE3d last_pose, double dt)
 {
-    double relative[6];
+    double relative[6], abs[6];
     ceres::SE3ToRpyxyz((last_pose.inverse() * current_pose).data(), relative);
     for (int i = 0; i < 6; i++)
     {
-        relative[i] = std::fabs(relative[i]);
+        abs[i] = std::fabs(relative[i]);
     }
     // speed is lower than 40m/s, and vy,vz change slowly.
     if (relative[3] / dt < max_speed)
     {
-        // LOG(INFO) << "relative[0]" << relative[0];
-        // LOG(INFO) << "relative[1]" << relative[1];
-        // LOG(INFO) << "relative[2]" << relative[2];
-        // LOG(INFO) << "relative[3]" << relative[3];
-        // LOG(INFO) << "relative[4]" << relative[4];
-        // LOG(INFO) << "relative[5]" << relative[5];
-        relative[0] = std::min(relative[0], 0.5);
-        relative[1] = std::min(relative[1], 0.2);
-        relative[2] = std::min(relative[2], 0.1);
-        relative[4] = std::min(tan(relative[0]) * relative[3], relative[4]);
-        relative[5] = std::min(tan(relative[1]) * relative[3], relative[5]);
+        relative[0] = (relative[0] / abs[0]) * std::min(abs[0], 0.2);
+        relative[1] = (relative[1] / abs[1]) * std::min(abs[1], 0.1);
+        relative[2] = (relative[2] / abs[2]) * std::min(abs[2], 0.01);
+        relative[4] = (relative[0] / abs[0]) * std::min(tan(abs[0]) * relative[3], abs[4]);
+        relative[5] = (relative[1] / abs[1]) * std::min(tan(abs[1]) * relative[3], abs[5]);
         SE3d relative_i_j;
         ceres::RpyxyzToSE3(relative, relative_i_j.data());
         current_pose = last_pose * relative_i_j;
@@ -185,7 +179,6 @@ int Frontend::TrackLastFrame()
         for (auto &feature : features)
         {
             auto landmark = feature->landmark.lock();
-            assert(landmark);
             auto px = Camera::Get()->World2Pixel(local_map.position_cache[landmark->id], current_frame->pose);
             kps_last.push_back(feature->keypoint.pt);
             kps_current.push_back(cv::Point2f(px[0], px[1]));

@@ -37,13 +37,13 @@ public:
         {
             residuals[4] = T(weight_) * (norm - T(max_speed * dt_));
         }
-        if (relative[4] > tan(relative[0]) * relative[3])
+        if (abs(relative[4]) > tan(abs(relative[0])) * relative[3])
         {
-            residuals[5] = T(weight_) * (relative[4] - tan(relative[1]) * relative[3]);
+            residuals[5] = T(weight_) * (abs(relative[4]) - tan(abs(relative[1])) * relative[3]);
         }
-        if (relative[5] > tan(relative[1]) * relative[3])
+        if (abs(relative[5]) > tan(abs(relative[1])) * relative[3])
         {
-            residuals[6] = T(weight_) * (relative[5] - tan(relative[2]) * relative[3]);
+            residuals[6] = T(weight_) * (abs(relative[5]) - tan(abs(relative[2])) * relative[3]);
         }
         return true;
     }

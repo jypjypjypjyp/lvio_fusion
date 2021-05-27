@@ -35,7 +35,7 @@ public:
 
     void InputImage(double time, cv::Mat &left_image, cv::Mat &right_image, SE3d init_odom);
 
-    void InputNavSat(double time, double latitude, double longitude, double altitude, double posAccuracy);
+    void InputNavSat(double time, double latitude, double longitude, double altitude, Vector3d cov);
 
     void InputPointCloud(double time, Point3Cloud::Ptr point_cloud);
 

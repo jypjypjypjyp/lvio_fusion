@@ -6,13 +6,22 @@
 namespace lvio_fusion
 {
 
+Vector3d cov2sqrt_info(const Vector3d &cov)
+{
+    Matrix3d cov_m;
+    cov_m << cov[0], 0, 0, 0, cov[1], 0, 0, 0, cov[2];
+    Matrix3d sqrt_info_m = Eigen::LLT<Matrix3d>(cov_m.inverse()).matrixL().transpose();
+    return Vector3d(sqrt_info_m(0), sqrt_info_m(4), sqrt_info_m(8));
+}
+
 class NavsatInitError
 {
 public:
-    NavsatInitError(Vector3d p0, Vector3d p1)
+    NavsatInitError(Vector3d p0, Vector3d p1, Vector3d cov)
         : x0_(p0.x()), y0_(p0.y()), z0_(p0.z()),
           x1_(p1.x()), y1_(p1.y()), z1_(p1.z())
     {
+        sqrt_info = cov2sqrt_info(cov);
     }
 
     template <typename T>
@@ -30,58 +39,26 @@ public:
         return true;
     }
 
-    static ceres::CostFunction *Create(Vector3d p0, Vector3d p1)
+    static ceres::CostFunction *Create(Vector3d p0, Vector3d p1, Vector3d cov)
     {
-        return (new ceres::AutoDiffCostFunction<NavsatInitError, 3, 1, 1, 1>(new NavsatInitError(p0, p1)));
+        return (new ceres::AutoDiffCostFunction<NavsatInitError, 3, 1, 1, 1>(new NavsatInitError(p0, p1, cov)));
     }
 
 private:
     double x0_, y0_, z0_;
     double x1_, y1_, z1_;
-};
-
-class NavsatRError
-{
-public:
-    NavsatRError(SE3d origin, SE3d pose) : pose_(pose), origin_(origin)
-    {
-        pi_o_ = pose_.inverse() * origin_;
-    }
-
-    template <typename T>
-    bool operator()(const T *yaw, const T *pitch, const T *roll, T *residual) const
-    {
-        T pose[4], new_pose[4], relative_pose[4], pi_o[4], pb[4];
-        T rpy[3] = {yaw[0], pitch[0], roll[0]};
-        ceres::RPYToEigenQuaternion(rpy, relative_pose);
-        ceres::Cast(pose_.data(), SO3d::num_parameters, pose);
-        ceres::Cast(pi_o_.data(), SO3d::num_parameters, pi_o);
-        ceres::EigenQuaternionProduct(pose, relative_pose, pb);
-        ceres::EigenQuaternionProduct(pb, pi_o, new_pose);
-        T y[3] = {T(0), T(1), T(0)};
-        T tf_y[3];
-        ceres::EigenQuaternionRotatePoint(new_pose, y, tf_y);
-        residual[0] = T(100) * tf_y[2];
-        return true;
-    }
-
-    static ceres::CostFunction *Create(SE3d origin, SE3d pose)
-    {
-        return (new ceres::AutoDiffCostFunction<NavsatRError, 1, 1, 1, 1>(new NavsatRError(origin, pose)));
-    }
-
-private:
-    SE3d pose_, origin_, pi_o_;
+    Vector3d sqrt_info;
 };
 
 class NavsatRXError
 {
 public:
-    NavsatRXError(Vector3d p0, Vector3d p1, SE3d pose)
+    NavsatRXError(Vector3d p0, Vector3d p1, SE3d pose, Vector3d cov)
         : x0_(p0.x()), y0_(p0.y()), z0_(p0.z()),
           x1_(p1.x()), y1_(p1.y()), z1_(p1.z()),
           pose_(pose)
     {
+        sqrt_info = cov2sqrt_info(cov);
     }
 
     template <typename T>
@@ -95,51 +72,52 @@ public:
         T p1[3] = {T(x1_), T(y1_), T(z1_)};
         T tf_p1[3];
         ceres::SE3TransformPoint(tf, p1, tf_p1);
-        residuals[0] = T(x0_) - tf_p1[0];
-        residuals[1] = T(y0_) - tf_p1[1];
-        residuals[2] = T(z0_) - tf_p1[2];
+        residuals[0] = (T(x0_) - tf_p1[0]);
+        residuals[1] = (T(y0_) - tf_p1[1]);
+        residuals[2] = (T(z0_) - tf_p1[2]);
         return true;
     }
 
-    static ceres::CostFunction *Create(Vector3d p0, Vector3d p1, SE3d pose)
+    static ceres::CostFunction *Create(Vector3d p0, Vector3d p1, SE3d pose, Vector3d cov)
     {
-        return (new ceres::AutoDiffCostFunction<NavsatRXError, 3, 1, 1, 1, 1, 1, 1>(new NavsatRXError(p0, p1, pose)));
+        return (new ceres::AutoDiffCostFunction<NavsatRXError, 3, 1, 1, 1, 1, 1, 1>(new NavsatRXError(p0, p1, pose, cov)));
     }
 
 private:
     double x0_, y0_, z0_;
     double x1_, y1_, z1_;
     SE3d pose_;
+    Vector3d sqrt_info;
 };
 
-// class NavsatPlaneError
-// {
-// public:
-//     NavsatPlaneError(LidarPlaneError origin_error, SE3d Twc1)
-//         : origin_error_(origin_error), Twc1_(Twc1) {}
+class NavsatRError
+{
+public:
+    NavsatRError(Vector3d y, SE3d pose) : y_(y), pose_(pose) {}
 
-//     template <typename T>
-//     bool operator()(const T *yaw, const T *pitch, const T *roll, T *residual) const
-//     {
-//         T Twc1[7], Twc2[7], relative_i_j[7];
-//         T rpyxyz[6] = {*yaw, *pitch, *roll, T(0), T(0), T(0)};
-//         ceres::RpyxyzToSE3(rpyxyz, relative_i_j);
-//         ceres::Cast(Twc1_.data(), SE3d::num_parameters, Twc1);
-//         ceres::SE3Product(Twc1, relative_i_j, Twc2);
-//         origin_error_(Twc2, residual);
-//         return true;
-//     }
+    template <typename T>
+    bool operator()(const T *roll, T *residual) const
+    {
+        T pose[4], relative_pose[4], pb[4], y[3], tf_y[3];
+        T rpy[3] = {T(0), T(0), roll[0]};
+        ceres::RPYToEigenQuaternion(rpy, relative_pose);
+        ceres::Cast(pose_.data(), SO3d::num_parameters, pose);
+        ceres::Cast(y_.data(), 3, y);
+        ceres::EigenQuaternionProduct(pose, relative_pose, pb);
+        ceres::EigenQuaternionRotatePoint(pb, y, tf_y);
+        residual[0] = tf_y[2];
+        return true;
+    }
 
-//     static ceres::CostFunction *Create(Vector3d p, Vector3d pa, Vector3d pb, Vector3d pc, SE3d Twc1)
-//     {
-//         LidarPlaneError origin_error(p, pa, pb, pc);
-//         return (new ceres::AutoDiffCostFunction<NavsatPlaneError, 1, 1, 1, 1>(new NavsatPlaneError(origin_error, Twc1)));
-//     }
+    static ceres::CostFunction *Create(Vector3d y, SE3d pose)
+    {
+        return (new ceres::AutoDiffCostFunction<NavsatRError, 1, 1>(new NavsatRError(y, pose)));
+    }
 
-// private:
-//     LidarPlaneError origin_error_;
-//     SE3d Twc1_;
-// };
+private:
+    SE3d pose_;
+    Vector3d y_;
+};
 
 } // namespace lvio_fusion
 

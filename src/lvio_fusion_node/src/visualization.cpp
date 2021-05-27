@@ -33,6 +33,7 @@ void register_pub(ros::NodeHandle &n)
 void publish_odometry(Estimator::Ptr estimator, double time)
 {
     auto &&submap = PoseGraph::Instance().GetSections(0, 0);
+    submap[PoseGraph::Instance().current_section.A] = PoseGraph::Instance().current_section;
     path.poses.clear();
     cameraposevisual.reset();
     for (auto &pair : lvio_fusion::Map::Instance().keyframes)

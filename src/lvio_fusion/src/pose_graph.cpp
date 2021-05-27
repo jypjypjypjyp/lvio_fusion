@@ -49,15 +49,20 @@ Atlas PoseGraph::FilterOldSubmaps(double start, double end)
     return active_sections;
 }
 
+void PoseGraph::UpdateCache(SE3d transfrom)
+{
+    last_ori_ = transfrom.so3() * last_ori_;
+    B_ori_ = transfrom.so3() * B_ori_;
+    current_ori_ = transfrom.so3() * current_ori_;
+}
+
 void PoseGraph::UpdateSections(double time)
 {
     std::unique_lock<std::mutex> lock(mutex);
     static bool initialized = false;
-    static Vector3d last_ori(1, 0, 0), B_ori(1, 0, 0), current_ori(0, 0, 0);
-    static double accumulate_degree = 0;
     static double finished = 0;
-    static std::queue<std::pair<double, Vector3d>> ori_buf;
     static const int buf_size = 3;
+    static std::queue<std::pair<double, Vector3d>> ori_buf_;
 
     if (Map::Instance().end && !turning)
     {
@@ -82,23 +87,23 @@ void PoseGraph::UpdateSections(double time)
         }
         // average orientation of keyframes in buffer
         Vector3d ori = pair.second->pose.so3() * Vector3d::UnitX();
-        ori_buf.push(std::make_pair(pair.first, ori));
-        current_ori += ori;
-        if (ori_buf.size() > buf_size)
+        ori_buf_.push(std::make_pair(pair.first, ori));
+        current_ori_ += ori;
+        if (ori_buf_.size() > buf_size)
         {
-            current_ori -= ori_buf.front().second;
-            last_ori = ori_buf.front().second;
-            ori_buf.pop();
+            current_ori_ -= ori_buf_.front().second;
+            last_ori_ = ori_buf_.front().second;
+            ori_buf_.pop();
         }
-        if (ori_buf.size() == buf_size)
+        if (ori_buf_.size() == buf_size)
         {
-            double degree = vectors_degree_angle(last_ori, current_ori);
+            double degree = vectors_degree_angle(last_ori_, current_ori_);
             // turning requires
-            if (!turning && (degree >= 5 || vectors_degree_angle(B_ori, current_ori) > 20))
+            if (!turning && (degree >= 5 || vectors_degree_angle(B_ori_, current_ori_) > 20))
             {
                 // if we have enough keyframes and total degree, create new section
                 if (current_section.A == current_section.B ||
-                    frames_distance(current_section.A, pair.first) > 100)
+                    frames_distance(current_section.A, pair.first) > 40)
                 {
                     current_section.C = pair.first;
                     sections_[current_section.A] = current_section;
@@ -110,7 +115,7 @@ void PoseGraph::UpdateSections(double time)
             else if (turning && degree < 3)
             {
                 current_section.B = pair.first;
-                B_ori = current_ori;
+                B_ori_ = current_ori_;
                 turning = false;
             }
         }

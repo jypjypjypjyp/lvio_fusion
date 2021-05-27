@@ -10,7 +10,7 @@ unsigned long Frame::current_frame_id = 0;
 
 Frame::Frame()
 {
-    weights.visual = Camera::Get()->fx / 1.5;
+    weights.visual = 1;
     weights.lidar_ground = 1;
     weights.lidar_surf = 0.01;
 }

@@ -177,7 +177,7 @@ bool InertialOptimization(Frames &frames, Matrix3d &Rwg, double prior_a, double 
     ceres::Solver::Options options;
     options.linear_solver_type = ceres::DENSE_QR;
     options.num_threads = num_threads;
-    options.max_num_iterations = 2;
+    options.max_solver_time_in_seconds = 0.5;
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
 
@@ -270,8 +270,8 @@ void FullBA(Frames &frames, double prior_a, double prior_g)
 
     //solve
     ceres::Solver::Options options;
-    options.linear_solver_type = ceres::DENSE_SCHUR;
-    options.max_num_iterations = 2;
+    options.linear_solver_type = ceres::SPARSE_SCHUR;
+    options.max_solver_time_in_seconds = 0.5;
     options.num_threads = num_threads;
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);

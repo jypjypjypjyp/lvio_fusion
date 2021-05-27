@@ -13,9 +13,10 @@ class Feature
 public:
     typedef std::shared_ptr<Feature> Ptr;
 
-    Feature(double time) : time(time) {}
+    Feature(double time, Vector3d cov) : time(time), cov(cov) {}
 
     double time;
+    Vector3d cov;
 };
 
 } // namespace navsat

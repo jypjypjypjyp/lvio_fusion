@@ -58,8 +58,8 @@ public:
         T pw[3] = {T(pw_.x()), T(pw_.y()), T(pw_.z())};
         T ob[2] = {T(ob_.x()), T(ob_.y())};
         Reprojection(pw, Twc, camera_, p_p);
-        residuals[0] = T(weight_) * (p_p[0] - ob[0]);
-        residuals[1] = T(weight_) * (p_p[1] - ob[1]);
+        residuals[0] = T(weight_) * T(Camera::sqrt_info) * (p_p[0] - ob[0]);
+        residuals[1] = T(weight_) * T(Camera::sqrt_info) * (p_p[1] - ob[1]);
         return true;
     }
 
@@ -75,7 +75,7 @@ private:
     Camera::Ptr camera_;
 };
 
-class TwoFrameReprojectionError: public ceres::Error
+class TwoFrameReprojectionError : public ceres::Error
 {
 public:
     TwoFrameReprojectionError(Vector2d first_ob, Vector2d ob, Camera::Ptr left, Camera::Ptr right, double weight)
@@ -90,8 +90,8 @@ public:
         Pixel2Robot(first_ob, inv_d, right_, pb);
         ceres::SE3TransformPoint(Twc1, pb, pw);
         Reprojection(pw, Twc2, left_, pixel);
-        residuals[0] = T(weight_) * (pixel[0] - ob2[0]);
-        residuals[1] = T(weight_) * (pixel[1] - ob2[1]);
+        residuals[0] = T(weight_) * T(Camera::sqrt_info) * (pixel[0] - ob2[0]);
+        residuals[1] = T(weight_) * T(Camera::sqrt_info) * (pixel[1] - ob2[1]);
         return true;
     }
 
@@ -106,7 +106,7 @@ private:
     Camera::Ptr left_, right_;
 };
 
-class TwoCameraReprojectionError: public ceres::Error
+class TwoCameraReprojectionError : public ceres::Error
 {
 public:
     TwoCameraReprojectionError(Vector2d left_ob, Vector2d right_ob, Camera::Ptr left, Camera::Ptr right, double weight)
@@ -120,8 +120,8 @@ public:
         T left_ob[2] = {T(left_ob_.x()), T(left_ob_.y())};
         Pixel2Robot(right_ob, inv_d, right_, pb);
         Robot2Pixel(pb, left_, pixel);
-        residuals[0] = T(weight_) * (pixel[0] - left_ob[0]);
-        residuals[1] = T(weight_) * (pixel[1] - left_ob[1]);
+        residuals[0] = T(weight_) * T(Camera::sqrt_info) * (pixel[0] - left_ob[0]);
+        residuals[1] = T(weight_) * T(Camera::sqrt_info) * (pixel[1] - left_ob[1]);
         return true;
     }
 
