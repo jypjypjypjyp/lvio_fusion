@@ -49,27 +49,33 @@ Atlas PoseGraph::FilterOldSubmaps(double start, double end)
     return active_sections;
 }
 
-void PoseGraph::UpdateCache(SE3d transfrom)
+Vector3d get_ori(std::queue<double> &buf)
 {
-    last_ori_ = transfrom.so3() * last_ori_;
-    B_ori_ = transfrom.so3() * B_ori_;
-    current_ori_ = transfrom.so3() * current_ori_;
+    Frames frames = Map::Instance().GetKeyFrames(buf.front(), buf.back());
+    Vector3d ori(0, 0, 0);
+    for (auto &pair : frames)
+    {
+        ori += pair.second->pose.so3() * Vector3d::UnitX();
+    }
+    return ori;
+}
+
+Vector3d get_ori(double time)
+{
+    Frame::Ptr frame = Map::Instance().GetKeyFrame(time);
+    return frame->pose.so3() * Vector3d::UnitX();
 }
 
 void PoseGraph::UpdateSections(double time)
 {
     std::unique_lock<std::mutex> lock(mutex);
-    static bool initialized = false;
     static double finished = 0;
     static const int buf_size = 3;
-    static std::queue<std::pair<double, Vector3d>> ori_buf_;
+    static std::queue<double> buf, last_buf;
 
     if (Map::Instance().end && !turning)
     {
-        current_section.C = time;
-        sections_[current_section.A] = current_section;
-        current_section.A = time;
-        current_section.B = time;
+        AddSection(time);
         return;
     }
 
@@ -79,43 +85,43 @@ void PoseGraph::UpdateSections(double time)
     finished = time + epsilon;
     for (auto &pair : active_kfs)
     {
-        if (!initialized)
+        if (current_section.A == 0)
         {
             current_section.A = pair.first;
             current_section.B = pair.first;
-            initialized = true;
         }
         // average orientation of keyframes in buffer
-        Vector3d ori = pair.second->pose.so3() * Vector3d::UnitX();
-        ori_buf_.push(std::make_pair(pair.first, ori));
-        current_ori_ += ori;
-        if (ori_buf_.size() > buf_size)
+        buf.push(pair.first);
+        if (buf.size() > buf_size)
         {
-            current_ori_ -= ori_buf_.front().second;
-            last_ori_ = ori_buf_.front().second;
-            ori_buf_.pop();
+            last_buf.push(buf.front());
+            buf.pop();
+            if (last_buf.size() > buf_size)
+            {
+                last_buf.pop();
+            }
         }
-        if (ori_buf_.size() == buf_size)
+        if (buf.size() == buf_size && last_buf.size() == buf_size)
         {
-            double degree = vectors_degree_angle(last_ori_, current_ori_);
+            Vector3d last_ori = get_ori(last_buf), current_ori = get_ori(buf);
+            double degree = vectors_degree_angle(last_ori, current_ori);
             // turning requires
-            if (!turning && (degree >= 5 || vectors_degree_angle(B_ori_, current_ori_) > 20))
+            if (!turning && (degree >= 20 || vectors_degree_angle(get_ori(current_section.B), current_ori) > 20))
             {
                 // if we have enough keyframes and total degree, create new section
                 if (current_section.A == current_section.B ||
-                    frames_distance(current_section.A, pair.first) > 40)
+                    frames_distance(current_section.B, pair.first) > 20)
                 {
-                    current_section.C = pair.first;
+                    current_section.C = last_buf.back();
                     sections_[current_section.A] = current_section;
-                    current_section.A = pair.first;
+                    current_section.A = last_buf.back();
                 }
                 turning = true;
             }
             // go straight requires
             else if (turning && degree < 3)
             {
-                current_section.B = pair.first;
-                B_ori_ = current_ori_;
+                current_section.B = last_buf.back();
                 turning = false;
             }
         }
@@ -143,7 +149,7 @@ bool PoseGraph::AddSection(double time)
 {
     std::unique_lock<std::mutex> lock(mutex);
     if (!sections_.empty() && !turning && time > current_section.B &&
-        frames_distance(current_section.B, time) > 100)
+        frames_distance(current_section.B, time) > 20)
     {
         current_section.C = time;
         sections_[current_section.A] = current_section;

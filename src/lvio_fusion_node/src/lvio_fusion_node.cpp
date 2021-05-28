@@ -200,7 +200,7 @@ void navsat_callback(const sensor_msgs::NavSatFixConstPtr &navsat_msg)
     double longitude = navsat_msg->longitude;
     double altitude = navsat_msg->altitude;
     auto &cov = navsat_msg->position_covariance;
-    Vector3d cov_vec = {cov[0], cov[4], cov[8]};
+    Vector3d cov_vec = {max(1., cov[0]), max(1., cov[4]), max(1., cov[8])};
     double xyz[3];
     static bool init = false;
     if (!init)

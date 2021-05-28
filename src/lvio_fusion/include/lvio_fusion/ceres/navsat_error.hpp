@@ -21,7 +21,7 @@ public:
         : x0_(p0.x()), y0_(p0.y()), z0_(p0.z()),
           x1_(p1.x()), y1_(p1.y()), z1_(p1.z())
     {
-        sqrt_info = cov2sqrt_info(cov);
+        sqrt_info_ = cov2sqrt_info(cov);
     }
 
     template <typename T>
@@ -33,9 +33,9 @@ public:
         T p1[3] = {T(x1_), T(y1_), T(z1_)};
         T tf_p1[3];
         ceres::SE3TransformPoint(tf, p1, tf_p1);
-        residuals[0] = T(x0_) - tf_p1[0];
-        residuals[1] = T(y0_) - tf_p1[1];
-        residuals[2] = T(z0_) - tf_p1[2];
+        residuals[0] = T(sqrt_info_[0]) * (T(x0_) - tf_p1[0]);
+        residuals[1] = T(sqrt_info_[1]) * (T(y0_) - tf_p1[1]);
+        residuals[2] = T(sqrt_info_[2]) * (T(z0_) - tf_p1[2]);
         return true;
     }
 
@@ -47,7 +47,7 @@ public:
 private:
     double x0_, y0_, z0_;
     double x1_, y1_, z1_;
-    Vector3d sqrt_info;
+    Vector3d sqrt_info_;
 };
 
 class NavsatRXError
@@ -58,7 +58,7 @@ public:
           x1_(p1.x()), y1_(p1.y()), z1_(p1.z()),
           pose_(pose)
     {
-        sqrt_info = cov2sqrt_info(cov);
+        sqrt_info_ = cov2sqrt_info(cov);
     }
 
     template <typename T>
@@ -72,9 +72,9 @@ public:
         T p1[3] = {T(x1_), T(y1_), T(z1_)};
         T tf_p1[3];
         ceres::SE3TransformPoint(tf, p1, tf_p1);
-        residuals[0] = (T(x0_) - tf_p1[0]);
-        residuals[1] = (T(y0_) - tf_p1[1]);
-        residuals[2] = (T(z0_) - tf_p1[2]);
+        residuals[0] = T(sqrt_info_[0]) * (T(x0_) - tf_p1[0]);
+        residuals[1] = T(sqrt_info_[1]) * (T(y0_) - tf_p1[1]);
+        residuals[2] = T(sqrt_info_[2]) * (T(z0_) - tf_p1[2]);
         return true;
     }
 
@@ -87,7 +87,7 @@ private:
     double x0_, y0_, z0_;
     double x1_, y1_, z1_;
     SE3d pose_;
-    Vector3d sqrt_info;
+    Vector3d sqrt_info_;
 };
 
 class NavsatRError

@@ -58,19 +58,12 @@ public:
 
     void ForwardUpdate(SE3d transfrom, const Frames &forward_kfs);
 
-    void UpdateCache(SE3d transfrom);
-
     std::mutex mutex;
     Section current_section;
     bool turning = false;
 
 private:
-    PoseGraph()
-    {
-        last_ori_ = {1, 0, 0};
-        B_ori_ = {1, 0, 0};
-        current_ori_ = {0, 0, 0};
-    }
+    PoseGraph() {}
     PoseGraph(const PoseGraph &);
     PoseGraph &operator=(const PoseGraph &);
 
@@ -78,7 +71,6 @@ private:
 
     Atlas submaps_;  // loop submaps [end : {old, start, end}]
     Atlas sections_; // sections [A : {A, B, C}]
-    Vector3d last_ori_, B_ori_, current_ori_;
 };
 
 } // namespace lvio_fusion
