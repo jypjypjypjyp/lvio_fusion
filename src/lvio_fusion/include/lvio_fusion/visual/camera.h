@@ -77,7 +77,6 @@ public:
     }
 
     static double baseline;
-    static double sqrt_info;
     double fx = 0, fy = 0, cx = 0, cy = 0; // Camera intrinsics
     double k1 = 0, k2 = 0, p1 = 0, p2 = 0; // Camera intrinsics
     cv::Mat K, D;

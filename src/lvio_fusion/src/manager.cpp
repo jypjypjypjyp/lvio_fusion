@@ -4,7 +4,6 @@ namespace lvio_fusion
 {
 
 double Camera::baseline = 0;
-double Camera::sqrt_info = 0;
 std::vector<Camera::Ptr> Camera::devices_;
 std::vector<Imu::Ptr> Imu::devices_;
 std::vector<Lidar::Ptr> Lidar::devices_;

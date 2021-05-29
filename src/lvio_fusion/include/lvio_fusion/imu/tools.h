@@ -8,10 +8,6 @@ namespace lvio_fusion
 namespace imu
 {
 
-void ReComputeBiasVel(Frames &frames, Frame::Ptr &prior_frame);
-
-void ReComputeBiasVel(Frames &frames);
-
 void RePredictVel(Frames &frames, Frame::Ptr &prior_frame);
 
 bool InertialOptimization(Frames &frames, Matrix3d &Rwg, double prior_a, double prior_g);

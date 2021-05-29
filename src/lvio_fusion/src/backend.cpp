@@ -151,11 +151,11 @@ void Backend::BuildProblem(Frames &active_kfs, adapt::Problem &problem)
         }
 
         // vehicle constraints
-        if (last_frame)
-        {
-            ceres::CostFunction *cost_function = VehicleError::Create(frame->time - last_frame->time, 1e4);
-            problem.AddResidualBlock(ProblemType::Other, cost_function, NULL, para_last_kf, para_kf);
-        }
+        // if (last_frame)
+        // {
+        //     ceres::CostFunction *cost_function = VehicleError::Create(frame->time - last_frame->time, 1e4);
+        //     problem.AddResidualBlock(ProblemType::Other, cost_function, NULL, para_last_kf, para_kf);
+        // }
 
         // check if weak constraint
         auto num_types = problem.GetTypes(para_kf);
@@ -258,7 +258,7 @@ void Backend::UpdateFrontend(SE3d transform, double time)
     BuildProblem(active_kfs, problem);
 
     ceres::Solver::Options options;
-    options.linear_solver_type = ceres::SPARSE_SCHUR;
+    options.linear_solver_type = ceres::SPARSE_NORMAL_CHOLESKY;
     options.max_num_iterations = 1;
     options.num_threads = num_threads;
     ceres::Solver::Summary summary;
@@ -278,7 +278,6 @@ void Backend::UpdateFrontend(SE3d transform, double time)
     {
         Frame::Ptr prior_frame = Map::Instance().GetKeyFrames(0, time, 1).begin()->second;
         imu::RePredictVel(active_kfs, prior_frame);
-        // imu::ReComputeBiasVel(active_kfs, prior_frame);
         if (active_kfs.size() == 0)
         {
             frontend_.lock()->UpdateImu(prior_frame->bias);

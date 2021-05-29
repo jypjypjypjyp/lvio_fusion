@@ -90,7 +90,7 @@ void LocalMap::AddKeyFrame(Frame::Ptr new_kf)
         }
     }
     // local BA
-    LocalBA(new_kf);
+    // LocalBA(new_kf);
     // get feature pyramid
     local_features_[new_kf->time] = Pyramid();
     GetFeaturePyramid(new_kf, local_features_[new_kf->time]);

@@ -83,7 +83,6 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
                        SE3d(q_body_to_cam1, t_body_to_cam1));
     }
     Camera::baseline = (t_body_to_cam0 - t_body_to_cam1).norm();
-    Camera::sqrt_info = Camera::Get()->fx / 1.5;
 
     // create components and links
     frontend = Frontend::Ptr(new Frontend(
