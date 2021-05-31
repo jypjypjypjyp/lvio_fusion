@@ -53,7 +53,6 @@ void Backend::GlobalLoop()
             Section new_section = sections.begin()->second;
             start = new_section.C;
             SE3d old_pose = Map::Instance().GetKeyFrame(start)->pose;
-
             if (Navsat::Num() && Navsat::Get()->initialized)
             {
                 Navsat::Get()->Optimize(new_section);

@@ -284,7 +284,7 @@ void LocalMap::Triangulate(Frame::Ptr frame, Level &features)
                     Vector3d pw = Camera::Get(1)->Robot2World(pb, frame->pose);
                     double dt = frame->time - features[i]->landmark.lock()->FirstFrame().lock()->time;
                     double e = (pw - position_cache[features[i]->landmark.lock()->id]).norm();
-                    if (e / dt > 4 || e > 2)
+                    if (e / dt > 4 || e > 4)
                     {
                         frame->RemoveFeature(features[i]);
                         cv::putText(img_track, "X", kps_left[i], cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 0, 255));

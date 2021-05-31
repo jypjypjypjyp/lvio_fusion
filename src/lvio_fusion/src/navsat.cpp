@@ -139,7 +139,7 @@ void Navsat::Optimize(const Section &section)
     // first, optimize B's position
     OptimizeRX(B, section.C, section.C, 0b000000);
     // second, optimize A - B
-    OptimizeAB(A, B, old_B);
+    // OptimizeAB(A, B, old_B);
     // third, optimize others
     Frames BC = Map::Instance().GetKeyFrames(section.B + epsilon, section.C - epsilon);
     for (auto &pair : BC)
