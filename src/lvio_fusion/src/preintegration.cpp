@@ -27,13 +27,14 @@ Preintegration::Preintegration(const Vector3d &_linearized_ba, const Vector3d &_
     noise.block<3, 3>(15, 15) = (Imu::Get()->GYR_W * Imu::Get()->GYR_W) * Matrix3d::Identity();
 }
 
-void Preintegration::MidPointIntegration(double _dt,
-                                         const Vector3d &_acc_0, const Vector3d &_gyr_0,
-                                         const Vector3d &_acc_1, const Vector3d &_gyr_1,
-                                         const Vector3d &delta_p, const Quaterniond &delta_q, const Vector3d &delta_v,
-                                         const Vector3d &linearized_ba, const Vector3d &linearized_bg,
-                                         Vector3d &result_delta_p, Quaterniond &result_delta_q, Vector3d &result_delta_v,
-                                         Vector3d &result_linearized_ba, Vector3d &result_linearized_bg, bool update_jacobian)
+void Preintegration::MidPointIntegration(
+    double _dt,
+    const Vector3d &_acc_0, const Vector3d &_gyr_0,
+    const Vector3d &_acc_1, const Vector3d &_gyr_1,
+    const Vector3d &delta_p, const Quaterniond &delta_q, const Vector3d &delta_v,
+    const Vector3d &linearized_ba, const Vector3d &linearized_bg,
+    Vector3d &result_delta_p, Quaterniond &result_delta_q, Vector3d &result_delta_v,
+    Vector3d &result_linearized_ba, Vector3d &result_linearized_bg, bool update_jacobian)
 {
     Vector3d un_acc_0 = delta_q * (_acc_0 - linearized_ba);
     Vector3d un_gyr = 0.5 * (_gyr_0 + _gyr_1) - linearized_bg;
@@ -140,8 +141,9 @@ void Preintegration::Repropagate(const Vector3d &_linearized_ba, const Vector3d 
         Propagate(dt_buf[i], acc_buf[i], gyr_buf[i]);
 }
 
-Matrix<double, 15, 1> Preintegration::Evaluate(const Vector3d &Pi, const Quaterniond &Qi, const Vector3d &Vi, const Vector3d &Bai, const Vector3d &Bgi,
-                                               const Vector3d &Pj, const Quaterniond &Qj, const Vector3d &Vj, const Vector3d &Baj, const Vector3d &Bgj)
+Matrix<double, 15, 1> Preintegration::Evaluate(
+    const Vector3d &Pi, const Quaterniond &Qi, const Vector3d &Vi, const Vector3d &Bai, const Vector3d &Bgi,
+    const Vector3d &Pj, const Quaterniond &Qj, const Vector3d &Vj, const Vector3d &Baj, const Vector3d &Bgj)
 {
     Matrix<double, 15, 1> residuals;
     Matrix3d dp_dba = jacobian.block<3, 3>(O_T, O_BA);
@@ -154,16 +156,17 @@ Matrix<double, 15, 1> Preintegration::Evaluate(const Vector3d &Pi, const Quatern
     Quaterniond corrected_delta_q = delta_q * q_delta(dq_dbg * dbg);
     Vector3d corrected_delta_v = delta_v + dv_dba * dba + dv_dbg * dbg;
     Vector3d corrected_delta_p = delta_p + dp_dba * dba + dp_dbg * dbg;
-    residuals.block<3, 1>(O_T, 0) = Qi.inverse() * (0.5 * (Imu::Get()->Rwg * g) * sum_dt * sum_dt + Pj - Pi - Vi * sum_dt) - corrected_delta_p;
+    residuals.block<3, 1>(O_T, 0) = Qi.inverse() * (0.5 * ( g) * sum_dt * sum_dt + Pj - Pi - Vi * sum_dt) - corrected_delta_p;
     residuals.block<3, 1>(O_R, 0) = 2 * (corrected_delta_q.inverse() * (Qi.inverse() * Qj)).vec();
-    residuals.block<3, 1>(O_V, 0) = Qi.inverse() * ((Imu::Get()->Rwg * g) * sum_dt + Vj - Vi) - corrected_delta_v;
+    residuals.block<3, 1>(O_V, 0) = Qi.inverse() * (( g) * sum_dt + Vj - Vi) - corrected_delta_v;
     residuals.block<3, 1>(O_BA, 0) = Baj - Bai;
     residuals.block<3, 1>(O_BG, 0) = Bgj - Bgi;
     return residuals;
 }
 
-Matrix<double, 15, 1> Preintegration::Evaluate(const Vector3d &Pi, const Quaterniond &Qi, const Vector3d &Vi, const Vector3d &Bai, const Vector3d &Bgi,
-                                               const Vector3d &Pj, const Quaterniond &Qj, const Vector3d &Vj, const Vector3d &Baj, const Vector3d &Bgj, const Quaterniond &Rg)
+Matrix<double, 15, 1> Preintegration::Evaluate(
+    const Vector3d &Pi, const Quaterniond &Qi, const Vector3d &Vi, const Vector3d &Bai, const Vector3d &Bgi,
+    const Vector3d &Pj, const Quaterniond &Qj, const Vector3d &Vj, const Vector3d &Baj, const Vector3d &Bgj, const Quaterniond &Rg)
 {
     Matrix<double, 15, 1> residuals;
     Matrix3d dp_dba = jacobian.block<3, 3>(O_T, O_BA);
@@ -201,9 +204,8 @@ Vector3d Preintegration::GetUpdatedDeltaPosition()
     Matrix3d dp_dbg = jacobian.block<3, 3>(O_T, O_BG);
     return delta_p + dp_dbg * delta_bias.block<3, 1>(0, 0) + dp_dba * delta_bias.block<3, 1>(3, 0);
 }
-void Preintegration::SetNewBias(const Bias &new_bias)
+void Preintegration::UpdateBias(const Bias &new_bias)
 {
-    bias = new_bias;
     delta_bias(0) = new_bias.linearized_bg[0] - linearized_bg[0];
     delta_bias(1) = new_bias.linearized_bg[1] - linearized_bg[1];
     delta_bias(2) = new_bias.linearized_bg[2] - linearized_bg[2];

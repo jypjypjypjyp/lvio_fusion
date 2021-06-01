@@ -6,18 +6,16 @@
 #include <opencv2/core/eigen.hpp>
 #include <sys/sysinfo.h>
 
-double epsilon = 1e-3;
-int num_threads = std::min(8, std::max(1, (int)(0.75 * get_nprocs())));
+const double epsilon = 1e-3;
+const int num_threads = std::min(8, std::max(1, (int)(0.75 * get_nprocs())));
+const double max_speed = 40;
 
 namespace lvio_fusion
 {
 
-double Camera::BASELINE = 1;
+Estimator::Estimator(std::string &config_path) : config_file_path_(config_path) {}
 
-Estimator::Estimator(std::string &config_path)
-    : config_file_path_(config_path) {}
-
-bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, int use_adapt, int use_navigation)//NAVI
+bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, int use_adapt)
 {
     LOG(INFO) << "System info:\n\tepsilon: " << epsilon << "\n\tnum_threads: " << num_threads;
 
@@ -84,7 +82,7 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
                        Config::Get<double>("camera1.cy"),
                        SE3d(q_body_to_cam1, t_body_to_cam1));
     }
-    lvio_fusion::Camera::BASELINE = (t_body_to_cam0 - t_body_to_cam1).norm();
+    Camera::baseline = (t_body_to_cam0 - t_body_to_cam1).norm();
 
     // create components and links
     frontend = Frontend::Ptr(new Frontend(
@@ -113,7 +111,7 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
 
     if (use_navsat)
     {
-        Navsat::Create();
+        Navsat::Create(Config::Get<double>("accuracy"));
     }
 
     if (use_imu)
@@ -163,52 +161,27 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
             relocator->SetMapping(mapping);
         }
     }
-    else{    //NAVI
-        use_navigation=0;
-    }
-    //NAVI
-    if(use_navigation)
-    {
-        gridmap = Gridmap::Ptr(new Gridmap(
-            Config::Get<int>("grid_width"),
-            Config::Get<int>("grid_height"),
-            Config::Get<double>("grid_resolution"),
-              Config::Get<int>("num_scans"),
-            Config::Get<int>("horizon_scan"),
-            Config::Get<double>("ang_res_y"),
-            Config::Get<double>("ang_bottom"),
-            Config::Get<int>("ground_rows"),
-            Config::Get<double>("cycle_time"),
-            Config::Get<double>("min_range"),
-            Config::Get<double>("max_range"),
-            Config::Get<int>("deskew"),
-            Config::Get<int>("spacing")));
-        association->SetGridmap(gridmap);
-        if(use_imu)
-            initializer->SetGridmap(gridmap);
-        globalplanner=Global_planner::Ptr(new Global_planner(
-            Config::Get<int>("grid_width"),
-            Config::Get<int>("grid_height"),
-            Config::Get<double>("grid_resolution")));
-        frontend->SetGlobalPlanner(globalplanner);
-        gridmap->SetGlobalPlanner(globalplanner);
-    }
     return true;
 }
 
-void Estimator::InputImage(double time, cv::Mat &left_image, cv::Mat &right_image)
+std::map<FrontendStatus, std::string> map_status = {
+    {FrontendStatus::BUILDING, "Building"},
+    {FrontendStatus::INITIALIZING, "Initializing"},
+    {FrontendStatus::TRACKING, "Tracking"},
+    {FrontendStatus::LOST, "Lost"}};
+void Estimator::InputImage(double time, cv::Mat &left_image, cv::Mat &right_image, SE3d init_odom)
 {
     Frame::Ptr new_frame = Frame::Create();
     new_frame->time = time;
+    new_frame->pose = init_odom;
     cv::undistort(left_image, new_frame->image_left, Camera::Get(0)->K, Camera::Get(0)->D);
     cv::undistort(right_image, new_frame->image_right, Camera::Get(1)->K, Camera::Get(1)->D);
 
     auto t1 = std::chrono::steady_clock::now();
     bool success = frontend->AddFrame(new_frame);
     auto t2 = std::chrono::steady_clock::now();
-    auto time_used =
-        std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);
-    LOG(INFO) << "VO status:" << (success ? "success" : "failed") << ",VO cost time: " << time_used.count() << " seconds.";
+    auto time_used = std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);
+    LOG(INFO) << "Frontend status:" << map_status[frontend->status] << ", cost time: " << time_used.count() << " seconds.";
 }
 
 void Estimator::InputPointCloud(double time, Point3Cloud::Ptr point_cloud)
@@ -216,20 +189,19 @@ void Estimator::InputPointCloud(double time, Point3Cloud::Ptr point_cloud)
     auto t1 = std::chrono::steady_clock::now();
     association->AddScan(time, point_cloud);
     auto t2 = std::chrono::steady_clock::now();
-    auto time_used =
-        std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);
+    auto time_used = std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);
     if (time_used.count() > 1e-2)
         LOG(INFO) << "Lidar Preprocessing cost time: " << time_used.count() << " seconds.";
 }
 
-void Estimator::InputIMU(double time, Vector3d acc, Vector3d gyr)
+void Estimator::InputImu(double time, Vector3d acc, Vector3d gyr)
 {
     frontend->AddImu(time, acc, gyr);
 }
 
-void Estimator::InputNavSat(double time, double x, double y, double z, double posAccuracy)
+void Estimator::InputNavSat(double time, double x, double y, double z, Vector3d cov)
 {
-    Navsat::Get()->AddPoint(time, x, y, z);
+    Navsat::Get()->AddPoint(time, x, y, z, cov);
 }
 
 } // namespace lvio_fusion

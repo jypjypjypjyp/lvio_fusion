@@ -11,12 +11,22 @@ namespace lvio_fusion
 enum class ProblemType
 {
     VisualError,
+    WeakError,
     LidarError,
     NavsatError,
     PoseError,
-    IMUError,
+    ImuError,
     Other
 };
+
+const std::map<ProblemType, int> init_num_types = {
+        {ProblemType::VisualError, 0},
+        {ProblemType::WeakError, 0},
+        {ProblemType::LidarError, 0},
+        {ProblemType::NavsatError, 0},
+        {ProblemType::PoseError, 0},
+        {ProblemType::ImuError, 0},
+        {ProblemType::Other, 0}};
 
 namespace adapt
 {
@@ -52,26 +62,29 @@ public:
         ceres::Problem::AddParameterBlock(values, size, local_parameterization);
     }
 
+    std::map<ProblemType, int> GetTypes(double *para)
+    {
+        std::vector<ceres::ResidualBlockId> residual_blocks;
+        GetResidualBlocksForParameterBlock(para, &residual_blocks);
+
+        std::map<ProblemType, int> result = init_num_types;
+        for (auto i : residual_blocks)
+        {
+            result[types[i]]++;
+        }
+        return result;
+    }
+
     int num_frames = 0;
     std::unordered_map<ceres::ResidualBlockId, ProblemType> types;
-    std::map<ProblemType, int> num_types = {
-        {ProblemType::VisualError, 0},
-        {ProblemType::LidarError, 0},
-        {ProblemType::NavsatError, 0},
-        {ProblemType::PoseError, 0},
-        {ProblemType::IMUError, 0},
-        {ProblemType::Other, 0}};
+    std::map<ProblemType, int> num_types = init_num_types;
 };
 
 inline void Solve(const ceres::Solver::Options &options,
                   adapt::Problem *problem,
                   ceres::Solver::Summary *summary)
 {
-    if (problem->num_types[ProblemType::VisualError] > 20 * problem->num_frames ||
-        problem->num_types[ProblemType::LidarError] > 100)
-    {
-        ceres::Solve(options, problem, summary);
-    }
+    ceres::Solve(options, problem, summary);
 }
 
 } // namespace adapt

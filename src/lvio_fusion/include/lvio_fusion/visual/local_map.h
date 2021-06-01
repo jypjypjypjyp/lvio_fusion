@@ -13,12 +13,14 @@ namespace lvio_fusion
 typedef std::vector<visual::Feature::Ptr> Level;
 typedef std::vector<Level> Pyramid;
 
+extern cv::Mat img_track;
+
 class LocalMap
 {
 public:
-    LocalMap() : extractor_(Extractor()),
-                 matcher_(cv::DescriptorMatcher::create("BruteForce-Hamming")),
-                 num_levels_(extractor_.num_levels)
+    LocalMap(int num_features) : extractor_(num_features),
+                                 matcher_(cv::DescriptorMatcher::create("BruteForce-Hamming")),
+                                 num_levels_(extractor_.num_levels)
     {
         double current_factor = 1;
         for (int i = 0; i < num_levels_; i++)
@@ -47,7 +49,7 @@ public:
 private:
     Vector3d ToWorld(visual::Feature::Ptr feature);
 
-    void InsertNewLandmarks(Frame::Ptr frame);
+    void LocalBA(Frame::Ptr frame);
 
     void GetFeaturePyramid(Frame::Ptr frame, Pyramid &pyramid);
 
@@ -68,7 +70,7 @@ private:
     std::vector<double> scale_factors_;
 
     const int num_levels_;
-    const int windows_size_ = 3;
+    const int windows_size_ = 4;
 };
 } // namespace lvio_fusion
 

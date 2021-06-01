@@ -23,7 +23,7 @@ public:
 class Extractor
 {
 public:
-    Extractor(int nfeatures = 500, float scaleFactor = 1.2, int nlevels = 4, int iniThFAST = 20, int minThFAST = 7, int patchSize = 31, int edgeThreshold = 31);
+    Extractor(int nfeatures = 500, float scaleFactor = 1.2, int nlevels = 4, int iniThFAST = 14, int minThFAST = 7, int patchSize = 31, int edgeThreshold = 31);
 
     // detect the ORB features on an image.
     // ORB are dispersed on the image using an quad tree.
@@ -61,7 +61,6 @@ private:
     std::vector<float> sigma2_per_levels_;
     std::vector<float> inv_sigma2_per_levels_;
     std::vector<int> num_desired_features_;
-    
     std::vector<cv::Mat> image_pyramid_;
 };
 

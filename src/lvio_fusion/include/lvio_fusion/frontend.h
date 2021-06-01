@@ -3,8 +3,7 @@
 
 #include "lvio_fusion/common.h"
 #include "lvio_fusion/visual/local_map.h"
-#include "lvio_fusion/visual/matcher.h"
-#include "lvio_fusion/navigation/global_planner.h"//NAVI
+
 namespace lvio_fusion
 {
 
@@ -14,8 +13,7 @@ enum class FrontendStatus
 {
     BUILDING,
     INITIALIZING,
-    TRACKING_GOOD,
-    TRACKING_TRY,
+    TRACKING,
     LOST
 };
 
@@ -32,26 +30,22 @@ public:
 
     void SetBackend(std::shared_ptr<Backend> backend) { backend_ = backend; }
 
-    void SetGlobalPlanner(Global_planner::Ptr globalplanner ) { globalplanner_ = globalplanner; }//NAVI
-
     void UpdateCache();
 
-    void UpdateIMU(const Bias &bias_);
+    void UpdateImu(const Bias &bias_);
 
+    std::mutex mutex;
     FrontendStatus status = FrontendStatus::BUILDING;
     Frame::Ptr current_frame;
     Frame::Ptr last_frame;
     Frame::Ptr last_keyframe;
-    SE3d relative_i_j;
     LocalMap local_map;
-    std::mutex mutex;
-    double valid_imu_time = 0;
-    bool last_keyframe_updated = false;
+    double init_time = 0;
 
 private:
     bool Track();
 
-    bool Reset();
+    void ResetImu();
 
     void InitFrame();
 
@@ -63,20 +57,19 @@ private:
 
     bool InitMap();
 
-    int DetectNewFeatures();
-
     int TriangulateNewPoints();
 
-    void PreintegrateIMU();
+    void Preintegrate();
 
-    void PredictStateIMU();
+    void PredictState();
 
     // data
     std::weak_ptr<Backend> backend_;
-    Global_planner::Ptr globalplanner_;//NAVI
-    SE3d last_frame_pose_cache_;
     std::queue<ImuData> imu_buf_;
-    imu::Preintegration::Ptr imu_preintegrated_from_last_kf_;
+    imu::Preintegration::Ptr preintegration_last_kf_; // imu pre integration from last key frame
+    SE3d last_frame_pose_cache_;
+    SE3d relative_i_j_;
+    double dt_ = 0;
 
     // params
     int num_features_init_;

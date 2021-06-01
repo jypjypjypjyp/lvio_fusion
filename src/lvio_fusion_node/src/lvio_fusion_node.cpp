@@ -1,20 +1,22 @@
 #include <GeographicLib/LocalCartesian.hpp>
 #include <cv_bridge/cv_bridge.h>
+#include <nav_msgs/Path.h>
 #include <opencv2/imgproc.hpp>
 #include <opencv2/opencv.hpp>
 #include <pcl_conversions/pcl_conversions.h>
+#include <ros/package.h>
 #include <ros/ros.h>
 #include <sensor_msgs/Image.h>
 #include <sensor_msgs/NavSatFix.h>
 #include <sensor_msgs/PointCloud2.h>
 #include <termios.h>
-#include <ros/package.h>
 
 #include "lvio_fusion/adapt/agent.h"
 #include "lvio_fusion/adapt/environment.h"
 #include "lvio_fusion/common.h"
 #include "lvio_fusion/estimator.h"
 #include "lvio_fusion/map.h"
+#include "lvio_fusion/utility.h"
 #include "lvio_fusion_node/CreateEnv.h"
 #include "lvio_fusion_node/Init.h"
 #include "lvio_fusion_node/Step.h"
@@ -28,16 +30,16 @@ using namespace std;
 
 Estimator::Ptr estimator;
 
-ros::Subscriber sub_imu, sub_lidar, sub_navsat, sub_img0, sub_img1, sub_objects, sub_step, sub_nav_goal;//NAVI
+ros::Subscriber sub_imu, sub_lidar, sub_navsat, sub_img0, sub_img1, sub_objects, sub_eskf;
 ros::Publisher pub_detector;
 ros::ServiceServer svr_create_env, svr_step;
 ros::ServiceClient clt_init, clt_update_weights;
 
 queue<sensor_msgs::ImageConstPtr> img0_buf;
 queue<sensor_msgs::ImageConstPtr> img1_buf;
+queue<geometry_msgs::PoseStamped> odom_buf;
 GeographicLib::LocalCartesian geo_converter;
-mutex m_img_buf, m_cond;
-condition_variable cond;
+mutex m_img_buf, m_odom_buf;
 double delta_time = 0;
 double init_time = 0;
 
@@ -93,6 +95,36 @@ cv::Mat get_image_from_msg(const sensor_msgs::ImageConstPtr &img_msg)
     return image;
 }
 
+SE3d get_pose_from_path(double timestamp)
+{
+    static bool has_first_pose = false;
+    static SE3d first_pose;
+    SE3d pose;
+    while (!odom_buf.empty())
+    {
+        std::unique_lock<std::mutex> lock(m_odom_buf);
+        auto pose_stamp = odom_buf.front();
+        odom_buf.pop();
+        if (odom_buf.empty() || pose_stamp.header.stamp.toSec() > timestamp)
+        {
+            auto q = Quaterniond(pose_stamp.pose.orientation.w,
+                                 pose_stamp.pose.orientation.x,
+                                 pose_stamp.pose.orientation.y,
+                                 pose_stamp.pose.orientation.z);
+            auto t = Vector3d(pose_stamp.pose.position.x,
+                              pose_stamp.pose.position.y,
+                              pose_stamp.pose.position.z);
+            if (!has_first_pose)
+            {
+                first_pose = SE3d(q, t);
+                has_first_pose = true;
+            }
+            pose = SE3d(q, t) * first_pose.inverse();
+        }
+    }
+    return pose;
+}
+
 // extract images with same timestamp from two topics
 void sync_process()
 {
@@ -128,12 +160,8 @@ void sync_process()
                 img0_buf.pop();
                 img1_buf.pop();
                 m_img_buf.unlock();
-                estimator->InputImage(time, image0, image1);
+                estimator->InputImage(time, image0, image1, get_pose_from_path(time));
                 publish_car_model(estimator, time);
-                if(use_navigation)
-                    publish_car_model_navigation(estimator, time);
-                publish_CompressedImage0(image0);//CompressedImage
-                publish_CompressedImage1(image1);//CompressedImage
             }
         }
         chrono::milliseconds dura(2);
@@ -148,7 +176,6 @@ void lidar_callback(const sensor_msgs::PointCloud2ConstPtr &lidar_msg)
     pcl::fromROSMsg(*lidar_msg, point_cloud);
     Point3Cloud::Ptr laser_cloud_in_ptr(new Point3Cloud(point_cloud));
     estimator->InputPointCloud(t, laser_cloud_in_ptr);
-    LOG(INFO)<<"lidar_callback: "<<point_cloud.size();
 }
 
 void imu_callback(const sensor_msgs::ImuConstPtr &imu_msg)
@@ -162,7 +189,7 @@ void imu_callback(const sensor_msgs::ImuConstPtr &imu_msg)
     double rz = imu_msg->angular_velocity.z;
     Vector3d acc(dx, dy, dz);
     Vector3d gyr(rx, ry, rz);
-    estimator->InputIMU(t, acc, gyr);
+    estimator->InputImu(t, acc, gyr);
     return;
 }
 
@@ -172,7 +199,8 @@ void navsat_callback(const sensor_msgs::NavSatFixConstPtr &navsat_msg)
     double latitude = navsat_msg->latitude;
     double longitude = navsat_msg->longitude;
     double altitude = navsat_msg->altitude;
-    double pos_accuracy = navsat_msg->position_covariance[0];
+    auto &cov = navsat_msg->position_covariance;
+    Vector3d cov_vec = {max(1., cov[0]), max(1., cov[4]), max(1., cov[8])};
     double xyz[3];
     static bool init = false;
     if (!init)
@@ -181,13 +209,14 @@ void navsat_callback(const sensor_msgs::NavSatFixConstPtr &navsat_msg)
         init = true;
     }
     geo_converter.Forward(latitude, longitude, altitude, xyz[0], xyz[1], xyz[2]);
-    estimator->InputNavSat(t, xyz[0], xyz[1], xyz[2], pos_accuracy);
+    estimator->InputNavSat(t, xyz[0], xyz[1], xyz[2], cov_vec);
 }
-//NAVI
-void nav_goal_callback(const geometry_msgs::PoseStamped  &nav_goal_msg)
+
+void eskf_callback(const geometry_msgs::PoseStampedConstPtr &fused_msg)
 {
-   //LOG(INFO)<<"nav_goal_msg:"<<nav_goal_msg.pose.position.x<<" "<<nav_goal_msg.pose.position.y<<" "<<nav_goal_msg.pose.position.z;
-   estimator->globalplanner->SetGoalPose(Vector2d(nav_goal_msg.pose.position.x,nav_goal_msg.pose.position.y));
+    m_odom_buf.lock();
+    odom_buf.push(*fused_msg);
+    m_odom_buf.unlock();
 }
 
 void tf_timer_callback(const ros::TimerEvent &timer_event)
@@ -213,12 +242,6 @@ void od_timer_callback(const ros::TimerEvent &timer_event)
 void navsat_timer_callback(const ros::TimerEvent &timer_event)
 {
     publish_navsat(estimator, timer_event.current_real.toSec() - delta_time);
-}
-//NAVI
-void navigation_timer_callback(const ros::TimerEvent &timer_event)
-{
-    publish_navigation(estimator, timer_event.current_real.toSec() - delta_time);
-    publish_plan_path(estimator, timer_event.current_real.toSec() - delta_time);
 }
 
 bool create_env_callback(lvio_fusion_node::CreateEnv::Request &req,
@@ -306,8 +329,6 @@ void read_ground_truth()
         -1, 0, 0,
         0, -1, 0;
     Quaterniond q_tf(R_tf);
-    auto RRR = ypr2R(Vector3d(90, -90, 0));
-    Quaterniond qqq(RRR);
     SE3d tf(q_tf, Vector3d::Zero()); // tum ground truth to lvio_fusion
     if (in)
     {
@@ -348,7 +369,7 @@ void keyboard_process()
     while (ros::ok())
     {
         key = getch();
-        if (estimator->frontend->status != FrontendStatus::TRACKING_GOOD)
+        if (estimator->frontend->status != FrontendStatus::TRACKING)
             continue;
         switch (key)
         {
@@ -427,7 +448,7 @@ int main(int argc, char **argv)
     }
     read_parameters(config_file);
     estimator = Estimator::Ptr(new Estimator(config_file));
-    assert(estimator->Init(use_imu, use_lidar, use_navsat, use_loop, use_adapt, use_navigation) == true);//NAVI
+    assert(estimator->Init(use_imu, use_lidar, use_navsat, use_loop, use_adapt) == true);
     ROS_WARN("Waiting for images...");
     register_pub(n);
     ros::Timer tf_timer = n.createTimer(ros::Duration(0.0001), tf_timer_callback);
@@ -435,8 +456,7 @@ int main(int argc, char **argv)
     ros::Timer lm_timer = n.createTimer(ros::Duration(0.1), lm_timer_callback);
     ros::Timer pc_timer;
     ros::Timer navsat_timer;
-    ros::Timer navigation_timer;//NAVI
-    
+
     cout << "image0:" << IMAGE0_TOPIC << endl;
     sub_img0 = n.subscribe(IMAGE0_TOPIC, 10, img0_callback);
     cout << "image1:" << IMAGE1_TOPIC << endl;
@@ -458,17 +478,14 @@ int main(int argc, char **argv)
         sub_navsat = n.subscribe(NAVSAT_TOPIC, 10, navsat_callback);
         navsat_timer = n.createTimer(ros::Duration(1), navsat_timer_callback);
     }
+    if (use_eskf)
+    {
+        sub_eskf = n.subscribe("/eskf_fusion_node/fused_odom", 10, eskf_callback);
+    }
     if (use_adapt)
     {
         clt_update_weights = n.serviceClient<lvio_fusion_node::UpdateWeights>("/lvio_fusion_node/update_weight");
         Agent::SetCore(new RealCore());
-    }
-    //NAVI
-    if(use_navigation)
-    {
-          cout << "nav_goal:" << NAV_GOAL_TOPIC << endl;
-        navigation_timer = n.createTimer(ros::Duration(2), navigation_timer_callback);
-        sub_nav_goal = n.subscribe(NAV_GOAL_TOPIC, 100, nav_goal_callback);
     }
     if (train)
     {

@@ -10,14 +10,13 @@ extern string IMU_TOPIC;
 extern string LIDAR_TOPIC;
 extern string NAVSAT_TOPIC;
 extern string IMAGE0_TOPIC, IMAGE1_TOPIC;
-extern string NAV_GOAL_TOPIC;//NAVI
 extern string result_path, ground_truth_path;
 extern int use_imu;
 extern int use_lidar;
 extern int use_navsat;
 extern int use_loop;
 extern int use_adapt;
-extern int use_navigation;//NAVI
+extern int use_eskf;
 extern int train;
 
 void read_parameters(std::string config_file);

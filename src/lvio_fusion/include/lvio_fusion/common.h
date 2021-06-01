@@ -33,6 +33,7 @@ typedef Sophus::SO3d SO3d;
 
 // PCL
 #include <pcl/common/common_headers.h>
+#include <pcl/common/io.h>
 
 typedef pcl::PointXYZ Point3;
 typedef typename pcl::PointCloud<Point3> Point3Cloud;
@@ -52,7 +53,8 @@ public:
 };
 
 // system config
-extern double epsilon;
-extern int num_threads;
+extern const double epsilon;
+extern const int num_threads;
+extern const double max_speed;
 
 #endif // lvio_fusion_COMMON_H

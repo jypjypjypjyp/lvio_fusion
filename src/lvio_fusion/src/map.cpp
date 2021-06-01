@@ -17,7 +17,7 @@ void Map::InsertLandmark(visual::Landmark::Ptr landmark)
     landmarks[landmark->id] = landmark;
 }
 
-// time<0 : end
+// time < 0 or time > end: return the last one
 Frame::Ptr Map::GetKeyFrame(double time)
 {
     if (time < 0)
@@ -97,8 +97,18 @@ SE3d Map::ComputePose(double time)
     double t_t = frame2->time - frame1->time;
     double s = d_t / t_t;
     Quaterniond q = frame1->pose.unit_quaternion().slerp(s, frame2->pose.unit_quaternion());
-    Vector3d t = (1 - s) * frame1->pose.translation() + s * frame2->pose.translation();
+    Vector3d t = (1 - s) * frame1->GetPosition() + s * frame2->GetPosition();
     return SE3d(q, t);
+}
+
+void Map::ApplyScaledRotation(const Matrix3d &R)
+{
+    for(auto iter:keyframes)
+    {
+        Frame::Ptr keyframe=iter .second;
+        keyframe->SetPose(R*keyframe->pose.rotationMatrix(),R*keyframe->pose.translation());
+        keyframe->Vw=R*keyframe->Vw;
+    }
 }
 
 } // namespace lvio_fusion

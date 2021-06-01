@@ -1,5 +1,5 @@
-#include "lvio_fusion/ceres/loop_error.hpp"
 #include "lvio_fusion/loop/pose_graph.h"
+#include "lvio_fusion/ceres/pose_error.hpp"
 #include "lvio_fusion/utility.h"
 
 namespace lvio_fusion
@@ -49,18 +49,33 @@ Atlas PoseGraph::FilterOldSubmaps(double start, double end)
     return active_sections;
 }
 
+Vector3d get_ori(std::queue<double> &buf)
+{
+    Frames frames = Map::Instance().GetKeyFrames(buf.front(), buf.back());
+    Vector3d ori(0, 0, 0);
+    for (auto &pair : frames)
+    {
+        ori += pair.second->pose.so3() * Vector3d::UnitX();
+    }
+    return ori;
+}
+
+Vector3d get_ori(double time)
+{
+    Frame::Ptr frame = Map::Instance().GetKeyFrame(time);
+    return frame->pose.so3() * Vector3d::UnitX();
+}
+
 void PoseGraph::UpdateSections(double time)
 {
-    static Frame::Ptr last_frame;
-    static Vector3d last_ori(1, 0, 0), B_ori(1, 0, 0);
-    static double accumulate_degree = 0;
+    std::unique_lock<std::mutex> lock(mutex);
+    static double finished = 0;
+    static const int buf_size = 3;
+    static std::queue<double> buf, last_buf;
 
     if (Map::Instance().end && !turning)
     {
-        current_section.C = time;
-        sections_[current_section.A] = current_section;
-        current_section.A = time;
-        current_section.B = time;
+        AddSection(time);
         return;
     }
 
@@ -68,40 +83,48 @@ void PoseGraph::UpdateSections(double time)
         return;
     Frames active_kfs = Map::Instance().GetKeyFrames(finished, time);
     finished = time + epsilon;
-    for (auto &pair_kf : active_kfs)
+    for (auto &pair : active_kfs)
     {
-        Vector3d heading = pair_kf.second->pose.so3() * Vector3d::UnitX();
-        if (last_frame)
+        if (current_section.A == 0)
         {
-            double degree = vectors_degree_angle(last_ori, heading);
+            current_section.A = pair.first;
+            current_section.B = pair.first;
+        }
+        // average orientation of keyframes in buffer
+        buf.push(pair.first);
+        if (buf.size() > buf_size)
+        {
+            last_buf.push(buf.front());
+            buf.pop();
+            if (last_buf.size() > buf_size)
+            {
+                last_buf.pop();
+            }
+        }
+        if (buf.size() == buf_size && last_buf.size() == buf_size)
+        {
+            Vector3d last_ori = get_ori(last_buf), current_ori = get_ori(buf);
+            double degree = vectors_degree_angle(last_ori, current_ori);
             // turning requires
-            if (!turning && (degree >= 5 || vectors_degree_angle(B_ori, heading) > 15))
+            if (!turning && (degree >= 20 || vectors_degree_angle(get_ori(current_section.B), current_ori) > 20))
             {
                 // if we have enough keyframes and total degree, create new section
                 if (current_section.A == current_section.B ||
-                    frames_distance(current_section.A, pair_kf.first) > 40)
+                    frames_distance(current_section.B, pair.first) > 20)
                 {
-                    current_section.C = pair_kf.first;
+                    current_section.C = last_buf.back();
                     sections_[current_section.A] = current_section;
-                    current_section.A = pair_kf.first;
+                    current_section.A = last_buf.back();
                 }
                 turning = true;
             }
             // go straight requires
-            else if (turning && degree < 1)
+            else if (turning && degree < 3)
             {
-                current_section.B = pair_kf.first;
-                B_ori = heading;
+                current_section.B = last_buf.back();
                 turning = false;
             }
         }
-        else
-        {
-            current_section.A = pair_kf.first;
-            current_section.B = pair_kf.first;
-        }
-        last_frame = pair_kf.second;
-        last_ori = heading;
     }
 }
 
@@ -124,8 +147,9 @@ Section PoseGraph::GetSection(double time)
 
 bool PoseGraph::AddSection(double time)
 {
-    if ((!sections_.empty() && time > (--sections_.end())->second.C &&
-         !turning && frames_distance(current_section.B, time) > 40))
+    std::unique_lock<std::mutex> lock(mutex);
+    if (!sections_.empty() && !turning && time > current_section.B &&
+        frames_distance(current_section.B, time) > 20)
     {
         current_section.C = time;
         sections_[current_section.A] = current_section;
@@ -154,7 +178,6 @@ void PoseGraph::BuildProblem(Atlas &sections, Section &submap, adapt::Problem &p
     problem.SetParameterBlockConstant(para_start);
 
     Frame::Ptr last_frame = old_frame;
-    double aa;
     for (auto &pair : sections)
     {
         auto frame_A = Map::Instance().GetKeyFrame(pair.second.A);
@@ -163,7 +186,7 @@ void PoseGraph::BuildProblem(Atlas &sections, Section &submap, adapt::Problem &p
         double *para_last_kf = last_frame->pose.data();
         ceres::CostFunction *cost_function1 = PoseGraphError::Create(last_frame->pose, frame_A->pose);
         problem.AddResidualBlock(ProblemType::Other, cost_function1, NULL, para_last_kf, para);
-        ceres::CostFunction *cost_function2 = PoseError::Create(frame_A->pose);
+        ceres::CostFunction *cost_function2 = RError::Create(frame_A->pose);
         problem.AddResidualBlock(ProblemType::Other, cost_function2, NULL, para);
         pair.second.pose = frame_A->pose;
         last_frame = frame_A;
@@ -190,18 +213,18 @@ void PoseGraph::Optimize(Atlas &sections, Section &submap, adapt::Problem &probl
         {
             SE3d transfrom = Map::Instance().GetKeyFrame(last_time)->pose * last_section.pose.inverse();
             Frames forward_kfs = Map::Instance().GetKeyFrames(last_time + epsilon, pair.first - epsilon);
-            Propagate(transfrom, forward_kfs);
+            ForwardUpdate(transfrom, forward_kfs);
         }
         last_time = pair.first;
         last_section = pair.second;
     }
     SE3d transfrom = Map::Instance().GetKeyFrame(last_time)->pose * last_section.pose.inverse();
     Frames forward_kfs = Map::Instance().GetKeyFrames(last_time + epsilon, submap.B - epsilon);
-    Propagate(transfrom, forward_kfs);
+    ForwardUpdate(transfrom, forward_kfs);
 }
 
 // new pose = transform * old pose;
-void PoseGraph::ForwardPropagate(SE3d transform, double start_time, bool need_lock)
+void PoseGraph::ForwardUpdate(SE3d transform, double start_time, bool need_lock)
 {
     std::unique_lock<std::mutex> lock(frontend_->mutex, std::defer_lock);
     if (need_lock)
@@ -214,18 +237,17 @@ void PoseGraph::ForwardPropagate(SE3d transform, double start_time, bool need_lo
     {
         forward_kfs[last_frame->time] = last_frame;
     }
-    Propagate(transform, forward_kfs);
+    ForwardUpdate(transform, forward_kfs);
     frontend_->UpdateCache();
 }
 
 // new pose = transform * old pose;
-void PoseGraph::Propagate(SE3d transform, const Frames &forward_kfs)
+void PoseGraph::ForwardUpdate(SE3d transform, const Frames &forward_kfs)
 {
-    for (auto &pair_kf : forward_kfs)
+    for (auto &pair : forward_kfs)
     {
-        pair_kf.second->pose = transform * pair_kf.second->pose;
-        if (pair_kf.second->preintegration != nullptr)
-            pair_kf.second->Vw = transform.rotationMatrix() * pair_kf.second->Vw;
+        pair.second->pose = transform * pair.second->pose;
+        pair.second->Vw = transform.rotationMatrix() * pair.second->Vw;
     }
 }
 

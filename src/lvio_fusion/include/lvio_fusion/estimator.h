@@ -11,8 +11,6 @@
 #include "lvio_fusion/loop/relocator.h"
 #include "lvio_fusion/loop/pose_graph.h"
 #include "lvio_fusion/navsat/navsat.h"
-#include "lvio_fusion/navigation/gridmap.h"//NAVI
-#include "lvio_fusion/navigation/global_planner.h"//NAVI
 
 namespace lvio_fusion
 {
@@ -35,15 +33,15 @@ public:
 
     Estimator(std::string &config_path);
 
-    void InputImage(double time, cv::Mat &left_image, cv::Mat &right_image);
+    void InputImage(double time, cv::Mat &left_image, cv::Mat &right_image, SE3d init_odom);
 
-    void InputNavSat(double time, double latitude, double longitude, double altitude, double posAccuracy);
+    void InputNavSat(double time, double latitude, double longitude, double altitude, Vector3d cov);
 
     void InputPointCloud(double time, Point3Cloud::Ptr point_cloud);
 
-    void InputIMU(double time, Vector3d acc, Vector3d gyr);
+    void InputImu(double time, Vector3d acc, Vector3d gyr);
 
-    bool Init(int use_imu, int use_lidar, int use_navsat, int use_loop, int use_adapt, int use_navigation);//NAVI
+    bool Init(int use_imu, int use_lidar, int use_navsat, int use_loop, int use_adapt);
 
     Frontend::Ptr frontend;
     Backend::Ptr backend;
@@ -51,8 +49,7 @@ public:
     FeatureAssociation::Ptr association;
     Mapping::Ptr mapping;
     Initializer::Ptr initializer;
-    Gridmap::Ptr gridmap;//NAVI
-    Global_planner::Ptr globalplanner;//NAVI
+
 private:
     std::string config_file_path_;
 };

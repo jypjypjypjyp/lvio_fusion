@@ -5,7 +5,6 @@
 #include "lvio_fusion/common.h"
 #include "lvio_fusion/frame.h"
 #include "lvio_fusion/lidar/projection.h"
-#include "lvio_fusion/navigation/gridmap.h"//NAVI
 
 #include <ceres/ceres.h>
 
@@ -33,13 +32,7 @@ public:
     void ScanToMapWithSegmented(Frame::Ptr frame, Frame::Ptr map_frame, double *para, adapt::Problem &problem, bool relocate = false);
     
     void SegmentGround(PointICloud &points_ground);
-    //NAVI
-    void SetGridmap(Gridmap::Ptr gridmap)
-    {
-        gridmap_ = gridmap;
-        projection_->SetGridmap(gridmap_);
-    }
-    Gridmap::Ptr gridmap_;//NAVI
+
 private:
     void UndistortPoint(PointI &point, Frame::Ptr frame);
     void UndistortPointCloud(PointICloud &points, Frame::Ptr frame);

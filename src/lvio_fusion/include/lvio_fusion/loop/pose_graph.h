@@ -23,16 +23,14 @@ typedef std::map<double, Section> Atlas;
 
 inline double frames_distance(double A, double B)
 {
-    Vector3d a = Map::Instance().GetKeyFrame(A)->pose.translation(),
-             b = Map::Instance().GetKeyFrame(B)->pose.translation();
+    Vector3d a = Map::Instance().GetKeyFrame(A)->GetPosition(),
+             b = Map::Instance().GetKeyFrame(B)->GetPosition();
     return (a - b).norm();
 }
 
 class PoseGraph
 {
 public:
-    typedef std::shared_ptr<PoseGraph> Ptr;
-
     static PoseGraph &Instance()
     {
         static PoseGraph instance;
@@ -56,12 +54,12 @@ public:
 
     void Optimize(Atlas &sections, Section &submap, adapt::Problem &problem);
 
-    void ForwardPropagate(SE3d transfrom, double start_time, bool need_lock = true);
+    void ForwardUpdate(SE3d transfrom, double start_time, bool need_lock = true);
 
-    void Propagate(SE3d transfrom, const Frames &forward_kfs);
+    void ForwardUpdate(SE3d transfrom, const Frames &forward_kfs);
 
+    std::mutex mutex;
     Section current_section;
-    double finished = 0;
     bool turning = false;
 
 private:
@@ -71,7 +69,7 @@ private:
 
     Frontend::Ptr frontend_;
 
-    Atlas submaps_; // loop submaps [end : {old, start, end}]
+    Atlas submaps_;  // loop submaps [end : {old, start, end}]
     Atlas sections_; // sections [A : {A, B, C}]
 };
 

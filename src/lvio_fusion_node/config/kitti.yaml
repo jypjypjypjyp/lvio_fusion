@@ -1,13 +1,11 @@
 %YAML:1.0
 
 # flags
-use_imu: 0
-use_lidar: 1
-use_navsat: 0
+use_imu: 1
+use_lidar: 0
+use_navsat: 1
 use_loop: 0
 use_adapt: 0
-use_navigation: 1
-
 
 # ros parameters
 imu_topic: '/kitti/oxts/imu'
@@ -16,7 +14,6 @@ navsat_topic: '/kitti/oxts/gps/fix'
 image0_topic: '/kitti/camera_gray_left/image_raw'
 image1_topic: '/kitti/camera_gray_right/image_raw'
 color_topic: '/kitti/camera_color_left/image_raw'
-nav_goal_topic: '/move_base_simple/goal'
 result_path: '/home/zoet/Projects/lvio_fusion/result/result.csv'
 
 # cameras parameters
@@ -48,11 +45,11 @@ spacing: 0
 resolution: 0.2
 
 #imu parameters
-acc_n: 0.08             # accelerometer measurement noise standard deviation. #0.2   0.04
-gyr_n: 0.004            # gyroscope measurement noise standard deviation.     #0.05  0.004
-acc_w: 0.00004          # accelerometer bias random work noise standard deviation.  #0.02
-gyr_w: 2.0e-6           # gyroscope bias random work noise standard deviation.     #4.0e-5
-g_norm: 9.81007         # gravity magnitude
+acc_n: 0.1        # accelerometer measurement noise standard deviation. #0.2   0.04
+gyr_n: 0.01       # gyroscope measurement noise standard deviation.     #0.05  0.004
+acc_w: 0.001      # accelerometer bias random work noise standard deviation.  #0.02
+gyr_w: 1.0e-4     # gyroscope bias random work noise standard deviation.     #4.0e-5
+g_norm: 9.81007   # gravity magnitude
 
 # body_to_cam0 is inverse of [R T]
 body_to_cam0: !!opencv-matrix
@@ -85,7 +82,7 @@ body_to_lidar: !!opencv-matrix
             0          ,       -0          ,      -0        ,        1]
 
 # number of features
-num_features: 200
+num_features: 500
 num_features_init: 50
 num_features_tracking_bad: 20
 num_features_needed_for_keyframe: 120
@@ -93,16 +90,14 @@ num_features_needed_for_keyframe: 120
 # backend
 windows_size: 3
 
+# navsat
+accuracy: 2
+
 # loop
 relocator_mode: 0    # none = 0, visual = 1, lidar = 2, visual&&lidar = 3
 threshold: 10
 
 # train
-ground_truth_path: /home/jyp/Projects/playground/kitti_00_tum_gd.txt
+ground_truth_path: /home/zoet/Projects/playground/kitti_00_tum_gd.txt
 obs_rows: 4
 obs_cols: 12
-
-#navigation
-grid_width: 1200
-grid_height: 1200
-grid_resolution: 1

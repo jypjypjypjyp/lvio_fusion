@@ -6,6 +6,7 @@
 
 namespace lvio_fusion
 {
+
 class LidarPlaneError
 {
 public:
@@ -38,26 +39,11 @@ private:
     Vector3d p_, pa_, abc_norm_;
 };
 
-inline void se32rpyxyz(const SE3d relatice_i_j, double *rpyxyz)
-{
-    ceres::EigenQuaternionToRPY(relatice_i_j.data(), rpyxyz);
-    rpyxyz[3] = relatice_i_j.data()[4];
-    rpyxyz[4] = relatice_i_j.data()[5];
-    rpyxyz[5] = relatice_i_j.data()[6];
-}
-
-inline SE3d rpyxyz2se3(const double *rpyxyz)
-{
-    double e_q[4];
-    ceres::RPYToEigenQuaternion(rpyxyz, e_q);
-    return SE3d(Quaterniond(e_q), Vector3d(rpyxyz[3], rpyxyz[4], rpyxyz[5]));
-}
-
-class LidarPlaneErrorRPZ
+class LidarPlaneErrorRPZ: public ceres::Error
 {
 public:
     LidarPlaneErrorRPZ(LidarPlaneError origin_error, SE3d Twc1, double *rpyxyz, double weight)
-        : origin_error_(origin_error), Twc1_(Twc1), rpyxyz_(rpyxyz), weight_(weight) {}
+        : origin_error_(origin_error), Twc1_(Twc1), rpyxyz_(rpyxyz), Error(weight) {}
 
     template <typename T>
     bool operator()(const T *pitch, const T *roll, const T *z, T *residual) const
@@ -86,14 +72,13 @@ private:
     LidarPlaneError origin_error_;
     SE3d Twc1_;
     double *rpyxyz_;
-    double weight_;
 };
 
-class LidarPlaneErrorYXY
+class LidarPlaneErrorYXY: public ceres::Error
 {
 public:
     LidarPlaneErrorYXY(LidarPlaneError origin_error, SE3d Twc1, double *rpyxyz, double weight)
-        : origin_error_(origin_error), Twc1_(Twc1), rpyxyz_(rpyxyz), weight_(weight) {}
+        : origin_error_(origin_error), Twc1_(Twc1), rpyxyz_(rpyxyz), Error(weight) {}
 
     template <typename T>
     bool operator()(const T *yaw, const T *x, const T *y, T *residual) const
@@ -122,7 +107,6 @@ private:
     LidarPlaneError origin_error_;
     SE3d Twc1_;
     double *rpyxyz_;
-    double weight_;
 };
 
 } // namespace lvio_fusion

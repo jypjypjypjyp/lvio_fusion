@@ -8,17 +8,13 @@ namespace lvio_fusion
 namespace imu
 {
 
-void ReComputeBiasVel(Frames &frames, Frame::Ptr &prior_frame);
-
-void ReComputeBiasVel(Frames &frames);
-
 void RePredictVel(Frames &frames, Frame::Ptr &prior_frame);
 
-bool InertialOptimization(Frames &frames, Matrix3d &Rwg, double priorG, double priorA);
+bool InertialOptimization(Frames &frames, Matrix3d &Rwg, double prior_a, double prior_g, bool isOptRwg);
 
-void FullInertialBA(Frames &frames, double priorG, double priorA);
+void FullBA(Frames &frames, double prior_a, double prior_g);
 
-void RecoverData(Frames &frames, SE3d old_pose, bool set_bias);
+void RecoverBias(Frames &frames);
 
 } // namespace imu
 

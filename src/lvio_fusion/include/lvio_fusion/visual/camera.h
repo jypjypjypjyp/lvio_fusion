@@ -12,8 +12,6 @@ class Camera : public Sensor
 {
 public:
     typedef std::shared_ptr<Camera> Ptr;
-    
-    static double BASELINE;
 
     static int Create(double fx, double fy, double cx, double cy, const SE3d &extrinsic)
     {
@@ -35,6 +33,11 @@ public:
     static Camera::Ptr &Get(int id = 0)
     {
         return devices_[id];
+    }
+
+    bool Far(const Vector3d &pw, const SE3d &Tcw)
+    {
+        return World2Sensor(pw, Tcw).z() > baseline * 50;
     }
 
     // coordinate transform: world, sensor, pixel
@@ -73,6 +76,7 @@ public:
         return Sensor2Pixel(Robot2Sensor(pw));
     }
 
+    static double baseline;
     double fx = 0, fy = 0, cx = 0, cy = 0; // Camera intrinsics
     double k1 = 0, k2 = 0, p1 = 0, p2 = 0; // Camera intrinsics
     cv::Mat K, D;

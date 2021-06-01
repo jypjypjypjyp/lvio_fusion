@@ -1,5 +1,5 @@
 #include "lvio_fusion/loop/relocator.h"
-#include "lvio_fusion/ceres/loop_error.hpp"
+#include "lvio_fusion/ceres/pose_error.hpp"
 #include "lvio_fusion/manager.h"
 #include "lvio_fusion/map.h"
 #include "lvio_fusion/utility.h"
@@ -15,7 +15,7 @@ namespace lvio_fusion
 {
 
 Relocator::Relocator(int mode, double threshold)
-    : mode_((Mode)mode), threshold_(threshold), matcher_(ORBMatcher(20))
+    : mode_((Mode)mode), threshold_(threshold)
 {
     thread_ = std::thread(std::bind(&Relocator::DetectorLoop, this));
 }
@@ -30,13 +30,14 @@ void Relocator::DetectorLoop()
     while (true)
     {
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        double end = Navsat::Num() ? Navsat::Get()->finished - epsilon : backend_->finished;
+        // TODO
+        double end = backend_->finished;
         auto new_kfs = Map::Instance().GetKeyFrames(finished, end);
         if (new_kfs.empty())
             continue;
-        for (auto &pair_kf : new_kfs)
+        for (auto &pair : new_kfs)
         {
-            Frame::Ptr frame = pair_kf.second, old_frame;
+            Frame::Ptr frame = pair.second, old_frame;
             // if last is loop and this is not loop, then correct all new loops
             if (DetectLoop(frame, old_frame))
             {
@@ -44,7 +45,7 @@ void Relocator::DetectorLoop()
                 if (!last_frame)
                 {
                     loop_section = section;
-                    start_time = pair_kf.first;
+                    start_time = pair.first;
                 }
                 if (section == loop_section)
                 {
@@ -61,7 +62,7 @@ void Relocator::DetectorLoop()
                     auto t2 = std::chrono::steady_clock::now();
                     auto time_used = std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);
                     LOG(INFO) << "Correct Loop cost time: " << time_used.count() << " seconds.";
-                    start_time = pair_kf.first;
+                    start_time = pair.first;
                     loop_section = section;
                     old_time = old_frame->time;
                     last_frame = frame;
@@ -93,8 +94,8 @@ bool Relocator::DetectLoop(Frame::Ptr frame, Frame::Ptr &old_frame)
     for (auto pair : active_kfs)
     {
         PointI p;
-        p.x = pair.second->pose.translation().x();
-        p.y = pair.second->pose.translation().y();
+        p.x = pair.second->GetPosition().x();
+        p.y = pair.second->GetPosition().y();
         p.z = 0;
         p.intensity = pair.second->id;
         map[p.intensity] = pair.first;
@@ -103,20 +104,18 @@ bool Relocator::DetectLoop(Frame::Ptr frame, Frame::Ptr &old_frame)
     if (points.empty())
         return false;
     PointI p;
-    p.x = frame->pose.translation().x();
-    p.y = frame->pose.translation().y();
+    p.x = frame->GetPosition().x();
+    p.y = frame->GetPosition().y();
     p.z = 0;
     std::vector<int> points_index;
     std::vector<float> points_distance;
     pcl::KdTreeFLANN<PointI> kdtree;
     kdtree.setInputCloud(boost::make_shared<PointICloud>(points));
     kdtree.nearestKSearch(p, 3, points_index, points_distance);
-    // clang-format off
     double threshold = threshold_ * threshold_;
-    if (points_index[0] < points.size() && points_distance[0] < threshold 
-        && points_index[1] < points.size() && points_distance[1] < threshold 
-        && points_index[2] < points.size() && points_distance[2] < threshold)
-    // clang-format on
+    if (points_index[0] < points.size() && points_distance[0] < threshold &&
+        points_index[1] < points.size() && points_distance[1] < threshold &&
+        points_index[2] < points.size() && points_distance[2] < threshold)
     {
         double time = map[points[points_index[0]].intensity];
         old_frame = Map::Instance().GetKeyFrame(time);
@@ -138,7 +137,7 @@ bool Relocator::Relocate(Frame::Ptr frame, Frame::Ptr old_frame)
     frame->loop_closure->score = 0;
     // put it on the same level
     SE3d init_pose = frame->pose;
-    init_pose.translation().z() = old_frame->pose.translation().z();
+    init_pose.translation().z() = old_frame->GetPosition().z();
     frame->loop_closure->relative_o_c = old_frame->pose.inverse() * init_pose;
     // check its orientation
     double rpyxyz_o[6], rpyxyz_i[6], rpy_o_i[3];
@@ -164,12 +163,12 @@ bool Relocator::Relocate(Frame::Ptr frame, Frame::Ptr old_frame)
 
 bool Relocator::RelocateByImage(Frame::Ptr frame, Frame::Ptr old_frame)
 {
-    int score = matcher_.Relocate(old_frame, frame, frame->loop_closure->relative_o_c);
-    frame->loop_closure->score += score - 20;
-    if (score > 0)
-    {
-        return true;
-    }
+    // int score = matcher_.Relocate(old_frame, frame, frame->loop_closure->relative_o_c);
+    // frame->loop_closure->score += score - 20;
+    // if (score > 0)
+    // {
+    //     return true;
+    // }
     return false;
 }
 
@@ -194,14 +193,14 @@ void Relocator::CorrectLoop(double old_time, double start_time, double end_time)
     {
         double max_score = -1;
         Frame::Ptr best_frame;
-        for (auto &pair_kf : new_submap_kfs)
+        for (auto &pair : new_submap_kfs)
         {
-            if (Relocate(pair_kf.second, pair_kf.second->loop_closure->frame_old))
+            if (Relocate(pair.second, pair.second->loop_closure->frame_old))
             {
-                if (pair_kf.second->loop_closure->score >= max_score)
+                if (pair.second->loop_closure->score >= max_score)
                 {
-                    max_score = pair_kf.second->loop_closure->score;
-                    best_frame = pair_kf.second;
+                    max_score = pair.second->loop_closure->score;
+                    best_frame = pair.second;
                 }
             }
         }
@@ -218,9 +217,9 @@ void Relocator::CorrectLoop(double old_time, double start_time, double end_time)
         }
         else
         {
-            for (auto &pair_kf : new_submap_kfs)
+            for (auto &pair : new_submap_kfs)
             {
-                pair_kf.second->loop_closure.reset();
+                pair.second->loop_closure.reset();
             }
             return;
         }
@@ -228,7 +227,7 @@ void Relocator::CorrectLoop(double old_time, double start_time, double end_time)
     SE3d new_pose = (--new_submap_kfs.end())->second->pose;
     // forward propogate
     SE3d transform = new_pose * old_pose.inverse();
-    PoseGraph::Instance().ForwardPropagate(transform, end_time + epsilon);
+    PoseGraph::Instance().ForwardUpdate(transform, end_time + epsilon);
     // fix navsat
     if (Navsat::Num())
     {
@@ -247,10 +246,6 @@ void Relocator::CorrectLoop(double old_time, double start_time, double end_time)
 
 void Relocator::UpdateNewSubmap(Frame::Ptr best_frame, Frames &new_submap_kfs)
 {
-    // for (auto &pair_kf : new_submap_kfs)
-    // {
-    //     pair_kf.second->pose.translation().z() = pair_kf.second->loop_closure->frame_old->pose.translation().z();
-    // }
     // optimize the best frame's rotation
     SE3d old_pose = best_frame->pose;
     {
@@ -261,11 +256,11 @@ void Relocator::UpdateNewSubmap(Frame::Ptr best_frame, Frames &new_submap_kfs)
         double *para = r.data();
         problem.AddParameterBlock(para, 4, new ceres::EigenQuaternionParameterization());
 
-        for (auto &pair_kf : new_submap_kfs)
+        for (auto &pair : new_submap_kfs)
         {
             ceres::CostFunction *cost_function = RelocateRError::Create(
-                best_frame->pose.inverse() * pair_kf.second->loop_closure->frame_old->pose * pair_kf.second->loop_closure->relative_o_c,
-                base.inverse() * pair_kf.second->pose);
+                best_frame->pose.inverse() * pair.second->loop_closure->frame_old->pose * pair.second->loop_closure->relative_o_c,
+                base.inverse() * pair.second->pose);
             problem.AddResidualBlock(ProblemType::Other, cost_function, NULL, para);
         }
 
@@ -277,11 +272,11 @@ void Relocator::UpdateNewSubmap(Frame::Ptr best_frame, Frames &new_submap_kfs)
     }
     SE3d new_pose = best_frame->pose;
     SE3d transform = new_pose * old_pose.inverse();
-    for (auto &pair_kf : new_submap_kfs)
+    for (auto &pair : new_submap_kfs)
     {
-        if (pair_kf.second != best_frame)
+        if (pair.second != best_frame)
         {
-            pair_kf.second->pose = transform * pair_kf.second->pose;
+            pair.second->pose = transform * pair.second->pose;
         }
     }
 }

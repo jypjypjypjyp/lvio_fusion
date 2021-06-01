@@ -11,7 +11,6 @@
 #include <sensor_msgs/image_encodings.h>
 #include <nav_msgs/Path.h>
 #include <nav_msgs/Odometry.h>
-#include <nav_msgs/OccupancyGrid.h>//NAVI
 #include <geometry_msgs/PointStamped.h>
 #include <visualization_msgs/Marker.h>
 #include <visualization_msgs/MarkerArray.h>
@@ -35,13 +34,4 @@ void publish_tf(Estimator::Ptr estimator, double time);
 
 void publish_car_model(Estimator::Ptr estimator, double time);
 
-void publish_navigation(Estimator::Ptr estimator, double time);//NAVI
-
-void publish_plan_path(Estimator::Ptr estimator, double time);
-
-void publish_car_model_navigation(Estimator::Ptr estimator, double time);
-
-void publish_CompressedImage0(cv::Mat image);
-
-void publish_CompressedImage1(cv::Mat image);
 #endif // lvio_fusion_VISUALIZATION_H

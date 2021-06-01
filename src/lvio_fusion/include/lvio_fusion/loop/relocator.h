@@ -10,7 +10,6 @@
 #include "lvio_fusion/lidar/mapping.h"
 #include "lvio_fusion/loop/loop.h"
 #include "lvio_fusion/loop/pose_graph.h"
-#include "lvio_fusion/visual/matcher.h"
 
 namespace lvio_fusion
 {
@@ -50,7 +49,6 @@ private:
 
     Mapping::Ptr mapping_;
     Backend::Ptr backend_;
-    ORBMatcher matcher_;
 
     std::thread thread_;
     Mode mode_;

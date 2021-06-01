@@ -95,10 +95,10 @@ void Mapping::BuildOldMapFrame(Frame::Ptr old_frame, Frame::Ptr map_frame)
 
     PointICloud points_surf_merged;
     PointICloud points_ground_merged;
-    for (auto &pair_kf : old_frames)
+    for (auto &pair : old_frames)
     {
-        points_surf_merged += pointclouds_surf[pair_kf.first];
-        points_ground_merged += pointclouds_ground[pair_kf.first];
+        points_surf_merged += pointclouds_surf[pair.first];
+        points_ground_merged += pointclouds_ground[pair.first];
     }
 
     association_->SegmentGround(points_ground_merged);
@@ -120,10 +120,10 @@ void Mapping::BuildMapFrame(Frame::Ptr frame, Frame::Ptr map_frame)
         return;
     PointICloud points_surf_merged;
     PointICloud points_ground_merged;
-    for (auto &pair_kf : last_frames)
+    for (auto &pair : last_frames)
     {
-        points_surf_merged += pointclouds_surf[pair_kf.first];
-        points_ground_merged += pointclouds_ground[pair_kf.first];
+        points_surf_merged += pointclouds_surf[pair.first];
+        points_ground_merged += pointclouds_ground[pair.first];
     }
 
     association_->SegmentGround(points_ground_merged);
@@ -139,50 +139,50 @@ void Mapping::BuildMapFrame(Frame::Ptr frame, Frame::Ptr map_frame)
 void Mapping::Optimize(Frames &active_kfs)
 {
     // NOTE: some place is good, don't need optimize too much.
-    for (auto &pair_kf : active_kfs)
+    for (auto &pair : active_kfs)
     {
-        if (!pair_kf.second->feature_lidar)
+        if (!pair.second->feature_lidar)
             continue;
         auto t1 = std::chrono::steady_clock::now();
-        SE3d old_pose = pair_kf.second->pose;
+        SE3d old_pose = pair.second->pose;
         {
             auto map_frame = Frame::Ptr(new Frame());
-            BuildMapFrame(pair_kf.second, map_frame);
-            if (map_frame->feature_lidar && pair_kf.second->feature_lidar)
+            BuildMapFrame(pair.second, map_frame);
+            if (map_frame->feature_lidar && pair.second->feature_lidar)
             {
                 double rpyxyz[6];
-                se32rpyxyz(map_frame->pose.inverse() * pair_kf.second->pose, rpyxyz); // relative_i_j
+                se32rpyxyz(map_frame->pose.inverse() * pair.second->pose, rpyxyz); // relative_i_j
                 if (!map_frame->feature_lidar->points_ground.empty())
                 {
                     adapt::Problem problem;
-                    association_->ScanToMapWithGround(pair_kf.second, map_frame, rpyxyz, problem);
+                    association_->ScanToMapWithGround(pair.second, map_frame, rpyxyz, problem);
                     ceres::Solver::Options options;
                     options.linear_solver_type = ceres::DENSE_QR;
                     options.max_num_iterations = 4;
                     options.num_threads = num_threads;
                     ceres::Solver::Summary summary;
                     adapt::Solve(options, &problem, &summary);
-                    pair_kf.second->pose = map_frame->pose * rpyxyz2se3(rpyxyz);
+                    pair.second->pose = map_frame->pose * rpyxyz2se3(rpyxyz);
                 }
                 if (!map_frame->feature_lidar->points_surf.empty())
                 {
                     adapt::Problem problem;
-                    association_->ScanToMapWithSegmented(pair_kf.second, map_frame, rpyxyz, problem);
+                    association_->ScanToMapWithSegmented(pair.second, map_frame, rpyxyz, problem);
                     ceres::Solver::Options options;
                     options.linear_solver_type = ceres::DENSE_QR;
                     options.max_num_iterations = 4;
                     options.num_threads = num_threads;
                     ceres::Solver::Summary summary;
                     adapt::Solve(options, &problem, &summary);
-                    pair_kf.second->pose = map_frame->pose * rpyxyz2se3(rpyxyz);
+                    pair.second->pose = map_frame->pose * rpyxyz2se3(rpyxyz);
                 }
             }
         }
-        SE3d new_pose = pair_kf.second->pose;
+        SE3d new_pose = pair.second->pose;
         SE3d transform = new_pose * old_pose.inverse();
-        PoseGraph::Instance().ForwardPropagate(transform, pair_kf.first + epsilon);
+        PoseGraph::Instance().ForwardUpdate(transform, pair.first + epsilon);
 
-        ToWorld(pair_kf.second);
+        ToWorld(pair.second);
 
         auto t2 = std::chrono::steady_clock::now();
         auto time_used = std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);

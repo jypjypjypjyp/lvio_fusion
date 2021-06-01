@@ -6,7 +6,6 @@ use_lidar: 1
 use_navsat: 0
 use_loop: 0             # 0 for only odometry, 1 for whole system
 use_adapt: 0
-use_navigation: 0
 
 # ros parameters
 # imu_topic: '/kitti/oxts/imu'
@@ -15,7 +14,6 @@ lidar_topic: '/lslidar_point_cloud'
 image0_topic: '/camera/infra1/image_rect_raw'
 image1_topic: '/camera/infra2/image_rect_raw'
 color_topic: '/camera/color/image_raw'
-nav_goal_topic: '/move_base_simple/goal'
 result_path: '/home/jyp/Projects/lvio-fusion/result/result.csv'
 
 # cameras parameters
@@ -35,6 +33,7 @@ camera1.cy: 236.7432098388672
 
 # lidar parameters
 num_scans: 32      
+use_adapt: 1     # only for 16, 32, 64
 horizon_scan: 2000
 ang_res_y: 1
 ang_bottom: 16
@@ -126,15 +125,4 @@ num_features_needed_for_keyframe: 80
 windows_size: 3
 
 # loop
-relocator_mode: 0    # none = 0, visual = 1, lidar = 2, visual&&lidar = 3
-threshold: 10
-
-# train
-ground_truth_path: /home/jyp/Projects/playground/kitti_00_tum_gd.txt
-obs_rows: 4
-obs_cols: 12
-
-#navigation
-grid_width: 1200
-grid_height: 1200
-grid_resolution: 1
+relocator_mode: 1    # none = 0, visual = 1, lidar = 2, visual&&lidar = 3

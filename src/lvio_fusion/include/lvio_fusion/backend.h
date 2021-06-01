@@ -6,6 +6,7 @@
 #include "lvio_fusion/frame.h"
 #include "lvio_fusion/imu/initializer.h"
 #include "lvio_fusion/lidar/mapping.h"
+#include "lvio_fusion/loop/pose_graph.h"
 
 #include <ceres/ceres.h>
 
@@ -13,13 +14,6 @@ namespace lvio_fusion
 {
 
 class Frontend;
-
-enum class BackendStatus
-{
-    RUNNING,
-    TO_PAUSE,
-    PAUSING
-};
 
 class Backend
 {
@@ -36,13 +30,6 @@ public:
 
     void UpdateMap();
 
-    void Pause();
-
-    void Continue();
-
-    void InitializeIMU(Frames active_kfs,double time );
-
-    BackendStatus status = BackendStatus::RUNNING;
     std::mutex mutex;
     double finished = 0;
 
@@ -51,21 +38,22 @@ private:
 
     void GlobalLoop();
 
+    // void ComputeGravity(Section section );
+
     void Optimize();
 
-    void ForwardPropagate(SE3d transform, double time );
+    void UpdateFrontend(SE3d transform, double time);
 
-    void BuildProblem(Frames &active_kfs, adapt::Problem &problem,bool isimu=true);
+    void BuildProblem(Frames &active_kfs, adapt::Problem &problem);
 
     std::weak_ptr<Frontend> frontend_;
     Mapping::Ptr mapping_;
     Initializer::Ptr initializer_;
 
-    std::thread thread_;
-    std::mutex running_mutex_, pausing_mutex_;
-    std::condition_variable running_;
-    std::condition_variable pausing_;
+    std::thread thread_, thread_global_;
+    std::mutex mutex_optimize_;
     std::condition_variable map_update_;
+    double global_end_ = 0;
     const double window_size_;
     const bool update_weights_;
 };

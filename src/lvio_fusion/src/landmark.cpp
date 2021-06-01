@@ -14,14 +14,14 @@ unsigned long Landmark::current_landmark_id = 0;
 
 Vector3d Landmark::ToWorld()
 {
-    Vector3d pb = Camera::Get(1)->Pixel2Robot(cv2eigen(first_observation->keypoint.pt), depth);
+    Vector3d pb = Camera::Get(1)->Pixel2Robot(cv2eigen(first_observation->keypoint.pt), 1 / inv_depth);
     return Camera::Get()->Robot2World(pb, FirstFrame().lock()->pose);
 }
 
-visual::Landmark::Ptr Landmark::Create(double depth)
+visual::Landmark::Ptr Landmark::Create(double inv_depth)
 {
     visual::Landmark::Ptr new_point(new Landmark);
-    new_point->depth = depth;
+    new_point->inv_depth = inv_depth;
     return new_point;
 }
 

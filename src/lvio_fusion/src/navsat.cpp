@@ -1,37 +1,32 @@
 #include "lvio_fusion/navsat/navsat.h"
-#include "lvio_fusion/ceres/loop_error.hpp"
 #include "lvio_fusion/ceres/navsat_error.hpp"
+#include "lvio_fusion/ceres/pose_error.hpp"
 #include "lvio_fusion/map.h"
 #include "lvio_fusion/utility.h"
-
-#include <ceres/ceres.h>
 
 namespace lvio_fusion
 {
 
-void Navsat::AddPoint(double time, double x, double y, double z)
+void Navsat::AddPoint(double time, double x, double y, double z, Vector3d cov)
 {
     raw[time] = Vector3d(x, y, z);
 
     static double finished = 0;
     Frames new_kfs = Map::Instance().GetKeyFrames(finished);
-    for (auto &pair_kf : new_kfs)
+    for (auto &pair : new_kfs)
     {
-        auto this_iter = raw.lower_bound(pair_kf.first);
+        auto this_iter = raw.lower_bound(pair.first);
         auto last_iter = this_iter;
         last_iter--;
-        if (this_iter == raw.begin() || this_iter == raw.end() || std::fabs(this_iter->first - pair_kf.first) > 1)
+        if (this_iter == raw.begin() || this_iter == raw.end() || std::fabs(this_iter->first - pair.first) > 1)
             continue;
 
-        double t1 = pair_kf.first - last_iter->first,
-               t2 = this_iter->first - pair_kf.first;
+        double t1 = pair.first - last_iter->first,
+               t2 = this_iter->first - pair.first;
         auto p = (this_iter->second * t1 + last_iter->second * t2) / (t1 + t2);
-        raw[pair_kf.first] = p;
-        pair_kf.second->feature_navsat = navsat::Feature::Ptr(new navsat::Feature(pair_kf.first));
-        // check
-        pair_kf.second->feature_navsat->trust = (p.z() > -3 && p.z() < 3);
-        // pair_kf.second->feature_navsat->trust = true;
-        finished = pair_kf.first + epsilon;
+        raw[pair.first] = p;
+        pair.second->feature_navsat = navsat::Feature::Ptr(new navsat::Feature(pair.first, cov));
+        finished = pair.first + epsilon;
     }
     if (!initialized && !Map::Instance().keyframes.empty() && frames_distance(0, -1) > 40)
     {
@@ -68,10 +63,36 @@ Vector3d Navsat::GetPoint(double time)
 
 Vector3d Navsat::GetAroundPoint(double time)
 {
-    auto iter = --raw.lower_bound(time);
-    if(iter==raw.begin())
-        return Vector3d::Zero();
+    auto iter = raw.lower_bound(time);
+    if (iter == raw.end())
+        iter--;
     return extrinsic * iter->second;
+}
+
+SE3d Navsat::GetAroundPose(double time)
+{
+    auto iter1 = raw.lower_bound(time);
+    auto iter2 = iter1--;
+    if (iter2 == raw.begin())
+    {
+        iter1--;
+        iter2--;
+    }
+    Vector3d p1 = extrinsic * iter1->second;
+    Vector3d p2 = extrinsic * iter2->second;
+    while (iter1 != raw.begin())
+    {
+        if ((p1 - p2).norm() > 2)
+        {
+            return get_pose_from_two_points(p1, p2);
+        }
+        else
+        {
+            iter1--;
+            p1 = extrinsic * iter1->second;
+        }
+    }
+    return SE3d();
 }
 
 void Navsat::Initialize()
@@ -86,12 +107,12 @@ void Navsat::Initialize()
     problem.SetParameterBlockConstant(para + 3);
     problem.SetParameterBlockConstant(para + 4);
 
-    for (auto &pair_kf : keyframes)
+    for (auto &pair : keyframes)
     {
-        auto position = pair_kf.second->pose.translation();
-        if (pair_kf.second->feature_navsat)
+        auto position = pair.second->GetPosition();
+        if (pair.second->feature_navsat)
         {
-            ceres::CostFunction *cost_function = NavsatInitError::Create(position, GetRawPoint(pair_kf.second->feature_navsat->time));
+            ceres::CostFunction *cost_function = NavsatInitError::Create(position, GetRawPoint(pair.second->feature_navsat->time), pair.second->feature_navsat->cov);
             problem.AddResidualBlock(cost_function, NULL, para, para + 3, para + 4);
         }
     }
@@ -109,145 +130,131 @@ void Navsat::Initialize()
     initialized = true;
 }
 
-double Navsat::Optimize(double time)
+void Navsat::Optimize(const Section &section)
 {
-    // get secions
-    auto sections = PoseGraph::Instance().GetSections(finished, time);
-
-    SE3d transform;
-    for (auto &pair : sections)
+    auto A = Map::Instance().GetKeyFrame(section.A);
+    auto B = Map::Instance().GetKeyFrame(section.B);
+    auto C = Map::Instance().GetKeyFrame(section.C);
+    SE3d old_B = B->pose;
+    // first, optimize B's position
+    OptimizeRX(B, section.C, section.C, 0b000000);
+    // second, optimize A - B
+    // OptimizeAB(A, B, old_B);
+    // third, optimize others
+    Frames BC = Map::Instance().GetKeyFrames(section.B + epsilon, section.C - epsilon);
+    for (auto &pair : BC)
     {
-        auto frame_A = Map::Instance().GetKeyFrame(pair.second.A);
-        auto frame_B = Map::Instance().GetKeyFrame(pair.second.B);
-        auto frame_C = Map::Instance().GetKeyFrame(pair.second.C);
-        OptimizeZ(frame_A, time);
-        // optimize A - B
-        for (int i = 0; i < 2; i++)
+        auto frame = pair.second;
+        OptimizeRX(frame, frame->time + epsilon, section.C, 0b110111);
+    }
+}
+
+inline double navsat_distance(Frame::Ptr frame)
+{
+    Vector3d d = frame->GetPosition() - Navsat::Get()->GetFixPoint(frame);
+    d.z() = 0;
+    return d.norm();
+}
+
+void Navsat::QuickFix(double start, double end)
+{
+    if (PoseGraph::Instance().turning && frames_distance(PoseGraph::Instance().current_section.B, end) > 40)
+        return;
+    auto A = Map::Instance().GetKeyFrame(start);
+    auto B = Map::Instance().GetKeyFrame(PoseGraph::Instance().current_section.B);
+    auto C = Map::Instance().GetKeyFrame(end);
+    // add section if need
+    if (C->feature_navsat && C->feature_navsat->cov.norm() < 30 &&
+        navsat_distance(C) > 2 * accuracy_ && frames_distance(B->time, C->time) > 200)
+    {
+        bool has_half = false;
+        double new_time = 0, half_time = 0;
+        double dc = navsat_distance(C);
+        Frames active_kfs = Map::Instance().GetKeyFrames(B->time, C->time);
+        for (auto iter = active_kfs.rbegin(); iter != active_kfs.rend(); iter++)
         {
-            OptimizeRX(frame_A, pair.second.C, time, 8);
-            Frames AB_kfs = Map::Instance().GetKeyFrames(pair.second.A + epsilon, pair.second.B - epsilon);
-            for (auto &pair_kf : AB_kfs)
+            double d = navsat_distance(iter->second);
+            if (d > dc)
             {
-                auto frame = pair_kf.second;
-                // OptimizeRX(frame, std::min(pair.second.B - epsilon, frame->time + 1), time, 1 + 2 + 4);
-                OptimizeRX(frame, std::min(frame->time + 3, pair.second.B - epsilon), time, 2 + 4);
+                dc = d;
+                has_half = false;
+            }
+            if (d < dc / 2 && d > accuracy_)
+            {
+                half_time = has_half ? half_time : iter->first;
+                has_half = true;
+            }
+            else if (d < accuracy_)
+            {
+                new_time = iter->first;
+                break;
             }
         }
-        // optimize B - C
-        OptimizeZ(frame_B, time);
-        OptimizeRX(frame_B, pair.second.C, time, 8);
-        Frames BC_kfs = Map::Instance().GetKeyFrames(pair.second.B + epsilon, pair.second.C - epsilon);
-        for (auto &pair_kf : BC_kfs)
+        if (has_half && frames_distance(new_time, half_time) > 50)
         {
-            auto frame = pair_kf.second;
-            OptimizeRX(frame, std::min(frame->time + 1, time), time, 1 + 2 + 4);
+            PoseGraph::Instance().AddSection(new_time);
+            A = Map::Instance().GetKeyFrame(new_time);
+            B = A;
         }
-        finished = pair.second.C;
     }
-
-    return sections.empty() ? 0 : sections.begin()->second.A;
+    // fix
+    Section section = {A->time, B->time, C->time};
+    Navsat::Optimize(section);
 }
 
-double Navsat::QuickFix(double current_time, double end_time)
+// mode: zyxrpy
+void Navsat::OptimizeRX(Frame::Ptr frame, double end, double forward, unsigned char mode)
 {
-    Frame::Ptr current_frame = Map::Instance().GetKeyFrame(current_time);
-    Frame::Ptr finished_frame = Map::Instance().GetKeyFrame(finished);
-    Vector3d t = current_frame->pose.translation() - GetFixPoint(current_frame);
-    current_time = current_frame->time;
-    double B = PoseGraph::Instance().current_section.B;
-    if (t.norm() > 2 &&
-        !PoseGraph::Instance().turning &&
-        frames_distance(current_time, B) > 60)
-    {
-        // optimize A - B
-        OptimizeZ(finished_frame, end_time);
-        OptimizeRX(finished_frame, current_time, end_time, 8);
-        Frames AB_kfs = Map::Instance().GetKeyFrames(finished + epsilon, B - epsilon);
-        for (auto &pair_kf : AB_kfs)
-        {
-            auto frame = pair_kf.second;
-            // OptimizeRX(frame, std::min(B - epsilon, frame->time + 1), end_time, 1 + 2 + 4);
-            OptimizeRX(frame, std::min(frame->time + 3, B - epsilon), end_time, 8);
-        }
-        // optimize B - C
-        OptimizeRX(finished_frame, current_time, end_time, 8);
-        Frames BC_kfs = Map::Instance().GetKeyFrames(B + epsilon, current_time - epsilon);
-        for (auto &pair_kf : BC_kfs)
-        {
-            auto frame = pair_kf.second;
-            OptimizeRX(frame, std::min(frame->time + 1, end_time), end_time, 1 + 2 + 4);
-        }
-
-        t = current_frame->pose.translation() - GetFixPoint(current_frame);
-        t.z() = 0;
-        if (t.norm() > 2)
-        {
-            PoseGraph::Instance().AddSection(current_time);
-        }
-        return finished;
-    }
-    return 0;
-}
-
-void Navsat::OptimizeRX(Frame::Ptr frame, double end, double time, int mode)
-{
-    if (!(mode & (1 << 1) && mode & (1 << 2)) && frames_distance(frame->time, end) < 10)
+    // rotation's optimization need longer path
+    if ((mode & 0b000111) != 0b000111 && frames_distance(frame->time, end) < 10)
         return;
     SE3d old_pose = frame->pose;
-    adapt::Problem problem;
+    ceres::Problem problem;
+    ceres::LossFunction *loss_function = new ceres::HuberLoss(1.0);
     Frames active_kfs = Map::Instance().GetKeyFrames(frame->time, end);
     double para[6] = {0, 0, 0, 0, 0, 0};
     //NOTE: the real order of rpy is y p r
+    problem.AddParameterBlock(para + 5, 1); //z
+    problem.AddParameterBlock(para + 4, 1); //y
     problem.AddParameterBlock(para + 3, 1); //x
     problem.AddParameterBlock(para + 2, 1); //r
     problem.AddParameterBlock(para + 1, 1); //p
     problem.AddParameterBlock(para + 0, 1); //y
-    if (frame->last_keyframe)
+    for (int i = 0; i < 6; i++)
     {
-        problem.SetParameterUpperBound(para + 3, 0, (frame->last_keyframe->pose.inverse() * frame->pose).translation().x());
-        problem.SetParameterLowerBound(para + 3, 0, -(frame->last_keyframe->pose.inverse() * frame->pose).translation().x());
+        if (mode & (1 << i))
+            problem.SetParameterBlockConstant(para + i);
     }
-    problem.SetParameterUpperBound(para + 2, 0, 0.1);
-    problem.SetParameterLowerBound(para + 2, 0, -0.1);
-    problem.SetParameterUpperBound(para + 1, 0, 0.1);
-    problem.SetParameterLowerBound(para + 1, 0, -0.1);
-    problem.SetParameterUpperBound(para + 0, 0, 0.5);
-    problem.SetParameterLowerBound(para + 0, 0, -0.5);
 
-    if (mode & (1 << 0))
-        problem.SetParameterBlockConstant(para);
-    if (mode & (1 << 1))
-        problem.SetParameterBlockConstant(para + 1);
-    if (mode & (1 << 2))
+    // if para includes roll, ensure that vehicle can not roll over
+    if ((mode & 0b000100) == 0)
+    {
+        Vector3d y(0, 0, 0);
+        for (auto &pair : active_kfs)
+        {
+            auto origin = pair.second->pose;
+            y += frame->pose.inverse().so3() * origin.so3() * Vector3d::UnitY();
+        }
+        ceres::CostFunction *cost_function = NavsatRError::Create(y, frame->pose);
+        problem.AddResidualBlock(cost_function, NULL, para + 2);
+        ceres::Solver::Options options;
+        options.linear_solver_type = ceres::DENSE_QR;
+        ceres::Solver::Summary summary;
+        ceres::Solve(options, &problem, &summary);
         problem.SetParameterBlockConstant(para + 2);
-    if (mode & (1 << 3))
-        problem.SetParameterBlockConstant(para + 3);
-
-    for (auto &pair_kf : active_kfs)
-    {
-        auto origin = pair_kf.second->pose;
-        if (pair_kf.second->feature_navsat)
-        {
-            Vector3d point = GetFixPoint(pair_kf.second);
-            if (!pair_kf.second->feature_navsat->trust)
-            {
-                point.z() = frame->pose.translation().z();
-            }
-            ceres::CostFunction *cost_function = NavsatRXError::Create(point, frame->pose.inverse() * origin.translation(), frame->pose);
-            problem.AddResidualBlock(ProblemType::Other, cost_function, NULL, para, para + 1, para + 2, para + 3);
-        }
     }
 
-    if (!(mode & (1 << 0) && mode & (1 << 1) && mode & (1 << 2)))
+    for (auto &pair : active_kfs)
     {
-        for (auto &pair_kf : active_kfs)
+        auto origin = pair.second->pose;
+        if (pair.second->feature_navsat)
         {
-            auto origin = pair_kf.second->pose;
-            ceres::CostFunction *cost_function = NavsatRError::Create(origin, frame->pose);
-            problem.AddResidualBlock(ProblemType::Other, cost_function, NULL, para, para + 1, para + 2);
+            Vector3d point = GetFixPoint(pair.second);
+            Vector3d cov = pair.second->feature_navsat->cov;
+            ceres::CostFunction *cost_function = NavsatRXError::Create(point, frame->pose.inverse() * origin.translation(), frame->pose, cov);
+            problem.AddResidualBlock(cost_function, loss_function, para, para + 1, para + 2, para + 3, para + 4, para + 5);
         }
     }
-
     ceres::Solver::Options options;
     options.linear_solver_type = ceres::DENSE_QR;
     ceres::Solver::Summary summary;
@@ -256,19 +263,47 @@ void Navsat::OptimizeRX(Frame::Ptr frame, double end, double time, int mode)
     frame->pose = frame->pose * rpyxyz2se3(para);
     SE3d new_pose = frame->pose;
     SE3d transform = new_pose * old_pose.inverse();
-    PoseGraph::Instance().Propagate(transform, Map::Instance().GetKeyFrames(frame->time + epsilon, time));
+    PoseGraph::Instance().ForwardUpdate(transform, Map::Instance().GetKeyFrames(frame->time + epsilon, forward));
 }
 
-void Navsat::OptimizeZ(Frame::Ptr frame, double time)
+void Navsat::OptimizeAB(Frame::Ptr A, Frame::Ptr B, SE3d old_B)
 {
-    if (frame->feature_navsat && frame->feature_navsat->trust)
+    if (A == B)
+        return;
+    ceres::Problem problem;
+    ceres::LossFunction *loss_function = new ceres::HuberLoss(1.0);
+    ceres::LocalParameterization *local_parameterization = new ceres::ProductParameterization(
+        new ceres::EigenQuaternionParameterization(),
+        new ceres::IdentityParameterization(3));
+    Frames AB = Map::Instance().GetKeyFrames(A->time + epsilon, B->time - epsilon);
+    problem.AddParameterBlock(A->pose.data(), SE3d::num_parameters, local_parameterization);
+    problem.AddParameterBlock(B->pose.data(), SE3d::num_parameters, local_parameterization);
+    problem.SetParameterBlockConstant(A->pose.data());
+    problem.SetParameterBlockConstant(B->pose.data());
+    Frame::Ptr last_frame = A;
+    for (auto &pair : AB)
     {
-        SE3d old_pose = frame->pose;
-        frame->pose.translation() = GetFixPoint(frame);
-        SE3d new_pose = frame->pose;
-        SE3d transform = new_pose * old_pose.inverse();
-        PoseGraph::Instance().Propagate(transform, Map::Instance().GetKeyFrames(frame->time + epsilon, time));
+        auto frame = pair.second;
+        double a = (pair.first - A->time) / (B->time - A->time);
+        frame->pose.translation().z() = a * B->pose.translation().z() + (1 - a) * A->pose.translation().z();
+        double *para_kf = frame->pose.data();
+        double *para_last_kf = last_frame->pose.data();
+        problem.AddParameterBlock(para_kf, SE3d::num_parameters, local_parameterization);
+        ceres::CostFunction *cost_function1 = PoseGraphError::Create(last_frame->pose, frame->pose);
+        problem.AddResidualBlock(cost_function1, NULL, para_last_kf, para_kf);
+        Vector3d point = GetFixPoint(frame);
+        point.z() = frame->pose.translation().z();
+        ceres::CostFunction *cost_function2 = TError::Create(point);
+        problem.AddResidualBlock(cost_function2, loss_function, para_kf);
+        last_frame = frame;
     }
+    ceres::CostFunction *cost_function1 = PoseGraphError::Create(last_frame->pose, old_B);
+    problem.AddResidualBlock(cost_function1, NULL, last_frame->pose.data(), B->pose.data());
+
+    ceres::Solver::Options options;
+    options.linear_solver_type = ceres::DENSE_QR;
+    ceres::Solver::Summary summary;
+    ceres::Solve(options, &problem, &summary);
 }
 
 } // namespace lvio_fusion
