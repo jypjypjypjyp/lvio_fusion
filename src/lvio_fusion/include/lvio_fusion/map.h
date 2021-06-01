@@ -35,6 +35,8 @@ public:
 
     SE3d ComputePose(double time);
 
+    void ApplyScaledRotation(const Matrix3d &R);
+
     void Reset()
     {
         landmarks.clear();

@@ -61,19 +61,13 @@ public:
         return devices_[id];
     }
 
-    SE3d GetPose_G(SE3d pose)
-    {
-        return SE3d(Rwg.inverse() * pose.rotationMatrix(), Rwg.inverse() * pose.translation());
-    }
-    
     double ACC_N, ACC_W;
     double GYR_N, GYR_W;
     double G;
-    Matrix3d Rwg;
     bool initialized = false;
 
 private:
-    Imu(const SE3d &extrinsic, double acc_n, double acc_w, double gyr_n, double gyr_w, double g_norm) : Sensor(extrinsic), ACC_N(acc_n), ACC_W(acc_w), GYR_N(gyr_n), GYR_W(gyr_w), G(g_norm) { Rwg = Matrix3d::Identity(); }
+    Imu(const SE3d &extrinsic, double acc_n, double acc_w, double gyr_n, double gyr_w, double g_norm) : Sensor(extrinsic), ACC_N(acc_n), ACC_W(acc_w), GYR_N(gyr_n), GYR_W(gyr_w), G(g_norm) {  }
     Imu(const Imu &);
     Imu &operator=(const Imu &);
 

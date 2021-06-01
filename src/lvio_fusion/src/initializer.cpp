@@ -27,7 +27,7 @@ bool Initializer::EstimateVelAndRwg(Frames frames)
     }
     else
     {
-        Rwg_ = Imu::Get()->Rwg;
+        Rwg_ =  Matrix3d::Identity();
     }
     return true;
 }
@@ -40,14 +40,15 @@ bool Initializer::Initialize(Frames frames, double prior_a, double prior_g)
         return false;
 
     // imu optimization
-    if (!imu::InertialOptimization(frames, Rwg_, prior_a, prior_g))
+    if (!imu::InertialOptimization(frames, Rwg_, prior_a, prior_g, step!=4))
         return false;
 
     Rwg_ = get_R_from_vector(Rwg_ * Vector3d::UnitZ());
     Vector3d g2(0, 0, Imu::Get()->G);
     g2 = Rwg_ * g2;
     LOG(INFO) << "Gravity Vector again: " << g2.transpose();
-    Imu::Get()->Rwg = Rwg_;
+    if(step!=4)
+        Map::Instance().ApplyScaledRotation(Rwg_.inverse());
 
     for (auto &pair : frames)
     {
@@ -128,7 +129,8 @@ void Initializer::Initialize(double init_time, double end_time)
         }
         else
         {
-            step = 1;
+            if(step!=4)
+                step = 1;
             Imu::Get()->initialized = false;
             LOG(INFO) << "Initializer Failed";
         }

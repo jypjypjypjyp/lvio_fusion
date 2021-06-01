@@ -13,7 +13,6 @@ void RePredictVel(Frames &frames, Frame::Ptr &prior_frame)
 {
     Frame::Ptr last_frame = prior_frame;
     Vector3d G(0, 0, -Imu::Get()->G);
-    G = Imu::Get()->Rwg * G;
     Vector3d twb1, twb2, Vwb1, Vwb2;
     Matrix3d Rwb1, Rwb2;
     for (auto &pair : frames)
@@ -32,7 +31,7 @@ void RePredictVel(Frames &frames, Frame::Ptr &prior_frame)
     }
 }
 
-bool InertialOptimization(Frames &frames, Matrix3d &Rwg, double prior_a, double prior_g)
+bool InertialOptimization(Frames &frames, Matrix3d &Rwg, double prior_a, double prior_g, bool isOptRwg)
 {
     ceres::Problem problem;
     ceres::CostFunction *cost_function;
@@ -47,7 +46,10 @@ bool InertialOptimization(Frames &frames, Matrix3d &Rwg, double prior_a, double 
     double *para_rwg = RwgSO3.data();
     ceres::LocalParameterization *local_parameterization = new ceres::EigenQuaternionParameterization();
     problem.AddParameterBlock(para_rwg, SO3d::num_parameters, local_parameterization);
-
+    if(!isOptRwg)
+    {
+        problem.SetParameterBlockConstant(para_rwg);
+    }
     Frame::Ptr last_frame;
     for (auto &pair : frames)
     {
