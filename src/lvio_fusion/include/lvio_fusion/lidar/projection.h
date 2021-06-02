@@ -1,4 +1,5 @@
 #include "lvio_fusion/common.h"
+#include "lvio_fusion/navigation/gridmap.h"//NAVI
 
 namespace lvio_fusion
 {
@@ -43,6 +44,8 @@ public:
     }
 
     SegmentedInfo Process(PointICloud &points, PointICloud &points_segmented);
+    //NAVI
+    void SetGridmap(Gridmap::Ptr gridmap){gridmap_ = gridmap;}
 
 private:
     void FindStartEndAngle(SegmentedInfo &segmented_info, PointICloud& points);
@@ -54,6 +57,8 @@ private:
     void Segment(SegmentedInfo &segmented_info, PointICloud &points_segmented);
 
     void LabelComponents(int row, int col);
+
+    void Compute2DScanMsg();//NAVI
 
     void Clear();
 
@@ -77,6 +82,7 @@ private:
     const int num_segment_valid_lines_ = 3;
     const float segment_alpha_x_;
     const float segment_alpha_y_;
+    Gridmap::Ptr gridmap_;//NAVI
 };
 
 } // namespace lvio_fusion

@@ -30,6 +30,8 @@ void FeatureAssociation::AddScan(double time, Point3Cloud::Ptr new_scan)
         PointICloud point_cloud;
         if ((!last_frame || (pair.second->GetPosition() - last_frame->GetPosition()).norm() > spacing_) && AlignScan(pair.first, point_cloud))
         {
+           if(gridmap_)
+                gridmap_->AddFrame(pair.second);//NAVI
             Process(point_cloud, pair.second);
             finished = pair.first + epsilon;
             last_frame = pair.second;

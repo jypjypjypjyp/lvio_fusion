@@ -319,7 +319,12 @@ void Frontend::CreateKeyframe()
     last_keyframe = current_frame;
     preintegration_last_kf_ = nullptr;
     LOG(INFO) << "Add a keyframe " << current_frame->id;
-
+    if(globalplanner_)//NAVI
+    {
+        Vector3d pose3d =last_frame->pose.translation();
+        Vector2d pose2d(pose3d[0],pose3d[1]);
+        globalplanner_->SetRobotPose(pose2d);
+    }
     // update backend because we have a new keyframe
     backend_.lock()->UpdateMap();
 }
