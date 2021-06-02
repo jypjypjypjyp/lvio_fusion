@@ -2,7 +2,7 @@
 #define lvio_fusion_GRIDMAP_H
 #include "lvio_fusion/common.h"
 #include "lvio_fusion/frame.h"
-#include "lvio_fusion/navigation/global_planner.h"//NAVI
+#include "lvio_fusion/navigation/global_planner.h"
 
 namespace lvio_fusion
 {
