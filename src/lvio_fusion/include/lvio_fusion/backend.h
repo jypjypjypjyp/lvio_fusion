@@ -6,6 +6,7 @@
 #include "lvio_fusion/frame.h"
 #include "lvio_fusion/imu/initializer.h"
 #include "lvio_fusion/lidar/mapping.h"
+#include "lvio_fusion/loop/pose_graph.h"
 
 #include <ceres/ceres.h>
 
@@ -36,6 +37,8 @@ private:
     void BackendLoop();
 
     void GlobalLoop();
+
+    // void ComputeGravity(Section section );
 
     void Optimize();
 

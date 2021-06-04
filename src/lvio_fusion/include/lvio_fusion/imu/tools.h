@@ -10,7 +10,7 @@ namespace imu
 
 void RePredictVel(Frames &frames, Frame::Ptr &prior_frame);
 
-bool InertialOptimization(Frames &frames, Matrix3d &Rwg, double prior_a, double prior_g);
+bool InertialOptimization(Frames &frames, Matrix3d &Rwg, double prior_a, double prior_g, bool isOptRwg);
 
 void FullBA(Frames &frames, double prior_a, double prior_g);
 

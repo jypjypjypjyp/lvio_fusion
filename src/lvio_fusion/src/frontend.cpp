@@ -352,7 +352,6 @@ void Frontend::UpdateImu(const Bias &bias_)
     last_frame->SetBias(bias_);
     current_frame->SetBias(bias_);
     Vector3d G(0, 0, -Imu::Get()->G);
-    G = Imu::Get()->Rwg * G;
     if (last_frame != last_keyframe && last_frame->preintegration)
     {
         double sum_dt = last_frame->preintegration->sum_dt;
@@ -460,7 +459,6 @@ void Frontend::Preintegrate()
 void Frontend::PredictState()
 {
     Vector3d G(0, 0, -Imu::Get()->G);
-    G = Imu::Get()->Rwg * G;
     double sum_dt = current_frame->preintegration_last->sum_dt;
     Vector3d twb1 = last_frame->GetPosition();
     Matrix3d Rwb1 = last_frame->GetRotation();

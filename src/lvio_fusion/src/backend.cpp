@@ -53,6 +53,16 @@ void Backend::GlobalLoop()
             Section new_section = sections.begin()->second;
             start = new_section.C;
             SE3d old_pose = Map::Instance().GetKeyFrame(start)->pose;
+            //{
+            // ComputeGravity(new_section);
+            //  {
+            //         // update backend and frontend
+            //         std::unique_lock<std::mutex> lock(mutex);
+            //         SE3d new_pose = Map::Instance().GetKeyFrame(start)->pose;
+            //         SE3d transform = new_pose * old_pose.inverse();
+            //         PoseGraph::Instance().ForwardUpdate(transform, start + epsilon);
+            //     }
+            // }
             if (Navsat::Num() && Navsat::Get()->initialized)
             {
                 Navsat::Get()->Optimize(new_section);
@@ -80,6 +90,43 @@ void Backend::GlobalLoop()
         }
     }
 }
+
+// void Backend::ComputeGravity(Section section )
+// {
+//     if(!(Imu::Num()))
+//         return;
+//     auto A = Map::Instance().GetKeyFrame(section.A);
+//     auto B = Map::Instance().GetKeyFrame(section.B);
+//     auto C = Map::Instance().GetKeyFrame(section.C);
+//     // if(C->time-B->time<3)return;
+//     auto BC=  Map::Instance().GetKeyFrames(section.B,section.C);
+//     auto AC=  Map::Instance().GetKeyFrames(section.A,section.C);
+
+//     Vector3d twga = Vector3d::Zero();
+
+//     int num_frame=0;
+//     for (auto &pair : BC)
+//     {
+//         auto frame = pair.second;
+//         if(!frame->good_imu)
+//             return;
+//         twga += frame->last_keyframe->GetRotation() * frame->preintegration->GetUpdatedDeltaVelocity();
+//         num_frame++;
+//     }
+//     if(num_frame<10)return;
+
+//     Vector3d deltaV=(C->Vw-B->Vw);
+//     Vector3d twg=twga-deltaV;
+//     Matrix3d Rwg_ = get_R_from_vector(twg);
+
+//     for (auto &pair : BC)
+//     {
+//         auto frame = pair.second;
+//         frame->SetPose( Rwg_.inverse()*frame->pose.rotationMatrix(),B->pose.translation() + Rwg_.inverse()*(frame->pose.translation()-B->pose.translation() ));
+//         if(frame->good_imu)
+//             frame->Vw=Rwg_.inverse()*frame->Vw;
+//     }
+// }
 
 void Backend::BuildProblem(Frames &active_kfs, adapt::Problem &problem)
 {
