@@ -355,8 +355,8 @@ void Frontend::UpdateImu(const Bias &bias_)
     if (last_frame != last_keyframe && last_frame->preintegration)
     {
         double sum_dt = last_frame->preintegration->sum_dt;
-        Vector3d twb1 = last_frame->last_keyframe->GetPosition();
-        Matrix3d Rwb1 = last_frame->last_keyframe->GetRotation();
+        Vector3d twb1 = last_frame->last_keyframe->t();
+        Matrix3d Rwb1 = last_frame->last_keyframe->R();
         Vector3d Vwb1 = last_frame->last_keyframe->Vw;
         Matrix3d Rwb2 = Rwb1 * last_frame->preintegration->GetUpdatedDeltaRotation();
         Vector3d twb2 = twb1 + Vwb1 * sum_dt + 0.5f * sum_dt * sum_dt * G + Rwb1 * last_frame->preintegration->GetUpdatedDeltaPosition();
@@ -460,8 +460,8 @@ void Frontend::PredictState()
 {
     Vector3d G(0, 0, -Imu::Get()->G);
     double sum_dt = current_frame->preintegration_last->sum_dt;
-    Vector3d twb1 = last_frame->GetPosition();
-    Matrix3d Rwb1 = last_frame->GetRotation();
+    Vector3d twb1 = last_frame->t();
+    Matrix3d Rwb1 = last_frame->R();
     Vector3d Vwb1 = last_frame->Vw;
     Matrix3d Rwb2 = normalize_R(Rwb1 * current_frame->preintegration_last->GetDeltaRotation(last_frame->bias).toRotationMatrix());
     Vector3d twb2 = twb1 + Vwb1 * sum_dt + 0.5f * sum_dt * sum_dt * G + Rwb1 * current_frame->preintegration_last->GetDeltaPosition(last_frame->bias);

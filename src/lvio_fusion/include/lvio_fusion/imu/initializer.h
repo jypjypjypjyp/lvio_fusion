@@ -18,7 +18,7 @@ public:
     int step = 1;   // 1,2,3: next step 1,2,3; 4: finish;
 
 private:
-    bool EstimateVelAndRwg(Frames keyframes);
+    void EstimateVelAndRwg(Frames keyframes);
 
     bool Initialize(Frames frames, double prior_a, double prior_g);
 

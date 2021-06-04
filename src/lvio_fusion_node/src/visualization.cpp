@@ -64,7 +64,7 @@ void publish_odometry(Estimator::Ptr estimator, double time)
         }
         if (pair.second->loop_closure)
         {
-            auto position = pair.second->loop_closure->frame_old->GetPosition();
+            auto position = pair.second->loop_closure->frame_old->t();
             geometry_msgs::PoseStamped pose_stamped_loop;
             pose_stamped_loop.header.stamp = ros::Time(pair.first);
             pose_stamped_loop.header.frame_id = "world";
@@ -170,7 +170,7 @@ void publish_car_model(Estimator::Ptr estimator, double time)
     car_mesh.type = visualization_msgs::Marker::MESH_RESOURCE;
     car_mesh.action = visualization_msgs::Marker::ADD;
     // car_mesh.mesh_resource = "package://lvio_fusion_node/models/car.dae";
-    car_mesh.mesh_resource = "file:///home/zoet/Projects/lvio_fusion/src/lvio_fusion_node/models/car.dae";
+    car_mesh.mesh_resource = "file:///home/jyp/Projects/lvio_fusion/src/lvio_fusion_node/models/car.dae";
     car_mesh.id = 0;
 
     SE3d pose = estimator->frontend->current_frame->pose;

@@ -46,8 +46,8 @@ public:
     Weights weights;                              // weights of different factors
     SE3d pose;
 
-    Matrix3d GetRotation();
-    Vector3d GetPosition();
+    Matrix3d R();
+    Vector3d t();
     void SetVelocity(const Vector3d &Vw_);
     void SetBias(const Bias &bias_);
     void SetPose(const Matrix3d &Rwb_, const Vector3d &twb_);

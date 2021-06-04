@@ -17,7 +17,7 @@ from torch.utils.tensorboard import SummaryWriter
 from rl_fusion.env import LvioFusionEnv
 from lvio_fusion_node.srv import *
 
-save_net_path = '/home/zoet/Projects/lvio_fusion/misc/td3.pt'
+save_net_path = '/home/jyp/Projects/lvio_fusion/misc/td3.pt'
 server_init = None
 client_create_env = None
 client_step = None

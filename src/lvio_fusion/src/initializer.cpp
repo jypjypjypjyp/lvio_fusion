@@ -7,7 +7,7 @@
 namespace lvio_fusion
 {
 
-bool Initializer::EstimateVelAndRwg(Frames frames)
+void Initializer::EstimateVelAndRwg(Frames frames)
 {
     if (!Imu::Get()->initialized)
     {
@@ -16,39 +16,32 @@ bool Initializer::EstimateVelAndRwg(Frames frames)
         for (auto &pair : frames)
         {
             auto frame = pair.second;
-            twg += frame->last_keyframe->GetRotation() * frame->preintegration->GetUpdatedDeltaVelocity();
-            Vw = (frame->GetPosition() - frame->last_keyframe->GetPosition()) / frame->preintegration->sum_dt;
+            twg += frame->last_keyframe->R() * frame->preintegration->GetUpdatedDeltaVelocity();
+            Vw = (frame->t() - frame->last_keyframe->t()) / frame->preintegration->sum_dt;
             frame->SetVelocity(Vw);
+            frame->SetBias(Bias());
         }
-        Rwg_ = get_R_from_vector(twg);
-        Vector3d g(0, 0, Imu::Get()->G);
-        g = Rwg_ * g;
-        LOG(INFO) << "Gravity Vector: " << g.transpose();
+        if (step != 4)
+        {
+            Rwg_ = get_R_from_vector(twg);
+        }
     }
-    else
-    {
-        Rwg_ =  Matrix3d::Identity();
-    }
-    return true;
 }
 
 // make sure than every frame has last_frame and preintegrate
 bool Initializer::Initialize(Frames frames, double prior_a, double prior_g)
 {
     // estimate velocity and gravity direction
-    if (!EstimateVelAndRwg(frames))
-        return false;
+    EstimateVelAndRwg(frames);
 
-    // imu optimization
-    if (!imu::InertialOptimization(frames, Rwg_, prior_a, prior_g, step!=4))
-        return false;
-
-    Rwg_ = get_R_from_vector(Rwg_ * Vector3d::UnitZ());
-    Vector3d g2(0, 0, Imu::Get()->G);
-    g2 = Rwg_ * g2;
-    LOG(INFO) << "Gravity Vector again: " << g2.transpose();
-    if(step!=4)
-        Map::Instance().ApplyScaledRotation(Rwg_.inverse());
+    // imu optimization (don't change gravity when step == 4)
+    if (step != 4)
+    {
+        if (!imu::InertialOptimization(frames, Rwg_, prior_a, prior_g))
+            return false;
+        Rwg_ = get_R_from_vector(Rwg_ * Vector3d::UnitZ());
+        Map::Instance().ApplyGravityRotation(Rwg_.inverse());
+    }
 
     for (auto &pair : frames)
     {
@@ -129,8 +122,7 @@ void Initializer::Initialize(double init_time, double end_time)
         }
         else
         {
-            if(step!=4)
-                step = 1;
+            step = step != 4 ? 1 : 4;
             Imu::Get()->initialized = false;
             LOG(INFO) << "Initializer Failed";
         }

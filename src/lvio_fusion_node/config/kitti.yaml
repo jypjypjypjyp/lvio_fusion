@@ -14,7 +14,7 @@ navsat_topic: '/kitti/oxts/gps/fix'
 image0_topic: '/kitti/camera_gray_left/image_raw'
 image1_topic: '/kitti/camera_gray_right/image_raw'
 color_topic: '/kitti/camera_color_left/image_raw'
-result_path: '/home/zoet/Projects/lvio_fusion/result/result.csv'
+result_path: '/home/jyp/Projects/lvio_fusion/result/result.csv'
 
 # cameras parameters
 undistort: 0

@@ -90,12 +90,12 @@ void Frame::SetBias(const Bias &_bias)
         preintegration->UpdateBias(bias);
 }
 
-Matrix3d Frame::GetRotation()
+Matrix3d Frame::R()
 {
     return pose.rotationMatrix();
 }
 
-Vector3d Frame::GetPosition()
+Vector3d Frame::t()
 {
     return pose.translation();
 }
