@@ -90,7 +90,7 @@ void LocalMap::AddKeyFrame(Frame::Ptr new_kf)
         }
     }
     // local BA
-    // LocalBA(new_kf);
+    LocalBA(new_kf);
     // get feature pyramid
     local_features_[new_kf->time] = Pyramid();
     GetFeaturePyramid(new_kf, local_features_[new_kf->time]);
@@ -135,15 +135,16 @@ void LocalMap::UpdateCache()
 
 void LocalMap::GetFeaturePyramid(Frame::Ptr frame, Pyramid &pyramid)
 {
+    // set mask
     cv::Mat mask = cv::Mat(frame->image_left.size(), CV_8UC1, 255);
     for (auto &pair_feature : frame->features_left)
     {
-        cv::circle(mask, pair_feature.second->keypoint.pt, extractor_.patch_size, 0, cv::FILLED);
+        cv::circle(mask, pair_feature.second->keypoint.pt, extractor_.half_patch_size, 0, cv::FILLED);
     }
-
+    // detect
     std::vector<std::vector<cv::KeyPoint>> kps;
-    extractor_.Detect(frame->image_left, mask, kps);
-
+    extractor_.Detect(frame->image_left, kps);
+    // pyramid
     pyramid.clear();
     pyramid.resize(num_levels_);
     for (int i = 0; i < num_levels_; i++)
@@ -151,7 +152,10 @@ void LocalMap::GetFeaturePyramid(Frame::Ptr frame, Pyramid &pyramid)
         pyramid[i].reserve(kps[i].size());
         for (auto &kp : kps[i])
         {
-            pyramid[i].push_back(visual::Feature::Create(frame, kp));
+            if (mask.at<uchar>(kp.pt) != 0)
+            {
+                pyramid[i].push_back(visual::Feature::Create(frame, kp));
+            }
         }
     }
 }
@@ -250,8 +254,10 @@ void LocalMap::Triangulate(Frame::Ptr frame, Level &features)
     for (int i = 0; i < features.size(); i++)
     {
         kps_left[i] = features[i]->keypoint.pt;
+        auto pb = Camera::Get()->Pixel2Robot(cv2eigen(kps_left[i]), Camera::baseline * 50);
+        auto pixel = eigen2cv(Camera::Get(1)->Robot2Pixel(pb));
+        kps_right.push_back(pixel);
     }
-    kps_right = kps_left;
     std::vector<uchar> status;
     optical_flow(frame->image_left, frame->image_right, kps_left, kps_right, status);
     // triangulate new points
@@ -264,7 +270,7 @@ void LocalMap::Triangulate(Frame::Ptr frame, Level &features)
             Vector2d kp_right = cv2eigen(kps_right[i]);
             Vector3d pb = Vector3d::Zero();
             triangulate(Camera::Get()->extrinsic.inverse(), Camera::Get(1)->extrinsic.inverse(), Camera::Get()->Pixel2Sensor(kp_left), Camera::Get(1)->Pixel2Sensor(kp_right), pb);
-            if (pb.z() > 0 && (Camera::Get()->Robot2Pixel(pb) - kp_left).norm() < 0.5 && (Camera::Get(1)->Robot2Pixel(pb) - kp_right).norm() < 0.5)
+            if (Camera::Get()->Robot2Sensor(pb).z() > 0)
             {
                 if (features[i]->landmark.expired())
                 {

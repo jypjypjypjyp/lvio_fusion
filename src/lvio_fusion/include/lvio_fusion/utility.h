@@ -32,9 +32,9 @@ double cv_distance(cv::Point2f &pt1, cv::Point2f &pt2);
  * @param nextPts     point in next image
  * @param status      status
  */
-int optical_flow(cv::Mat &prevImg, cv::Mat &nextImg,
-                        std::vector<cv::Point2f> &prevPts, std::vector<cv::Point2f> &nextPts,
-                        std::vector<uchar> &status);
+void optical_flow(cv::Mat &prevImg, cv::Mat &nextImg,
+                  std::vector<cv::Point2f> &prevPts, std::vector<cv::Point2f> &nextPts,
+                  std::vector<uchar> &status);
 
 inline Vector2d cv2eigen(const cv::Point2f &p) { return Vector2d(p.x, p.y); }
 inline Vector3d cv2eigen(const cv::Point3f &p) { return Vector3d(p.x, p.y, p.z); }

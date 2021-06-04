@@ -27,7 +27,7 @@ public:
 
     // detect the ORB features on an image.
     // ORB are dispersed on the image using an quad tree.
-    void Detect(cv::Mat image, cv::Mat mask, std::vector<std::vector<cv::KeyPoint>> &keypoints);
+    void Detect(cv::Mat image, std::vector<std::vector<cv::KeyPoint>> &keypoints);
 
     // compute the ORB descriptors after detecting.
     cv::Mat Compute(std::vector<std::vector<cv::KeyPoint>> &keypoints);
