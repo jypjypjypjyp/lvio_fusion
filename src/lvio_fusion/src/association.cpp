@@ -28,7 +28,7 @@ void FeatureAssociation::AddScan(double time, Point3Cloud::Ptr new_scan)
     for (auto &pair : new_kfs)
     {
         PointICloud point_cloud;
-        if ((!last_frame || (pair.second->GetPosition() - last_frame->GetPosition()).norm() > spacing_) && AlignScan(pair.first, point_cloud))
+        if ((!last_frame || (pair.second->t() - last_frame->t()).norm() > spacing_) && AlignScan(pair.first, point_cloud))
         {
             Process(point_cloud, pair.second);
             finished = pair.first + epsilon;

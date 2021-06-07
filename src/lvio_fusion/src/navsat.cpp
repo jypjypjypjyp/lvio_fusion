@@ -28,7 +28,7 @@ void Navsat::AddPoint(double time, double x, double y, double z, Vector3d cov)
         pair.second->feature_navsat = navsat::Feature::Ptr(new navsat::Feature(pair.first, cov));
         finished = pair.first + epsilon;
     }
-    if (!initialized && !Map::Instance().keyframes.empty() && frames_distance(0, -1) > 40)
+    if (!initialized && !Map::Instance().keyframes.empty() && frames_distance(0, -1) >10 )
     {
         Initialize();
     }
@@ -109,7 +109,7 @@ void Navsat::Initialize()
 
     for (auto &pair : keyframes)
     {
-        auto position = pair.second->GetPosition();
+        auto position = pair.second->t();
         if (pair.second->feature_navsat)
         {
             ceres::CostFunction *cost_function = NavsatInitError::Create(position, GetRawPoint(pair.second->feature_navsat->time), pair.second->feature_navsat->cov);
@@ -151,7 +151,7 @@ void Navsat::Optimize(const Section &section)
 
 inline double navsat_distance(Frame::Ptr frame)
 {
-    Vector3d d = frame->GetPosition() - Navsat::Get()->GetFixPoint(frame);
+    Vector3d d = frame->t() - Navsat::Get()->GetFixPoint(frame);
     d.z() = 0;
     return d.norm();
 }

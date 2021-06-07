@@ -90,7 +90,7 @@ void LocalMap::AddKeyFrame(Frame::Ptr new_kf)
         }
     }
     // local BA
-    // LocalBA(new_kf);
+    LocalBA(new_kf);
     // get feature pyramid
     local_features_[new_kf->time] = Pyramid();
     GetFeaturePyramid(new_kf, local_features_[new_kf->time]);
@@ -264,7 +264,7 @@ void LocalMap::Triangulate(Frame::Ptr frame, Level &features)
             Vector2d kp_right = cv2eigen(kps_right[i]);
             Vector3d pb = Vector3d::Zero();
             triangulate(Camera::Get()->extrinsic.inverse(), Camera::Get(1)->extrinsic.inverse(), Camera::Get()->Pixel2Sensor(kp_left), Camera::Get(1)->Pixel2Sensor(kp_right), pb);
-            if (pb.z() > 0 && (Camera::Get()->Robot2Pixel(pb) - kp_left).norm() < 0.5 && (Camera::Get(1)->Robot2Pixel(pb) - kp_right).norm() < 0.5)
+            if (Camera::Get()->Robot2Sensor(pb).z() > 0)
             {
                 if (features[i]->landmark.expired())
                 {
@@ -284,7 +284,7 @@ void LocalMap::Triangulate(Frame::Ptr frame, Level &features)
                     Vector3d pw = Camera::Get(1)->Robot2World(pb, frame->pose);
                     double dt = frame->time - features[i]->landmark.lock()->FirstFrame().lock()->time;
                     double e = (pw - position_cache[features[i]->landmark.lock()->id]).norm();
-                    if (e / dt > 4 || e > 4)
+                    if (e / dt > 4 || e > 2)
                     {
                         frame->RemoveFeature(features[i]);
                         cv::putText(img_track, "X", kps_left[i], cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 0, 255));

@@ -23,8 +23,8 @@ typedef std::map<double, Section> Atlas;
 
 inline double frames_distance(double A, double B)
 {
-    Vector3d a = Map::Instance().GetKeyFrame(A)->GetPosition(),
-             b = Map::Instance().GetKeyFrame(B)->GetPosition();
+    Vector3d a = Map::Instance().GetKeyFrame(A)->t(),
+             b = Map::Instance().GetKeyFrame(B)->t();
     return (a - b).norm();
 }
 

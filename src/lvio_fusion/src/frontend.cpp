@@ -213,10 +213,10 @@ int Frontend::TrackLastFrame()
     }
 
     bool use_imu = Imu::Num() && Imu::Get()->initialized && current_frame->preintegration_last;
-    bool use_pnp = (int)points_2d_near.size() > num_features_tracking_bad_;
-    bool use_far = (int)points_2d_far.size() > num_features_tracking_bad_;
+    bool use_pnp = (int)(points_2d_near.size()) > num_features_tracking_bad_;
+    bool enough = (int)(points_2d_near.size() + points_2d_far.size()) > num_features_tracking_bad_;
     int num_good_pts = 0;
-    if (use_far || use_pnp)
+    if (enough)
     {
         // near
         bool success = false;
@@ -355,8 +355,8 @@ void Frontend::UpdateImu(const Bias &bias_)
     if (last_frame != last_keyframe && last_frame->preintegration)
     {
         double sum_dt = last_frame->preintegration->sum_dt;
-        Vector3d twb1 = last_frame->last_keyframe->GetPosition();
-        Matrix3d Rwb1 = last_frame->last_keyframe->GetRotation();
+        Vector3d twb1 = last_frame->last_keyframe->t();
+        Matrix3d Rwb1 = last_frame->last_keyframe->R();
         Vector3d Vwb1 = last_frame->last_keyframe->Vw;
         Matrix3d Rwb2 = Rwb1 * last_frame->preintegration->GetUpdatedDeltaRotation();
         Vector3d twb2 = twb1 + Vwb1 * sum_dt + 0.5f * sum_dt * sum_dt * G + Rwb1 * last_frame->preintegration->GetUpdatedDeltaPosition();
@@ -460,8 +460,8 @@ void Frontend::PredictState()
 {
     Vector3d G(0, 0, -Imu::Get()->G);
     double sum_dt = current_frame->preintegration_last->sum_dt;
-    Vector3d twb1 = last_frame->GetPosition();
-    Matrix3d Rwb1 = last_frame->GetRotation();
+    Vector3d twb1 = last_frame->t();
+    Matrix3d Rwb1 = last_frame->R();
     Vector3d Vwb1 = last_frame->Vw;
     Matrix3d Rwb2 = normalize_R(Rwb1 * current_frame->preintegration_last->GetDeltaRotation(last_frame->bias).toRotationMatrix());
     Vector3d twb2 = twb1 + Vwb1 * sum_dt + 0.5f * sum_dt * sum_dt * G + Rwb1 * current_frame->preintegration_last->GetDeltaPosition(last_frame->bias);

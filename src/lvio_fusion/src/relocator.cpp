@@ -94,8 +94,8 @@ bool Relocator::DetectLoop(Frame::Ptr frame, Frame::Ptr &old_frame)
     for (auto pair : active_kfs)
     {
         PointI p;
-        p.x = pair.second->GetPosition().x();
-        p.y = pair.second->GetPosition().y();
+        p.x = pair.second->t().x();
+        p.y = pair.second->t().y();
         p.z = 0;
         p.intensity = pair.second->id;
         map[p.intensity] = pair.first;
@@ -104,8 +104,8 @@ bool Relocator::DetectLoop(Frame::Ptr frame, Frame::Ptr &old_frame)
     if (points.empty())
         return false;
     PointI p;
-    p.x = frame->GetPosition().x();
-    p.y = frame->GetPosition().y();
+    p.x = frame->t().x();
+    p.y = frame->t().y();
     p.z = 0;
     std::vector<int> points_index;
     std::vector<float> points_distance;
@@ -137,7 +137,7 @@ bool Relocator::Relocate(Frame::Ptr frame, Frame::Ptr old_frame)
     frame->loop_closure->score = 0;
     // put it on the same level
     SE3d init_pose = frame->pose;
-    init_pose.translation().z() = old_frame->GetPosition().z();
+    init_pose.translation().z() = old_frame->t().z();
     frame->loop_closure->relative_o_c = old_frame->pose.inverse() * init_pose;
     // check its orientation
     double rpyxyz_o[6], rpyxyz_i[6], rpy_o_i[3];

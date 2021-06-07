@@ -52,12 +52,12 @@ SE3d get_pose_from_two_points(const Vector3d &a, const Vector3d &b)
     return rpyxyz2se3(rpyxyz);
 }
 
-int optical_flow(cv::Mat &prevImg, cv::Mat &nextImg,
-                 std::vector<cv::Point2f> &prevPts, std::vector<cv::Point2f> &nextPts,
-                 std::vector<uchar> &status)
+void optical_flow(cv::Mat &prevImg, cv::Mat &nextImg,
+                  std::vector<cv::Point2f> &prevPts, std::vector<cv::Point2f> &nextPts,
+                  std::vector<uchar> &status)
 {
     if (prevPts.empty())
-        return 0;
+        return;
 
     cv::Mat err;
     cv::calcOpticalFlowPyrLK(prevImg, nextImg, prevPts, nextPts, status, err, cv::Size(21, 21), 3, cv::TermCriteria(cv::TermCriteria::COUNT + cv::TermCriteria::EPS, 30, 0.01), cv::OPTFLOW_USE_INITIAL_FLOW);
@@ -65,7 +65,7 @@ int optical_flow(cv::Mat &prevImg, cv::Mat &nextImg,
     std::vector<uchar> reverse_status;
     std::vector<cv::Point2f> reverse_pts = prevPts;
     cv::calcOpticalFlowPyrLK(
-        nextImg, prevImg, nextPts, reverse_pts, reverse_status, err, cv::Size(3, 3), 1,
+        nextImg, prevImg, nextPts, reverse_pts, reverse_status, err, cv::Size(3, 3), 3,
         cv::TermCriteria(cv::TermCriteria::COUNT + cv::TermCriteria::EPS, 30, 0.01),
         cv::OPTFLOW_USE_INITIAL_FLOW);
 
@@ -83,7 +83,6 @@ int optical_flow(cv::Mat &prevImg, cv::Mat &nextImg,
         else
             status[i] = 0;
     }
-    return num_success_pts;
 }
 
 Vector3d R2ypr(const Matrix3d &R)

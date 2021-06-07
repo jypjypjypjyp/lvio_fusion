@@ -97,17 +97,18 @@ SE3d Map::ComputePose(double time)
     double t_t = frame2->time - frame1->time;
     double s = d_t / t_t;
     Quaterniond q = frame1->pose.unit_quaternion().slerp(s, frame2->pose.unit_quaternion());
-    Vector3d t = (1 - s) * frame1->GetPosition() + s * frame2->GetPosition();
+    Vector3d t = (1 - s) * frame1->t() + s * frame2->t();
     return SE3d(q, t);
 }
 
-void Map::ApplyScaledRotation(const Matrix3d &R)
+void Map::ApplyGravityRotation(const Matrix3d &R)
 {
-    for(auto iter:keyframes)
+    Quaterniond q(R);
+    for (auto pair : keyframes)
     {
-        Frame::Ptr keyframe=iter .second;
-        keyframe->SetPose(R*keyframe->pose.rotationMatrix(),R*keyframe->pose.translation());
-        keyframe->Vw=R*keyframe->Vw;
+        Frame::Ptr frame = pair.second;
+        frame->SetPose(q * frame->R(), q * frame->t());
+        frame->Vw = q * frame->Vw;
     }
 }
 

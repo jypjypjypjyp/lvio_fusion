@@ -476,7 +476,7 @@ void Extractor::ComputePyramid(cv::Mat image)
     }
 }
 
-void Extractor::Detect(Mat image, Mat mask, vector<vector<KeyPoint>> &keypoints)
+void Extractor::Detect(Mat image, vector<vector<KeyPoint>> &keypoints)
 {
     keypoints.clear();
     assert(image.type() == CV_8UC1);
