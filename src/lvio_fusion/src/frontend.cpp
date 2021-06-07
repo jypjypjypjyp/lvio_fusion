@@ -289,13 +289,11 @@ bool Frontend::InitMap()
     {
         status = FrontendStatus::TRACKING;
     }
-
     // the first frame is a keyframe
     Map::Instance().InsertKeyFrame(current_frame);
     last_keyframe = current_frame;
     preintegration_last_kf_ = nullptr;
     LOG(INFO) << "Initial map created with " << num_new_features << " map points";
-
     // update backend because we have a new keyframe
     backend_.lock()->UpdateMap();
     return true;
@@ -310,16 +308,13 @@ void Frontend::CreateKeyframe()
         auto landmark = feature->landmark.lock();
         landmark->AddObservation(feature);
     }
-
     // detect new features, track in right image and triangulate map points
     local_map.AddKeyFrame(current_frame);
-
     // insert!
     Map::Instance().InsertKeyFrame(current_frame);
     last_keyframe = current_frame;
     preintegration_last_kf_ = nullptr;
     LOG(INFO) << "Add a keyframe " << current_frame->id;
-
     // update backend because we have a new keyframe
     backend_.lock()->UpdateMap();
 }
@@ -395,7 +390,6 @@ void Frontend::Preintegrate()
             break;
         }
     }
-
     // preintegrate
     int n = imu_from_last_frame.size();
     auto preintegration_last_frame = imu::Preintegration::Create(last_frame->bias);

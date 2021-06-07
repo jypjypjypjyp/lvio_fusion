@@ -138,11 +138,11 @@ void LocalMap::GetFeaturePyramid(Frame::Ptr frame, Pyramid &pyramid)
     cv::Mat mask = cv::Mat(frame->image_left.size(), CV_8UC1, 255);
     for (auto &pair_feature : frame->features_left)
     {
-        cv::circle(mask, pair_feature.second->keypoint.pt, extractor_.patch_size, 0, cv::FILLED);
+        cv::circle(mask, pair_feature.second->keypoint.pt, extractor_.half_patch_size, 0, cv::FILLED);
     }
 
     std::vector<std::vector<cv::KeyPoint>> kps;
-    extractor_.Detect(frame->image_left, mask, kps);
+    extractor_.Detect(frame->image_left, kps);
 
     pyramid.clear();
     pyramid.resize(num_levels_);
@@ -151,8 +151,12 @@ void LocalMap::GetFeaturePyramid(Frame::Ptr frame, Pyramid &pyramid)
         pyramid[i].reserve(kps[i].size());
         for (auto &kp : kps[i])
         {
-            pyramid[i].push_back(visual::Feature::Create(frame, kp));
+            if (mask.at<uchar>(kp.pt) != 0)
+            {
+                pyramid[i].push_back(visual::Feature::Create(frame, kp));
+            }
         }
+        pyramid[i].shrink_to_fit();
     }
 }
 
