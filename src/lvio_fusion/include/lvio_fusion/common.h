@@ -55,6 +55,5 @@ public:
 // system config
 extern const double epsilon;
 extern const int num_threads;
-extern const double max_speed;
 
 #endif // lvio_fusion_COMMON_H

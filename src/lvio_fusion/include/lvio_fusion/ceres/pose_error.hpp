@@ -7,56 +7,56 @@
 namespace lvio_fusion
 {
 
-class VehicleError : public ceres::Error
-{
-public:
-    VehicleError(double dt, double y, double p, double r, double weight) : dt_(dt), y_(y), p_(p), r_(r), Error(weight) {}
+// class VehicleError : public ceres::Error
+// {
+// public:
+//     VehicleError(double dt, double y, double p, double r, double weight) : dt_(dt), y_(y), p_(p), r_(r), Error(weight) {}
 
-    template <typename T>
-    bool operator()(const T *Twc1, const T *Twc2, T *residuals) const
-    {
-        T Twc1_inverse[7], relative_i_j[7], relative[6], norm;
-        ceres::SE3Inverse(Twc1, Twc1_inverse);
-        ceres::SE3Product(Twc1_inverse, Twc2, relative_i_j);
-        ceres::SE3ToRpyxyz(relative_i_j, relative);
-        ceres::Norm(relative + 3, &norm);
-        residuals[0] = residuals[1] = residuals[2] = residuals[3] = residuals[4] = residuals[5] = T(0);
-        if (abs(relative[0]) > T(y_))
-        {
-            residuals[0] = T(weight_) * (abs(relative[0]) - T(y_)) * relative[3];
-        }
-        if (abs(relative[1]) > T(p_))
-        {
-            residuals[1] = T(weight_) * (abs(relative[1]) - T(p_)) * relative[3];
-        }
-        if (abs(relative[2]) > T(r_))
-        {
-            residuals[2] = T(weight_) * (abs(relative[2]) - T(r_)) * relative[3];
-        }
-        if (norm > T(max_speed * dt_))
-        {
-            residuals[4] = T(weight_) * (norm - T(max_speed * dt_));
-        }
-        if (abs(relative[4]) > tan(abs(relative[0])) * relative[3])
-        {
-            residuals[5] = T(weight_) * (abs(relative[4]) - tan(abs(relative[1])) * relative[3]);
-        }
-        if (abs(relative[5]) > tan(abs(relative[1])) * relative[3])
-        {
-            residuals[6] = T(weight_) * (abs(relative[5]) - tan(abs(relative[2])) * relative[3]);
-        }
-        return true;
-    }
+//     template <typename T>
+//     bool operator()(const T *Twc1, const T *Twc2, T *residuals) const
+//     {
+//         T Twc1_inverse[7], relative_i_j[7], relative[6], norm;
+//         ceres::SE3Inverse(Twc1, Twc1_inverse);
+//         ceres::SE3Product(Twc1_inverse, Twc2, relative_i_j);
+//         ceres::SE3ToRpyxyz(relative_i_j, relative);
+//         ceres::Norm(relative + 3, &norm);
+//         residuals[0] = residuals[1] = residuals[2] = residuals[3] = residuals[4] = residuals[5] = T(0);
+//         if (abs(relative[0]) > T(y_))
+//         {
+//             residuals[0] = T(weight_) * (abs(relative[0]) - T(y_)) * relative[3];
+//         }
+//         if (abs(relative[1]) > T(p_))
+//         {
+//             residuals[1] = T(weight_) * (abs(relative[1]) - T(p_)) * relative[3];
+//         }
+//         if (abs(relative[2]) > T(r_))
+//         {
+//             residuals[2] = T(weight_) * (abs(relative[2]) - T(r_)) * relative[3];
+//         }
+//         if (norm > T(max_speed * dt_))
+//         {
+//             residuals[4] = T(weight_) * (norm - T(max_speed * dt_));
+//         }
+//         if (abs(relative[4]) > tan(abs(relative[0])) * relative[3])
+//         {
+//             residuals[5] = T(weight_) * (abs(relative[4]) - tan(abs(relative[1])) * relative[3]);
+//         }
+//         if (abs(relative[5]) > tan(abs(relative[1])) * relative[3])
+//         {
+//             residuals[6] = T(weight_) * (abs(relative[5]) - tan(abs(relative[2])) * relative[3]);
+//         }
+//         return true;
+//     }
 
-    static ceres::CostFunction *Create(double dt, double y = 0.5, double p = 0.2, double r = 0.1, double weight = 1)
-    {
-        return (new ceres::AutoDiffCostFunction<VehicleError, 6, 7, 7>(new VehicleError(dt, y, p, r, weight)));
-    }
+//     static ceres::CostFunction *Create(double dt, double y = 0.5, double p = 0.2, double r = 0.1, double weight = 1)
+//     {
+//         return (new ceres::AutoDiffCostFunction<VehicleError, 6, 7, 7>(new VehicleError(dt, y, p, r, weight)));
+//     }
 
-private:
-    double y_, p_, r_;
-    double dt_;
-};
+// private:
+//     double y_, p_, r_;
+//     double dt_;
+// };
 
 class PoseGraphError : public ceres::Error
 {

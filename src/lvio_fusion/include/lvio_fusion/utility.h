@@ -213,6 +213,17 @@ Matrix3d normalize_R(const Matrix3d &R_);
 
 Matrix3d get_R_from_vector(Vector3d vec);
 
+inline bool operator==(Quaterniond &a, Quaterniond &b)
+{
+    auto na = a.normalized(), nb = b.normalized();
+    return na.w() == nb.w() && na.x() == nb.x() && na.y() == nb.y() && na.z() == nb.z();
+}
+
+inline bool operator==(SE3d &a, SE3d &b)
+{
+    Quaterniond qa = a.unit_quaternion(), qb = b.unit_quaternion();
+    return a.translation() == b.translation() && qa == qb;
+}
 } // namespace lvio_fusion
 
 #endif // lvio_fusion_UTILITY_H

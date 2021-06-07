@@ -8,7 +8,6 @@
 
 const double epsilon = 1e-3;
 const int num_threads = std::min(8, std::max(1, (int)(0.75 * get_nprocs())));
-const double max_speed = 40;
 
 namespace lvio_fusion
 {

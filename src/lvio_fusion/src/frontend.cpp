@@ -48,28 +48,22 @@ void Frontend::AddImu(double time, Vector3d acc, Vector3d gyr)
 bool check_velocity(SE3d &current_pose, SE3d last_pose, double dt)
 {
     double relative[6], abs[6];
-    ceres::SE3ToRpyxyz((last_pose.inverse() * current_pose).data(), relative);
+    SE3d r = (last_pose.inverse() * current_pose);
+    ceres::SE3ToRpyxyz(r.data(), relative);
     for (int i = 0; i < 6; i++)
     {
         abs[i] = std::fabs(relative[i]);
     }
-    // speed is lower than 40m/s, and vy,vz change slowly.
-    if (relative[3] / dt < max_speed)
-    {
-        relative[0] = (relative[0] / abs[0]) * std::min(abs[0], 0.2);
-        relative[1] = (relative[1] / abs[1]) * std::min(abs[1], 0.1);
-        relative[2] = (relative[2] / abs[2]) * std::min(abs[2], 0.01);
-        relative[4] = (relative[0] / abs[0]) * std::min(tan(abs[0]) * relative[3], abs[4]);
-        relative[5] = (relative[1] / abs[1]) * std::min(tan(abs[1]) * relative[3], abs[5]);
-        SE3d relative_i_j;
-        ceres::RpyxyzToSE3(relative, relative_i_j.data());
-        current_pose = last_pose * relative_i_j;
-        return true;
-    }
-    else
-    {
-        return false;
-    }
+    // vy,vz change slowly.
+    relative[0] = (relative[0] >= 0 ? 1 : -1) * std::min(abs[0], 0.2);
+    relative[1] = (relative[1] >= 0 ? 1 : -1) * std::min(abs[1], 0.1);
+    relative[2] = (relative[2] >= 0 ? 1 : -1) * std::min(abs[2], 0.01);
+    relative[4] = (relative[0] >= 0 ? 1 : -1) * std::min(tan(abs[0]) * relative[3], abs[4]);
+    relative[5] = (relative[1] >= 0 ? 1 : -1) * std::min(tan(abs[1]) * relative[3], abs[5]);
+    SE3d relative_i_j;
+    ceres::RpyxyzToSE3(relative, relative_i_j.data());
+    current_pose = last_pose * relative_i_j;
+    return true;
 }
 
 void Frontend::InitFrame()
@@ -88,20 +82,10 @@ void Frontend::InitFrame()
             success = check_velocity(current_frame->pose, last_frame_pose_cache_, dt_);
         }
     }
-    else if (Navsat::Num() && Navsat::Get()->initialized)
+    if (Navsat::Num() && Navsat::Get()->initialized)
     {
-        static bool has_last_pose = false;
-        static SE3d last_navsat_pose;
-        SE3d navsat_pose = Navsat::Get()->GetAroundPose(current_frame->time);
-        if (has_last_pose)
-        {
-            // relative navsat pose
-            current_frame->pose = last_frame_pose_cache_ * last_navsat_pose.inverse() * navsat_pose;
-            success = check_velocity(current_frame->pose, last_frame_pose_cache_, dt_);
-            LOG(INFO) << (success ? "success" : "failed");
-        }
-        last_navsat_pose = navsat_pose;
-        has_last_pose = true;
+        current_frame->pose.translation() = Navsat::Get()->GetFixPoint(current_frame);
+        success = check_velocity(current_frame->pose, last_frame_pose_cache_, dt_);
     }
     if (!success)
     {
@@ -213,10 +197,10 @@ int Frontend::TrackLastFrame()
     }
 
     bool use_imu = Imu::Num() && Imu::Get()->initialized && current_frame->preintegration_last;
-    bool use_pnp = (int)points_2d_near.size() > num_features_tracking_bad_;
-    bool use_far = (int)points_2d_far.size() > num_features_tracking_bad_;
+    bool use_pnp = (int)(points_2d_near.size()) > num_features_tracking_bad_;
+    bool enough = (int)(points_2d_near.size() + points_2d_far.size()) > num_features_tracking_bad_;
     int num_good_pts = 0;
-    if (use_far || use_pnp)
+    if (enough)
     {
         // near
         bool success = false;
