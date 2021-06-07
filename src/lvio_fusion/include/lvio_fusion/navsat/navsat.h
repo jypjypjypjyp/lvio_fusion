@@ -35,9 +35,7 @@ public:
     Vector3d GetFixPoint(Frame::Ptr frame);
     Vector3d GetRawPoint(double time);
     Vector3d GetPoint(double time);
-
     Vector3d GetAroundPoint(double time);
-    SE3d GetAroundPose(double time);
 
     void Optimize(const Section &section);
     void QuickFix(double start, double end);

@@ -69,32 +69,6 @@ Vector3d Navsat::GetAroundPoint(double time)
     return extrinsic * iter->second;
 }
 
-SE3d Navsat::GetAroundPose(double time)
-{
-    auto iter1 = raw.lower_bound(time);
-    auto iter2 = iter1--;
-    if (iter2 == raw.begin())
-    {
-        iter1--;
-        iter2--;
-    }
-    Vector3d p1 = extrinsic * iter1->second;
-    Vector3d p2 = extrinsic * iter2->second;
-    while (iter1 != raw.begin())
-    {
-        if ((p1 - p2).norm() > 2)
-        {
-            return get_pose_from_two_points(p1, p2);
-        }
-        else
-        {
-            iter1--;
-            p1 = extrinsic * iter1->second;
-        }
-    }
-    return SE3d();
-}
-
 void Navsat::Initialize()
 {
     Frames keyframes = Map::Instance().keyframes;
