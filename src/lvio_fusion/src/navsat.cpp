@@ -164,7 +164,7 @@ void Navsat::QuickFix(double start, double end)
                 break;
             }
         }
-        if (has_half && frames_distance(new_time, half_time) > 50)
+        if (has_half && frames_distance(new_time, half_time) > 30)
         {
             PoseGraph::Instance().AddSection(new_time);
             A = Map::Instance().GetKeyFrame(new_time);
