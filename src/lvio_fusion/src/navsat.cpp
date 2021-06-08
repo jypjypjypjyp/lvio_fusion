@@ -28,7 +28,7 @@ void Navsat::AddPoint(double time, double x, double y, double z, Vector3d cov)
         pair.second->feature_navsat = navsat::Feature::Ptr(new navsat::Feature(pair.first, cov));
         finished = pair.first + epsilon;
     }
-    if (!initialized && !Map::Instance().keyframes.empty() && frames_distance(0, -1) >10 )
+    if (!initialized && !Map::Instance().keyframes.empty() && frames_distance(0, -1) > min_distance_fix_)
     {
         Initialize();
     }
@@ -111,6 +111,7 @@ void Navsat::Optimize(const Section &section)
     auto C = Map::Instance().GetKeyFrame(section.C);
     SE3d old_B = B->pose;
     // first, optimize B's position
+    // do not use all keyframes in BC, too much frames is not good
     OptimizeRX(B, section.C, section.C, 0b000000);
     // second, optimize A - B
     // OptimizeAB(A, B, old_B);
@@ -132,45 +133,46 @@ inline double navsat_distance(Frame::Ptr frame)
 
 void Navsat::QuickFix(double start, double end)
 {
-    if (PoseGraph::Instance().turning && frames_distance(PoseGraph::Instance().current_section.B, end) > 40)
+    if (PoseGraph::Instance().turning &&
+        frames_distance(PoseGraph::Instance().current_section.B, end) > min_distance_fix_)
         return;
     auto A = Map::Instance().GetKeyFrame(start);
     auto B = Map::Instance().GetKeyFrame(PoseGraph::Instance().current_section.B);
     auto C = Map::Instance().GetKeyFrame(end);
     // add section if need
-    if (C->feature_navsat && C->feature_navsat->cov.norm() < 30 &&
-        navsat_distance(C) > 2 * accuracy_ && frames_distance(B->time, C->time) > 200)
-    {
-        bool has_half = false;
-        double new_time = 0, half_time = 0;
-        double dc = navsat_distance(C);
-        Frames active_kfs = Map::Instance().GetKeyFrames(B->time, C->time);
-        for (auto iter = active_kfs.rbegin(); iter != active_kfs.rend(); iter++)
-        {
-            double d = navsat_distance(iter->second);
-            if (d > dc)
-            {
-                dc = d;
-                has_half = false;
-            }
-            if (d < dc / 2 && d > accuracy_)
-            {
-                half_time = has_half ? half_time : iter->first;
-                has_half = true;
-            }
-            else if (d < accuracy_)
-            {
-                new_time = iter->first;
-                break;
-            }
-        }
-        if (has_half && frames_distance(new_time, half_time) > 30)
-        {
-            PoseGraph::Instance().AddSection(new_time);
-            A = Map::Instance().GetKeyFrame(new_time);
-            B = A;
-        }
-    }
+    // if (C->feature_navsat && C->feature_navsat->cov.norm() < 30 &&
+    //     navsat_distance(C) > 2 * accuracy_ && frames_distance(B->time, C->time) > 200)
+    // {
+    //     bool has_half = false;
+    //     double new_time = 0, half_time = 0;
+    //     double dc = navsat_distance(C);
+    //     Frames active_kfs = Map::Instance().GetKeyFrames(B->time, C->time);
+    //     for (auto iter = active_kfs.rbegin(); iter != active_kfs.rend(); iter++)
+    //     {
+    //         double d = navsat_distance(iter->second);
+    //         if (d > dc)
+    //         {
+    //             dc = d;
+    //             has_half = false;
+    //         }
+    //         if (d < dc / 2 && d > accuracy_)
+    //         {
+    //             half_time = has_half ? half_time : iter->first;
+    //             has_half = true;
+    //         }
+    //         else if (d < accuracy_)
+    //         {
+    //             new_time = iter->first;
+    //             break;
+    //         }
+    //     }
+    //     if (has_half && frames_distance(new_time, half_time) > 30)
+    //     {
+    //         PoseGraph::Instance().AddSection(new_time);
+    //         A = Map::Instance().GetKeyFrame(new_time);
+    //         B = A;
+    //     }
+    // }
     // fix
     Section section = {A->time, B->time, C->time};
     Navsat::Optimize(section);
@@ -180,7 +182,7 @@ void Navsat::QuickFix(double start, double end)
 void Navsat::OptimizeRX(Frame::Ptr frame, double end, double forward, unsigned char mode)
 {
     // rotation's optimization need longer path
-    if ((mode & 0b000111) != 0b000111 && frames_distance(frame->time, end) < 10)
+    if ((mode & 0b000111) != 0b000111 && frames_distance(frame->time, end) < min_distance_fix_)
         return;
     SE3d old_pose = frame->pose;
     ceres::Problem problem;
@@ -199,7 +201,6 @@ void Navsat::OptimizeRX(Frame::Ptr frame, double end, double forward, unsigned c
         if (mode & (1 << i))
             problem.SetParameterBlockConstant(para + i);
     }
-
     // if para includes roll, ensure that vehicle can not roll over
     if ((mode & 0b000100) == 0)
     {
@@ -217,6 +218,11 @@ void Navsat::OptimizeRX(Frame::Ptr frame, double end, double forward, unsigned c
         ceres::Solve(options, &problem, &summary);
         problem.SetParameterBlockConstant(para + 2);
     }
+    // // if distance is too small, dont optimize pitch
+    // if ((mode & 0b000010) == 0 && frames_distance(frame->time, end) < min_distance_fix_)
+    // {
+    //     problem.SetParameterBlockConstant(para + 2);
+    // }
 
     for (auto &pair : active_kfs)
     {

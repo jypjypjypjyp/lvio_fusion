@@ -45,7 +45,7 @@ public:
     Vector3d fix = Vector3d::Zero();
 
 private:
-    Navsat(double accuracy) : accuracy_(accuracy), Sensor(SE3d()) {}
+    Navsat(double accuracy) : accuracy_(accuracy), min_distance_fix_(10 * accuracy), Sensor(SE3d()) {}
     Navsat(const Navsat &);
     Navsat &operator=(const Navsat &);
 
@@ -57,6 +57,7 @@ private:
 
     static std::vector<Navsat::Ptr> devices_;
     double accuracy_;
+    double min_distance_fix_;
 };
 
 } // namespace lvio_fusion

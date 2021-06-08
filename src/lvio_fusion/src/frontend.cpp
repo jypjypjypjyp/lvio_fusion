@@ -1,7 +1,6 @@
 #include "lvio_fusion/frontend.h"
 #include "lvio_fusion/backend.h"
 #include "lvio_fusion/map.h"
-#include "lvio_fusion/navsat/navsat.h"
 #include "lvio_fusion/utility.h"
 #include "lvio_fusion/visual/camera.h"
 #include "lvio_fusion/visual/feature.h"
@@ -81,11 +80,6 @@ void Frontend::InitFrame()
             PredictState();
             success = check_velocity(current_frame->pose, last_frame_pose_cache_, dt_);
         }
-    }
-    if (Navsat::Num() && Navsat::Get()->initialized)
-    {
-        current_frame->pose.translation() = Navsat::Get()->GetFixPoint(current_frame);
-        success = check_velocity(current_frame->pose, last_frame_pose_cache_, dt_);
     }
     if (!success)
     {

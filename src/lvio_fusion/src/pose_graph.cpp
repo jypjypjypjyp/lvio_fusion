@@ -106,7 +106,7 @@ void PoseGraph::UpdateSections(double time)
             Vector3d last_ori = get_ori(last_buf), current_ori = get_ori(buf);
             double degree = vectors_degree_angle(last_ori, current_ori);
             // turning requires
-            if (!turning && (degree >= 20 || vectors_degree_angle(get_ori(current_section.B), current_ori) > 20))
+            if (!turning && (degree >= 10 || vectors_degree_angle(get_ori(current_section.B), current_ori) > 10))
             {
                 // if we have enough keyframes and total degree, create new section
                 if (current_section.A == current_section.B ||
