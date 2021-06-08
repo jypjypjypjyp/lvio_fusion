@@ -65,7 +65,7 @@ void optical_flow(cv::Mat &prevImg, cv::Mat &nextImg,
     std::vector<uchar> reverse_status;
     std::vector<cv::Point2f> reverse_pts = prevPts;
     cv::calcOpticalFlowPyrLK(
-        nextImg, prevImg, nextPts, reverse_pts, reverse_status, err, cv::Size(3, 3), 3,
+        nextImg, prevImg, nextPts, reverse_pts, reverse_status, err, cv::Size(3, 3), 1,
         cv::TermCriteria(cv::TermCriteria::COUNT + cv::TermCriteria::EPS, 30, 0.01),
         cv::OPTFLOW_USE_INITIAL_FLOW);
 

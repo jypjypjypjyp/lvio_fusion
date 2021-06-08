@@ -170,7 +170,6 @@ int Frontend::TrackLastFrame()
         }
     }
     optical_flow(last_frame->image_left, current_frame->image_left, kps_last, kps_current, status);
-
     // Solve PnP
     std::vector<cv::Point3f> points_3d_far, points_3d_near;
     std::vector<cv::Point2f> points_2d_far, points_2d_near;
@@ -243,7 +242,6 @@ int Frontend::TrackLastFrame()
             }
             success = true;
         }
-
         // far
         for (auto &i : map_far)
         {

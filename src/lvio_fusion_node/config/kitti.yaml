@@ -85,7 +85,7 @@ body_to_lidar: !!opencv-matrix
 num_features: 500
 num_features_init: 50
 num_features_tracking_bad: 20
-num_features_needed_for_keyframe: 40
+num_features_needed_for_keyframe: 120
 
 # backend
 windows_size: 3

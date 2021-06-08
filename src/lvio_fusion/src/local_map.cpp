@@ -4,8 +4,6 @@
 #include "lvio_fusion/utility.h"
 #include "lvio_fusion/visual/camera.h"
 
-#include <fstream>
-
 namespace lvio_fusion
 {
 
@@ -135,12 +133,7 @@ void LocalMap::UpdateCache()
 
 void LocalMap::GetFeaturePyramid(Frame::Ptr frame, Pyramid &pyramid)
 {
-    // set mask
-    cv::Mat mask = cv::Mat(frame->image_left.size(), CV_8UC1, 255);
-    for (auto &pair_feature : frame->features_left)
-    {
-        cv::circle(mask, pair_feature.second->keypoint.pt, extractor_.half_patch_size, 0, cv::FILLED);
-    }
+    // we don't use a mask. new feature can overlap the old.
     // detect
     std::vector<std::vector<cv::KeyPoint>> kps;
     extractor_.Detect(frame->image_left, kps);
@@ -152,10 +145,7 @@ void LocalMap::GetFeaturePyramid(Frame::Ptr frame, Pyramid &pyramid)
         pyramid[i].reserve(kps[i].size());
         for (auto &kp : kps[i])
         {
-            if (mask.at<uchar>(kp.pt) != 0)
-            {
-                pyramid[i].push_back(visual::Feature::Create(frame, kp));
-            }
+            pyramid[i].push_back(visual::Feature::Create(frame, kp));
         }
         pyramid[i].shrink_to_fit();
     }
@@ -283,7 +273,6 @@ void LocalMap::Triangulate(Frame::Ptr frame, Level &features)
                     new_landmark->AddObservation(new_right_feature);
                     position_cache[new_landmark->id] = ToWorld(features[i]);
                     landmarks[new_landmark->id] = new_landmark;
-                    cv::circle(img_track, kps_left[i], 2, cv::Scalar(255, 0, 0), cv::FILLED);
                 }
                 else
                 {
@@ -397,6 +386,7 @@ void LocalMap::Search(Pyramid &last_pyramid, SE3d last_pose, visual::Feature::Pt
             last_frame->AddFeature(last_landmark->first_observation);
             Map::Instance().InsertLandmark(last_landmark);
         }
+        cv::circle(img_track, feature->keypoint.pt, 2, cv::Scalar(255, 0, 0), cv::FILLED);
     }
 }
 
