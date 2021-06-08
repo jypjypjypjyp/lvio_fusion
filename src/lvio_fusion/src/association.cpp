@@ -30,7 +30,7 @@ void FeatureAssociation::AddScan(double time, Point3Cloud::Ptr new_scan)
         PointICloud point_cloud;
         if ((!last_frame || (pair.second->GetPosition() - last_frame->GetPosition()).norm() > spacing_) && AlignScan(pair.first, point_cloud))
         {
-           if(gridmap_)
+           if(gridmap_)     
                 gridmap_->AddFrame(pair.second);//NAVI
             Process(point_cloud, pair.second);
             finished = pair.first + epsilon;
@@ -226,8 +226,15 @@ void FeatureAssociation::ExtractFeatures(PointICloud &points_segmented, Segmente
     pcl::copyPointCloud(points_ground, *temp);
     voxel_filter.setInputCloud(temp);
     voxel_filter.filter(points_ground);
-
-    SegmentGround(points_ground);
+    if(points_ground.size()>0)//NAVI
+    {
+        SegmentGround(points_ground);
+        LOG(INFO)<<"points_ground"<<points_ground.size();
+    }
+    else
+    {
+        LOG(INFO)<<"points_surf"<<points_surf.size();
+    }
 
     lidar::Feature::Ptr feature = lidar::Feature::Create();
     Sensor2Robot(points_ground, feature->points_ground);

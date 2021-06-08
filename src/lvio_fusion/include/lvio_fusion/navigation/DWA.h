@@ -19,7 +19,10 @@ namespace lvio_fusion
    class State
     {
     public:
-        State(double, double, double, double, double);
+        State(double _x, double _y, double _yaw, double _velocity, double _yawrate)
+            :x(_x), y(_y), yaw(_yaw), velocity(_velocity), yawrate(_yawrate)
+        {
+        }
 
         double x;// robot position x
         double y;// robot posiiton y
@@ -32,8 +35,15 @@ namespace lvio_fusion
     class Window
     {
     public:
-        Window(void);
-        Window(const double, const double, const double, const double);
+       Window(void)
+        :min_velocity(0.0), max_velocity(0.0), min_yawrate(0.0), max_yawrate(0.0)
+        {
+        }
+
+        Window(const double min_v, const double max_v, const double min_y, const double max_y)
+            :min_velocity(min_v), max_velocity(max_v), min_yawrate(min_y), max_yawrate(max_y)
+        {
+        }
         double min_velocity;
         double max_velocity;
         double min_yawrate;
@@ -100,21 +110,26 @@ namespace lvio_fusion
             //     ROS_INFO("==========================================");
             //     double start = ros::Time::now().toSec();
             bool input_updated = false;
-                if(scan_updated){
+                if(USE_SCAN_AS_INPUT && scan_updated){
+                    input_updated = true;
+                }else if(!USE_SCAN_AS_INPUT && local_map_updated){
                     input_updated = true;
                 }
-
             if(input_updated && local_goal_subscribed && odom_updated){
                 Window dynamic_window = calc_dynamic_window(current_velocity);
                 Eigen::Vector3d goal(local_goal.pose.position.x, local_goal.pose.position.y, tf::getYaw(local_goal.pose.orientation));
-                // ROS_INFO_STREAM("local goal: (" << goal[0] << "," << goal[1] << "," << goal[2]/M_PI*180 << ")");
+            //         ROS_INFO_STREAM("local goal: (" << goal[0] << "," << goal[1] << "," << goal[2]/M_PI*180 << ")");
 
-                    geometry_msgs::Twist cmd_vel;
+                     geometry_msgs::Twist cmd_vel;
                     if(goal.segment(0, 2).norm() > GOAL_THRESHOLD){
                         std::vector<std::vector<float>> obs_list;
-
-                        obs_list = scan_to_obs();
-                        scan_updated = false;
+                        if(USE_SCAN_AS_INPUT){
+                            obs_list = scan_to_obs();
+                            scan_updated = false;
+                        }else{
+                            obs_list = raycast();
+                            local_map_updated = false;
+                        }
 
                         std::vector<State> best_traj = dwa_planning(dynamic_window, goal, obs_list);
 
@@ -131,7 +146,7 @@ namespace lvio_fusion
                         }
                     }
             //         ROS_INFO_STREAM("cmd_vel: (" << cmd_vel.linear.x << "[m/s], " << cmd_vel.angular.z << "[rad/s])");
-            //         velocity_pub.publish(cmd_vel);
+                    velocity_pub.publish(cmd_vel);
 
             //         odom_updated = false;
                  }
@@ -202,6 +217,7 @@ namespace lvio_fusion
             state.velocity = velocity;
             state.yawrate = yawrate;
         }
+
         std::vector<std::vector<float>> scan_to_obs()
         {
             std::vector<std::vector<float>> obs_list;
@@ -215,6 +231,7 @@ namespace lvio_fusion
             }
             return obs_list;
         }
+
         std::vector<std::vector<float>> raycast()
         {
             std::vector<std::vector<float>> obs_list;
@@ -235,6 +252,35 @@ namespace lvio_fusion
                 }
             }
             return obs_list;
+        }
+
+        void set_local_goal(const geometry_msgs::PoseStampedConstPtr& msg)
+        {
+            local_goal = *msg;
+            try{
+                listener.transformPose(ROBOT_FRAME, ros::Time(0), local_goal, local_goal.header.frame_id, local_goal);
+                local_goal_subscribed = true;
+            }catch(tf::TransformException ex){
+                ROS_ERROR("%s", ex.what());
+            }
+        }
+
+        void set_scan(const sensor_msgs::LaserScanConstPtr& msg)
+        {
+            scan = *msg;
+            scan_updated = true;
+        }
+
+        void set_local_map(const nav_msgs::OccupancyGridConstPtr& msg)
+        {
+            local_map = *msg;
+            local_map_updated = true;
+        }
+
+        void set_odom(const nav_msgs::OdometryConstPtr& msg)
+        {
+            current_velocity = msg->twist.twist;
+            odom_updated = true;
         }
 
         protected:

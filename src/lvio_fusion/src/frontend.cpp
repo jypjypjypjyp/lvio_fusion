@@ -75,6 +75,7 @@ bool check_velocity(SE3d &current_pose, SE3d last_pose, double dt)
 void Frontend::InitFrame()
 {
     dt_ = current_frame->time - last_frame->time;
+
     current_frame->last_keyframe = last_keyframe;
     SE3d init_pose = last_frame_pose_cache_ * relative_i_j_;
     bool success = false;

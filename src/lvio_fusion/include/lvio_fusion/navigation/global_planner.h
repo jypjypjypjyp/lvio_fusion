@@ -64,12 +64,12 @@ public:
                                 dstar_planner_->updateCell(y+1,x,-1);
                                 dstar_planner_->updateCell(y+1,x+1,-1);
                             }
-                            LOG(INFO)<<"qian!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! "<<x<<"  "<<y<<"  "<<newmap.at<float>(x,y)<<" "<<costmap.at<float>(x,y);
+                           // LOG(INFO)<<"qian!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! "<<x<<"  "<<y<<"  "<<newmap.at<float>(x,y)<<" "<<costmap.at<float>(x,y);
                         }
                         else
                         {
                             dstar_planner_->updateCell(y,x,1);
-                            LOG(INFO)<<"dimian------------------------- "<<x<<"  "<<y<<"  "<<newmap.at<float>(x,y)<<" "<<costmap.at<float>(x,y);
+                           // LOG(INFO)<<"dimian------------------------- "<<x<<"  "<<y<<"  "<<newmap.at<float>(x,y)<<" "<<costmap.at<float>(x,y);
                         }
 
                     }
@@ -84,6 +84,7 @@ public:
                 for(auto state_ :plan_path)
                 {
                     plan_path_.push_back(Vector2d(resolution*(state_.x-height/2),resolution*(state_.y-width/2)));
+                    LOG(INFO)<<plan_path_.back().transpose();
                 }
                 pathupdated=true;
                 LOG(INFO)<<"PATH: "<<plan_path_.size();
