@@ -1,6 +1,7 @@
 #include "lvio_fusion/frontend.h"
 #include "lvio_fusion/backend.h"
 #include "lvio_fusion/map.h"
+#include "lvio_fusion/navsat/navsat.h"
 #include "lvio_fusion/utility.h"
 #include "lvio_fusion/visual/camera.h"
 #include "lvio_fusion/visual/feature.h"
@@ -80,6 +81,10 @@ void Frontend::InitFrame()
             PredictState();
             success = check_velocity(current_frame->pose, last_frame_pose_cache_, dt_);
         }
+    }
+    if (Navsat::Num())
+    {
+
     }
     if (!success)
     {
@@ -164,6 +169,7 @@ int Frontend::TrackLastFrame()
         }
     }
     optical_flow(last_frame->image_left, current_frame->image_left, kps_last, kps_current, status);
+    // TODO
     // Solve PnP
     std::vector<cv::Point3f> points_3d_far, points_3d_near;
     std::vector<cv::Point2f> points_2d_far, points_2d_near;

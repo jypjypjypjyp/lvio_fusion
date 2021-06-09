@@ -113,15 +113,15 @@ void Navsat::Optimize(const Section &section)
     // first, optimize B's position
     // do not use all keyframes in BC, too much frames is not good
     OptimizeRX(B, section.C, section.C, 0b000000);
-    // second, optimize A - B
-    // OptimizeAB(A, B, old_B);
-    // third, optimize others
+    // second, optimize B-C
     Frames BC = Map::Instance().GetKeyFrames(section.B + epsilon, section.C - epsilon);
     for (auto &pair : BC)
     {
         auto frame = pair.second;
         OptimizeRX(frame, frame->time + epsilon, section.C, 0b110111);
     }
+    // third, optimize A-B
+    OptimizeAB(A, B, old_B);
 }
 
 inline double navsat_distance(Frame::Ptr frame)
@@ -182,7 +182,8 @@ void Navsat::QuickFix(double start, double end)
 void Navsat::OptimizeRX(Frame::Ptr frame, double end, double forward, unsigned char mode)
 {
     // rotation's optimization need longer path
-    if ((mode & 0b000111) != 0b000111 && frames_distance(frame->time, end) < min_distance_fix_)
+    if ((mode & 0b000111) != 0b000111 &&
+        frames_distance(frame->time, end) < min_distance_fix_)
         return;
     SE3d old_pose = frame->pose;
     ceres::Problem problem;
@@ -218,11 +219,12 @@ void Navsat::OptimizeRX(Frame::Ptr frame, double end, double forward, unsigned c
         ceres::Solve(options, &problem, &summary);
         problem.SetParameterBlockConstant(para + 2);
     }
-    // // if distance is too small, dont optimize pitch
-    // if ((mode & 0b000010) == 0 && frames_distance(frame->time, end) < min_distance_fix_)
-    // {
-    //     problem.SetParameterBlockConstant(para + 2);
-    // }
+    // if distance is too small, dont optimize pitch
+    if ((mode & 0b000010) == 0 &&
+        frames_distance(frame->time, end) < 2 * min_distance_fix_)
+    {
+        problem.SetParameterBlockConstant(para + 1);
+    }
 
     for (auto &pair : active_kfs)
     {
@@ -269,7 +271,7 @@ void Navsat::OptimizeAB(Frame::Ptr A, Frame::Ptr B, SE3d old_B)
         double *para_kf = frame->pose.data();
         double *para_last_kf = last_frame->pose.data();
         problem.AddParameterBlock(para_kf, SE3d::num_parameters, local_parameterization);
-        ceres::CostFunction *cost_function1 = PoseGraphError::Create(last_frame->pose, frame->pose);
+        ceres::CostFunction *cost_function1 = PoseGraphError::Create(last_frame->pose, frame->pose, 10);
         problem.AddResidualBlock(cost_function1, NULL, para_last_kf, para_kf);
         Vector3d point = GetFixPoint(frame);
         point.z() = frame->pose.translation().z();
@@ -277,7 +279,7 @@ void Navsat::OptimizeAB(Frame::Ptr A, Frame::Ptr B, SE3d old_B)
         problem.AddResidualBlock(cost_function2, loss_function, para_kf);
         last_frame = frame;
     }
-    ceres::CostFunction *cost_function1 = PoseGraphError::Create(last_frame->pose, old_B);
+    ceres::CostFunction *cost_function1 = PoseGraphError::Create(last_frame->pose, old_B, 10);
     problem.AddResidualBlock(cost_function1, NULL, last_frame->pose.data(), B->pose.data());
 
     ceres::Solver::Options options;
