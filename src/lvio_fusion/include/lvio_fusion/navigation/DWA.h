@@ -234,11 +234,13 @@ namespace lvio_fusion
 
         std::vector<std::vector<float>> raycast()
         {
+            Vector2d robot_position_;
+            double yaw_;
             std::vector<std::vector<float>> obs_list;
             for(float angle = -M_PI; angle <= M_PI; angle += ANGLE_RESOLUTION){
                 for(float dist = 0.0; dist <= MAX_DIST; dist += local_map.info.resolution){
-                    float x = dist * cos(angle);
-                    float y = dist * sin(angle);
+                    float x = dist * cos(angle+yaw_)+robot_position_[0];
+                    float y = dist * sin(angle+yaw_)+robot_position_[1];
                     int i = floor(x / local_map.info.resolution + 0.5) + local_map.info.width * 0.5;
                     int j = floor(y / local_map.info.resolution + 0.5) + local_map.info.height * 0.5;
                     if( (i < 0 || i >= local_map.info.width) || (j < 0 || j >= local_map.info.height) ){

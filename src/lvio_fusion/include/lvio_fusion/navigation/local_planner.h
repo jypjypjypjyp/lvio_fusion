@@ -26,6 +26,11 @@ namespace lvio_fusion
             robot_position_changed=true;
         }
 
+        void SetMap(cv::Mat newmap)
+        {
+            
+        }
+
         void process()
         {
             Vector2d last_goal;
@@ -36,15 +41,15 @@ namespace lvio_fusion
                 if(robot_position_changed)
                 {
                     Vector2d goal = plan_path.front();
-                    if(sqrt((last_goal[0]-robot_pose.translation()[0])*(last_goal[0]-robot_pose.translation()[0])+(last_goal[1]-robot_pose.translation()[1])*(last_goal[1]-robot_pose.translation()[1]))>2)
+                    if(sqrt((last_goal[0]-robot_pose.translation()[0])*(last_goal[0]-robot_pose.translation()[0])+(last_goal[1]-robot_pose.translation()[1])*(last_goal[1]-robot_pose.translation()[1]))>6)
                     {
                         continue;//还没到上一个目标点
                     }
                     last_goal=goal;
                     plan_path.pop_front();
-                    if (sqrt((goal[0]-robot_pose.translation()[0])*(goal[0]-robot_pose.translation()[0])+(goal[1]-robot_pose.translation()[1])*(goal[1]-robot_pose.translation()[1]))<2)
+                    if (sqrt((goal[0]-robot_pose.translation()[0])*(goal[0]-robot_pose.translation()[0])+(goal[1]-robot_pose.translation()[1])*(goal[1]-robot_pose.translation()[1]))<6)
                     {
-                        continue;//已经到了当前目标点；
+                        continue;//已经接近当前目标点；
                     }
 
                     double goal_yaw=0;
@@ -74,7 +79,7 @@ namespace lvio_fusion
 
                 }
             }
-            if(sqrt((last_goal[0]-robot_pose.translation()[0])*(last_goal[0]-robot_pose.translation()[0])+(last_goal[1]-robot_pose.translation()[1])*(last_goal[1]-robot_pose.translation()[1]))>2)
+            if(sqrt((last_goal[0]-robot_pose.translation()[0])*(last_goal[0]-robot_pose.translation()[0])+(last_goal[1]-robot_pose.translation()[1])*(last_goal[1]-robot_pose.translation()[1]))>1)
                     {
                         continue;//还没到上一个目标点
                     }
