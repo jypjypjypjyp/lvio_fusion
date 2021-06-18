@@ -49,6 +49,10 @@ bool FeatureAssociation::AlignScan(double time, PointICloud &out)
     double end_time = iter->first + cycle_time_ / 2;
     Point3Cloud &pc1 = *((--iter)->second);
     double start_time = iter->first - cycle_time_ / 2;
+     if(pc2.size()>100000||pc1.size()>100000)
+    {
+        return false;
+    }
     Point3Cloud pc = pc1 + pc2;
     int size = pc.size();
     if (time - cycle_time_ / 2 < start_time || time + cycle_time_ / 2 > end_time)

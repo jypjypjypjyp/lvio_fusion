@@ -77,6 +77,7 @@ void Frontend::InitFrame()
     dt_ = current_frame->time - last_frame->time;
 
     current_frame->last_keyframe = last_keyframe;
+    assert(!last_keyframe || current_frame->id==last_keyframe->id+1);
     SE3d init_pose = last_frame_pose_cache_ * relative_i_j_;
     bool success = false;
     if (Imu::Num())

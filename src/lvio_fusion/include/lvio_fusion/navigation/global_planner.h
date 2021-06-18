@@ -2,6 +2,7 @@
 #define lvio_fusion_GLOBALPLANNER_H
 #include "lvio_fusion/common.h"
 #include "lvio_fusion/navigation/Dstar.h"
+#include "lvio_fusion/navigation/local_planner.h"
 
 namespace lvio_fusion
 {
@@ -97,6 +98,9 @@ public:
        pathupdated=false;
        return plan_path_;
    }
+
+    void SetLocalPlanner(Local_planner::Ptr localplanner ) { localplanner_ = localplanner; }//NAVI
+
     bool pathupdated=false;
 private:
     Dstar *dstar_planner_; // Dstar planner
@@ -108,6 +112,7 @@ private:
     int width;
     int height;
     double resolution;
+    Local_planner::Ptr localplanner_;//NAVI
 };
 } // namespace lvio_fusion
 #endif // lvio_fusion_GLOBALPLANNER_H

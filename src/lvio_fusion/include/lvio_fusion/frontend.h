@@ -32,6 +32,8 @@ public:
 
     void SetGlobalPlanner(Global_planner::Ptr globalplanner ) { globalplanner_ = globalplanner; }//NAVI
 
+    void SetLocalPlanner(Local_planner::Ptr localplanner ) { localplanner_ = localplanner; }//NAVI
+
     void UpdateCache();
 
     void UpdateImu(const Bias &bias_);
@@ -68,6 +70,7 @@ private:
     // data
     std::weak_ptr<Backend> backend_;
     Global_planner::Ptr globalplanner_;//NAVI
+    Local_planner::Ptr localplanner_;//NAVI
     std::queue<ImuData> imu_buf_;
     imu::Preintegration::Ptr preintegration_last_kf_; // imu pre integration from last key frame
     SE3d last_frame_pose_cache_;

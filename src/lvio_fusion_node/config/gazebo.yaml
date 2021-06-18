@@ -6,7 +6,7 @@ use_lidar: 1
 use_navsat: 0
 use_loop: 0
 use_adapt: 0
-use_navigation: 0
+use_navigation: 1
 
 # ros parameters
 imu_topic: '/D435i_camera/imu/sample'
@@ -35,15 +35,15 @@ camera1.cy: 240.0
 
 # lidar parameters
 num_scans: 16           # only for 16, 32, 64
-horizon_scan: 1800
+horizon_scan: 380
 ang_res_y: 2.0
 ang_bottom: 15.1
-ground_rows: 0
+ground_rows: 8
 cycle_time: 0.1036
-min_range: 0.5
+min_range: 0.2
 max_range: 50
 deskew: 0
-spacing: 5
+spacing: 0
 resolution: 0.2
 
 #imu parameters

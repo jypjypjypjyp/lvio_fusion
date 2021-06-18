@@ -61,6 +61,8 @@ public:
     void Bresenhamline (double x1,double y1,double x2,double y2, std::vector<Eigen::Vector2i>& points);
     
     void SetGlobalPlanner(Global_planner::Ptr globalplanner ) { globalplanner_ = globalplanner; }//NAVI
+    
+    void SetLocalPlanner(Local_planner::Ptr localplanner ) { localplanner_ = localplanner; }//NAVI
 
     cv::Mat GetGridmap();
 
@@ -78,6 +80,7 @@ private:
     Frame::Ptr current_frame;
     std::vector<LaserScan::Ptr> laser_scans_2d;
     Global_planner::Ptr globalplanner_;//NAVI
+    Local_planner::Ptr localplanner_;//NAVI
 
     const int num_scans_;
     const int horizon_scan_;
@@ -97,7 +100,7 @@ private:
     const double max_range_;
     const bool deskew_;
     const double spacing_;
-
+    
 };
 
 } // namespace lvio_fusion

@@ -190,6 +190,13 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
             Config::Get<double>("grid_resolution")));
         frontend->SetGlobalPlanner(globalplanner);
         gridmap->SetGlobalPlanner(globalplanner);
+        localplanner=Local_planner::Ptr(new Local_planner(
+            Config::Get<int>("grid_width"),
+            Config::Get<int>("grid_height"),
+            Config::Get<double>("grid_resolution")));
+        frontend->SetLocalPlanner(localplanner);
+        gridmap->SetLocalPlanner(localplanner);
+        globalplanner->SetLocalPlanner(localplanner);
     }
     return true;
 }

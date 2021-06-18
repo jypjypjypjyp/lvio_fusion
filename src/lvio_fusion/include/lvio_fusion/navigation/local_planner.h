@@ -3,6 +3,7 @@
 #include "lvio_fusion/common.h"
 #include "lvio_fusion/navigation/DWA.h"
 #include <list>
+
 namespace lvio_fusion
 {
 
@@ -10,15 +11,19 @@ namespace lvio_fusion
     {
     public:
         typedef std::shared_ptr<Local_planner> Ptr;
-        Local_planner(){}
-
-        void SetPlanPath(std::list<Vector2d> plan_path_)
+        Local_planner(int width_, int height_,double resolution_)
+        :width(width_), height(height_), resolution(resolution_)
         {
-            plan_path=plan_path_;
-
+            dwa = DWA::Ptr();
+            process();
         }
 
-        void SetRobotPose(Vector2d robot_position_,  double yaw_)
+        void SetPlanPath(std::list<Vector2d> plan_path_)//global_planner
+        {
+            plan_path=plan_path_;
+        }
+
+        void SetRobotPose(Vector2d robot_position_,  double yaw_)//frontend
         {
             Quaterniond q= AngleAxisd(yaw_,Vector3d::UnitZ())*AngleAxisd(0, Vector3d::UnitY())*AngleAxisd(0, Vector3d::UnitX());
             Vector3d t(robot_position_[0], robot_position_[1], 0);
@@ -26,7 +31,7 @@ namespace lvio_fusion
             robot_position_changed=true;
         }
 
-        void SetMap(cv::Mat newmap)
+        void SetMap(cv::Mat newmap)//gridmap
         {
             
         }
@@ -96,6 +101,9 @@ namespace lvio_fusion
         bool robot_position_changed=false;
         DWA::Ptr dwa;
         double PREDICT_TIME;
+        int width;
+        int height;
+        double resolution;
     };
 }// namespace lvio_fusion
 #endif // lvio_fusion_LOCALPLANNER_H

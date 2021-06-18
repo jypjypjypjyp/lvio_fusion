@@ -143,6 +143,7 @@ namespace lvio_fusion
                         }
                         else{
                             cmd_vel.angular.z = 0.0;
+                            //need next goal
                         }
                     }
             //         ROS_INFO_STREAM("cmd_vel: (" << cmd_vel.linear.x << "[m/s], " << cmd_vel.angular.z << "[rad/s])");

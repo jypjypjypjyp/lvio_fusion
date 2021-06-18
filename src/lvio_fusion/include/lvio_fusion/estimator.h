@@ -53,6 +53,7 @@ public:
     Initializer::Ptr initializer;
     Gridmap::Ptr gridmap;//NAVI
     Global_planner::Ptr globalplanner;//NAVI
+    Local_planner::Ptr localplanner;//NAVI
 private:
     std::string config_file_path_;
 };
