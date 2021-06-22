@@ -46,7 +46,13 @@ public:
     bool navsat_v;
 
 private:
-    Navsat(double accuracy, bool navsat_v) : accuracy_(accuracy), navsat_v(navsat_v), min_distance_fix_(20), Sensor(SE3d()) {}
+    Navsat(double accuracy, bool navsat_v) : navsat_v(navsat_v), Sensor(SE3d())
+    {
+        trust_distance_yaw_ = PoseGraph::Instance().min_BC_distance;
+        trust_distance_pitch_ = accuracy * 10;
+        trust_distance_z_ = 5;
+        PoseGraph::Instance().min_BC_distance = trust_distance_pitch_;
+    }
     Navsat(const Navsat &);
     Navsat &operator=(const Navsat &);
 
@@ -55,12 +61,17 @@ private:
     void Initialize();
 
     // mode: y p r x y z;
-    void OptimizeRX(Frame::Ptr frame, double end, double forward, unsigned char mode);
-    void OptimizeAB(Frame::Ptr A, Frame::Ptr B, SE3d relative_B);
+    void OptimizeBC(Frame::Ptr frame, double end, unsigned char mode);
+    void OptimizeAB();
 
     static std::vector<Navsat::Ptr> devices_;
-    double accuracy_;
-    double min_distance_fix_;
+    // param
+    double trust_distance_yaw_;
+    double trust_distance_pitch_;
+    double trust_distance_z_;
+    // data
+    Frame::Ptr A, B, C;
+    Section current_section;
 };
 
 } // namespace lvio_fusion

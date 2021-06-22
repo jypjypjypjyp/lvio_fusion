@@ -99,7 +99,7 @@ num_features_needed_for_keyframe: 120
 windows_size: 3
 
 # navsat
-accuracy: 10
+accuracy: 5
 navsat_v: 1
 
 # loop

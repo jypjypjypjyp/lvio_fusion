@@ -98,26 +98,31 @@ void PoseGraph::UpdateSections(double time)
         {
             Vector3d last_ori = get_ori(last_buf), current_ori = get_ori(buf);
             double degree = vectors_degree_angle(last_ori, current_ori);
+            if (turning)
+            {
+                current_section.degree += degree;
+                // go straight requires
+                if (degree < 1)
+                {
+                    current_section.B = last_buf.back();
+                    current_section.relative_B = pair.second->last_keyframe->pose.inverse() * pair.second->pose;
+                    turning = false;
+                }
+            }
             // turning requires
-            if (!turning && (degree >= 7 || vectors_degree_angle(get_ori(current_section.B), current_ori) > 7))
+            else if (degree >= 7 || vectors_degree_angle(get_ori(current_section.B), current_ori) > 7)
             {
                 // if we have enough keyframes and total degree, create new section
                 if (current_section.A == current_section.B ||
-                    frames_distance(current_section.B, pair.first) > 20)
+                    frames_distance(current_section.B, pair.first) > min_BC_distance)
                 {
                     current_section.C = last_buf.back();
                     sections_[current_section.A] = current_section;
                     current_section.A = last_buf.back();
                     current_section.B = current_section.A;
+                    current_section.degree = degree;
                 }
                 turning = true;
-            }
-            // go straight requires
-            else if (turning && degree < 1)
-            {
-                current_section.B = last_buf.back();
-                current_section.relative_B = pair.second->last_keyframe->pose.inverse() * pair.second->pose;
-                turning = false;
             }
         }
     }
@@ -149,6 +154,7 @@ bool PoseGraph::AddSection(double time)
         sections_[current_section.A] = current_section;
         current_section.A = time;
         current_section.B = time;
+        current_section.degree = 0;
         return true;
     }
     return false;

@@ -28,7 +28,7 @@ void Navsat::AddPoint(double time, double x, double y, double z, Vector3d cov)
         pair.second->feature_navsat = navsat::Feature::Ptr(new navsat::Feature(pair.first, cov));
         finished = pair.first + epsilon;
     }
-    if (!initialized && !Map::Instance().keyframes.empty() && frames_distance(0, -1) > min_distance_fix_)
+    if (!initialized && !Map::Instance().keyframes.empty() && frames_distance(0, -1) > trust_distance_pitch_)
     {
         Initialize();
     }
@@ -82,7 +82,7 @@ bool Navsat::EstimatePose(double time, SE3d &pose)
         Vector3d p2 = extrinsic * iter2->second;
         while (iter1 != raw.begin())
         {
-            if ((p1 - p2).norm() > min_distance_fix_)
+            if ((p1 - p2).norm() > trust_distance_yaw_)
             {
                 pose = get_pose_from_two_points(p1, p2);
                 return true;
@@ -134,54 +134,45 @@ void Navsat::Initialize()
 
 void Navsat::Optimize(const Section &section)
 {
-    auto A = Map::Instance().GetKeyFrame(section.A);
-    auto B = Map::Instance().GetKeyFrame(section.B);
-    auto C = Map::Instance().GetKeyFrame(section.C);
+    current_section = section;
+    A = Map::Instance().GetKeyFrame(section.A);
+    B = Map::Instance().GetKeyFrame(section.B);
+    C = Map::Instance().GetKeyFrame(section.C);
     // first, optimize A-B
     // do not use all keyframes in BC, too much frames is not good
-    if (A == B)
+    OptimizeBC(B, section.C, 0b000000);
+    // optimize A-B
+    if (A != B)
     {
-        OptimizeRX(B, section.C, section.C, 0b111000);
-    }
-    else
-    {
-        OptimizeRX(B, section.C, section.C, 0b000000);
-        // optimize A-B
-        OptimizeAB(A, B, section.relative_B);
+        OptimizeAB();
     }
     // second, optimize B-C
     Frames BC = Map::Instance().GetKeyFrames(section.B + epsilon, section.C - epsilon);
     for (auto &pair : BC)
     {
         auto frame = pair.second;
-        OptimizeRX(frame, frame->time + epsilon, section.C, 0b110111);
+        OptimizeBC(frame, frame->time + epsilon, 0b110111);
     }
-}
-
-inline double navsat_distance(Frame::Ptr frame)
-{
-    Vector3d d = frame->t() - Navsat::Get()->GetFixPoint(frame);
-    d.z() = 0;
-    return d.norm();
 }
 
 void Navsat::QuickFix(double start, double end)
 {
     if (PoseGraph::Instance().turning ||
-        frames_distance(PoseGraph::Instance().current_section.B, end) < min_distance_fix_)
+        frames_distance(PoseGraph::Instance().current_section.B, end) < trust_distance_yaw_)
         return;
-    auto A = Map::Instance().GetKeyFrame(start);
-    auto B = Map::Instance().GetKeyFrame(PoseGraph::Instance().current_section.B);
-    auto C = Map::Instance().GetKeyFrame(end);
+    current_section = PoseGraph::Instance().current_section;
+    A = Map::Instance().GetKeyFrame(start);
+    B = Map::Instance().GetKeyFrame(PoseGraph::Instance().current_section.B);
+    C = Map::Instance().GetKeyFrame(end);
     // first, optimize A-B
     // do not use all keyframes in BC, too much frames is not good
-    OptimizeRX(B, C->time, C->time, A == B ? 0b111010 : 0b000000);
+    OptimizeBC(B, C->time, 0b000000);
     // second, optimize B-C
     Frames BC = Map::Instance().GetKeyFrames(B->time + epsilon, C->time - epsilon);
     for (auto &pair : BC)
     {
         auto frame = pair.second;
-        OptimizeRX(frame, frame->time + epsilon, C->time, 0b110111);
+        OptimizeBC(frame, frame->time + epsilon, 0b110111);
     }
     // if the orientation is wrong, add section
     // SE3d navsat_pose;
@@ -198,11 +189,11 @@ void Navsat::QuickFix(double start, double end)
 }
 
 // mode: zyxrpy
-void Navsat::OptimizeRX(Frame::Ptr frame, double end, double forward, unsigned char mode)
+void Navsat::OptimizeBC(Frame::Ptr frame, double end, unsigned char mode)
 {
     // rotation's optimization need longer path
     if ((mode & 0b000111) != 0b000111 &&
-        frames_distance(frame->time, end) < min_distance_fix_)
+        frames_distance(frame->time, end) < trust_distance_yaw_)
         return;
     SE3d old_pose = frame->pose;
     ceres::Problem problem;
@@ -224,7 +215,7 @@ void Navsat::OptimizeRX(Frame::Ptr frame, double end, double forward, unsigned c
     // if para includes roll, ensure that vehicle can not roll over
     if (!problem.IsParameterBlockConstant(para + 2))
     {
-        if (frames_distance(frame->time, end) > min_distance_fix_)
+        if (frames_distance(frame->time, end) > trust_distance_yaw_)
         {
             Vector3d y(0, 0, 0);
             for (auto &pair : active_kfs)
@@ -241,11 +232,18 @@ void Navsat::OptimizeRX(Frame::Ptr frame, double end, double forward, unsigned c
         }
         problem.SetParameterBlockConstant(para + 2);
     }
-    // if distance is too small, dont optimize pitch
+    // if distance is too small, don't optimize pitch
     if (!problem.IsParameterBlockConstant(para + 1) &&
-        frames_distance(frame->time, end) < min_distance_fix_)
+        frames_distance(frame->time, end) < trust_distance_pitch_)
     {
         problem.SetParameterBlockConstant(para + 1);
+    }
+    // limit z
+    if (!problem.IsParameterBlockConstant(para + 5))
+    {
+        double dz = trust_distance_z_ * current_section.degree / 360;
+        problem.SetParameterLowerBound(para + 5, 0, A->t().z() - B->t().z() - dz);
+        problem.SetParameterUpperBound(para + 5, 0, A->t().z() - B->t().z() + dz);
     }
 
     for (auto &pair : active_kfs)
@@ -267,10 +265,10 @@ void Navsat::OptimizeRX(Frame::Ptr frame, double end, double forward, unsigned c
     frame->pose = frame->pose * rpyxyz2se3(para);
     SE3d new_pose = frame->pose;
     SE3d transform = new_pose * old_pose.inverse();
-    PoseGraph::Instance().ForwardUpdate(transform, Map::Instance().GetKeyFrames(frame->time + epsilon, forward));
+    PoseGraph::Instance().ForwardUpdate(transform, Map::Instance().GetKeyFrames(frame->time + epsilon, C->time));
 }
 
-void Navsat::OptimizeAB(Frame::Ptr A, Frame::Ptr B, SE3d relative_B)
+void Navsat::OptimizeAB()
 {
     ceres::Problem problem;
     ceres::LossFunction *loss_function = new ceres::HuberLoss(0.1);
@@ -289,7 +287,7 @@ void Navsat::OptimizeAB(Frame::Ptr A, Frame::Ptr B, SE3d relative_B)
         // navsat point
         double a = (pair.first - A->time) / (B->time - A->time);
         Vector3d navsat_point = GetFixPoint(frame);
-        navsat_point.z() = a * B->pose.translation().z() + (1 - a) * A->pose.translation().z();
+        navsat_point.z() = a * B->t().z() + (1 - a) * A->t().z();
         double *para_kf = frame->pose.data();
         double *para_last_kf = last_frame->pose.data();
         problem.AddParameterBlock(para_kf, SE3d::num_parameters, local_parameterization);
@@ -299,7 +297,7 @@ void Navsat::OptimizeAB(Frame::Ptr A, Frame::Ptr B, SE3d relative_B)
         problem.AddResidualBlock(cost_function2, loss_function, para_kf);
         last_frame = frame;
     }
-    ceres::CostFunction *cost_function1 = PoseGraphError::Create(relative_B, 10, 20);
+    ceres::CostFunction *cost_function1 = PoseGraphError::Create(current_section.relative_B, 10, 20);
     problem.AddResidualBlock(cost_function1, NULL, last_frame->pose.data(), B->pose.data());
 
     ceres::Solver::Options options;
