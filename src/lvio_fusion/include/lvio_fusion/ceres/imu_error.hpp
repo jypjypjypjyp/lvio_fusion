@@ -149,7 +149,6 @@ public:
         cov_inv.block<3, 3>(12, 12) = prior_g_ * Matrix3d::Identity();
         Matrix<double, 15, 15> sqrt_info = LLT<Matrix<double, 15, 15>>(cov_inv).matrixL().transpose();
         residual = sqrt_info * residual;
-        // LOG(INFO) << residual;
 
         if (jacobians)
         {

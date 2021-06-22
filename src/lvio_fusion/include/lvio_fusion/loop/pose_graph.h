@@ -16,7 +16,8 @@ struct Section
     double A = 0; // for submap: the old time of loop;    for section: the begining of turning
     double B = 0; // for submap: the begining of loop;    for section: the ending of turning
     double C = 0; // for submap: ths ending of loop;      for section: the ending of straight line
-    SE3d pose;    // temp storage of A's old pose
+    SE3d old_A;         // temp storage of A's old pose
+    SE3d relative_B;    // temp storage of B's relative pose
 };
 
 typedef std::map<double, Section> Atlas;

@@ -68,7 +68,7 @@ void Initializer::Initialize(double init_time, double end_time)
             need_init = true;
             step = 3;
         }
-        else if (dt > 5 && step == 3)
+        else if (dt > 10 && step == 3)
         {
             need_init = true;
             step = 4;

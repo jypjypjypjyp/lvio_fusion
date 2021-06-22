@@ -110,7 +110,8 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
 
     if (use_navsat)
     {
-        Navsat::Create(Config::Get<double>("accuracy"));
+        Navsat::Create(Config::Get<double>("accuracy"),
+                       Config::Get<double>("navsat_v"));
     }
 
     if (use_imu)
@@ -180,7 +181,7 @@ void Estimator::InputImage(double time, cv::Mat &left_image, cv::Mat &right_imag
     bool success = frontend->AddFrame(new_frame);
     auto t2 = std::chrono::steady_clock::now();
     auto time_used = std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);
-    LOG(INFO) << "Frontend status:" << map_status[frontend->status] << ", cost time: " << time_used.count() << " seconds.";
+    // LOG(INFO) << "Frontend status:" << map_status[frontend->status] << ", cost time: " << time_used.count() << " seconds.";
 }
 
 void Estimator::InputPointCloud(double time, Point3Cloud::Ptr point_cloud)

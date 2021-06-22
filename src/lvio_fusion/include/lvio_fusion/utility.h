@@ -22,7 +22,7 @@ namespace lvio_fusion
  */
 void triangulate(const SE3d &pose0, const SE3d &pose1, const Vector3d &p0, const Vector3d &p1, Vector3d &p_3d);
 
-double cv_distance(cv::Point2f &pt1, cv::Point2f &pt2);
+double cv_distance(cv::Point2f pt1, cv::Point2f pt2 = cv::Point2f(0, 0));
 
 /**
  * double calculate optical flow

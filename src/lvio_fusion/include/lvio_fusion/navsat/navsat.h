@@ -14,9 +14,9 @@ class Navsat : public Sensor
 public:
     typedef std::shared_ptr<Navsat> Ptr;
 
-    static int Create(double accuracy)
+    static int Create(double accuracy, bool navsat_v)
     {
-        devices_.push_back(Navsat::Ptr(new Navsat(accuracy)));
+        devices_.push_back(Navsat::Ptr(new Navsat(accuracy, navsat_v)));
         return devices_.size() - 1;
     }
 
@@ -43,17 +43,20 @@ public:
     bool initialized = false;
     std::map<double, Vector3d> raw;
     Vector3d fix = Vector3d::Zero();
+    bool navsat_v;
 
 private:
-    Navsat(double accuracy) : accuracy_(accuracy), min_distance_fix_(10 * accuracy), Sensor(SE3d()) {}
+    Navsat(double accuracy, bool navsat_v) : accuracy_(accuracy), navsat_v(navsat_v), min_distance_fix_(20), Sensor(SE3d()) {}
     Navsat(const Navsat &);
     Navsat &operator=(const Navsat &);
+
+    bool EstimatePose(double time, SE3d &pose);
 
     void Initialize();
 
     // mode: y p r x y z;
     void OptimizeRX(Frame::Ptr frame, double end, double forward, unsigned char mode);
-    void OptimizeAB(Frame::Ptr A, Frame::Ptr B, SE3d old_B);
+    void OptimizeAB(Frame::Ptr A, Frame::Ptr B, SE3d relative_B);
 
     static std::vector<Navsat::Ptr> devices_;
     double accuracy_;

@@ -39,7 +39,7 @@ private:
 
     void UpdateFrontend(SE3d transform, double time);
 
-    void BuildProblem(Frames &active_kfs, adapt::Problem &problem);
+    double BuildProblem(Frames &active_kfs, adapt::Problem &problem);
 
     std::weak_ptr<Frontend> frontend_;
     Mapping::Ptr mapping_;

@@ -17,7 +17,7 @@ void triangulate(const SE3d &pose0, const SE3d &pose1, const Vector3d &p0, const
     p_3d = (p_norm / p_norm(3)).head<3>();
 }
 
-double cv_distance(cv::Point2f &pt1, cv::Point2f &pt2)
+double cv_distance(cv::Point2f pt1, cv::Point2f pt2)
 {
     double dx = pt1.x - pt2.x;
     double dy = pt1.y - pt2.y;
@@ -60,7 +60,10 @@ void optical_flow(cv::Mat &prevImg, cv::Mat &nextImg,
         return;
 
     cv::Mat err;
-    cv::calcOpticalFlowPyrLK(prevImg, nextImg, prevPts, nextPts, status, err, cv::Size(21, 21), 3, cv::TermCriteria(cv::TermCriteria::COUNT + cv::TermCriteria::EPS, 30, 0.01), cv::OPTFLOW_USE_INITIAL_FLOW);
+    cv::calcOpticalFlowPyrLK(
+        prevImg, nextImg, prevPts, nextPts, status, err, cv::Size(21, 21), 3,
+        cv::TermCriteria(cv::TermCriteria::COUNT + cv::TermCriteria::EPS, 30, 0.01),
+        cv::OPTFLOW_USE_INITIAL_FLOW);
 
     std::vector<uchar> reverse_status;
     std::vector<cv::Point2f> reverse_pts = prevPts;

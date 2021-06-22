@@ -100,6 +100,7 @@ windows_size: 3
 
 # navsat
 accuracy: 10
+navsat_v: 1
 
 # loop
 relocator_mode: 0    # none = 0, visual = 1, lidar = 2, visual&&lidar = 3
