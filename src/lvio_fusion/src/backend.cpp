@@ -68,17 +68,21 @@ void Backend::GlobalLoop()
                     SE3d transform = new_pose * old_pose.inverse();
                     PoseGraph::Instance().ForwardUpdate(transform, start + epsilon);
                 }
+                mapping_->ToWorld(new_section.A);
             }
         }
         if (Navsat::Num() && Navsat::Get()->initialized && global_end_ > 0)
         {
             // quick fix
             std::unique_lock<std::mutex> lock(mutex);
-            SE3d old_pose = Map::Instance().GetKeyFrame(global_end_)->pose;
-            Navsat::Get()->QuickFix(start, global_end_);
-            SE3d new_pose = Map::Instance().GetKeyFrame(global_end_)->pose;
-            SE3d transform = new_pose * old_pose.inverse();
-            PoseGraph::Instance().ForwardUpdate(transform, global_end_ + epsilon);
+            {
+                SE3d old_pose = Map::Instance().GetKeyFrame(global_end_)->pose;
+                Navsat::Get()->QuickFix(start, global_end_);
+                SE3d new_pose = Map::Instance().GetKeyFrame(global_end_)->pose;
+                SE3d transform = new_pose * old_pose.inverse();
+                PoseGraph::Instance().ForwardUpdate(transform, global_end_ + epsilon);
+            }
+            mapping_->ToWorld(start);
         }
     }
 }

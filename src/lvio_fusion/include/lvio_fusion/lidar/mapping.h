@@ -25,6 +25,7 @@ public:
     void BuildMapFrame(Frame::Ptr frame, Frame::Ptr map_frame);
 
     void ToWorld(Frame::Ptr frame);
+    void ToWorld(double start);
 
     int Relocate(Frame::Ptr last_frame, Frame::Ptr current_frame, SE3d &relative_o_c);
 
