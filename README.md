@@ -2,7 +2,7 @@
 
 ## Introduction
 
-A Self-adaptive Multi-sensor Fusion SLAM Framework Using Actor-critic Method， which focus on the complex environment of vehicles.
+A Self-adaptive Multi-sensor Fusion SLAM Framework Using Actor-critic Method, which focus on the complex environment of vehicles.
 
 ```
 @misc{jia2021lviofusion,
