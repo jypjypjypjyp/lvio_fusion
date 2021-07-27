@@ -89,7 +89,8 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
         Config::Get<int>("num_features_init"),
         Config::Get<int>("num_features_tracking"),
         Config::Get<int>("num_features_tracking_bad"),
-        Config::Get<int>("num_features_needed_for_keyframe")));
+        Config::Get<int>("num_features_needed_for_keyframe"),
+        Config::Get<int>("remove_moving_points")));
 
     backend = Backend::Ptr(new Backend(
         Config::Get<double>("windows_size"),

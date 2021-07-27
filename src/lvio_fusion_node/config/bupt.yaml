@@ -97,6 +97,7 @@ num_features: 500
 num_features_init: 50
 num_features_tracking_bad: 20
 num_features_needed_for_keyframe: 120
+remove_moving_points: 0
 
 # backend
 windows_size: 3

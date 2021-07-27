@@ -22,7 +22,7 @@ class Frontend
 public:
     typedef std::shared_ptr<Frontend> Ptr;
 
-    Frontend(int num_features, int init, int tracking, int tracking_bad, int need_for_keyframe);
+    Frontend(int num_features, int init, int tracking, int tracking_bad, int need_for_keyframe, bool remove_moving_points);
 
     bool AddFrame(Frame::Ptr frame);
 
@@ -75,6 +75,7 @@ private:
     int num_features_init_;
     int num_features_tracking_bad_;
     int num_features_needed_for_keyframe_;
+    bool remove_moving_points;
 };
 
 } // namespace lvio_fusion

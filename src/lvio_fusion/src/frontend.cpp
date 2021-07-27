@@ -10,8 +10,8 @@
 namespace lvio_fusion
 {
 
-Frontend::Frontend(int num_features, int init, int tracking, int tracking_bad, int need_for_keyframe)
-    : num_features_init_(init), num_features_tracking_bad_(tracking_bad), num_features_needed_for_keyframe_(need_for_keyframe), local_map(num_features)
+Frontend::Frontend(int num_features, int init, int tracking, int tracking_bad, int need_for_keyframe, bool remove_moving_points)
+    : num_features_init_(init), num_features_tracking_bad_(tracking_bad), num_features_needed_for_keyframe_(need_for_keyframe), local_map(num_features), remove_moving_points(remove_moving_points)
 {
 }
 
@@ -191,7 +191,7 @@ int Frontend::TrackLastFrame()
     std::vector<cv::Point3f> points_3d_far, points_3d_near;
     std::vector<cv::Point2f> points_2d_far, points_2d_near;
     std::vector<int> map_far, map_near;
-    // remove motive points
+    // remove moving points
     std::vector<cv::Point2f> deviations(status.size(), cv::Point2f(0, 0));
     cv::Point2f avg_d(0, 0);
     int num_ok = 0;
@@ -217,7 +217,7 @@ int Frontend::TrackLastFrame()
                 Vector3d pw = local_map.position_cache[landmarks[i]->id];
                 points_3d_far.push_back(cv::Point3f(pw.x(), pw.y(), pw.z()));
             }
-            else if (cv_distance(deviations[i]) < 30)
+            else if (!remove_moving_points || cv_distance(deviations[i]) < 30)
             {
                 map_near.push_back(i);
                 points_2d_near.push_back(kps_current[i]);
