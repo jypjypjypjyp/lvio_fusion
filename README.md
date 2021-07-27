@@ -2,7 +2,7 @@
 
 ## Introduction
 
-A Self-adaptive Multi-sensor Fusion SLAM Framework Using Actor-critic Method. In 1.0, we built a common framework, and we will focus on the complex environment of vehicles in 2.0. (This is still in development)
+A Self-adaptive Multi-sensor Fusion SLAM Framework Using Actor-critic Method, which focus on the complex environment of vehicles.
 
 ```
 @misc{jia2021lviofusion,
@@ -41,6 +41,7 @@ roslaunch lvio_fusion_node kitti.launch
 ## Result
 
 kitti:
+To generate rosbags using KITTI raw data, you can use the [script](https://github.com/TixiaoShan/LIO-SAM/tree/master/config/doc/kitti2bag) in lio-sam and the configuration file [kitti2.yaml](https://github.com/jypjypjypjyp/lvio_fusion/blob/main/src/lvio_fusion_node/config/kitti2.yaml)
 ![](misc/kitti-result.png)
 ![](misc/lvio1.png)
 
