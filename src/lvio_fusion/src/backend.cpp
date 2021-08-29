@@ -68,7 +68,10 @@ void Backend::GlobalLoop()
                     SE3d transform = new_pose * old_pose.inverse();
                     PoseGraph::Instance().ForwardUpdate(transform, start + epsilon);
                 }
-                mapping_->ToWorld(new_section.A);
+                if (Lidar::Num() && mapping_)
+                {
+                    mapping_->ToWorld(new_section.A);
+                }
             }
         }
         if (Navsat::Num() && Navsat::Get()->initialized && global_end_ > 0)
@@ -82,7 +85,10 @@ void Backend::GlobalLoop()
                 SE3d transform = new_pose * old_pose.inverse();
                 PoseGraph::Instance().ForwardUpdate(transform, global_end_ + epsilon);
             }
-            mapping_->ToWorld(start);
+            if (Lidar::Num() && mapping_)
+            {
+                mapping_->ToWorld(start);
+            }
         }
     }
 }
