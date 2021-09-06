@@ -12,7 +12,6 @@
 #include "lvio_fusion/loop/pose_graph.h"
 #include "lvio_fusion/navsat/navsat.h"
 #include "lvio_fusion/navigation/gridmap.h"//NAVI
-#include "lvio_fusion/navigation/global_planner.h"//NAVI
 
 namespace lvio_fusion
 {
@@ -52,8 +51,6 @@ public:
     Mapping::Ptr mapping;
     Initializer::Ptr initializer;
     Gridmap::Ptr gridmap;//NAVI
-    Global_planner::Ptr globalplanner;//NAVI
-    Local_planner::Ptr localplanner;//NAVI
 private:
     std::string config_file_path_;
 };

@@ -1,12 +1,12 @@
 %YAML:1.0
 
 # flags
-use_imu: 1
+use_imu: 0
 use_lidar: 1
-use_navsat: 1
+use_navsat: 0
 use_loop: 0
 use_adapt: 0
-use_navigation: 0
+use_navigation: 1
 
 # ros parameters
 imu_topic: '/kitti/oxts/imu'
@@ -15,8 +15,7 @@ navsat_topic: '/kitti/oxts/gps/fix'
 image0_topic: '/kitti/camera_gray_left/image_raw'
 image1_topic: '/kitti/camera_gray_right/image_raw'
 color_topic: '/kitti/camera_color_left/image_raw'
-nav_goal_topic: '/move_base_simple/goal'
-result_path: '/home/zoet/Projects/lvio_fusion/result/result.csv'
+result_path: '/home/jyp/Projects/lvio_fusion/result/result.csv'
 
 # cameras parameters
 undistort: 0
@@ -93,14 +92,15 @@ num_features_needed_for_keyframe: 120
 windows_size: 3
 
 # navsat
-accuracy: 2
+accuracy: 1
+navsat_v: 0
 
 # loop
 relocator_mode: 0    # none = 0, visual = 1, lidar = 2, visual&&lidar = 3
 threshold: 10
 
 # train
-ground_truth_path: /home/zoet/Projects/playground/kitti_00_tum_gd.txt
+ground_truth_path: /home/yjq/Projects/playground/kitti_00_tum_gd.txt
 obs_rows: 4
 obs_cols: 12
 

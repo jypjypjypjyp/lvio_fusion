@@ -1,12 +1,14 @@
 <?xml version="1.0"?>
 <package format="2">
-  <name>lvio_fusion_node</name>
+  <name>navigation_node</name>
   <version>0.0.0</version>
-  <description>The lvio_fusion_node package</description>
+  <description>The navigation_node package</description>
 
-  <maintainer email="jypjypjypjyp@hotmail.com">jyp</maintainer>
+  <maintainer email="1192328674@qq.com">zoet</maintainer>
+
 
   <license>MIT</license>
+
 
   <buildtool_depend>catkin</buildtool_depend>
   <depend>roscpp</depend>
@@ -15,12 +17,9 @@
   <depend>geometry_msgs</depend>
   <depend>tf</depend>
   <depend>cv_bridge</depend>
-  <depend>image_transport</depend>
-  <depend>pcl_conversions</depend>
-  <depend>pcl_ros</depend>
-  <depend>lvio_fusion</depend>
   <depend>message_generation</depend>
   <depend>message_runtime</depend>
+
 
   <export>
 

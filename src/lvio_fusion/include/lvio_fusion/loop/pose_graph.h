@@ -13,18 +13,20 @@ namespace lvio_fusion
 // [A, B, C]
 struct Section
 {
-    double A = 0; // for submap: the old time of loop;    for section: the begining of turning
-    double B = 0; // for submap: the begining of loop;    for section: the ending of turning
-    double C = 0; // for submap: ths ending of loop;      for section: the ending of straight line
-    SE3d pose;    // temp storage of A's old pose
+    double A = 0;    // for submap: the old time of loop;    for section: the begining of turning
+    double B = 0;    // for submap: the begining of loop;    for section: the ending of turning
+    double C = 0;    // for submap: ths ending of loop;      for section: the ending of straight line
+    SE3d old_A;      // temp storage of A's old pose
+    SE3d relative_B; // temp storage of B's relative pose
+    double degree;   // degree
 };
 
 typedef std::map<double, Section> Atlas;
 
 inline double frames_distance(double A, double B)
 {
-    Vector3d a = Map::Instance().GetKeyFrame(A)->GetPosition(),
-             b = Map::Instance().GetKeyFrame(B)->GetPosition();
+    Vector3d a = Map::Instance().GetKeyFrame(A)->t(),
+             b = Map::Instance().GetKeyFrame(B)->t();
     return (a - b).norm();
 }
 
@@ -61,6 +63,7 @@ public:
     std::mutex mutex;
     Section current_section;
     bool turning = false;
+    double min_BC_distance = 20;
 
 private:
     PoseGraph() {}

@@ -8,16 +8,18 @@
 #include <image_transport/image_transport.h>   //CompressedImage
 #include <cv_bridge/cv_bridge.h>              //CompressedImage
 
+
 ros::Publisher pub_path;
 ros::Publisher pub_navsat;
 ros::Publisher pub_points_cloud;
 ros::Publisher pub_local_map;
 ros::Publisher pub_car_model;
 ros::Publisher pub_car_model_navigation;//NAVI
-ros::Publisher pub_plan_path;//NAVI
-ros::Publisher pub_navigation;//NAVI
+ros::Publisher pub_gridmap;//NAVI
+ros::Publisher pub_localgridmap;//NAVI
 ros::Publisher pub_CompressedImage0,pub_CompressedImage1;//CompressedImage
-nav_msgs::Path path, navsat_path, plan_path;//NAVI
+nav_msgs::Path path, navsat_path;
+
 ros::Publisher pub_camera_pose_visual;
 
 CameraPoseVisualization cameraposevisual(1, 0, 0, 1);
@@ -28,14 +30,13 @@ void register_pub(ros::NodeHandle &n)
     pub_navsat = n.advertise<nav_msgs::Path>("navsat_path", 1000);
     pub_points_cloud = n.advertise<sensor_msgs::PointCloud2>("point_cloud", 1000);
     pub_local_map = n.advertise<sensor_msgs::PointCloud2>("local_map", 1000);
-    pub_car_model_navigation = n.advertise<visualization_msgs::Marker>("car_model_navigation", 1000);//NAVI
-    pub_navigation = n.advertise<nav_msgs::OccupancyGrid>("grid_map", 1);//NAVI
-    pub_plan_path = n.advertise<nav_msgs::Path>("plan_path", 1000);//NAVI
     pub_car_model = n.advertise<visualization_msgs::Marker>("car_model", 1000);
+    pub_car_model_navigation = n.advertise<visualization_msgs::Marker>("car_model_navigation", 1000);//NAVI
+    pub_gridmap = n.advertise<nav_msgs::OccupancyGrid>("grid_map", 1);//NAVI
+    pub_localgridmap = n.advertise<nav_msgs::OccupancyGrid>("local_grid_map", 1);//NAVI
+    pub_camera_pose_visual = n.advertise<visualization_msgs::MarkerArray>("camera_pose_visual", 1000);
     pub_CompressedImage0=n.advertise<sensor_msgs::CompressedImage>("CompressedImage0",1000);//CompressedImage
     pub_CompressedImage1=n.advertise<sensor_msgs::CompressedImage>("CompressedImage1",1000);//CompressedImage
-
-    pub_camera_pose_visual = n.advertise<visualization_msgs::MarkerArray>("camera_pose_visual", 1000);
 
     cameraposevisual.setScale(0.1);
     cameraposevisual.setLineWidth(0.01);
@@ -75,7 +76,7 @@ void publish_odometry(Estimator::Ptr estimator, double time)
         }
         if (pair.second->loop_closure)
         {
-            auto position = pair.second->loop_closure->frame_old->GetPosition();
+            auto position = pair.second->loop_closure->frame_old->t();
             geometry_msgs::PoseStamped pose_stamped_loop;
             pose_stamped_loop.header.stamp = ros::Time(pair.first);
             pose_stamped_loop.header.frame_id = "world";
@@ -181,7 +182,7 @@ void publish_car_model(Estimator::Ptr estimator, double time)
     car_mesh.type = visualization_msgs::Marker::MESH_RESOURCE;
     car_mesh.action = visualization_msgs::Marker::ADD;
     // car_mesh.mesh_resource = "package://lvio_fusion_node/models/car.dae";
-    car_mesh.mesh_resource = "file:///home/zoet/Projects/lvio_fusion/src/lvio_fusion_node/models/car.dae";
+    car_mesh.mesh_resource = "file:///home/yjq/Projects/lvio_fusion/src/lvio_fusion_node/models/car.dae";
     car_mesh.id = 0;
 
     SE3d pose = estimator->frontend->current_frame->pose;
@@ -220,7 +221,7 @@ void publish_car_model_navigation(Estimator::Ptr estimator, double time)
     car_mesh.type = visualization_msgs::Marker::MESH_RESOURCE;
     car_mesh.action = visualization_msgs::Marker::ADD;
     // car_mesh.mesh_resource = "package://lvio_fusion_node/models/car.dae";
-    car_mesh.mesh_resource = "file:///home/zoet/Projects/lvio_fusion/src/lvio_fusion_node/models/car.dae";
+    car_mesh.mesh_resource = "file:///home/yjq/Projects/lvio_fusion/src/lvio_fusion_node/models/car.dae";
     car_mesh.id = 0;
 
     SE3d pose = estimator->frontend->current_frame->pose;
@@ -250,7 +251,7 @@ void publish_car_model_navigation(Estimator::Ptr estimator, double time)
     pub_car_model_navigation.publish(car_mesh);
 }
 
-void publish_navigation(Estimator::Ptr estimator, double time)
+void publish_gridmap(Estimator::Ptr estimator, double time)
 {
     nav_msgs::OccupancyGrid grid_map_msg;
     grid_map_msg.header.frame_id="navigation";
@@ -274,32 +275,49 @@ void publish_navigation(Estimator::Ptr estimator, double time)
         }
     }
     grid_map_msg.data=grid_map_vec;
-    pub_navigation.publish(grid_map_msg);
+    pub_gridmap.publish(grid_map_msg);
 }
 
-void publish_plan_path(Estimator::Ptr estimator, double time)
+
+void publish_local_gridmap(Estimator::Ptr estimator, double time)
 {
-    if(estimator->globalplanner->pathupdated)
+    if( !estimator->gridmap->start)
+        return ;
+    cv::Mat local_gridmap = estimator->gridmap->GetLocalGridmap();
+    nav_msgs::OccupancyGrid grid_map_msg;
+    grid_map_msg.header.frame_id="navigation";
+    grid_map_msg.header.stamp =  ros::Time(time); 
+    int h=estimator->gridmap->height;
+    int w=estimator->gridmap->width;
+    grid_map_msg.info.resolution = estimator->gridmap->resolution;
+    grid_map_msg.info.width = 10/estimator->gridmap->resolution;
+    grid_map_msg.info.height = 10/estimator->gridmap->resolution; 
+    Vector2d current_pose =  estimator->gridmap->current_pose;
+    Vector3d xo(5,5,0);
+    Vector3d xy=estimator->gridmap->orientation.toRotationMatrix()*xo;
+    Vector3d ch=xo-xy;
+    grid_map_msg.info.origin.position.x = (current_pose[0])+ch[0]-5-0.5* estimator->gridmap->resolution;
+    grid_map_msg.info.origin.position.y = (current_pose[1])+ch[1]-5-0.5* estimator->gridmap->resolution;
+    grid_map_msg.info.origin.position.z = 0;
+    grid_map_msg.info.origin.orientation.x=estimator->gridmap->orientation.x();
+    grid_map_msg.info.origin.orientation.y=estimator->gridmap->orientation.y();
+    grid_map_msg.info.origin.orientation.z=estimator->gridmap->orientation.z();
+    grid_map_msg.info.origin.orientation.w=estimator->gridmap->orientation.w();
+
+    int p[w*h];
+
+    std::vector<signed char> grid_map_vec;
+    for(int row = 0; row < 10/estimator->gridmap->resolution; ++row)
     {
-        plan_path.poses.clear();
-        list<Vector2d> plan_path_ = estimator->globalplanner->GetPath();
- 
-        for( auto point: plan_path_)
+        for(int col = 0; col < 10/estimator->gridmap->resolution; ++col)
         {
-            geometry_msgs::PoseStamped pose_stamped;
-            pose_stamped.header.stamp = ros::Time(time);
-            pose_stamped.header.frame_id = "navigation";
-            pose_stamped.pose.position.x = point.x();
-            pose_stamped.pose.position.y = point.y();
-            pose_stamped.pose.position.z = 0;
-            plan_path.poses.push_back(pose_stamped);
+            grid_map_vec.push_back(local_gridmap.at<char>(row, col));
         }
-        plan_path.header.stamp = ros::Time(time);
-        plan_path.header.frame_id = "navigation";
-        LOG(INFO)<<"plan_path_: "<<plan_path_.size();
-        pub_plan_path.publish(plan_path);
     }
+    grid_map_msg.data=grid_map_vec;
+    pub_localgridmap.publish(grid_map_msg);
 }
+
 //CompressedImage
 sensor_msgs::CompressedImage cv_to_ros(cv::Mat image) // 将cv图像格式转换为ROS压缩图像格式
 {

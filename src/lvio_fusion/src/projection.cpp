@@ -33,7 +33,7 @@ SegmentedInfo ImageProjection::Process(PointICloud &points, PointICloud &points_
     RemoveGround(segmented_info);
 
     Segment(segmented_info, points_segmented);
-
+    
     if(gridmap_)
         Compute2DScanMsg();//NAVI
 
@@ -321,6 +321,7 @@ void ImageProjection::LabelComponents(int row, int col)
         }
     }
 }
+
 
 //NAVI
 void ImageProjection::Compute2DScanMsg()

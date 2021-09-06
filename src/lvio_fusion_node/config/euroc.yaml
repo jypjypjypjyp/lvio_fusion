@@ -11,7 +11,7 @@ use_adapt: 0
 imu_topic: "/imu0"
 image0_topic: "/cam0/image_raw"
 image1_topic: "/cam1/image_raw"
-result_path: '/home/zoet/Projects.new/lvio-fusion/result/result.csv'
+result_path: '/home/yjq/Projects.new/lvio-fusion/result/result.csv'
 
 # cameras parameters
 undistort: 0
@@ -60,8 +60,8 @@ body_to_cam1: !!opencv-matrix
 # number of features
 num_features: 200
 num_features_init: 50
-num_features_tracking_bad: 8
-num_features_needed_for_keyframe: 80
+num_features_tracking_bad: 20
+num_features_needed_for_keyframe: 120
 
 # backend
 windows_size: 3

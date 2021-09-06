@@ -219,6 +219,15 @@ void Mapping::ToWorld(Frame::Ptr frame)
     pointclouds_color[frame->time] = pointcloud_color;
 }
 
+void Mapping::ToWorld(double start)
+{
+    auto active_kfs = Map::Instance().GetKeyFrames(start);
+    for (auto &pair : active_kfs)
+    {
+        ToWorld(pair.second);
+    }
+}
+
 PointRGBCloud Mapping::GetGlobalMap()
 {
     PointRGBCloud global_map;

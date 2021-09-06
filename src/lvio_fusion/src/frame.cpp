@@ -10,7 +10,7 @@ unsigned long Frame::current_frame_id = 0;
 
 Frame::Frame()
 {
-    weights.visual = Camera::Get()->fx / 1.5;
+    weights.visual = Camera::Get()->fx / 10;
     weights.lidar_ground = 1;
     weights.lidar_surf = 0.01;
 }
@@ -90,12 +90,12 @@ void Frame::SetBias(const Bias &_bias)
         preintegration->UpdateBias(bias);
 }
 
-Matrix3d Frame::GetRotation()
+Matrix3d Frame::R()
 {
     return pose.rotationMatrix();
 }
 
-Vector3d Frame::GetPosition()
+Vector3d Frame::t()
 {
     return pose.translation();
 }

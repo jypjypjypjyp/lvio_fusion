@@ -35,13 +35,13 @@ void publish_tf(Estimator::Ptr estimator, double time);
 
 void publish_car_model(Estimator::Ptr estimator, double time);
 
-void publish_navigation(Estimator::Ptr estimator, double time);//NAVI
+void publish_gridmap(Estimator::Ptr estimator, double time);//NAVI
 
-void publish_plan_path(Estimator::Ptr estimator, double time);
+void publish_local_gridmap(Estimator::Ptr estimator, double time);//NAVI
 
-void publish_car_model_navigation(Estimator::Ptr estimator, double time);
+void publish_car_model_navigation(Estimator::Ptr estimator, double time);//NAVI
 
-void publish_CompressedImage0(cv::Mat image);
+void publish_CompressedImage0(cv::Mat image);//CompressedImage
 
-void publish_CompressedImage1(cv::Mat image);
+void publish_CompressedImage1(cv::Mat image);//CompressedImage
 #endif // lvio_fusion_VISUALIZATION_H

@@ -13,15 +13,76 @@ namespace lvio_fusion
 
 void Gridmap::AddScan( PointICloud scan_msg)
 {
-    ToCartesianCoordinates(scan_msg,current_frame);
+    CartesianCoordinates(scan_msg,current_frame);
+    curr_scan_msg=scan_msg;
+    start=true;
 }
 
 void Gridmap::AddFrame(Frame::Ptr& frame)
 {
     current_frame=frame;
 }
+  
+cv::Mat Gridmap::GetLocalGridmap()    
+{
+    LOG(INFO)<<"BuildLocalmap";
+    cv::Mat local_visual_counter;
+    cv::Mat local_occupied_counter;
+    local_visual_counter.create(10/resolution, 10/resolution, CV_32SC1);
+    local_occupied_counter.create(10/resolution, 10/resolution, CV_32SC1);
+    local_visual_counter.setTo(0);
+    local_occupied_counter.setTo(0);
 
-void Gridmap::ToCartesianCoordinates(PointICloud scan_msg,Frame::Ptr& frame)
+    for(int i = 0; i < curr_scan_msg.size(); ++i) {
+        std::vector<Eigen::Vector2i> points;
+        Bresenhamline(5/resolution,  5/resolution,  curr_scan_msg[i].x/resolution+5/resolution,  curr_scan_msg[i].y/resolution+5/resolution, points);
+        int n = points.size();
+        //LOG(INFO)<<"n: "<<n;
+        if(n == 0) {
+            continue;
+         }
+        for(int j = 0; j < n - 1; ++j) 
+        {
+            Vector2i index(points[j][0], points[j][1]);
+            if((index[0]>=10/resolution||index[0]<0||index[1]>=10/resolution||index[1]<0))
+                continue;
+            local_visual_counter.at<int>(index[0],index[1])++; 
+        }
+        Vector2i index(points[n - 1][0], points[n - 1][1]);
+        if(index[0]>=10/resolution||index[0]<0||index[1]>=10/resolution||index[1]<0)
+            continue;
+        local_occupied_counter.at<int>(index[0],index[1])++;
+    }
+    local_grid_map_int.setTo(-1);
+    for (int row = 0; row < 10/resolution; ++row)
+	{
+		for (int col = 0; col < 10/resolution; ++col)
+        {
+            int visits = local_visual_counter.at<int>(row, col);
+			int occupieds =  local_occupied_counter.at<int>(row, col);
+            if((occupieds+ visits)>0)
+            {
+                if(occupieds>0)
+                    local_grid_map_int.at<char>(row, col) =  100;
+                else
+                    local_grid_map_int.at<char>(row, col) =  0;
+            }
+        }
+    }
+    Vector3d eulerAngle = current_frame->pose.rotationMatrix().eulerAngles(2,1,0);
+    AngleAxisd rollAngle(AngleAxisd(0,Vector3d::UnitX()));
+    AngleAxisd pitchAngle(AngleAxisd(0,Vector3d::UnitY()));
+    AngleAxisd yawAngle(AngleAxisd(eulerAngle(0),Vector3d::UnitZ()));
+    Quaterniond quaternion;
+    quaternion=yawAngle*pitchAngle*rollAngle;
+    orientation=quaternion;
+    current_pose=Vector2d(current_frame->pose.translation()[0],current_frame->pose.translation()[1]);
+
+    return local_grid_map_int;
+}
+
+
+void Gridmap::CartesianCoordinates(PointICloud scan_msg,Frame::Ptr& frame)
 {
     std::vector<Vector2d> scan_points;
     for(int i = 0; i < scan_msg.size(); ++i) {
@@ -69,7 +130,7 @@ cv::Mat Gridmap::GetGridmap()
         {
             int visits = visual_counter.at<int>(row, col);
 			int occupieds = occupied_counter.at<int>(row, col);
-            if((occupieds+ visits)<=0)//unknow
+            if((occupieds+ visits)<=0)
             {
                 grid_map.at<float>(row, col) =-1.0;
             }
@@ -80,7 +141,6 @@ cv::Mat Gridmap::GetGridmap()
             }
         }
     }
-    globalplanner_->SetNewMap(grid_map.clone(), max_x, max_y, min_x, min_y );
     return grid_map_int;
 }
 
@@ -90,9 +150,6 @@ Vector2i  Gridmap::GetIndex(int x, int y)
     return index;
 }
 
-void ExpendMap(){
-
-}
 
 void Gridmap::Bresenhamline (double x1,double y1,double x2,double y2, std::vector<Eigen::Vector2i>& points)
 {
@@ -100,6 +157,7 @@ void Gridmap::Bresenhamline (double x1,double y1,double x2,double y2, std::vecto
     int x, y, s1, s2, interchange=0, i;
     x=(x1+0.5)/1;
     y=(y1+0.5)/1;
+    //LOG(INFO)<<"x"<<x<<"y"<<y;
     dx=abs(x2-x1);
     dy=abs(y2-y1);
 
@@ -117,6 +175,7 @@ void Gridmap::Bresenhamline (double x1,double y1,double x2,double y2, std::vecto
     p=2*dy-dx;
     for(i=1;i<=dx;i++)
     {
+        //LOG(INFO)<<"Y"<<y<<"X"<<x;
         points.push_back(Vector2i(y,x));
         if(p>=0)
         {

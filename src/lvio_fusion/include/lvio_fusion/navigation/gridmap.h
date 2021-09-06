@@ -2,7 +2,7 @@
 #define lvio_fusion_GRIDMAP_H
 #include "lvio_fusion/common.h"
 #include "lvio_fusion/frame.h"
-#include "lvio_fusion/navigation/global_planner.h"
+// #include "lvio_fusion/navigation/global_planner.h"
 
 namespace lvio_fusion
 {
@@ -35,14 +35,17 @@ public:
     {
         InitGridmap();
         ClearMap();
+
     }
 
     void InitGridmap()
     {
+	    local_grid_map_int.create( 10/resolution,  10/resolution, CV_8SC1);
         grid_map.create(height, width, CV_32FC1);
 	    grid_map_int.create(height, width, CV_8SC1);
         visual_counter.create(height, width, CV_32SC1);
         occupied_counter.create(height, width, CV_32SC1);
+        start=false;
     }
 
     void ClearMap(){
@@ -56,32 +59,36 @@ public:
 
     void AddFrame(Frame::Ptr& frame);
 
-    void ToCartesianCoordinates(PointICloud scan_msg,Frame::Ptr& frame);
+    void CartesianCoordinates(PointICloud scan_msg,Frame::Ptr& frame);
+    
+    void BuildLocalmap(PointICloud scan_msg,Frame::Ptr& frame);
     
     void Bresenhamline (double x1,double y1,double x2,double y2, std::vector<Eigen::Vector2i>& points);
-    
-    void SetGlobalPlanner(Global_planner::Ptr globalplanner ) { globalplanner_ = globalplanner; }//NAVI
-    
-    void SetLocalPlanner(Local_planner::Ptr localplanner ) { localplanner_ = localplanner; }//NAVI
 
     cv::Mat GetGridmap();
+
+    cv::Mat GetLocalGridmap();
 
     Vector2i  GetIndex(int x, int y);
 
     int width;
     int height;
     double resolution;
+    Vector2d current_pose;
+    Quaterniond orientation;
+    bool start;
 private:
+    std::mutex mutex;
     cv::Mat grid_map_int;
     cv::Mat grid_map;
+    cv::Mat local_grid_map_int;
     cv::Mat visual_counter;
     cv::Mat occupied_counter;
 
     Frame::Ptr current_frame;
-    std::vector<LaserScan::Ptr> laser_scans_2d;
-    Global_planner::Ptr globalplanner_;//NAVI
-    Local_planner::Ptr localplanner_;//NAVI
 
+    std::vector<LaserScan::Ptr> laser_scans_2d;
+    PointICloud curr_scan_msg;
     const int num_scans_;
     const int horizon_scan_;
     const float ang_res_x_;

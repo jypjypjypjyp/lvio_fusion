@@ -28,7 +28,7 @@ void Navsat::AddPoint(double time, double x, double y, double z, Vector3d cov)
         pair.second->feature_navsat = navsat::Feature::Ptr(new navsat::Feature(pair.first, cov));
         finished = pair.first + epsilon;
     }
-    if (!initialized && !Map::Instance().keyframes.empty() && frames_distance(0, -1) > 40)
+    if (!initialized && !Map::Instance().keyframes.empty() && frames_distance(0, -1) > trust_distance_pitch_)
     {
         Initialize();
     }
@@ -63,36 +63,38 @@ Vector3d Navsat::GetPoint(double time)
 
 Vector3d Navsat::GetAroundPoint(double time)
 {
+    if (raw.empty())
+        return Vector3d::Zero();
     auto iter = raw.lower_bound(time);
     if (iter == raw.end())
         iter--;
     return extrinsic * iter->second;
 }
 
-SE3d Navsat::GetAroundPose(double time)
+// make sure time > begin
+bool Navsat::EstimatePose(double time, SE3d &pose)
 {
     auto iter1 = raw.lower_bound(time);
     auto iter2 = iter1--;
-    if (iter2 == raw.begin())
+    if (iter2 != raw.begin() && iter2 != raw.end())
     {
-        iter1--;
-        iter2--;
-    }
-    Vector3d p1 = extrinsic * iter1->second;
-    Vector3d p2 = extrinsic * iter2->second;
-    while (iter1 != raw.begin())
-    {
-        if ((p1 - p2).norm() > 2)
+        Vector3d p1 = extrinsic * iter1->second;
+        Vector3d p2 = extrinsic * iter2->second;
+        while (iter1 != raw.begin())
         {
-            return get_pose_from_two_points(p1, p2);
-        }
-        else
-        {
-            iter1--;
-            p1 = extrinsic * iter1->second;
+            if ((p1 - p2).norm() > trust_distance_yaw_)
+            {
+                pose = get_pose_from_two_points(p1, p2);
+                return true;
+            }
+            else
+            {
+                iter1--;
+                p1 = extrinsic * iter1->second;
+            }
         }
     }
-    return SE3d();
+    return false;
 }
 
 void Navsat::Initialize()
@@ -109,7 +111,7 @@ void Navsat::Initialize()
 
     for (auto &pair : keyframes)
     {
-        auto position = pair.second->GetPosition();
+        auto position = pair.second->t();
         if (pair.second->feature_navsat)
         {
             ceres::CostFunction *cost_function = NavsatInitError::Create(position, GetRawPoint(pair.second->feature_navsat->time), pair.second->feature_navsat->cov);
@@ -132,85 +134,70 @@ void Navsat::Initialize()
 
 void Navsat::Optimize(const Section &section)
 {
-    auto A = Map::Instance().GetKeyFrame(section.A);
-    auto B = Map::Instance().GetKeyFrame(section.B);
-    auto C = Map::Instance().GetKeyFrame(section.C);
-    SE3d old_B = B->pose;
-    // first, optimize B's position
-    OptimizeRX(B, section.C, section.C, 0b000000);
-    // second, optimize A - B
-    // OptimizeAB(A, B, old_B);
-    // third, optimize others
+    current_section = section;
+    A = Map::Instance().GetKeyFrame(section.A);
+    B = Map::Instance().GetKeyFrame(section.B);
+    C = Map::Instance().GetKeyFrame(section.C);
+    // first, optimize A-B
+    // do not use all keyframes in BC, too much frames is not good
+    OptimizeBC(B, section.C, 0b000000);
+    // optimize A-B
+    if (A != B)
+    {
+        OptimizeAB();
+    }
+    // second, optimize B-C
     Frames BC = Map::Instance().GetKeyFrames(section.B + epsilon, section.C - epsilon);
     for (auto &pair : BC)
     {
         auto frame = pair.second;
-        OptimizeRX(frame, frame->time + epsilon, section.C, 0b110111);
+        OptimizeBC(frame, frame->time + epsilon, 0b110111);
     }
-}
-
-inline double navsat_distance(Frame::Ptr frame)
-{
-    Vector3d d = frame->GetPosition() - Navsat::Get()->GetFixPoint(frame);
-    d.z() = 0;
-    return d.norm();
 }
 
 void Navsat::QuickFix(double start, double end)
 {
-    if (PoseGraph::Instance().turning && frames_distance(PoseGraph::Instance().current_section.B, end) > 40)
+    if (PoseGraph::Instance().turning ||
+        frames_distance(PoseGraph::Instance().current_section.B, end) < trust_distance_yaw_)
         return;
-    auto A = Map::Instance().GetKeyFrame(start);
-    auto B = Map::Instance().GetKeyFrame(PoseGraph::Instance().current_section.B);
-    auto C = Map::Instance().GetKeyFrame(end);
-    // add section if need
-    if (C->feature_navsat && C->feature_navsat->cov.norm() < 30 &&
-        navsat_distance(C) > 2 * accuracy_ && frames_distance(B->time, C->time) > 200)
+    current_section = PoseGraph::Instance().current_section;
+    A = Map::Instance().GetKeyFrame(start);
+    B = Map::Instance().GetKeyFrame(PoseGraph::Instance().current_section.B);
+    C = Map::Instance().GetKeyFrame(end);
+    // first, optimize A-B
+    // do not use all keyframes in BC, too much frames is not good
+    OptimizeBC(B, C->time, 0b000000);
+    // second, optimize B-C
+    Frames BC = Map::Instance().GetKeyFrames(B->time + epsilon, C->time - epsilon);
+    for (auto &pair : BC)
     {
-        bool has_half = false;
-        double new_time = 0, half_time = 0;
-        double dc = navsat_distance(C);
-        Frames active_kfs = Map::Instance().GetKeyFrames(B->time, C->time);
-        for (auto iter = active_kfs.rbegin(); iter != active_kfs.rend(); iter++)
-        {
-            double d = navsat_distance(iter->second);
-            if (d > dc)
-            {
-                dc = d;
-                has_half = false;
-            }
-            if (d < dc / 2 && d > accuracy_)
-            {
-                half_time = has_half ? half_time : iter->first;
-                has_half = true;
-            }
-            else if (d < accuracy_)
-            {
-                new_time = iter->first;
-                break;
-            }
-        }
-        if (has_half && frames_distance(new_time, half_time) > 50)
-        {
-            PoseGraph::Instance().AddSection(new_time);
-            A = Map::Instance().GetKeyFrame(new_time);
-            B = A;
-        }
+        auto frame = pair.second;
+        OptimizeBC(frame, frame->time + epsilon, 0b110111);
     }
-    // fix
-    Section section = {A->time, B->time, C->time};
-    Navsat::Optimize(section);
+    // if the orientation is wrong, add section
+    // SE3d navsat_pose;
+    // if (frames_distance(PoseGraph::Instance().current_section.B, end) > 200 &&
+    //     EstimatePose(end, navsat_pose))
+    // {
+    //     Vector3d v1 = navsat_pose.so3() * Vector3d::UnitX();
+    //     Vector3d v2 = C->pose.so3() * Vector3d::UnitX();
+    //     if (vectors_degree_angle(v1, v2) > 5)
+    //     {
+    //         PoseGraph::Instance().AddSection(end);
+    //     }
+    // }
 }
 
 // mode: zyxrpy
-void Navsat::OptimizeRX(Frame::Ptr frame, double end, double forward, unsigned char mode)
+void Navsat::OptimizeBC(Frame::Ptr frame, double end, unsigned char mode)
 {
     // rotation's optimization need longer path
-    if ((mode & 0b000111) != 0b000111 && frames_distance(frame->time, end) < 10)
+    if ((mode & 0b000111) != 0b000111 &&
+        frames_distance(frame->time, end) < trust_distance_yaw_)
         return;
     SE3d old_pose = frame->pose;
     ceres::Problem problem;
-    ceres::LossFunction *loss_function = new ceres::HuberLoss(1.0);
+    ceres::LossFunction *loss_function = new ceres::HuberLoss(0.1);
     Frames active_kfs = Map::Instance().GetKeyFrames(frame->time, end);
     double para[6] = {0, 0, 0, 0, 0, 0};
     //NOTE: the real order of rpy is y p r
@@ -225,23 +212,38 @@ void Navsat::OptimizeRX(Frame::Ptr frame, double end, double forward, unsigned c
         if (mode & (1 << i))
             problem.SetParameterBlockConstant(para + i);
     }
-
     // if para includes roll, ensure that vehicle can not roll over
-    if ((mode & 0b000100) == 0)
+    if (!problem.IsParameterBlockConstant(para + 2))
     {
-        Vector3d y(0, 0, 0);
-        for (auto &pair : active_kfs)
+        if (frames_distance(frame->time, end) > trust_distance_yaw_)
         {
-            auto origin = pair.second->pose;
-            y += frame->pose.inverse().so3() * origin.so3() * Vector3d::UnitY();
+            Vector3d y(0, 0, 0);
+            for (auto &pair : active_kfs)
+            {
+                auto origin = pair.second->pose;
+                y += frame->pose.inverse().so3() * origin.so3() * Vector3d::UnitY();
+            }
+            ceres::CostFunction *cost_function = NavsatRError::Create(y, frame->pose);
+            problem.AddResidualBlock(cost_function, NULL, para + 2);
+            ceres::Solver::Options options;
+            options.linear_solver_type = ceres::DENSE_QR;
+            ceres::Solver::Summary summary;
+            ceres::Solve(options, &problem, &summary);
         }
-        ceres::CostFunction *cost_function = NavsatRError::Create(y, frame->pose);
-        problem.AddResidualBlock(cost_function, NULL, para + 2);
-        ceres::Solver::Options options;
-        options.linear_solver_type = ceres::DENSE_QR;
-        ceres::Solver::Summary summary;
-        ceres::Solve(options, &problem, &summary);
         problem.SetParameterBlockConstant(para + 2);
+    }
+    // if distance is too small, don't optimize pitch
+    if (!problem.IsParameterBlockConstant(para + 1) &&
+        frames_distance(frame->time, end) < trust_distance_pitch_)
+    {
+        problem.SetParameterBlockConstant(para + 1);
+    }
+    // limit z
+    if (!problem.IsParameterBlockConstant(para + 5))
+    {
+        double dz = trust_distance_z_ * current_section.degree / 360;
+        problem.SetParameterLowerBound(para + 5, 0, A->t().z() - B->t().z() - dz);
+        problem.SetParameterUpperBound(para + 5, 0, A->t().z() - B->t().z() + dz);
     }
 
     for (auto &pair : active_kfs)
@@ -263,15 +265,13 @@ void Navsat::OptimizeRX(Frame::Ptr frame, double end, double forward, unsigned c
     frame->pose = frame->pose * rpyxyz2se3(para);
     SE3d new_pose = frame->pose;
     SE3d transform = new_pose * old_pose.inverse();
-    PoseGraph::Instance().ForwardUpdate(transform, Map::Instance().GetKeyFrames(frame->time + epsilon, forward));
+    PoseGraph::Instance().ForwardUpdate(transform, Map::Instance().GetKeyFrames(frame->time + epsilon, C->time));
 }
 
-void Navsat::OptimizeAB(Frame::Ptr A, Frame::Ptr B, SE3d old_B)
+void Navsat::OptimizeAB()
 {
-    if (A == B)
-        return;
     ceres::Problem problem;
-    ceres::LossFunction *loss_function = new ceres::HuberLoss(1.0);
+    ceres::LossFunction *loss_function = new ceres::HuberLoss(0.1);
     ceres::LocalParameterization *local_parameterization = new ceres::ProductParameterization(
         new ceres::EigenQuaternionParameterization(),
         new ceres::IdentityParameterization(3));
@@ -284,20 +284,20 @@ void Navsat::OptimizeAB(Frame::Ptr A, Frame::Ptr B, SE3d old_B)
     for (auto &pair : AB)
     {
         auto frame = pair.second;
+        // navsat point
         double a = (pair.first - A->time) / (B->time - A->time);
-        frame->pose.translation().z() = a * B->pose.translation().z() + (1 - a) * A->pose.translation().z();
+        Vector3d navsat_point = GetFixPoint(frame);
+        navsat_point.z() = a * B->t().z() + (1 - a) * A->t().z();
         double *para_kf = frame->pose.data();
         double *para_last_kf = last_frame->pose.data();
         problem.AddParameterBlock(para_kf, SE3d::num_parameters, local_parameterization);
-        ceres::CostFunction *cost_function1 = PoseGraphError::Create(last_frame->pose, frame->pose);
+        ceres::CostFunction *cost_function1 = PoseGraphError::Create(last_frame->pose, frame->pose, 1, 20);
         problem.AddResidualBlock(cost_function1, NULL, para_last_kf, para_kf);
-        Vector3d point = GetFixPoint(frame);
-        point.z() = frame->pose.translation().z();
-        ceres::CostFunction *cost_function2 = TError::Create(point);
+        ceres::CostFunction *cost_function2 = TError::Create(navsat_point);
         problem.AddResidualBlock(cost_function2, loss_function, para_kf);
         last_frame = frame;
     }
-    ceres::CostFunction *cost_function1 = PoseGraphError::Create(last_frame->pose, old_B);
+    ceres::CostFunction *cost_function1 = PoseGraphError::Create(current_section.relative_B, 10, 20);
     problem.AddResidualBlock(cost_function1, NULL, last_frame->pose.data(), B->pose.data());
 
     ceres::Solver::Options options;

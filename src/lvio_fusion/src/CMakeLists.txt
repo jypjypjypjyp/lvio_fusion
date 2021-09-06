@@ -3,7 +3,6 @@ add_library(lvio_fusion SHARED
         association.cpp
         backend.cpp
         config.cpp
-        Dstar.cpp
         environment.cpp
         extractor.cpp
         estimator.cpp

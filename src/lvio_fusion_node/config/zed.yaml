@@ -69,7 +69,7 @@ body_to_cam1: !!opencv-matrix
 # number of features
 num_features: 400
 num_features_init: 50
-num_features_tracking_bad: 40
+num_features_tracking_bad: 20
 num_features_needed_for_keyframe: 120
 
 # backend

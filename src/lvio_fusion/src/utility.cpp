@@ -17,7 +17,7 @@ void triangulate(const SE3d &pose0, const SE3d &pose1, const Vector3d &p0, const
     p_3d = (p_norm / p_norm(3)).head<3>();
 }
 
-double cv_distance(cv::Point2f &pt1, cv::Point2f &pt2)
+double cv_distance(cv::Point2f pt1, cv::Point2f pt2)
 {
     double dx = pt1.x - pt2.x;
     double dy = pt1.y - pt2.y;
@@ -52,15 +52,18 @@ SE3d get_pose_from_two_points(const Vector3d &a, const Vector3d &b)
     return rpyxyz2se3(rpyxyz);
 }
 
-int optical_flow(cv::Mat &prevImg, cv::Mat &nextImg,
-                 std::vector<cv::Point2f> &prevPts, std::vector<cv::Point2f> &nextPts,
-                 std::vector<uchar> &status)
+void optical_flow(cv::Mat &prevImg, cv::Mat &nextImg,
+                  std::vector<cv::Point2f> &prevPts, std::vector<cv::Point2f> &nextPts,
+                  std::vector<uchar> &status)
 {
     if (prevPts.empty())
-        return 0;
+        return;
 
     cv::Mat err;
-    cv::calcOpticalFlowPyrLK(prevImg, nextImg, prevPts, nextPts, status, err, cv::Size(21, 21), 3, cv::TermCriteria(cv::TermCriteria::COUNT + cv::TermCriteria::EPS, 30, 0.01), cv::OPTFLOW_USE_INITIAL_FLOW);
+    cv::calcOpticalFlowPyrLK(
+        prevImg, nextImg, prevPts, nextPts, status, err, cv::Size(21, 21), 3,
+        cv::TermCriteria(cv::TermCriteria::COUNT + cv::TermCriteria::EPS, 30, 0.01),
+        cv::OPTFLOW_USE_INITIAL_FLOW);
 
     std::vector<uchar> reverse_status;
     std::vector<cv::Point2f> reverse_pts = prevPts;
@@ -83,7 +86,6 @@ int optical_flow(cv::Mat &prevImg, cv::Mat &nextImg,
         else
             status[i] = 0;
     }
-    return num_success_pts;
 }
 
 Vector3d R2ypr(const Matrix3d &R)

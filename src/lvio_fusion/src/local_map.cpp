@@ -4,8 +4,6 @@
 #include "lvio_fusion/utility.h"
 #include "lvio_fusion/visual/camera.h"
 
-#include <fstream>
-
 namespace lvio_fusion
 {
 
@@ -91,28 +89,32 @@ void LocalMap::AddKeyFrame(Frame::Ptr new_kf)
     }
     // local BA
     // LocalBA(new_kf);
-    // get feature pyramid
-    local_features_[new_kf->time] = Pyramid();
-    GetFeaturePyramid(new_kf, local_features_[new_kf->time]);
-    // search
-    pose_cache[new_kf->time] = new_kf->pose;
-    std::vector<double> kfs = GetCovisibilityKeyFrames(new_kf);
-    GetNewLandmarks(new_kf, local_features_[new_kf->time]);
-    Search(kfs, new_kf);
-    // remove old key frame and old landmarks
-    if (local_features_.size() > windows_size_)
+    // local features matching
+    if (new_kf->features_left.size() < num_features_ / 2)
     {
-        for (auto &level : local_features_.begin()->second)
+        // get feature pyramid
+        local_features_[new_kf->time] = Pyramid();
+        GetFeaturePyramid(new_kf, local_features_[new_kf->time]);
+        pose_cache[new_kf->time] = new_kf->pose;
+        GetNewLandmarks(new_kf, local_features_[new_kf->time]);
+        // search
+        std::vector<double> kfs = GetCovisibilityKeyFrames(new_kf);
+        Search(kfs, new_kf);
+        // remove old key frame and old landmarks
+        if (local_features_.size() > windows_size_)
         {
-            for (auto &feature : level)
+            for (auto &level : local_features_.begin()->second)
             {
-                if (!feature->landmark.expired())
+                for (auto &feature : level)
                 {
-                    landmarks.erase(feature->landmark.lock()->id);
+                    if (!feature->landmark.expired())
+                    {
+                        landmarks.erase(feature->landmark.lock()->id);
+                    }
                 }
             }
+            local_features_.erase(local_features_.begin());
         }
-        local_features_.erase(local_features_.begin());
     }
 }
 
@@ -135,15 +137,11 @@ void LocalMap::UpdateCache()
 
 void LocalMap::GetFeaturePyramid(Frame::Ptr frame, Pyramid &pyramid)
 {
-    cv::Mat mask = cv::Mat(frame->image_left.size(), CV_8UC1, 255);
-    for (auto &pair_feature : frame->features_left)
-    {
-        cv::circle(mask, pair_feature.second->keypoint.pt, extractor_.patch_size, 0, cv::FILLED);
-    }
-
+    // we don't use a mask. new feature can overlap the old.
+    // detect
     std::vector<std::vector<cv::KeyPoint>> kps;
-    extractor_.Detect(frame->image_left, mask, kps);
-
+    extractor_.Detect(frame->image_left, kps);
+    // pyramid
     pyramid.clear();
     pyramid.resize(num_levels_);
     for (int i = 0; i < num_levels_; i++)
@@ -153,6 +151,7 @@ void LocalMap::GetFeaturePyramid(Frame::Ptr frame, Pyramid &pyramid)
         {
             pyramid[i].push_back(visual::Feature::Create(frame, kp));
         }
+        pyramid[i].shrink_to_fit();
     }
 }
 
@@ -192,19 +191,8 @@ void LocalMap::GetNewLandmarks(Frame::Ptr frame, Pyramid &pyramid)
             features.push_back(feature);
         }
     }
-    // need to check if is a moving point
-    for (auto &pair_feature : frame->features_left)
-    {
-        auto feature = pair_feature.second;
-        auto landmark = feature->landmark.lock();
-        if (!Camera::Get()->Far(position_cache[landmark->id], frame->pose))
-        {
-            features.push_back(feature);
-        }
-    }
-
+    // triangulation
     Triangulate(frame, features);
-
     // remove all failed features
     for (auto &level : pyramid)
     {
@@ -220,7 +208,6 @@ void LocalMap::GetNewLandmarks(Frame::Ptr frame, Pyramid &pyramid)
             }
         }
     }
-
     // compute descriptors
     std::vector<std::vector<cv::KeyPoint>> keypoints;
     keypoints.resize(num_levels_);
@@ -250,8 +237,10 @@ void LocalMap::Triangulate(Frame::Ptr frame, Level &features)
     for (int i = 0; i < features.size(); i++)
     {
         kps_left[i] = features[i]->keypoint.pt;
+        auto pb = Camera::Get()->Pixel2Robot(cv2eigen(kps_left[i]), Camera::baseline * 50);
+        auto pixel = eigen2cv(Camera::Get(1)->Robot2Pixel(pb));
+        kps_right.push_back(pixel);
     }
-    kps_right = kps_left;
     std::vector<uchar> status;
     optical_flow(frame->image_left, frame->image_right, kps_left, kps_right, status);
     // triangulate new points
@@ -264,32 +253,16 @@ void LocalMap::Triangulate(Frame::Ptr frame, Level &features)
             Vector2d kp_right = cv2eigen(kps_right[i]);
             Vector3d pb = Vector3d::Zero();
             triangulate(Camera::Get()->extrinsic.inverse(), Camera::Get(1)->extrinsic.inverse(), Camera::Get()->Pixel2Sensor(kp_left), Camera::Get(1)->Pixel2Sensor(kp_right), pb);
-            if (pb.z() > 0 && (Camera::Get()->Robot2Pixel(pb) - kp_left).norm() < 0.5 && (Camera::Get(1)->Robot2Pixel(pb) - kp_right).norm() < 0.5)
+            if (Camera::Get()->Robot2Sensor(pb).z() > 0)
             {
-                if (features[i]->landmark.expired())
-                {
-                    auto new_landmark = visual::Landmark::Create(1 / Camera::Get(1)->Robot2Sensor(pb).z());
-                    features[i]->landmark = new_landmark; // new left feature
-                    auto new_right_feature = visual::Feature::Create(frame, cv::KeyPoint(kps_right[i], 1), new_landmark);
-                    new_right_feature->is_on_left_image = false;
-                    new_landmark->AddObservation(features[i]);
-                    new_landmark->AddObservation(new_right_feature);
-                    position_cache[new_landmark->id] = ToWorld(features[i]);
-                    landmarks[new_landmark->id] = new_landmark;
-                    cv::circle(img_track, kps_left[i], 2, cv::Scalar(255, 0, 0), cv::FILLED);
-                }
-                else
-                {
-                    // check if is a moving point
-                    Vector3d pw = Camera::Get(1)->Robot2World(pb, frame->pose);
-                    double dt = frame->time - features[i]->landmark.lock()->FirstFrame().lock()->time;
-                    double e = (pw - position_cache[features[i]->landmark.lock()->id]).norm();
-                    if (e / dt > 4 || e > 4)
-                    {
-                        frame->RemoveFeature(features[i]);
-                        cv::putText(img_track, "X", kps_left[i], cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 0, 255));
-                    }
-                }
+                auto new_landmark = visual::Landmark::Create(1 / Camera::Get(1)->Robot2Sensor(pb).z());
+                features[i]->landmark = new_landmark; // new left feature
+                auto new_right_feature = visual::Feature::Create(frame, cv::KeyPoint(kps_right[i], 1), new_landmark);
+                new_right_feature->is_on_left_image = false;
+                new_landmark->AddObservation(features[i]);
+                new_landmark->AddObservation(new_right_feature);
+                position_cache[new_landmark->id] = ToWorld(features[i]);
+                landmarks[new_landmark->id] = new_landmark;
             }
         }
     }
@@ -300,6 +273,7 @@ std::vector<double> LocalMap::GetCovisibilityKeyFrames(Frame::Ptr frame)
     std::vector<double> kfs;
     for (auto &pair : local_features_)
     {
+        assert(pair.second.size() != 0);
         if (pair.first == frame->time)
             continue;
         Vector3d last_heading = pose_cache[pair.first].so3() * Vector3d::UnitX();
@@ -344,7 +318,6 @@ void LocalMap::Search(Pyramid &last_pyramid, SE3d last_pose, visual::Feature::Pt
     cv::Point2f p_in_last_left = eigen2cv(Camera::Get()->Sensor2Pixel(pc));
     Level features_in_radius;
     std::vector<BRIEF> briefs;
-    //TODO: check if forward or backward
     int min_level = feature->keypoint.octave, max_level = feature->keypoint.octave + 1;
     for (int i = min_level; i <= max_level && i < num_levels_; i++)
     {
@@ -390,6 +363,7 @@ void LocalMap::Search(Pyramid &last_pyramid, SE3d last_pose, visual::Feature::Pt
             last_frame->AddFeature(last_landmark->first_observation);
             Map::Instance().InsertLandmark(last_landmark);
         }
+        cv::circle(img_track, feature->keypoint.pt, 2, cv::Scalar(255, 0, 0), cv::FILLED);
     }
 }
 
@@ -397,11 +371,15 @@ Level LocalMap::GetFeatures(double time)
 {
     std::unique_lock<std::mutex> lock(mutex_);
     Level result;
-    for (auto &features : local_features_[time])
+    // avoid to add empty pyramid
+    if (local_features_.find(time) != local_features_.end())
     {
-        for (auto &feature : features)
+        for (auto &features : local_features_[time])
         {
-            result.push_back(feature);
+            for (auto &feature : features)
+            {
+                result.push_back(feature);
+            }
         }
     }
     return result;

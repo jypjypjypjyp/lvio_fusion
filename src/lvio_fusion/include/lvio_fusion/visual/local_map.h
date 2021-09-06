@@ -18,7 +18,8 @@ extern cv::Mat img_track;
 class LocalMap
 {
 public:
-    LocalMap(int num_features) : extractor_(num_features),
+    LocalMap(int num_features) : num_features_(num_features),
+                                 extractor_(num_features),
                                  matcher_(cv::DescriptorMatcher::create("BruteForce-Hamming")),
                                  num_levels_(extractor_.num_levels)
     {
@@ -71,6 +72,7 @@ private:
 
     const int num_levels_;
     const int windows_size_ = 4;
+    const int num_features_;
 };
 } // namespace lvio_fusion
 

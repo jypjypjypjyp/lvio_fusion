@@ -4,7 +4,6 @@ string IMU_TOPIC;
 string LIDAR_TOPIC;
 string NAVSAT_TOPIC;
 string IMAGE0_TOPIC, IMAGE1_TOPIC;
-string NAV_GOAL_TOPIC;//NAVI
 string result_path, ground_truth_path;
 int use_imu, use_lidar, use_navsat, use_loop, use_eskf, use_adapt, use_navigation, train;//NAVI
 
@@ -47,10 +46,6 @@ void read_parameters(string config_file)
     if (use_navsat)
     {
         settings["navsat_topic"] >> NAVSAT_TOPIC;
-    }
-    if(use_navigation)//NAVI
-    {
-         settings["nav_goal_topic"] >> NAV_GOAL_TOPIC;
     }
     train = use_imu && use_lidar;
     settings.release();

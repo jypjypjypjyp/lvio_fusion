@@ -1,3 +1,4 @@
+#define FMT_HEADER_ONLY
 #include <GeographicLib/LocalCartesian.hpp>
 #include <cv_bridge/cv_bridge.h>
 #include <nav_msgs/Path.h>
@@ -30,7 +31,7 @@ using namespace std;
 
 Estimator::Ptr estimator;
 
-ros::Subscriber sub_imu, sub_lidar, sub_navsat, sub_img0, sub_img1, sub_objects, sub_eskf, sub_nav_goal;//NAVI
+ros::Subscriber sub_imu, sub_lidar, sub_navsat, sub_img0, sub_img1, sub_objects, sub_eskf;
 ros::Publisher pub_detector;
 ros::ServiceServer svr_create_env, svr_step;
 ros::ServiceClient clt_init, clt_update_weights;
@@ -162,7 +163,7 @@ void sync_process()
                 m_img_buf.unlock();
                 estimator->InputImage(time, image0, image1, get_pose_from_path(time));
                 publish_car_model(estimator, time);
-                if(use_navigation)//NAVI
+                 if(use_navigation)//NAVI
                     publish_car_model_navigation(estimator, time);
                 publish_CompressedImage0(image0);//CompressedImage
                 publish_CompressedImage1(image1);//CompressedImage
@@ -223,13 +224,6 @@ void eskf_callback(const geometry_msgs::PoseStampedConstPtr &fused_msg)
     m_odom_buf.unlock();
 }
 
-//NAVI
-void nav_goal_callback(const geometry_msgs::PoseStamped  &nav_goal_msg)
-{
-   //LOG(INFO)<<"nav_goal_msg:"<<nav_goal_msg.pose.position.x<<" "<<nav_goal_msg.pose.position.y<<" "<<nav_goal_msg.pose.position.z;
-   estimator->globalplanner->SetGoalPose(Vector2d(nav_goal_msg.pose.position.x,nav_goal_msg.pose.position.y));
-}
-
 void tf_timer_callback(const ros::TimerEvent &timer_event)
 {
     publish_tf(estimator, timer_event.current_real.toSec() - delta_time);
@@ -254,18 +248,19 @@ void navsat_timer_callback(const ros::TimerEvent &timer_event)
 {
     publish_navsat(estimator, timer_event.current_real.toSec() - delta_time);
 }
-//NAVI
-void navigation_timer_callback(const ros::TimerEvent &timer_event)
-{
-    publish_navigation(estimator, timer_event.current_real.toSec() - delta_time);
-    publish_plan_path(estimator, timer_event.current_real.toSec() - delta_time);
-}
 
 bool create_env_callback(lvio_fusion_node::CreateEnv::Request &req,
                          lvio_fusion_node::CreateEnv::Response &res)
 {
     res.id = Environment::Create(res.obs);
     return true;
+}
+
+//NAVI
+void gridmap_timer_callback(const ros::TimerEvent &timer_event)
+{
+    publish_gridmap(estimator, timer_event.current_real.toSec() - delta_time);
+    publish_local_gridmap(estimator, timer_event.current_real.toSec() - delta_time);
 }
 
 bool step_callback(lvio_fusion_node::Step::Request &req,
@@ -465,7 +460,7 @@ int main(int argc, char **argv)
     }
     read_parameters(config_file);
     estimator = Estimator::Ptr(new Estimator(config_file));
-    assert(estimator->Init(use_imu, use_lidar, use_navsat, use_loop, use_adapt, use_navigation) == true);//NAVI
+    assert(estimator->Init(use_imu, use_lidar, use_navsat, use_loop, use_adapt,use_navigation) == true);//NAVI
     ROS_WARN("Waiting for images...");
     register_pub(n);
     ros::Timer tf_timer = n.createTimer(ros::Duration(0.0001), tf_timer_callback);
@@ -505,12 +500,10 @@ int main(int argc, char **argv)
         clt_update_weights = n.serviceClient<lvio_fusion_node::UpdateWeights>("/lvio_fusion_node/update_weight");
         Agent::SetCore(new RealCore());
     }
-    //NAVI
+        //NAVI
     if(use_navigation&&use_lidar)
     {
-          cout << "nav_goal:" << NAV_GOAL_TOPIC << endl;
-        navigation_timer = n.createTimer(ros::Duration(2), navigation_timer_callback);
-        sub_nav_goal = n.subscribe(NAV_GOAL_TOPIC, 100, nav_goal_callback);
+        navigation_timer = n.createTimer(ros::Duration(1), gridmap_timer_callback);
     }
     if (train)
     {

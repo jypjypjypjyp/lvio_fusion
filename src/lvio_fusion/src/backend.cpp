@@ -45,24 +45,19 @@ void Backend::GlobalLoop()
     while (true)
     {
         std::this_thread::sleep_for(std::chrono::seconds(2));
+        if (Map::Instance().end && !PoseGraph::Instance().turning)
+        {
+            global_end_ = (--Map::Instance().keyframes.end())->first;
+            PoseGraph::Instance().AddSection(global_end_);
+            Map::Instance().end = false;
+        }
         auto sections = PoseGraph::Instance().GetSections(start, global_end_);
         if (!sections.empty())
         {
-            auto t1 = std::chrono::steady_clock::now();
             // new section has nothing to do with backend's window, so run at the sametime.
             Section new_section = sections.begin()->second;
             start = new_section.C;
             SE3d old_pose = Map::Instance().GetKeyFrame(start)->pose;
-            //{
-            // ComputeGravity(new_section);
-            //  {
-            //         // update backend and frontend
-            //         std::unique_lock<std::mutex> lock(mutex);
-            //         SE3d new_pose = Map::Instance().GetKeyFrame(start)->pose;
-            //         SE3d transform = new_pose * old_pose.inverse();
-            //         PoseGraph::Instance().ForwardUpdate(transform, start + epsilon);
-            //     }
-            // }
             if (Navsat::Num() && Navsat::Get()->initialized)
             {
                 Navsat::Get()->Optimize(new_section);
@@ -73,62 +68,26 @@ void Backend::GlobalLoop()
                     SE3d transform = new_pose * old_pose.inverse();
                     PoseGraph::Instance().ForwardUpdate(transform, start + epsilon);
                 }
-                auto t2 = std::chrono::steady_clock::now();
-                auto time_used = std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);
-                LOG(INFO) << "Global cost time: " << time_used.count() << " seconds.";
+                mapping_->ToWorld(new_section.A);
             }
         }
-        if (Navsat::Num() && Navsat::Get()->initialized)
+        if (Navsat::Num() && Navsat::Get()->initialized && global_end_ > 0)
         {
             // quick fix
             std::unique_lock<std::mutex> lock(mutex);
-            SE3d old_pose = Map::Instance().GetKeyFrame(global_end_)->pose;
-            Navsat::Get()->QuickFix(start, global_end_);
-            SE3d new_pose = Map::Instance().GetKeyFrame(global_end_)->pose;
-            SE3d transform = new_pose * old_pose.inverse();
-            PoseGraph::Instance().ForwardUpdate(transform, global_end_ + epsilon);
+            {
+                SE3d old_pose = Map::Instance().GetKeyFrame(global_end_)->pose;
+                Navsat::Get()->QuickFix(start, global_end_);
+                SE3d new_pose = Map::Instance().GetKeyFrame(global_end_)->pose;
+                SE3d transform = new_pose * old_pose.inverse();
+                PoseGraph::Instance().ForwardUpdate(transform, global_end_ + epsilon);
+            }
+            mapping_->ToWorld(start);
         }
     }
 }
 
-// void Backend::ComputeGravity(Section section )
-// {
-//     if(!(Imu::Num()))
-//         return;
-//     auto A = Map::Instance().GetKeyFrame(section.A);
-//     auto B = Map::Instance().GetKeyFrame(section.B);
-//     auto C = Map::Instance().GetKeyFrame(section.C);
-//     // if(C->time-B->time<3)return;
-//     auto BC=  Map::Instance().GetKeyFrames(section.B,section.C);
-//     auto AC=  Map::Instance().GetKeyFrames(section.A,section.C);
-
-//     Vector3d twga = Vector3d::Zero();
-
-//     int num_frame=0;
-//     for (auto &pair : BC)
-//     {
-//         auto frame = pair.second;
-//         if(!frame->good_imu)
-//             return;
-//         twga += frame->last_keyframe->GetRotation() * frame->preintegration->GetUpdatedDeltaVelocity();
-//         num_frame++;
-//     }
-//     if(num_frame<10)return;
-
-//     Vector3d deltaV=(C->Vw-B->Vw);
-//     Vector3d twg=twga-deltaV;
-//     Matrix3d Rwg_ = get_R_from_vector(twg);
-
-//     for (auto &pair : BC)
-//     {
-//         auto frame = pair.second;
-//         frame->SetPose( Rwg_.inverse()*frame->pose.rotationMatrix(),B->pose.translation() + Rwg_.inverse()*(frame->pose.translation()-B->pose.translation() ));
-//         if(frame->good_imu)
-//             frame->Vw=Rwg_.inverse()*frame->Vw;
-//     }
-// }
-
-void Backend::BuildProblem(Frames &active_kfs, adapt::Problem &problem)
+double Backend::BuildProblem(Frames &active_kfs, adapt::Problem &problem)
 {
     ceres::LossFunction *loss_function = new ceres::HuberLoss(1.0);
     ceres::LocalParameterization *local_parameterization = new ceres::ProductParameterization(
@@ -196,33 +155,25 @@ void Backend::BuildProblem(Frames &active_kfs, adapt::Problem &problem)
             }
         }
 
-        // vehicle constraints
-        // if (last_frame)
-        // {
-        //     ceres::CostFunction *cost_function = VehicleError::Create(frame->time - last_frame->time, 1e4);
-        //     problem.AddResidualBlock(ProblemType::Other, cost_function, NULL, para_last_kf, para_kf);
-        // }
-
         // check if weak constraint
         auto num_types = problem.GetTypes(para_kf);
-        if (!num_types[ProblemType::ImuError] && num_types[ProblemType::VisualError] < 10)
+        if (!num_types[ProblemType::ImuError] && num_types[ProblemType::VisualError] < 20)
         {
             if (last_frame)
             {
-                ceres::CostFunction *cost_function = PoseGraphError::Create(last_frame->pose, frame->pose, 100);
+                ceres::CostFunction *cost_function = PoseGraphError::Create(last_frame->pose, frame->pose, 100, 0);
                 problem.AddResidualBlock(ProblemType::Other, cost_function, NULL, para_last_kf, para_kf);
             }
             else
             {
-                ceres::CostFunction *cost_function = PoseError::Create(frame->pose, 100);
+                ceres::CostFunction *cost_function = PoseError::Create(frame->pose, 100, 0);
                 problem.AddResidualBlock(ProblemType::Other, cost_function, NULL, para_kf);
             }
         }
-
         last_frame = frame;
         para_last_kf = para_kf;
     }
-    global_end_ = global_end;
+    return global_end != start_time ? global_end : global_end_;
 }
 
 double compute_reprojection_error(Vector2d ob, Vector3d pw, SE3d pose, Camera::Ptr camera)
@@ -244,7 +195,7 @@ void Backend::Optimize()
     SE3d start_pose = active_kfs.begin()->second->pose;
 
     adapt::Problem problem;
-    BuildProblem(active_kfs, problem);
+    global_end_ = BuildProblem(active_kfs, problem);
 
     ceres::Solver::Options options;
     options.linear_solver_type = ceres::SPARSE_SCHUR;
@@ -302,7 +253,6 @@ void Backend::UpdateFrontend(SE3d transform, double time)
 
     adapt::Problem problem;
     BuildProblem(active_kfs, problem);
-
     ceres::Solver::Options options;
     options.linear_solver_type = ceres::SPARSE_NORMAL_CHOLESKY;
     options.max_num_iterations = 1;
@@ -313,9 +263,8 @@ void Backend::UpdateFrontend(SE3d transform, double time)
     {
         imu::RecoverBias(active_kfs);
     }
-
     // imu initialization
-    if (Imu::Num() && (!Navsat::Num() || (Navsat::Num() && Navsat::Get()->initialized)))
+    if (Imu::Num())
     {
         initializer_->Initialize(frontend_.lock()->init_time, time);
     }
@@ -333,7 +282,6 @@ void Backend::UpdateFrontend(SE3d transform, double time)
             frontend_.lock()->UpdateImu((--active_kfs.end())->second->bias);
         }
     }
-
     // update frontend landmarks and pose
     frontend_.lock()->UpdateCache();
 }

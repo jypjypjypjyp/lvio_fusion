@@ -19,8 +19,8 @@ void RePredictVel(Frames &frames, Frame::Ptr &prior_frame)
     {
         Frame::Ptr frame = pair.second;
         double t12 = frame->preintegration->sum_dt;
-        twb1 = last_frame->GetPosition();
-        Rwb1 = last_frame->GetRotation();
+        twb1 = last_frame->t();
+        Rwb1 = last_frame->R();
         Vwb1 = last_frame->Vw;
         Rwb2 = normalize_R(Rwb1 * frame->preintegration->GetDeltaRotation(last_frame->bias).toRotationMatrix());
         twb2 = twb1 + Vwb1 * t12 + 0.5f * t12 * t12 * G + Rwb1 * frame->preintegration->GetDeltaPosition(last_frame->bias);
@@ -31,7 +31,7 @@ void RePredictVel(Frames &frames, Frame::Ptr &prior_frame)
     }
 }
 
-bool InertialOptimization(Frames &frames, Matrix3d &Rwg, double prior_a, double prior_g, bool isOptRwg)
+bool InertialOptimization(Frames &frames, Matrix3d &Rwg, double prior_a, double prior_g)
 {
     ceres::Problem problem;
     ceres::CostFunction *cost_function;
@@ -46,10 +46,7 @@ bool InertialOptimization(Frames &frames, Matrix3d &Rwg, double prior_a, double 
     double *para_rwg = RwgSO3.data();
     ceres::LocalParameterization *local_parameterization = new ceres::EigenQuaternionParameterization();
     problem.AddParameterBlock(para_rwg, SO3d::num_parameters, local_parameterization);
-    if(!isOptRwg)
-    {
-        problem.SetParameterBlockConstant(para_rwg);
-    }
+
     Frame::Ptr last_frame;
     for (auto &pair : frames)
     {
@@ -74,7 +71,6 @@ bool InertialOptimization(Frames &frames, Matrix3d &Rwg, double prior_a, double 
     ceres::Solver::Options options;
     options.linear_solver_type = ceres::DENSE_QR;
     options.num_threads = num_threads;
-    options.max_solver_time_in_seconds = 0.5;
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
 
@@ -168,7 +164,6 @@ void FullBA(Frames &frames, double prior_a, double prior_g)
     //solve
     ceres::Solver::Options options;
     options.linear_solver_type = ceres::SPARSE_SCHUR;
-    options.max_solver_time_in_seconds = 0.5;
     options.num_threads = num_threads;
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);

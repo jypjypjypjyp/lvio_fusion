@@ -22,7 +22,7 @@ namespace lvio_fusion
  */
 void triangulate(const SE3d &pose0, const SE3d &pose1, const Vector3d &p0, const Vector3d &p1, Vector3d &p_3d);
 
-double cv_distance(cv::Point2f &pt1, cv::Point2f &pt2);
+double cv_distance(cv::Point2f pt1, cv::Point2f pt2 = cv::Point2f(0, 0));
 
 /**
  * double calculate optical flow
@@ -32,9 +32,9 @@ double cv_distance(cv::Point2f &pt1, cv::Point2f &pt2);
  * @param nextPts     point in next image
  * @param status      status
  */
-int optical_flow(cv::Mat &prevImg, cv::Mat &nextImg,
-                        std::vector<cv::Point2f> &prevPts, std::vector<cv::Point2f> &nextPts,
-                        std::vector<uchar> &status);
+void optical_flow(cv::Mat &prevImg, cv::Mat &nextImg,
+                  std::vector<cv::Point2f> &prevPts, std::vector<cv::Point2f> &nextPts,
+                  std::vector<uchar> &status);
 
 inline Vector2d cv2eigen(const cv::Point2f &p) { return Vector2d(p.x, p.y); }
 inline Vector3d cv2eigen(const cv::Point3f &p) { return Vector3d(p.x, p.y, p.z); }
@@ -213,6 +213,17 @@ Matrix3d normalize_R(const Matrix3d &R_);
 
 Matrix3d get_R_from_vector(Vector3d vec);
 
+inline bool operator==(Quaterniond &a, Quaterniond &b)
+{
+    auto na = a.normalized(), nb = b.normalized();
+    return na.w() == nb.w() && na.x() == nb.x() && na.y() == nb.y() && na.z() == nb.z();
+}
+
+inline bool operator==(SE3d &a, SE3d &b)
+{
+    Quaterniond qa = a.unit_quaternion(), qb = b.unit_quaternion();
+    return a.translation() == b.translation() && qa == qb;
+}
 } // namespace lvio_fusion
 
 #endif // lvio_fusion_UTILITY_H

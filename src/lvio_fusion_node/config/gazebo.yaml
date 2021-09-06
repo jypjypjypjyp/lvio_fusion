@@ -16,7 +16,7 @@ image0_topic: '/D435i_camera/infra1/image_rect_raw'
 image1_topic: '/D435i_camera/infra2/image_rect_raw'
 color_topic: '/D435i_camera/color/image_raw'
 nav_goal_topic: '/move_base_simple/goal'
-result_path: '/home/zoet/Projects/lvio_fusion/result/result.csv'
+result_path: '/home/yjq/Projects/lvio_fusion/result/result.csv'
 
 # cameras parameters
 undistort: 0
@@ -100,7 +100,7 @@ relocator_mode: 0    # none = 0, visual = 1, lidar = 2, visual&&lidar = 3
 threshold: 10
 
 # train
-ground_truth_path: /home/zoet/Projects/playground/kitti_00_tum_gd.txt
+ground_truth_path: /home/yjq/Projects/playground/kitti_00_tum_gd.txt
 obs_rows: 4
 obs_cols: 12
 

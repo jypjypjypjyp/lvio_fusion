@@ -8,7 +8,6 @@
 
 const double epsilon = 1e-3;
 const int num_threads = std::min(8, std::max(1, (int)(0.75 * get_nprocs())));
-const double max_speed = 40;
 
 namespace lvio_fusion
 {
@@ -111,7 +110,8 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
 
     if (use_navsat)
     {
-        Navsat::Create(Config::Get<double>("accuracy"));
+        Navsat::Create(Config::Get<double>("accuracy"),
+                       Config::Get<double>("navsat_v"));
     }
 
     if (use_imu)
@@ -161,10 +161,11 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
             relocator->SetMapping(mapping);
         }
     }
-    else{    //NAVI
+    else  //NAVI
+    {  
         use_navigation=0;
     }
-    //NAVI
+     //NAVI
     if(use_navigation)
     {
         gridmap = Gridmap::Ptr(new Gridmap(
@@ -181,22 +182,9 @@ bool Estimator::Init(int use_imu, int use_lidar, int use_navsat, int use_loop, i
             Config::Get<double>("max_range"),
             Config::Get<int>("deskew"),
             Config::Get<int>("spacing")));
-        association->SetGridmap(gridmap);
-        if(use_imu)
-            initializer->SetGridmap(gridmap);
-        globalplanner=Global_planner::Ptr(new Global_planner(
-            Config::Get<int>("grid_width"),
-            Config::Get<int>("grid_height"),
-            Config::Get<double>("grid_resolution")));
-        frontend->SetGlobalPlanner(globalplanner);
-        gridmap->SetGlobalPlanner(globalplanner);
-        localplanner=Local_planner::Ptr(new Local_planner(
-            Config::Get<int>("grid_width"),
-            Config::Get<int>("grid_height"),
-            Config::Get<double>("grid_resolution")));
-        frontend->SetLocalPlanner(localplanner);
-        gridmap->SetLocalPlanner(localplanner);
-        globalplanner->SetLocalPlanner(localplanner);
+            association->SetGridmap(gridmap);
+            //      if(use_imu)
+            // initializer->SetGridmap(gridmap);
     }
     return true;
 }
@@ -218,7 +206,7 @@ void Estimator::InputImage(double time, cv::Mat &left_image, cv::Mat &right_imag
     bool success = frontend->AddFrame(new_frame);
     auto t2 = std::chrono::steady_clock::now();
     auto time_used = std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);
-    LOG(INFO) << "Frontend status:" << map_status[frontend->status] << ", cost time: " << time_used.count() << " seconds.";
+    // LOG(INFO) << "Frontend status:" << map_status[frontend->status] << ", cost time: " << time_used.count() << " seconds.";
 }
 
 void Estimator::InputPointCloud(double time, Point3Cloud::Ptr point_cloud)

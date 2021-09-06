@@ -3,7 +3,7 @@
 
 #include "lvio_fusion/common.h"
 #include "lvio_fusion/visual/local_map.h"
-#include "lvio_fusion/navigation/global_planner.h"//NAVI
+
 namespace lvio_fusion
 {
 
@@ -29,10 +29,6 @@ public:
     void AddImu(double time, Vector3d acc, Vector3d gyr);
 
     void SetBackend(std::shared_ptr<Backend> backend) { backend_ = backend; }
-
-    void SetGlobalPlanner(Global_planner::Ptr globalplanner ) { globalplanner_ = globalplanner; }//NAVI
-
-    void SetLocalPlanner(Local_planner::Ptr localplanner ) { localplanner_ = localplanner; }//NAVI
 
     void UpdateCache();
 
@@ -69,8 +65,6 @@ private:
 
     // data
     std::weak_ptr<Backend> backend_;
-    Global_planner::Ptr globalplanner_;//NAVI
-    Local_planner::Ptr localplanner_;//NAVI
     std::queue<ImuData> imu_buf_;
     imu::Preintegration::Ptr preintegration_last_kf_; // imu pre integration from last key frame
     SE3d last_frame_pose_cache_;

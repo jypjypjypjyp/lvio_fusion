@@ -85,14 +85,15 @@ body_to_lidar: !!opencv-matrix
 # number of features
 num_features: 500
 num_features_init: 50
-num_features_tracking_bad: 40
-num_features_needed_for_keyframe: 200
+num_features_tracking_bad: 20
+num_features_needed_for_keyframe: 120
 
 # backend
 windows_size: 3
 
 # navsat
-accuracy: 2
+accuracy: 1
+navsat_v: 0
 
 # loop
 relocator_mode: 0    # none = 0, visual = 1, lidar = 2, visual&&lidar = 3

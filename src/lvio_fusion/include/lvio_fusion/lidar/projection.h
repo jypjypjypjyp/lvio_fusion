@@ -1,6 +1,5 @@
 #include "lvio_fusion/common.h"
 #include "lvio_fusion/navigation/gridmap.h"//NAVI
-
 namespace lvio_fusion
 {
 
