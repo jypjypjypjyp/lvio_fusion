@@ -500,7 +500,6 @@ int main(int argc, char **argv)
         clt_update_weights = n.serviceClient<lvio_fusion_node::UpdateWeights>("/lvio_fusion_node/update_weight");
         Agent::SetCore(new RealCore());
     }
-        //NAVI
     if(use_navigation&&use_lidar)
     {
         navigation_timer = n.createTimer(ros::Duration(1), gridmap_timer_callback);

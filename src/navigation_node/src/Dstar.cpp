@@ -1,8 +1,8 @@
 /* Dstar.cpp
  * James Neufeld (neufeld@cs.ualberta.ca)
  */
-#include "lvio_fusion/common.h"
-#include "lvio_fusion/navigation/Dstar.h"
+#include "navigation_node/common.h"
+#include "navigation_node/Dstar.h"
 
 #ifdef USE_OPEN_GL
 #ifdef MACOS
@@ -464,7 +464,6 @@ void Dstar::updateStart(int x, int y) {
 
   if(s_start.x == x&&s_start.y == y)
     return;
-  LOG(INFO)<<"SetRobotPose:"<<x<<" "<<y;
   s_start.x = x;
   s_start.y = y;
   
@@ -484,8 +483,6 @@ void Dstar::updateStart(int x, int y) {
  * likely no longer use.
  */
 void Dstar::updateGoal(int x, int y) {
-  LOG(INFO)<<"SetGoalPose:"<<x<<" "<<y;
-   
   list< pair<ipoint2, double> > toAdd;
   pair<ipoint2, double> tp;
   

@@ -1,0 +1,11 @@
+<?xml version="1.0"?>
+<launch>
+  <arg name="config_file" default="$(find navigation_node)/config/kitti.yaml" />
+
+  <node name="navigation_node" pkg="navigation_node" type="navigation_node" output="screen">
+    <param name="config_file" value="$(arg config_file)" />
+  </node>
+
+  <!-- <node name="rviz" pkg="rviz" type="rviz" output="log" args="-d $(find lvio_fusion_node)/config/default.rviz"/> -->
+  
+</launch>

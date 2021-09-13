@@ -1,0 +1,10 @@
+%YAML:1.0
+
+# flags
+use_navigation: 0
+use_obstacle_avoidance: 1
+
+# map size
+grid_width: 1200
+grid_height: 1200
+grid_resolution: 1
