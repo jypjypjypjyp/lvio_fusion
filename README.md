@@ -48,5 +48,7 @@ To generate rosbags using KITTI raw data, you can use the [script](https://githu
 ![](misc/lvio1.png)
 
 kaist urban:
+Here is a video:
+[![video](misc/video.png)](https://www.youtube.com/watch?v=y0I2_27AyUE "youtube video")
 ![](misc/lvio39.png)
 
