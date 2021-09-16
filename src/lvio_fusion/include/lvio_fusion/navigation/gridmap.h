@@ -77,6 +77,9 @@ public:
     Vector2d current_pose;
     Quaterniond orientation;
     bool start;
+    std::vector<double> border;
+    Frame::Ptr current_frame;
+    
 private:
     std::mutex mutex;
     cv::Mat grid_map_int;
@@ -84,8 +87,6 @@ private:
     cv::Mat local_grid_map_int;
     cv::Mat visual_counter;
     cv::Mat occupied_counter;
-
-    Frame::Ptr current_frame;
 
     std::vector<LaserScan::Ptr> laser_scans_2d;
     PointICloud curr_scan_msg;
@@ -107,7 +108,7 @@ private:
     const double max_range_;
     const bool deskew_;
     const double spacing_;
-    
+
 };
 
 } // namespace lvio_fusion

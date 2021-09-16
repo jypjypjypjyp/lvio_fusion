@@ -23,7 +23,7 @@ void FeatureAssociation::AddScan(double time, Point3Cloud::Ptr new_scan)
     static double finished = 0;
     static Frame::Ptr last_frame;
     raw_point_clouds_[time] = new_scan;
-
+    
     Frames new_kfs = Map::Instance().GetKeyFrames(finished, time);
     for (auto &pair : new_kfs)
     {

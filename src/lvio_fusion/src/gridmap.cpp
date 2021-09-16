@@ -141,6 +141,7 @@ cv::Mat Gridmap::GetGridmap()
             }
         }
     }
+    border={double(max_x),double(min_x),double(max_y),double(min_y)};
     return grid_map_int;
 }
 
@@ -157,7 +158,7 @@ void Gridmap::Bresenhamline (double x1,double y1,double x2,double y2, std::vecto
     int x, y, s1, s2, interchange=0, i;
     x=(x1+0.5)/1;
     y=(y1+0.5)/1;
-    //LOG(INFO)<<"x"<<x<<"y"<<y;
+ 
     dx=abs(x2-x1);
     dy=abs(y2-y1);
 
@@ -175,7 +176,6 @@ void Gridmap::Bresenhamline (double x1,double y1,double x2,double y2, std::vecto
     p=2*dy-dx;
     for(i=1;i<=dx;i++)
     {
-        //LOG(INFO)<<"Y"<<y<<"X"<<x;
         points.push_back(Vector2i(y,x));
         if(p>=0)
         {

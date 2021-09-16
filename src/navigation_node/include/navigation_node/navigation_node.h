@@ -1,6 +1,8 @@
 #include <ros/package.h>
 #include <ros/ros.h>
 #include <fstream>
+#include <std_msgs/Float32.h>
+#include <std_msgs/Float64MultiArray.h>
 #include <sensor_msgs/Image.h>
 #include <sensor_msgs/PointCloud2.h>
 #include <geometry_msgs/Twist.h>
@@ -17,13 +19,17 @@ using namespace std;
 
 navigation_node::Global_planner::Ptr global_planner;
 
-ros::Subscriber  sub_nav_goal,sub_pose, sub_gridmap, sub_localmap, sub_vel;
+ros::Subscriber  sub_nav_goal,sub_pose, sub_border, sub_gridmap, sub_localmap;
+
+string GRID_WIDTH;
+string GRID_HEIGHT;
+string GRID_RESOLUTION;
 
 string NAV_GOAL_TOPIC;
 string POSE_TOPIC;
+string BORDER_TOPIC;
 string GRIDMAP_TOPIC;
 string LOCALMAP_TOPIC;
-string VEL_TOPIC;
 
 int use_navigation;
 int use_obstacle_avoidance;

@@ -16,7 +16,7 @@
 #include <visualization_msgs/Marker.h>
 #include <visualization_msgs/MarkerArray.h>
 #include <tf/transform_broadcaster.h>
-
+#include <std_msgs/Float64MultiArray.h>
 #include "lvio_fusion/estimator.h"
 
 using namespace lvio_fusion;
@@ -38,6 +38,8 @@ void publish_car_model(Estimator::Ptr estimator, double time);
 void publish_gridmap(Estimator::Ptr estimator, double time);//NAVI
 
 void publish_local_gridmap(Estimator::Ptr estimator, double time);//NAVI
+
+void publish_pose(Estimator::Ptr estimator, double time);//NAVI
 
 void publish_car_model_navigation(Estimator::Ptr estimator, double time);//NAVI
 

@@ -14,7 +14,15 @@ find_package(catkin REQUIRED COMPONENTS
   image_transport
   message_generation
 )
+include_directories(${catkin_INCLUDE_DIRS})
 
+# server
+generate_messages(
+    DEPENDENCIES
+        geometry_msgs
+        sensor_msgs
+        std_msgs
+    )
 # Eigen
 find_package(Eigen3 REQUIRED)
 include_directories(${EIGEN3_INCLUDE_DIR})
@@ -34,14 +42,20 @@ include_directories(${GLOG_INCLUDE_DIRS})
 # Thread
 find_package (Threads)
 
+set(THIRD_PARTY_LIBS
+    ${catkin_LIBRARIES}
+    ${GeographicLib_LIBRARIES}
+    ${OpenCV_LIBRARIES}
+    ${Sophus_LIBRARIES}
+    ${CERES_LIBRARIES}
+    ${GLOG_LIBRARIES}
+    ${CMAKE_THREAD_LIBS_INIT}
+    )
+
 catkin_package(
-#  INCLUDE_DIRS include
-#  LIBRARIES navigation_node
-#  CATKIN_DEPENDS roscpp
-#  DEPENDS system_lib
+  INCLUDE_DIRS include
+  LIBRARIES navigation_node
 )
 
-include_directories(
-
-  ${catkin_INCLUDE_DIRS}
-)
+include_directories(${PROJECT_SOURCE_DIR}/include)
+add_subdirectory(src)

@@ -263,6 +263,11 @@ void gridmap_timer_callback(const ros::TimerEvent &timer_event)
     publish_local_gridmap(estimator, timer_event.current_real.toSec() - delta_time);
 }
 
+void pose_timer_callback(const ros::TimerEvent &timer_event)
+{
+    publish_pose(estimator, timer_event.current_real.toSec() - delta_time);
+}
+
 bool step_callback(lvio_fusion_node::Step::Request &req,
                    lvio_fusion_node::Step::Response &res)
 {
@@ -469,6 +474,7 @@ int main(int argc, char **argv)
     ros::Timer pc_timer;
     ros::Timer navsat_timer;
     ros::Timer navigation_timer;//NAVI
+    ros::Timer pose_timer;//NAVI
 
     cout << "image0:" << IMAGE0_TOPIC << endl;
     sub_img0 = n.subscribe(IMAGE0_TOPIC, 10, img0_callback);
@@ -503,6 +509,7 @@ int main(int argc, char **argv)
     if(use_navigation&&use_lidar)
     {
         navigation_timer = n.createTimer(ros::Duration(1), gridmap_timer_callback);
+        pose_timer = n.createTimer(ros::Duration(0.5), pose_timer_callback);
     }
     if (train)
     {

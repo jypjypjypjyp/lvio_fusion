@@ -1,6 +1,7 @@
 add_executable(navigation_node
         navigation_node.cpp
-        # global_planner.cpp
+        global_planner.cpp
+        Dstar.cpp
         # local_planner.cpp
         )
 

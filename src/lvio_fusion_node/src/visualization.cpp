@@ -16,7 +16,10 @@ ros::Publisher pub_local_map;
 ros::Publisher pub_car_model;
 ros::Publisher pub_car_model_navigation;//NAVI
 ros::Publisher pub_gridmap;//NAVI
+ros::Publisher pub_border;//NAVI
 ros::Publisher pub_localgridmap;//NAVI
+// ros::Publisher pub_vel;//NAVI
+ros::Publisher pub_pose;//NAVI
 ros::Publisher pub_CompressedImage0,pub_CompressedImage1;//CompressedImage
 nav_msgs::Path path, navsat_path;
 
@@ -33,7 +36,10 @@ void register_pub(ros::NodeHandle &n)
     pub_car_model = n.advertise<visualization_msgs::Marker>("car_model", 1000);
     pub_car_model_navigation = n.advertise<visualization_msgs::Marker>("car_model_navigation", 1000);//NAVI
     pub_gridmap = n.advertise<nav_msgs::OccupancyGrid>("grid_map", 1);//NAVI
+    pub_border = n.advertise<std_msgs::Float64MultiArray>("border",1);
     pub_localgridmap = n.advertise<nav_msgs::OccupancyGrid>("local_grid_map", 1);//NAVI
+    // pub_vel = n.advertise<std_msgs::Float32>("velocity",1);
+    pub_pose = n.advertise<geometry_msgs::PoseStamped>("robot_pose",1);
     pub_camera_pose_visual = n.advertise<visualization_msgs::MarkerArray>("camera_pose_visual", 1000);
     pub_CompressedImage0=n.advertise<sensor_msgs::CompressedImage>("CompressedImage0",1000);//CompressedImage
     pub_CompressedImage1=n.advertise<sensor_msgs::CompressedImage>("CompressedImage1",1000);//CompressedImage
@@ -275,6 +281,11 @@ void publish_gridmap(Estimator::Ptr estimator, double time)
         }
     }
     grid_map_msg.data=grid_map_vec;
+
+    std_msgs::Float64MultiArray border_msg;
+    border_msg.data=estimator->gridmap->border;
+    pub_border.publish(border_msg);
+
     pub_gridmap.publish(grid_map_msg);
 }
 
@@ -316,6 +327,28 @@ void publish_local_gridmap(Estimator::Ptr estimator, double time)
     }
     grid_map_msg.data=grid_map_vec;
     pub_localgridmap.publish(grid_map_msg);
+}
+
+void publish_pose(Estimator::Ptr estimator, double time)
+{
+    // std_msgs::Float32 velocity;
+    // Vector3d V=estimator->gridmap->current_frame->Vw;
+    // velocity.data = sqrt(V[0]*V[0]+V[1]*V[1]+V[2]*V[2]);
+    // pub_vel.publish(velocity);
+
+    geometry_msgs::PoseStamped robot_pose;
+    SE3d pose=estimator->gridmap->current_frame->pose;
+    Quaterniond q(pose.rotationMatrix());
+    robot_pose.pose.position.x=pose.translation().x();
+    robot_pose.pose.position.y=pose.translation().y();
+    robot_pose.pose.position.z=pose.translation().z();
+    robot_pose.pose.orientation.w=q.w();
+    robot_pose.pose.orientation.x=q.x();
+    robot_pose.pose.orientation.y=q.y();
+    robot_pose.pose.orientation.z=q.z();
+    robot_pose.header.frame_id="navigation";
+    robot_pose.header.stamp=ros::Time(time);
+    pub_pose.publish(robot_pose);
 }
 
 //CompressedImage
