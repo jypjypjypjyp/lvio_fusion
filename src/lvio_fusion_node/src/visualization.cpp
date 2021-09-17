@@ -337,18 +337,21 @@ void publish_pose(Estimator::Ptr estimator, double time)
     // pub_vel.publish(velocity);
 
     geometry_msgs::PoseStamped robot_pose;
-    SE3d pose=estimator->gridmap->current_frame->pose;
-    Quaterniond q(pose.rotationMatrix());
-    robot_pose.pose.position.x=pose.translation().x();
-    robot_pose.pose.position.y=pose.translation().y();
-    robot_pose.pose.position.z=pose.translation().z();
-    robot_pose.pose.orientation.w=q.w();
-    robot_pose.pose.orientation.x=q.x();
-    robot_pose.pose.orientation.y=q.y();
-    robot_pose.pose.orientation.z=q.z();
-    robot_pose.header.frame_id="navigation";
-    robot_pose.header.stamp=ros::Time(time);
-    pub_pose.publish(robot_pose);
+    if (estimator->frontend->status == FrontendStatus::TRACKING)
+    {
+        SE3d pose=estimator->gridmap->current_frame->pose;
+        Quaterniond q(pose.rotationMatrix());
+        robot_pose.pose.position.x=pose.translation().x();
+        robot_pose.pose.position.y=pose.translation().y();
+        robot_pose.pose.position.z=pose.translation().z();
+        robot_pose.pose.orientation.w=q.w();
+        robot_pose.pose.orientation.x=q.x();
+        robot_pose.pose.orientation.y=q.y();
+        robot_pose.pose.orientation.z=q.z();
+        robot_pose.header.frame_id="navigation";
+        robot_pose.header.stamp=ros::Time(time);
+        pub_pose.publish(robot_pose);
+    }
 }
 
 //CompressedImage
