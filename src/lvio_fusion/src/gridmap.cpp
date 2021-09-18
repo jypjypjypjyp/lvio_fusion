@@ -42,7 +42,7 @@ cv::Mat Gridmap::GetLocalGridmap()
         //LOG(INFO)<<"n: "<<n;
         if(n == 0) {
             continue;
-         }
+        }
         for(int j = 0; j < n - 1; ++j) 
         {
             Vector2i index(points[j][0], points[j][1]);
