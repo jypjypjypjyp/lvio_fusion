@@ -12,7 +12,7 @@ public:
 
     void SetGoalPose(Vector2d position);
     void SetRobotPose(Vector2d position);
-    void SetNewMap(cv::Mat newmap,int max_x,int max_y,int min_x,int min_y);
+    void SetNewMap(cv::Mat map,int max_x,int max_y,int min_x,int min_y);
     list<Vector2d> GetPath();
 
     //void SetLocalPlanner(Local_planner::Ptr localplanner ) { localplanner_ = localplanner; }//NAVI

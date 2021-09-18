@@ -6,10 +6,10 @@ use_obstacle_avoidance: 0
 
 # ros parameters
 nav_goal_topic: '/move_base_simple/goal'
-pose_topic: 'lvio_fusion_node/robot_pose'
-border_topic: 'lvio_fusion_node/border'
-gridmap_topic: 'lvio_fusion_node/grid_map'
-localmap_topic: 'lvio_fusion_node/local_grid_map'
+pose_topic: '/lvio_fusion_node/robot_pose'
+border_topic: '/lvio_fusion_node/border'
+gridmap_topic: '/lvio_fusion_node/grid_map'
+localmap_topic: '/lvio_fusion_node/local_grid_map'
 
 
 # map size

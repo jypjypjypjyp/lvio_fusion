@@ -46,6 +46,8 @@ public:
         visual_counter.create(height, width, CV_32SC1);
         occupied_counter.create(height, width, CV_32SC1);
         start=false;
+        updated=false;
+        border={0,double(height),0,double(width)};
     }
 
     void ClearMap(){
@@ -79,8 +81,9 @@ public:
     bool start;
     std::vector<double> border;
     Frame::Ptr current_frame;
-    
+    bool updated;
 private:
+
     std::mutex mutex;
     cv::Mat grid_map_int;
     cv::Mat grid_map;

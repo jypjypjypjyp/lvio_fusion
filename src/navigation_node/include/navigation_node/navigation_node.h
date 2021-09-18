@@ -21,9 +21,9 @@ navigation_node::Global_planner::Ptr global_planner;
 
 ros::Subscriber  sub_nav_goal,sub_pose, sub_border, sub_gridmap, sub_localmap;
 
-string GRID_WIDTH;
-string GRID_HEIGHT;
-string GRID_RESOLUTION;
+int GRID_WIDTH;
+int GRID_HEIGHT;
+double GRID_RESOLUTION;
 
 string NAV_GOAL_TOPIC;
 string POSE_TOPIC;

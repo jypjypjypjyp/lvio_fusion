@@ -16,6 +16,7 @@ void Gridmap::AddScan( PointICloud scan_msg)
     CartesianCoordinates(scan_msg,current_frame);
     curr_scan_msg=scan_msg;
     start=true;
+    updated=true;
 }
 
 void Gridmap::AddFrame(Frame::Ptr& frame)
@@ -25,6 +26,7 @@ void Gridmap::AddFrame(Frame::Ptr& frame)
   
 cv::Mat Gridmap::GetLocalGridmap()    
 {
+    updated=false;
     LOG(INFO)<<"BuildLocalmap";
     cv::Mat local_visual_counter;
     cv::Mat local_occupied_counter;
