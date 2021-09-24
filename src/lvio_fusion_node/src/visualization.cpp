@@ -305,16 +305,9 @@ void publish_local_gridmap(Estimator::Ptr estimator, double time)
     grid_map_msg.info.width = 10/estimator->gridmap->resolution;
     grid_map_msg.info.height = 10/estimator->gridmap->resolution; 
     Vector2d current_pose =  estimator->gridmap->current_pose;
-    Vector3d xo(5,5,0);
-    Vector3d xy=estimator->gridmap->orientation.toRotationMatrix()*xo;
-    Vector3d ch=xo-xy;
-    grid_map_msg.info.origin.position.x = (current_pose[0])+ch[0]-5-0.5* estimator->gridmap->resolution;
-    grid_map_msg.info.origin.position.y = (current_pose[1])+ch[1]-5-0.5* estimator->gridmap->resolution;
+    grid_map_msg.info.origin.position.x = (current_pose[0])-5-0.5* estimator->gridmap->resolution;
+    grid_map_msg.info.origin.position.y = (current_pose[1])-5-0.5* estimator->gridmap->resolution;
     grid_map_msg.info.origin.position.z = 0;
-    grid_map_msg.info.origin.orientation.x=estimator->gridmap->orientation.x();
-    grid_map_msg.info.origin.orientation.y=estimator->gridmap->orientation.y();
-    grid_map_msg.info.origin.orientation.z=estimator->gridmap->orientation.z();
-    grid_map_msg.info.origin.orientation.w=estimator->gridmap->orientation.w();
 
     int p[w*h];
 

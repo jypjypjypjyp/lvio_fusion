@@ -28,6 +28,11 @@ cv::Mat Gridmap::GetLocalGridmap()
 {
     updated=false;
     LOG(INFO)<<"BuildLocalmap";
+    Vector3d eulerAngle = current_frame->pose.rotationMatrix().eulerAngles(2,1,0);
+    LOG(INFO)<<"eulerAngle"<<eulerAngle.transpose();
+
+    current_pose=Vector2d(current_frame->pose.translation()[0],current_frame->pose.translation()[1]);
+
     cv::Mat local_visual_counter;
     cv::Mat local_occupied_counter;
     local_visual_counter.create(10/resolution, 10/resolution, CV_32SC1);
@@ -37,7 +42,10 @@ cv::Mat Gridmap::GetLocalGridmap()
 
     for(int i = 0; i < curr_scan_msg.size(); ++i) {
         std::vector<Eigen::Vector2i> points;
-        Bresenhamline(5/resolution,  5/resolution,  curr_scan_msg[i].x/resolution+5/resolution,  curr_scan_msg[i].y/resolution+5/resolution, points);
+        float x=curr_scan_msg[i].x*cos(eulerAngle(0))+curr_scan_msg[i].y*sin(eulerAngle(0));
+        float y=curr_scan_msg[i].y*cos(eulerAngle(0))-curr_scan_msg[i].x*sin(eulerAngle(0));
+
+        Bresenhamline(5/resolution,  5/resolution,  x/resolution+5/resolution, y/resolution+5/resolution, points);
         int n = points.size();
         //LOG(INFO)<<"n: "<<n;
         if(n == 0) {
@@ -71,14 +79,6 @@ cv::Mat Gridmap::GetLocalGridmap()
             }
         }
     }
-    Vector3d eulerAngle = current_frame->pose.rotationMatrix().eulerAngles(2,1,0);
-    AngleAxisd rollAngle(AngleAxisd(0,Vector3d::UnitX()));
-    AngleAxisd pitchAngle(AngleAxisd(0,Vector3d::UnitY()));
-    AngleAxisd yawAngle(AngleAxisd(eulerAngle(0),Vector3d::UnitZ()));
-    Quaterniond quaternion;
-    quaternion=yawAngle*pitchAngle*rollAngle;
-    orientation=quaternion;
-    current_pose=Vector2d(current_frame->pose.translation()[0],current_frame->pose.translation()[1]);
 
     return local_grid_map_int;
 }
