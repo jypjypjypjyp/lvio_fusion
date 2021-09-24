@@ -59,12 +59,12 @@ namespace navigation_node
                                 dstar_planner_->updateCell(y+1,x,-1);
                                 dstar_planner_->updateCell(y+1,x+1,-1);
                             }
-                            LOG(INFO)<<"qian!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! "<<x<<"  "<<y<<"  "<<newmap.at<float>(x,y)<<" "<<costmap.at<float>(x,y);
+                            //LOG(INFO)<<"qian!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! "<<x<<"  "<<y<<"  "<<newmap.at<float>(x,y)<<" "<<costmap.at<float>(x,y);
                         }
                         else
                         {
                             dstar_planner_->updateCell(y,x,1);
-                            LOG(INFO)<<"dimian------------------------- "<<x<<"  "<<y<<"  "<<newmap.at<float>(x,y)<<" "<<costmap.at<float>(x,y);
+                            //LOG(INFO)<<"dimian------------------------- "<<x<<"  "<<y<<"  "<<newmap.at<float>(x,y)<<" "<<costmap.at<float>(x,y);
                         }
 
                     }
@@ -82,7 +82,7 @@ namespace navigation_node
                     //LOG(INFO)<<plan_path_.back().transpose();
                 }
                 pathupdated=true;
-                LOG(INFO)<<"PATH: "<<plan_path_.size();
+                //LOG(INFO)<<"PATH: "<<plan_path_.size();
             }
     }
 

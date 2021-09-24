@@ -2,13 +2,14 @@
 
 # flags
 use_navigation: 1
-use_obstacle_avoidance: 0
+use_obstacle_avoidance: 1
 
 # ros parameters
 nav_goal_topic: '/move_base_simple/goal'
 pose_topic: '/lvio_fusion_node/robot_pose'
 border_topic: '/lvio_fusion_node/border'
 gridmap_topic: '/lvio_fusion_node/grid_map'
+odom_topic: '/odom'
 localmap_topic: '/lvio_fusion_node/local_grid_map'
 
 

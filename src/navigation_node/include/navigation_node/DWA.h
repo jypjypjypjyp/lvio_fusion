@@ -1,6 +1,6 @@
 #ifndef navigation_node_DWA_H
 #define navigation_node_DWA_H
-#include "lvio_fusion/common.h"
+#include "navigation_node/common.h"
 #include <ros/ros.h>
 #include <tf/tf.h>
 #include <geometry_msgs/Twist.h>
@@ -260,18 +260,8 @@ namespace navigation_node
         void set_local_goal(const geometry_msgs::PoseStampedConstPtr& msg)
         {
             local_goal = *msg;
-            try{
-                listener.transformPose(ROBOT_FRAME, ros::Time(0), local_goal, local_goal.header.frame_id, local_goal);
-                local_goal_subscribed = true;
-            }catch(tf::TransformException ex){
-                ROS_ERROR("%s", ex.what());
-            }
-        }
+            local_goal_subscribed = true;
 
-        void set_scan(const sensor_msgs::LaserScanConstPtr& msg)
-        {
-            scan = *msg;
-            scan_updated = true;
         }
 
         void set_local_map(const nav_msgs::OccupancyGridConstPtr& msg)

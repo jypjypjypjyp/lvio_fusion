@@ -8,12 +8,14 @@ namespace navigation_node
     {
     public:
         typedef std::shared_ptr<Local_planner> Ptr;
-        Local_planner(int width_, int height_,double resolution_);
+        Local_planner();
         void SetPlanPath(std::list<Vector2d> plan_path_);
         void SetRobotPose(Vector2d robot_position_,  double yaw_);
-        void SetMap(cv::Mat newmap);
+        void SetOdom(const nav_msgs::OdometryConstPtr& odom_msg);
+        void SetMap(const nav_msgs::OccupancyGridConstPtr& newmap);
         void process();
-
+        geometry_msgs::PoseStampedPtr local_goal_msg;
+        bool local_goal_updated;
     private:
         std::list<Vector2d> plan_path;
         SE3d robot_pose;
@@ -23,9 +25,6 @@ namespace navigation_node
         bool robot_position_changed=false;
         DWA::Ptr dwa;
         double PREDICT_TIME;
-        int width;
-        int height;
-        double resolution;
     };
 }// namespace navigation_node
 #endif // navigation_node_LOCALPLANNER_H

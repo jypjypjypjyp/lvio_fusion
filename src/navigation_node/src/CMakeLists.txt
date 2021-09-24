@@ -2,7 +2,7 @@ add_executable(navigation_node
         navigation_node.cpp
         global_planner.cpp
         Dstar.cpp
-        # local_planner.cpp
+        local_planner.cpp
         )
 
 target_link_libraries(navigation_node ${THIRD_PARTY_LIBS})

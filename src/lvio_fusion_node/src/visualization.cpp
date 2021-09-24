@@ -18,7 +18,6 @@ ros::Publisher pub_car_model_navigation;//NAVI
 ros::Publisher pub_gridmap;//NAVI
 ros::Publisher pub_border;//NAVI
 ros::Publisher pub_localgridmap;//NAVI
-// ros::Publisher pub_vel;//NAVI
 ros::Publisher pub_pose;//NAVI
 ros::Publisher pub_CompressedImage0,pub_CompressedImage1;//CompressedImage
 nav_msgs::Path path, navsat_path;

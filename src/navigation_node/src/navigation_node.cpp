@@ -10,8 +10,14 @@ void pose_callback(const geometry_msgs::PoseStamped  &pose_msg)
 {
     Vector3d pose3d(pose_msg.pose.position.x,pose_msg.pose.position.y,pose_msg.pose.position.z);
     Vector2d pose2d(pose3d[0],pose3d[1]);
-    //LOG(INFO)<<pose3d[0]<<" "<<pose3d[1];
     global_planner->SetRobotPose(pose2d);
+    Quaterniond q;
+    q.w()=pose_msg.pose.orientation.w;
+    q.x()=pose_msg.pose.orientation.x;
+    q.y()=pose_msg.pose.orientation.y;
+    q.z()=pose_msg.pose.orientation.z;
+    double yaw = q.toRotationMatrix().eulerAngles(2,1,0)(0);
+    local_planner->SetRobotPose(pose2d,yaw);
 }
 
 void border_callback(const std_msgs::Float64MultiArray::ConstPtr& border)
@@ -44,7 +50,14 @@ void gridmap_callback(const nav_msgs::OccupancyGrid  &gridmap_msg)
 
 void localmap_callbcak(const nav_msgs::OccupancyGrid  &localmap_msg)
 {
-    
+    nav_msgs::OccupancyGridConstPtr msg(new nav_msgs::OccupancyGrid(localmap_msg));
+    local_planner->SetMap(msg);
+}
+
+void odom_callbcak(const nav_msgs::Odometry& odom_msg)
+{
+    nav_msgs::OdometryConstPtr msg(new nav_msgs::Odometry(odom_msg));
+    local_planner->SetOdom(msg);
 }
 
 void plan_path_timer_callback(const ros::TimerEvent &timer_event)
@@ -53,7 +66,7 @@ void plan_path_timer_callback(const ros::TimerEvent &timer_event)
     {
         plan_path.poses.clear();
         list<Vector2d> plan_path_ = global_planner->GetPath();
- 
+        local_planner->SetPlanPath(plan_path_);
         for( auto point: plan_path_)
         {
             geometry_msgs::PoseStamped pose_stamped;
@@ -73,7 +86,21 @@ void plan_path_timer_callback(const ros::TimerEvent &timer_event)
 
 void control_vel_timer_callback(const ros::TimerEvent &timer_event)
 {
-    
+    if(local_planner->local_goal_updated)
+    {
+        geometry_msgs::PoseStamped local_goal;
+        local_goal.pose=local_planner->local_goal_msg->pose;
+        local_goal.header.frame_id="navigation";
+        local_goal.header.stamp = ros::Time(timer_event.current_real.toSec());
+        pub_local_goal.publish(local_goal);
+        local_planner->local_goal_updated=false;
+    }
+}
+
+void local_goal_process()
+{
+    LOG(INFO)<<"process222";
+    local_planner->process();
 }
 
 // void navi_process()
@@ -137,21 +164,13 @@ int main(int argc, char **argv)
         settings["use_obstacle_avoidance"] >> use_obstacle_avoidance;
         if(use_obstacle_avoidance)
         {
+            settings["odom_topic"] >> ODOM_TOPIC;
             settings["localmap_topic"] >> LOCALMAP_TOPIC;
         }
     }
     settings.release();
     ros::Timer plan_path_timer;
     ros::Timer control_vel_timer;
-
-    // if(use_navigation)
-    // {
-
-    //     if(use_obstacle_avoidance)
-    //     {
-            
-    //     }
-    // }
 
     //set sub and pub
     if(use_navigation)
@@ -169,17 +188,30 @@ int main(int argc, char **argv)
         cout << "gridmap:" << GRIDMAP_TOPIC << endl;
         sub_gridmap = n.subscribe(GRIDMAP_TOPIC,1,gridmap_callback);
         pub_plan_path = n.advertise<nav_msgs::Path>("plan_path", 10);
-        plan_path_timer = n.createTimer(ros::Duration(2),plan_path_timer_callback);
+        plan_path_timer = n.createTimer(ros::Duration(1),plan_path_timer_callback);
         if(use_obstacle_avoidance)
         {
+            local_planner = navigation_node::Local_planner::Ptr(new navigation_node::Local_planner());
+            cout << "odom:" << ODOM_TOPIC << endl;
+            sub_odom = n.subscribe(ODOM_TOPIC,10,odom_callbcak);
             cout << "localmap:" << LOCALMAP_TOPIC << endl;
             sub_localmap = n.subscribe(LOCALMAP_TOPIC,10,localmap_callbcak);
-            pub_control_vel = n.advertise<nav_msgs::Path>("control_vel", 1000);
-            control_vel_timer = n.createTimer(ros::Duration(2),control_vel_timer_callback);
+            pub_local_goal = n.advertise<geometry_msgs::PoseStamped>("local_goal", 100);
+            pub_control_vel = n.advertise<nav_msgs::Path>("control_vel", 100);
+            control_vel_timer = n.createTimer(ros::Duration(0.2),control_vel_timer_callback);
         }
     }
+    thread local_goal_thread{local_goal_process};
     // thread navi_thread{navi_process};
     ros::spin();
-    //navi_thread.join();
+
+    if(use_navigation)
+    {
+        if(use_obstacle_avoidance)
+        {
+            cout <<"process111" << endl;
+            local_goal_thread.join();
+        }
+    }
     return 0;
 }
