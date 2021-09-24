@@ -94,6 +94,7 @@ void control_vel_timer_callback(const ros::TimerEvent &timer_event)
         local_goal.header.stamp = ros::Time(timer_event.current_real.toSec());
         pub_local_goal.publish(local_goal);
         local_planner->local_goal_updated=false;
+        LOG(INFO)<<local_goal.pose.position.x<<" "<<local_goal.pose.position.y<<" "<<local_goal.pose.position.z;
     }
 }
 
@@ -209,7 +210,6 @@ int main(int argc, char **argv)
     {
         if(use_obstacle_avoidance)
         {
-            cout <<"process111" << endl;
             local_goal_thread.join();
         }
     }

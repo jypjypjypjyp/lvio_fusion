@@ -13,7 +13,11 @@ namespace navigation_node
     void Local_planner::SetPlanPath(std::list<Vector2d> plan_path_)
     {
         //LOG(INFO)<<"plan_path_"<<plan_path_.size();
-        plan_path=plan_path_;//賦值 bug
+        plan_path.clear();
+        for(auto i:plan_path_)
+        {
+            plan_path.push_back(i);
+        }
     }
 
     void Local_planner::SetRobotPose(Vector2d robot_position_,  double yaw_)
@@ -43,14 +47,14 @@ namespace navigation_node
         LOG(INFO)<<"porcess333";
         while(true)
         {
-            if()
-       std::cout<<"plan_path.size()"<<plan_path.size()<<std::endl;
+             if(plan_path.size()>0)
+        std::cout<<"plan_path.size()"<<plan_path.size()<<std::endl;
         while(plan_path.size()>0)
         {
             if(robot_position_changed)
             {
                 Vector2d goal = plan_path.front();
-                LOG(INFO)<<(sqrt((last_goal[0]-robot_pose.translation()[0])*(last_goal[0]-robot_pose.translation()[0])+(last_goal[1]-robot_pose.translation()[1])*(last_goal[1]-robot_pose.translation()[1]))>6);
+                //LOG(INFO)<<(sqrt((last_goal[0]-robot_pose.translation()[0])*(last_goal[0]-robot_pose.translation()[0])+(last_goal[1]-robot_pose.translation()[1])*(last_goal[1]-robot_pose.translation()[1]))>6);
                 if(!first)
                 {
                     if(sqrt((last_goal[0]-robot_pose.translation()[0])*(last_goal[0]-robot_pose.translation()[0])+(last_goal[1]-robot_pose.translation()[1])*(last_goal[1]-robot_pose.translation()[1]))>6)
