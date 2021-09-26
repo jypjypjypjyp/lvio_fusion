@@ -4,6 +4,7 @@ void nav_goal_callback(const geometry_msgs::PoseStamped  &nav_goal_msg)
 {
     //LOG(INFO)<<nav_goal_msg.pose.position.x<<" "<<nav_goal_msg.pose.position.y;
     global_planner->SetGoalPose(Vector2d(nav_goal_msg.pose.position.x,nav_goal_msg.pose.position.y));
+    local_planner->first=true;
 }
 
 void pose_callback(const geometry_msgs::PoseStamped  &pose_msg)
@@ -79,7 +80,7 @@ void plan_path_timer_callback(const ros::TimerEvent &timer_event)
         }
         plan_path.header.stamp = ros::Time(timer_event.current_real.toSec());
         plan_path.header.frame_id = "navigation";
-        LOG(INFO)<<"plan_path_: "<<plan_path_.size();
+        //LOG(INFO)<<"plan_path_: "<<plan_path_.size();
         pub_plan_path.publish(plan_path);
     }
 }
@@ -89,12 +90,12 @@ void control_vel_timer_callback(const ros::TimerEvent &timer_event)
     if(local_planner->local_goal_updated)
     {
         geometry_msgs::PoseStamped local_goal;
-        local_goal.pose=local_planner->local_goal_msg->pose;
+        local_goal.pose=local_planner->local_goal_msg.pose;
         local_goal.header.frame_id="navigation";
         local_goal.header.stamp = ros::Time(timer_event.current_real.toSec());
         pub_local_goal.publish(local_goal);
         local_planner->local_goal_updated=false;
-        LOG(INFO)<<local_goal.pose.position.x<<" "<<local_goal.pose.position.y<<" "<<local_goal.pose.position.z;
+        //LOG(INFO)<<local_goal.pose.position.x<<" "<<local_goal.pose.position.y<<" "<<local_goal.pose.position.z;
     }
 }
 

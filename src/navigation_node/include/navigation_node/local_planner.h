@@ -14,8 +14,9 @@ namespace navigation_node
         void SetOdom(const nav_msgs::OdometryConstPtr& odom_msg);
         void SetMap(const nav_msgs::OccupancyGridConstPtr& newmap);
         void process();
-        geometry_msgs::PoseStampedPtr local_goal_msg;
+        geometry_msgs::PoseStamped local_goal_msg;
         bool local_goal_updated;
+        bool first=true;
     private:
         std::list<Vector2d> plan_path;
         SE3d robot_pose;
@@ -25,6 +26,7 @@ namespace navigation_node
         bool robot_position_changed=false;
         DWA::Ptr dwa;
         double PREDICT_TIME;
+
     };
 }// namespace navigation_node
 #endif // navigation_node_LOCALPLANNER_H

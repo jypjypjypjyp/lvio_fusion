@@ -12,17 +12,17 @@ namespace navigation_node
     
     void Local_planner::SetPlanPath(std::list<Vector2d> plan_path_)
     {
-        //LOG(INFO)<<"plan_path_"<<plan_path_.size();
         plan_path.clear();
         for(auto i:plan_path_)
         {
             plan_path.push_back(i);
         }
+        LOG(INFO)<<"plan_path"<<plan_path.size();
     }
 
     void Local_planner::SetRobotPose(Vector2d robot_position_,  double yaw_)
     {
-        //LOG(INFO)<<"robot_position_"<<robot_position_(0)<<" "<<robot_position_(1);
+        LOG(INFO)<<"robot_position_"<<robot_position_(0)<<" "<<robot_position_(1);
         Quaterniond q= AngleAxisd(yaw_,Vector3d::UnitZ())*AngleAxisd(0, Vector3d::UnitY())*AngleAxisd(0, Vector3d::UnitX());
         Vector3d t(robot_position_[0], robot_position_[1], 0);
         robot_pose=SE3d(q,t);
@@ -43,17 +43,19 @@ namespace navigation_node
     void Local_planner::process()
     {
         Vector2d last_goal;
-        bool first=true;
         LOG(INFO)<<"porcess333";
         while(true)
         {
-             if(plan_path.size()>0)
-        std::cout<<"plan_path.size()"<<plan_path.size()<<std::endl;
+        // std::cout<<"plan_path.size()"<<plan_path.size()<<std::endl;
         while(plan_path.size()>0)
         {
-            if(robot_position_changed)
+            // std::cout<<"robot_position_changed"<<robot_position_changed<<std::endl;
+            if(robot_position_changed==true)
             {
+                std::cout<<"1111"<<std::endl;
+                robot_position_changed=false;
                 Vector2d goal = plan_path.front();
+                LOG(INFO)<<"Goal:"<<goal[0]<<" "<<goal[1]<<"ROBOT:"<<robot_pose.translation()[0]<<" "<<robot_pose.translation()[1];
                 //LOG(INFO)<<(sqrt((last_goal[0]-robot_pose.translation()[0])*(last_goal[0]-robot_pose.translation()[0])+(last_goal[1]-robot_pose.translation()[1])*(last_goal[1]-robot_pose.translation()[1]))>6);
                 if(!first)
                 {
@@ -88,24 +90,25 @@ namespace navigation_node
                 Vector3d t(goal[0], goal[1], 0);
                 SE3d goal_pose=SE3d(Q, t);
                 SE3d tans_pose = robot_pose.inverse()*goal_pose;
-               
-                local_goal_msg->pose.position.x = t.x();
-                local_goal_msg->pose.position.y = t.y();
-                local_goal_msg->pose.position.z = t.z();
-                local_goal_msg->pose.orientation.w = Q.w();
-                local_goal_msg->pose.orientation.x = Q.x();
-                local_goal_msg->pose.orientation.y = Q.y();
-                local_goal_msg->pose.orientation.z = Q.z();
+                local_goal_msg.pose.position.x = t.x();
+                local_goal_msg.pose.position.y = t.y();
+                local_goal_msg.pose.position.z = t.z();
+                local_goal_msg.pose.orientation.w = Q.w();
+                local_goal_msg.pose.orientation.x = Q.x();
+                local_goal_msg.pose.orientation.y = Q.y();
+                local_goal_msg.pose.orientation.z = Q.z();
                 local_goal_updated=true;
-                LOG(INFO)<<"local_goal_msg "<<local_goal_msg->pose.position.x<<" "<<local_goal_msg->pose.position.y<<" "<<local_goal_msg->pose.position.z;
+                LOG(INFO)<<"local_goal_msg "<<local_goal_msg.pose.position.x<<" "<<local_goal_msg.pose.position.y<<" "<<local_goal_msg.pose.position.z;
                 //dwa->set_local_goal(local_goal_msg);
             }
         }
-        if(sqrt((last_goal[0]-robot_pose.translation()[0])*(last_goal[0]-robot_pose.translation()[0])+(last_goal[1]-robot_pose.translation()[1])*(last_goal[1]-robot_pose.translation()[1]))>3)
-        {
-            continue;//还没到上一个目标点
-        }
+        // if(sqrt((last_goal[0]-robot_pose.translation()[0])*(last_goal[0]-robot_pose.translation()[0])+(last_goal[1]-robot_pose.translation()[1])*(last_goal[1]-robot_pose.translation()[1]))>3)
+        // {
+        //     continue;//还没到上一个目标点
+        // }
             //stop robot;
+            std::chrono::milliseconds dura(100);
+            std::this_thread::sleep_for(dura);
         }
     }
 }// namespace navigation_node
