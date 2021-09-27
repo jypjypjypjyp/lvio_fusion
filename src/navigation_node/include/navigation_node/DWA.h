@@ -55,7 +55,35 @@ namespace navigation_node
     {
     public:
         typedef std::shared_ptr<DWA> Ptr;
-        DWA(){ }
+        DWA(double TARGET_VELOCITY_,double MAX_VELOCITY_,double MIN_VELOCITY_,double MAX_YAWRATE_,
+            double MAX_ACCELERATION_,double MAX_D_YAWRATE_,double MAX_DIST_,double VELOCITY_RESOLUTION_,
+            double YAWRATE_RESOLUTION_,double ANGLE_RESOLUTION_,double PREDICT_TIME_,double TO_GOAL_COST_GAIN_,
+            double SPEED_COST_GAIN_,double OBSTACLE_COST_GAIN_,double HZ_,double GOAL_THRESHOLD_,double TURN_DIRECTION_THRESHOLD_,
+            ros::Publisher pub_control_vel,ros::Publisher pub_candidate_trajectories,ros::Publisher pub_selected_trajectory)
+            {
+                TARGET_VELOCITY=TARGET_VELOCITY_;
+                MAX_VELOCITY=MAX_VELOCITY_;
+                MIN_VELOCITY=MIN_VELOCITY_;
+                MAX_YAWRATE=MAX_YAWRATE_;
+                MAX_ACCELERATION=MAX_ACCELERATION_;
+                MAX_D_YAWRATE=MAX_D_YAWRATE_;
+                MAX_DIST=MAX_DIST_;
+                VELOCITY_RESOLUTION=VELOCITY_RESOLUTION_;
+                YAWRATE_RESOLUTION=YAWRATE_RESOLUTION_;
+                ANGLE_RESOLUTION=ANGLE_RESOLUTION_;
+                PREDICT_TIME=PREDICT_TIME_;
+                TO_GOAL_COST_GAIN=TO_GOAL_COST_GAIN_;
+                SPEED_COST_GAIN=SPEED_COST_GAIN_;
+                OBSTACLE_COST_GAIN=OBSTACLE_COST_GAIN_;
+                HZ=HZ_;
+                DT=1.0/HZ;
+                GOAL_THRESHOLD=GOAL_THRESHOLD_;
+                TURN_DIRECTION_THRESHOLD=TURN_DIRECTION_THRESHOLD_;
+                
+                velocity_pub = pub_control_vel;
+                candidate_trajectories_pub = pub_candidate_trajectories;
+                selected_trajectory_pub = pub_selected_trajectory;
+            }
 
         std::vector<State> dwa_planning(
                 Window dynamic_window, 
@@ -94,6 +122,12 @@ namespace navigation_node
                     }
                 }
             }
+            ROS_INFO_STREAM("Cost: " << min_cost);
+            ROS_INFO_STREAM("- Goal cost: " << min_goal_cost);
+            ROS_INFO_STREAM("- Obs cost: " << min_obs_cost);
+            ROS_INFO_STREAM("- Speed cost: " << min_speed_cost);
+            ROS_INFO_STREAM("num of trajectories: " << trajectories.size());
+            visualize_trajectories(trajectories, 0, 1, 0, 1000, candidate_trajectories_pub);
             if(min_cost == 1e6){
                 std::vector<State> traj;
                 State state(0.0, 0.0, 0.0, current_velocity.linear.x, current_velocity.angular.z);
@@ -104,15 +138,11 @@ namespace navigation_node
         }
         void process(void)
         {
-            // ros::Rate loop_rate(HZ);
+            ros::Rate loop_rate(HZ);
 
             while(ros::ok()){
-            //     ROS_INFO("==========================================");
-            //     double start = ros::Time::now().toSec();
             bool input_updated = false;
-                if(USE_SCAN_AS_INPUT && scan_updated){
-                    input_updated = true;
-                }else if(!USE_SCAN_AS_INPUT && local_map_updated){
+                 if(local_map_updated){
                     input_updated = true;
                 }
             if(input_updated && local_goal_subscribed && odom_updated){
@@ -122,20 +152,16 @@ namespace navigation_node
 
                      geometry_msgs::Twist cmd_vel;
                     if(goal.segment(0, 2).norm() > GOAL_THRESHOLD){
-                        std::vector<std::vector<float>> obs_list;
-                        if(USE_SCAN_AS_INPUT){
-                            obs_list = scan_to_obs();
-                            scan_updated = false;
-                        }else{
+                        std::vector<std::vector<float>> obs_list;            
                             obs_list = raycast();
                             local_map_updated = false;
-                        }
+
 
                         std::vector<State> best_traj = dwa_planning(dynamic_window, goal, obs_list);
 
                         cmd_vel.linear.x = best_traj[0].velocity;
                         cmd_vel.angular.z = best_traj[0].yawrate;
-                        // visualize_trajectory(best_traj, 1, 0, 0, selected_trajectory_pub);
+                        visualize_trajectory(best_traj, 1, 0, 0, selected_trajectory_pub);
                     }else{
                         cmd_vel.linear.x = 0.0;
                         if(fabs(goal[2])>TURN_DIRECTION_THRESHOLD){
@@ -149,7 +175,7 @@ namespace navigation_node
             //         ROS_INFO_STREAM("cmd_vel: (" << cmd_vel.linear.x << "[m/s], " << cmd_vel.angular.z << "[rad/s])");
                     velocity_pub.publish(cmd_vel);
 
-            //         odom_updated = false;
+                     odom_updated = false;
                  }
                  //else{
             //         if(!local_goal_subscribed){
@@ -158,15 +184,12 @@ namespace navigation_node
             //         if(!odom_updated){
             //             ROS_WARN_THROTTLE(1.0, "Odom has not been updated");
             //         }
-            //         if(!USE_SCAN_AS_INPUT && !local_map_updated){
+            //         if(!local_map_updated){
             //             ROS_WARN_THROTTLE(1.0, "Local map has not been updated");
-            //         }
-            //         if(USE_SCAN_AS_INPUT && !scan_updated){
-            //             ROS_WARN_THROTTLE(1.0, "Scan has not been updated");
             //         }
             //     }
             //     ros::spinOnce();
-            //     loop_rate.sleep();
+                loop_rate.sleep();
             //     ROS_INFO_STREAM("loop time: " << ros::Time::now().toSec() - start << "[s]");
             }
         }
@@ -219,20 +242,6 @@ namespace navigation_node
             state.yawrate = yawrate;
         }
 
-        std::vector<std::vector<float>> scan_to_obs()
-        {
-            std::vector<std::vector<float>> obs_list;
-            float angle = scan.angle_min;
-            for(auto r : scan.ranges){
-                float x = r * cos(angle);
-                float y = r * sin(angle);
-                std::vector<float> obs_state = {x, y};
-                obs_list.push_back(obs_state);
-                angle += scan.angle_increment;
-            }
-            return obs_list;
-        }
-
         std::vector<std::vector<float>> raycast()
         {
             Vector2d robot_position_;
@@ -275,10 +284,80 @@ namespace navigation_node
             current_velocity = msg->twist.twist;
             odom_updated = true;
         }
+        void visualize_trajectories(const std::vector<std::vector<State>>& trajectories, const double r, const double g, const double b, const int trajectories_size, const ros::Publisher& pub)
+        {
+            visualization_msgs::MarkerArray v_trajectories;
+            int count = 0;
+            const int size = trajectories.size();
+            for(;count<size;count++){
+                visualization_msgs::Marker v_trajectory;
+                v_trajectory.header.frame_id = "navigation";
+                v_trajectory.header.stamp = ros::Time::now();
+                v_trajectory.color.r = r;
+                v_trajectory.color.g = g;
+                v_trajectory.color.b = b;
+                v_trajectory.color.a = 0.8;
+                v_trajectory.ns = pub.getTopic();
+                v_trajectory.type = visualization_msgs::Marker::LINE_STRIP;
+                v_trajectory.action = visualization_msgs::Marker::ADD;
+                v_trajectory.lifetime = ros::Duration();
+                v_trajectory.id = count;
+                v_trajectory.scale.x = 0.02;
+                geometry_msgs::Pose pose;
+                pose.orientation.w = 1;
+                v_trajectory.pose = pose;
+                geometry_msgs::Point p;
+                for(const auto& pose : trajectories[count]){
+                    p.x = pose.x;
+                    p.y = pose.y;
+                    v_trajectory.points.push_back(p);
+                }
+                v_trajectories.markers.push_back(v_trajectory);
+            }
+            for(;count<trajectories_size;){
+                visualization_msgs::Marker v_trajectory;
+                v_trajectory.header.frame_id = "navigation";
+                v_trajectory.header.stamp = ros::Time::now();
+                v_trajectory.ns = pub.getTopic();
+                v_trajectory.type = visualization_msgs::Marker::LINE_STRIP;
+                v_trajectory.action = visualization_msgs::Marker::DELETE;
+                v_trajectory.lifetime = ros::Duration();
+                v_trajectory.id = count;
+                v_trajectories.markers.push_back(v_trajectory);
+                count++;
+            }
+            pub.publish(v_trajectories);
+        }
+
+        void visualize_trajectory(const std::vector<State>& trajectory, const double r, const double g, const double b, const ros::Publisher& pub)
+        {
+            visualization_msgs::Marker v_trajectory;
+            v_trajectory.header.frame_id = "navigation";
+            v_trajectory.header.stamp = ros::Time::now();
+            v_trajectory.color.r = r;
+            v_trajectory.color.g = g;
+            v_trajectory.color.b = b;
+            v_trajectory.color.a = 0.8;
+            v_trajectory.ns = pub.getTopic();
+            v_trajectory.type = visualization_msgs::Marker::LINE_STRIP;
+            v_trajectory.action = visualization_msgs::Marker::ADD;
+            v_trajectory.lifetime = ros::Duration();
+            v_trajectory.scale.x = 0.05;
+            geometry_msgs::Pose pose;
+            pose.orientation.w = 1;
+            v_trajectory.pose = pose;
+            geometry_msgs::Point p;
+            for(const auto& pose : trajectory){
+                p.x = pose.x;
+                p.y = pose.y;
+                v_trajectory.points.push_back(p);
+            }
+            pub.publish(v_trajectory);
+        }
+        
 
         protected:
             double HZ;
-            std::string ROBOT_FRAME;
             double TARGET_VELOCITY;
             double MAX_VELOCITY;
             double MIN_VELOCITY;
@@ -294,29 +373,20 @@ namespace navigation_node
             double SPEED_COST_GAIN;
             double OBSTACLE_COST_GAIN;
             double DT;
-            bool USE_SCAN_AS_INPUT;
             double GOAL_THRESHOLD;
             double TURN_DIRECTION_THRESHOLD;
 
             ros::NodeHandle nh;
-            ros::NodeHandle local_nh;
 
             ros::Publisher velocity_pub;
             ros::Publisher candidate_trajectories_pub;
             ros::Publisher selected_trajectory_pub;
-            ros::Subscriber local_map_sub;
-            ros::Subscriber scan_sub;
-            ros::Subscriber local_goal_sub;
-            ros::Subscriber odom_sub;
-            ros::Subscriber target_velocity_sub;
-            tf::TransformListener listener;
 
             geometry_msgs::PoseStamped local_goal;
             sensor_msgs::LaserScan scan;
             nav_msgs::OccupancyGrid local_map;
             geometry_msgs::Twist current_velocity;
             bool local_goal_subscribed;
-            bool scan_updated;
             bool local_map_updated;
             bool odom_updated;
      };

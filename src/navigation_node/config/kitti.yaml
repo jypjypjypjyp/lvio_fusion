@@ -12,6 +12,26 @@ gridmap_topic: '/lvio_fusion_node/grid_map'
 odom_topic: '/odom'
 localmap_topic: '/lvio_fusion_node/local_grid_map'
 
+# robot parameters
+MAX_VELOCITY: 1.0
+MIN_VELOCITY: 0.0
+MAX_YAWRATE: 0.8
+MAX_ACCELERATION: 1.0
+MAX_D_YAWRATE: 5.0
+
+# dwa parameters
+TARGET_VELOCITY: 0.8
+MAX_DIST: 10.0
+VELOCITY_RESOLUTION: 0.1
+YAWRATE_RESOLUTION: 0.1
+ANGLE_RESOLUTION: 0.0087
+PREDICT_TIME: 5.0
+TO_GOAL_COST_GAIN: 1.0
+SPEED_COST_GAIN: 5.0
+OBSTACLE_COST_GAIN: 10.0
+HZ: 20
+GOAL_THRESHOLD: 0.3
+TURN_DIRECTION_THRESHOLD: 0.1
 
 # map size
 grid_width: 1200

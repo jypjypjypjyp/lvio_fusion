@@ -34,10 +34,29 @@ string GRIDMAP_TOPIC;
 string ODOM_TOPIC;
 string LOCALMAP_TOPIC;
 
+double MAX_VELOCITY;
+double MIN_VELOCITY;
+double MAX_YAWRATE;
+double MAX_ACCELERATION;
+double MAX_D_YAWRATE;
+
+double TARGET_VELOCITY;
+double MAX_DIST;
+double VELOCITY_RESOLUTION;
+double YAWRATE_RESOLUTION;
+double ANGLE_RESOLUTION;
+double PREDICT_TIME;
+double TO_GOAL_COST_GAIN;
+double SPEED_COST_GAIN;
+double OBSTACLE_COST_GAIN;
+double HZ;
+double GOAL_THRESHOLD;
+double TURN_DIRECTION_THRESHOLD;
+
 int use_navigation;
 int use_obstacle_avoidance;
 
-ros::Publisher pub_plan_path , pub_control_vel, pub_local_goal;
+ros::Publisher pub_plan_path , pub_control_vel, pub_local_goal,pub_candidate_trajectories,pub_selected_trajectory;
 nav_msgs::Path plan_path;
 geometry_msgs::Twist control_vel;
 

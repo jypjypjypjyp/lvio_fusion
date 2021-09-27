@@ -3,10 +3,9 @@
 #include "navigation_node/local_planner.h"
 namespace navigation_node
 {
-    Local_planner::Local_planner()
+    Local_planner::Local_planner(DWA::Ptr dwa_)
     {
-        //dwa = DWA::Ptr();
-        // process();
+        dwa = dwa_;
         local_goal_updated=false;
     }
     
@@ -32,19 +31,19 @@ namespace navigation_node
     void Local_planner::SetOdom(const nav_msgs::OdometryConstPtr& odom_msg)
     {
         LOG(INFO)<<"odom:"<<odom_msg->twist.twist.linear.x<<" "<<odom_msg->twist.twist.linear.y<<" "<<odom_msg->twist.twist.linear.z;
-        //dwa->set_odom(odom_msg);
+        dwa->set_odom(odom_msg);
     }
 
     void Local_planner::SetMap(const nav_msgs::OccupancyGridConstPtr& newmap)
     {
-        //dwa->set_local_map(newmap);
+        dwa->set_local_map(newmap);
     }
 
     void Local_planner::process()
     {
         Vector2d last_goal;
         LOG(INFO)<<"porcess333";
-        while(true)
+        while(ros::ok())
         {
         // std::cout<<"plan_path.size()"<<plan_path.size()<<std::endl;
         while(plan_path.size()>0)
@@ -99,14 +98,15 @@ namespace navigation_node
                 local_goal_msg.pose.orientation.z = Q.z();
                 local_goal_updated=true;
                 LOG(INFO)<<"local_goal_msg "<<local_goal_msg.pose.position.x<<" "<<local_goal_msg.pose.position.y<<" "<<local_goal_msg.pose.position.z;
-                //dwa->set_local_goal(local_goal_msg);
+                geometry_msgs::PoseStampedConstPtr local_goal_msg_ptr(new geometry_msgs::PoseStamped(local_goal_msg));
+                dwa->set_local_goal(local_goal_msg_ptr);
             }
         }
         // if(sqrt((last_goal[0]-robot_pose.translation()[0])*(last_goal[0]-robot_pose.translation()[0])+(last_goal[1]-robot_pose.translation()[1])*(last_goal[1]-robot_pose.translation()[1]))>3)
         // {
         //     continue;//还没到上一个目标点
         // }
-            //stop robot;
+        //stop robot;
             std::chrono::milliseconds dura(100);
             std::this_thread::sleep_for(dura);
         }

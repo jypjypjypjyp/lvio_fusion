@@ -8,7 +8,7 @@ namespace navigation_node
     {
     public:
         typedef std::shared_ptr<Local_planner> Ptr;
-        Local_planner();
+        Local_planner(DWA::Ptr dwa_);
         void SetPlanPath(std::list<Vector2d> plan_path_);
         void SetRobotPose(Vector2d robot_position_,  double yaw_);
         void SetOdom(const nav_msgs::OdometryConstPtr& odom_msg);
@@ -17,6 +17,7 @@ namespace navigation_node
         geometry_msgs::PoseStamped local_goal_msg;
         bool local_goal_updated;
         bool first=true;
+        DWA::Ptr dwa;
     private:
         std::list<Vector2d> plan_path;
         SE3d robot_pose;
@@ -24,7 +25,6 @@ namespace navigation_node
         sensor_msgs::LaserScan scan;
         geometry_msgs::Twist current_velocity;
         bool robot_position_changed=false;
-        DWA::Ptr dwa;
         double PREDICT_TIME;
 
     };

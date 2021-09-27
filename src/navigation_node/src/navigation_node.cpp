@@ -105,6 +105,11 @@ void local_goal_process()
     local_planner->process();
 }
 
+void dwa_process()
+{
+    local_planner->dwa->process();
+}
+
 // void navi_process()
 // {
     
@@ -166,6 +171,24 @@ int main(int argc, char **argv)
         settings["use_obstacle_avoidance"] >> use_obstacle_avoidance;
         if(use_obstacle_avoidance)
         {
+            settings["MAX_VELOCITY"] >> MAX_VELOCITY;
+            settings["MIN_VELOCITY"] >> MIN_VELOCITY;            
+            settings["MAX_YAWRATE"] >> MAX_YAWRATE;
+            settings["MAX_ACCELERATION"] >> MAX_ACCELERATION;
+            settings["MAX_D_YAWRATE"] >> MAX_D_YAWRATE;
+            settings["TARGET_VELOCITY"] >> TARGET_VELOCITY;
+            settings["MAX_DIST"] >> MAX_DIST;
+            settings["VELOCITY_RESOLUTION"] >> VELOCITY_RESOLUTION;
+            settings["YAWRATE_RESOLUTION"] >> YAWRATE_RESOLUTION;
+            settings["ANGLE_RESOLUTION"] >> ANGLE_RESOLUTION;
+            settings["PREDICT_TIME"] >> PREDICT_TIME;
+            settings["TO_GOAL_COST_GAIN"] >> TO_GOAL_COST_GAIN;
+            settings["SPEED_COST_GAIN"] >> SPEED_COST_GAIN;
+            settings["OBSTACLE_COST_GAIN"] >> OBSTACLE_COST_GAIN;
+            settings["HZ"] >> HZ;
+            settings["GOAL_THRESHOLD"] >> GOAL_THRESHOLD;
+            settings["TURN_DIRECTION_THRESHOLD"] >> TURN_DIRECTION_THRESHOLD;  
+
             settings["odom_topic"] >> ODOM_TOPIC;
             settings["localmap_topic"] >> LOCALMAP_TOPIC;
         }
@@ -193,17 +216,25 @@ int main(int argc, char **argv)
         plan_path_timer = n.createTimer(ros::Duration(1),plan_path_timer_callback);
         if(use_obstacle_avoidance)
         {
-            local_planner = navigation_node::Local_planner::Ptr(new navigation_node::Local_planner());
+            pub_control_vel = n.advertise<geometry_msgs::Twist>("control_vel", 100);
+            pub_candidate_trajectories = n.advertise<visualization_msgs::MarkerArray>("candidate_trajectories", 100);
+            pub_selected_trajectory = n.advertise<visualization_msgs::Marker>("selected_trajectory", 100);
+
+            navigation_node::DWA::Ptr dwa=navigation_node::DWA::Ptr(new navigation_node::DWA(0.0,0.0,0.0,0.0,
+                            0.0,0.0,0.0,0.0,
+                            0.0,0.0,0.0,0.0,
+                            0.0,0.0,0.0,0.0,0.0,pub_control_vel,pub_candidate_trajectories,pub_selected_trajectory));
+            local_planner = navigation_node::Local_planner::Ptr(new navigation_node::Local_planner(dwa));
             cout << "odom:" << ODOM_TOPIC << endl;
             sub_odom = n.subscribe(ODOM_TOPIC,10,odom_callbcak);
             cout << "localmap:" << LOCALMAP_TOPIC << endl;
             sub_localmap = n.subscribe(LOCALMAP_TOPIC,10,localmap_callbcak);
             pub_local_goal = n.advertise<geometry_msgs::PoseStamped>("local_goal", 100);
-            pub_control_vel = n.advertise<nav_msgs::Path>("control_vel", 100);
+            
             control_vel_timer = n.createTimer(ros::Duration(0.2),control_vel_timer_callback);
         }
     }
-    thread local_goal_thread{local_goal_process};
+    
     // thread navi_thread{navi_process};
     ros::spin();
 
@@ -211,7 +242,11 @@ int main(int argc, char **argv)
     {
         if(use_obstacle_avoidance)
         {
+            thread local_goal_thread{local_goal_process};
+            thread dwa_thread{dwa_process};
+
             local_goal_thread.join();
+            dwa_thread.join();
         }
     }
     return 0;
