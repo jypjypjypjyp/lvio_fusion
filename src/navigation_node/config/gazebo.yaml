@@ -1,0 +1,19 @@
+%YAML:1.0
+
+# flags
+use_navigation: 1
+use_obstacle_avoidance: 0
+
+# ros parameters
+nav_goal_topic: '/move_base_simple/goal'
+pose_topic: '/lvio_fusion_node/robot_pose'
+border_topic: '/lvio_fusion_node/border'
+gridmap_topic: '/lvio_fusion_node/grid_map'
+odom_topic: '/odom'
+localmap_topic: '/lvio_fusion_node/local_grid_map'
+
+
+# map size
+grid_width: 1200
+grid_height: 1200
+grid_resolution: 0.05

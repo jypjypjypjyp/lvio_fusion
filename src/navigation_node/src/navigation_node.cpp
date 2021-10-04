@@ -3,8 +3,9 @@
 void nav_goal_callback(const geometry_msgs::PoseStamped  &nav_goal_msg)
 {
     //LOG(INFO)<<nav_goal_msg.pose.position.x<<" "<<nav_goal_msg.pose.position.y;
-    global_planner->SetGoalPose(Vector2d(nav_goal_msg.pose.position.x,nav_goal_msg.pose.position.y));
-    local_planner->first=true;
+    global_planner->SetGoalPose(Vector2d(nav_goal_msg.pose.position.x/GRID_RESOLUTION,nav_goal_msg.pose.position.y/GRID_RESOLUTION));
+    if(use_obstacle_avoidance)
+        local_planner->first=true;
 }
 
 void pose_callback(const geometry_msgs::PoseStamped  &pose_msg)
@@ -18,7 +19,8 @@ void pose_callback(const geometry_msgs::PoseStamped  &pose_msg)
     q.y()=pose_msg.pose.orientation.y;
     q.z()=pose_msg.pose.orientation.z;
     double yaw = q.toRotationMatrix().eulerAngles(2,1,0)(0);
-    local_planner->SetRobotPose(pose2d,yaw);
+    if(use_obstacle_avoidance)
+        local_planner->SetRobotPose(pose2d,yaw);
 }
 
 void border_callback(const std_msgs::Float64MultiArray::ConstPtr& border)
@@ -67,14 +69,15 @@ void plan_path_timer_callback(const ros::TimerEvent &timer_event)
     {
         plan_path.poses.clear();
         list<Vector2d> plan_path_ = global_planner->GetPath();
-        local_planner->SetPlanPath(plan_path_);
+        if(use_obstacle_avoidance)
+            local_planner->SetPlanPath(plan_path_);
         for( auto point: plan_path_)
         {
             geometry_msgs::PoseStamped pose_stamped;
             pose_stamped.header.stamp = ros::Time(timer_event.current_real.toSec());
             pose_stamped.header.frame_id = "navigation";
-            pose_stamped.pose.position.x = point.x();
-            pose_stamped.pose.position.y = point.y();
+            pose_stamped.pose.position.x = point.x()*GRID_RESOLUTION;
+            pose_stamped.pose.position.y = point.y()*GRID_RESOLUTION;
             pose_stamped.pose.position.z = 0;
             plan_path.poses.push_back(pose_stamped);
         }

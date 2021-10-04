@@ -1,3 +1,4 @@
+#define FMT_HEADER_ONLY
 #ifndef navigation_node_LOCALPLANNER_H
 #define navigation_node_LOCALPLANNER_H
 #include "navigation_node/common.h"
